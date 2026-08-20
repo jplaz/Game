@@ -20,8 +20,9 @@ import { saveGame } from '../game/save.js';
 import { gear, gearTable, GEAR_SLOTS } from '../data/gear.js';
 import {
   playerStats, equipped, equip, playerTechniques, playerTitle,
-  maxVigour, expForPlayerLevel, expToNextLevel,
+  maxVigour, expForPlayerLevel, expToNextLevel, playerAppearance,
 } from '../game/player.js';
+import { drawActor, ACTOR_W, ACTOR_H } from '../art/actors.js';
 
 const ROOT_ITEMS = ['PARTY', 'GEAR', 'BAG', 'BESTIARY', 'SIGILS', 'CARD', 'SAVE', 'CLOSE'];
 
@@ -466,54 +467,80 @@ export class MainMenu {
     drawPanel(ctx, 4, 4, 232, 152, 'night');
     const p = game.state.player;
     const stats = playerStats();
+    const pale = { color: '#98a0bc', shadow: '#151a2c' };
+    const bright = { color: '#f2f4ff', shadow: '#151a2c' };
+    const gold = { color: '#f0dca0', shadow: '#151a2c' };
 
-    drawText(ctx, `${p.name.toUpperCase()}  Lv${p.level}`, 12, 9,
-      { color: '#f0dca0', shadow: '#151a2c' });
-    drawText(ctx, playerTitle(), 12, 21, { color: '#98a0bc', shadow: '#151a2c' });
+    // Trims a string to a pixel width rather than a character count, so a long
+    // gear name never runs off the panel or under the portrait.
+    const fit = (text, width) => {
+      let out = String(text);
+      if (measure(out) <= width) return out;
+      while (out.length > 1 && measure(`${out}...`) > width) out = out.slice(0, -1);
+      return `${out}...`;
+    };
 
-    // What you are currently wearing.
+    // The portrait sits top-right; the text column stops short of it.
+    this.drawPortrait(ctx, 196, 10, 2);
+    const TEXT_W = 176;
+
+    drawText(ctx, `${p.name.toUpperCase()}  Lv${p.level}`, 12, 9, gold);
+    drawText(ctx, playerTitle(), 12, 21, pale);
+
     GEAR_SLOTS.forEach((slot, i) => {
       const y = 36 + i * 12;
-      const active = i === this.gearSlot;
-      drawText(ctx, slot.toUpperCase().slice(0, 6), 12, y,
-        { color: active ? '#f0dca0' : '#98a0bc', shadow: '#151a2c' });
-      drawText(ctx, equipped(slot).name, 62, y, { color: '#f2f4ff', shadow: '#151a2c' });
+      drawText(ctx, slot.toUpperCase(), 12, y, i === this.gearSlot ? gold : pale);
+      drawText(ctx, fit(equipped(slot).name, TEXT_W - 58), 62, y, bright);
     });
 
-    const line = `HEALTH ${Math.round(p.hp ?? maxVigour())}/${maxVigour()}   `
-      + `MIGHT ${stats.might}   GUARD ${stats.guard}   SWIFT ${stats.swiftness}`;
-    drawText(ctx, line, 12, 74, { color: '#f2f4ff', shadow: '#151a2c' });
-    drawText(ctx, `Next level in ${expToNextLevel()} exp`, 12, 86,
-      { color: '#98a0bc', shadow: '#151a2c' });
+    drawText(ctx, `HEALTH ${Math.round(p.hp ?? maxVigour())}/${maxVigour()}`, 12, 74, bright);
+    drawText(ctx, `MIGHT ${stats.might}   GUARD ${stats.guard}   SWIFT ${stats.swiftness}`,
+      12, 86, bright);
+    drawText(ctx, `Next level in ${expToNextLevel()} exp`, 12, 98, pale);
 
-    // The techniques your current arms grant you.
-    drawText(ctx, 'TECHNIQUES', 130, 86, { color: '#f0dca0', shadow: '#151a2c' });
-    playerTechniques().forEach((t, i) => {
-      drawText(ctx, t.name, 130, 98 + i * 11, { color: '#f2f4ff', shadow: '#151a2c' });
-    });
+    drawText(ctx, 'TECHNIQUES', 12, 110, gold);
+    drawText(ctx, fit(playerTechniques().map((t) => t.name).join(', '), 220), 12, 121, bright);
 
-    // The pack for the highlighted slot.
+    // Spare gear for the highlighted slot, on its own row along the bottom.
     const slot = GEAR_SLOTS[this.gearSlot];
     const rows = this.gearRows();
-    drawText(ctx, `IN YOUR PACK — ${slot.toUpperCase()}`, 12, 98,
-      { color: '#f0dca0', shadow: '#151a2c' });
-    if (!rows.length) {
-      drawText(ctx, 'Nothing spare.', 12, 110, { color: '#98a0bc', shadow: '#151a2c' });
-    } else {
-      rows.slice(0, 4).forEach((id, i) => {
-        const def = gear(slot, id);
-        const y = 110 + i * 11;
-        if (i === this.gearIndex) {
-          drawText(ctx, '▸', 12, y, { color: '#f2f4ff', shadow: '#151a2c' });
-        }
-        const worn = equipped(slot).id === id;
-        drawText(ctx, def.name, 22, y,
-          { color: worn ? '#f0dca0' : '#f2f4ff', shadow: '#151a2c' });
-      });
-    }
+    drawText(ctx, `PACK - ${slot.toUpperCase()}   Left/Right: slot   A: equip`, 12, 133, gold);
 
-    drawText(ctx, 'Left/Right: slot   A: equip   B: back', 12, 144,
-      { color: '#98a0bc', shadow: '#151a2c' });
+    if (!rows.length) {
+      drawText(ctx, 'nothing spare', 12, 145, pale);
+      return;
+    }
+    // Windowed so the cursor is always on screen, however much you are carrying.
+    const perRow = 3;
+    const start = Math.max(0, Math.min(this.gearIndex - 1, rows.length - perRow));
+    let x = 12;
+    rows.slice(start, start + perRow).forEach((id, i) => {
+      const actual = start + i;
+      const def = gear(slot, id);
+      const label = fit(def.name, 66);
+      if (actual === this.gearIndex) drawText(ctx, '\u25b8', x, 145, bright);
+      drawText(ctx, label, x + 8, 145, equipped(slot).id === id ? gold : bright);
+      x += measure(label) + 18;
+    });
+  }
+
+  /** Draws the player at `scale`, showing their current arms and armour. */
+  drawPortrait(ctx, x, y, scale) {
+    const w = ACTOR_W * scale;
+    const h = ACTOR_H * scale;
+    ctx.fillStyle = '#26304f';
+    ctx.fillRect(x - 4, y - 3, w + 8, h + 6);
+    ctx.fillStyle = '#1a2038';
+    ctx.fillRect(x - 3, y + h - 4, w + 6, 4);
+
+    const surface = document.createElement('canvas');
+    surface.width = ACTOR_W;
+    surface.height = ACTOR_H;
+    const sctx = surface.getContext('2d');
+    sctx.imageSmoothingEnabled = false;
+    drawActor(sctx, playerAppearance(), 'down', 0, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(surface, 0, 0, ACTOR_W, ACTOR_H, x, y, w, h);
   }
 
   drawBag(ctx) {

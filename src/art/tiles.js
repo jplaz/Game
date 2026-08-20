@@ -281,18 +281,29 @@ const painters = {
   // The heart tree of the North: bone-white bark, blood-red leaves.
   weirwood(ctx, _frame, _mask, ground = painters.grass) {
     ground(ctx);
-    rect(ctx, 6, 9, 4, 7, '#e8e4dc');
-    rect(ctx, 7, 9, 1, 7, '#fbf8f2');
-    rect(ctx, 5, 12, 1, 4, '#d0ccc2');
-    rect(ctx, 10, 12, 1, 4, '#d0ccc2');
-    const blobs = [[2, 1, 12, 8], [1, 3, 14, 5]];
-    for (const [x, y, w, h] of blobs) rect(ctx, x, y, w, h, '#8e1f26');
+    // A dark keyline first: the bark is bone-white, and without an outline the
+    // whole tree disappears against snow.
+    const line = '#5a4a44';
+    rect(ctx, 5, 8, 6, 8, line);
+    rect(ctx, 6, 9, 4, 7, '#efece4');
+    rect(ctx, 7, 9, 1, 7, '#ffffff');
+    rect(ctx, 4, 12, 2, 4, line);
+    rect(ctx, 10, 12, 2, 4, line);
+    rect(ctx, 4, 13, 1, 3, '#d8d4cc');
+    rect(ctx, 11, 13, 1, 3, '#d8d4cc');
+
+    const blobs = [[2, 0, 12, 9], [1, 2, 14, 6]];
+    for (const [x, y, w, h] of blobs) rect(ctx, x, y, w, h, '#5e1218');
+    rect(ctx, 2, 1, 12, 7, '#8e1f26');
     rect(ctx, 3, 2, 10, 5, '#b62b31');
     rect(ctx, 5, 2, 5, 2, '#d4444a');
-    // The carved face.
-    rect(ctx, 6, 10, 1, 1, '#6b2020');
-    rect(ctx, 9, 10, 1, 1, '#6b2020');
-    rect(ctx, 7, 12, 2, 1, '#6b2020');
+    rect(ctx, 1, 8, 14, 1, '#4a0e14');
+
+    // The carved face, weeping sap.
+    rect(ctx, 6, 10, 1, 2, '#6b2020');
+    rect(ctx, 9, 10, 1, 2, '#6b2020');
+    rect(ctx, 7, 13, 2, 1, '#6b2020');
+    rect(ctx, 6, 12, 1, 2, '#a83038');
   },
 
   cliff(ctx, _frame, mask) {

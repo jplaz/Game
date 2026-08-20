@@ -18,7 +18,7 @@ import { duellist as getDuellist } from '../data/duellists.js';
 import { item as getItem, ITEMS } from '../data/items.js';
 import {
   playerStats, playerTechniques, maxVigour, gainPlayerExp, equipped,
-  giveGear, expToNextLevel, expForPlayerLevel,
+  giveGear, expToNextLevel, expForPlayerLevel, playerAppearance,
 } from '../game/player.js';
 import { game, addMoney, setFlag, takeItem, itemCount } from '../game/state.js';
 
@@ -49,7 +49,7 @@ export class Duel {
     const stats = playerStats();
     this.you = {
       name: game.state.player.name,
-      sprite: game.state.player.sprite,
+      sprite: playerAppearance(),
       level: game.state.player.level,
       hp: Math.max(1, game.state.player.hp ?? stats.vigour),
       maxHp: stats.vigour,
@@ -516,7 +516,8 @@ export class Duel {
     surface.height = ACTOR_H;
     const sctx = surface.getContext('2d');
     sctx.imageSmoothingEnabled = false;
-    drawActor(sctx, side.sprite, facing, step, 0, 0);
+    // Weapons are drawn raised in a duel rather than sheathed.
+    drawActor(sctx, side.sprite, facing, step, 0, 0, { combat: true });
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(surface, 0, 0, ACTOR_W, ACTOR_H, Math.round(x), Math.round(drawY), w, h);
     ctx.restore();

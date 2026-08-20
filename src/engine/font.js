@@ -104,6 +104,26 @@ const GLYPHS = {
   '×': '..... ..... #...# .#.#. ..#.. .#.#. #...#',
 };
 
+/**
+ * Typographic characters that have no glyph of their own. Text written with a
+ * curly apostrophe or an em dash would otherwise render as a row of '?', which
+ * is a hard mistake to spot in a data file and an obvious one on screen.
+ */
+const ALIASES = [
+  [/[\u2018\u2019\u02bc]/g, "'"],
+  [/[\u201c\u201d]/g, '"'],
+  [/[\u2013\u2014]/g, '-'],
+  [/\u2026/g, '...'],
+  [/\u00a0/g, ' '],
+];
+
+/** Rewrites a string into characters the font actually has. */
+export function normaliseText(text) {
+  let out = String(text);
+  for (const [pattern, replacement] of ALIASES) out = out.replace(pattern, replacement);
+  return out;
+}
+
 export const GLYPH_HEIGHT = 7;
 export const LINE_HEIGHT = 12;
 const SPACE_ADVANCE = 3;
@@ -147,7 +167,7 @@ export function charWidth(char) {
 export function measure(text) {
   let widest = 0;
   let line = 0;
-  for (const char of text) {
+  for (const char of normaliseText(text)) {
     if (char === '\n') {
       widest = Math.max(widest, line);
       line = 0;
@@ -171,7 +191,7 @@ export function drawText(ctx, text, x, y, {
   let cursorY = y;
   let drawn = 0;
 
-  for (const char of text) {
+  for (const char of normaliseText(text)) {
     if (drawn >= maxChars) break;
     if (char === '\n') {
       cursorX = x;
@@ -204,7 +224,7 @@ function paintGlyph(ctx, glyph, x, y, color) {
 /** Greedy word wrap to a pixel width, returning an array of lines. */
 export function wrapText(text, maxWidth) {
   const lines = [];
-  for (const paragraph of text.split('\n')) {
+  for (const paragraph of normaliseText(text).split('\n')) {
     let line = '';
     for (const word of paragraph.split(' ')) {
       const candidate = line ? `${line} ${word}` : word;

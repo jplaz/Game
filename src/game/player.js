@@ -6,6 +6,7 @@
 
 import { game, setPlayerRestorer } from './state.js';
 import { gear, technique } from '../data/gear.js';
+import { ACTOR_PALETTES } from '../art/actors.js';
 
 export const MAX_PLAYER_LEVEL = 50;
 
@@ -145,6 +146,58 @@ export function playerTitle() {
   if (game.state.flags.gameComplete) return 'Ruler of the Seven Kingdoms';
   return ['Ward of Winterfell', 'Sworn Rider', 'Banner-Knight', 'Lord Commander', 'Claimant'][sigils]
     ?? 'Ward of Winterfell';
+}
+
+// ------------------------------------------------------------ appearance ---
+
+/** Which weapon silhouette a given arm is drawn with. */
+const WEAPON_SHAPE = {
+  fists: 'none',
+  huntingKnife: 'dagger',
+  dragonglassDagger: 'dagger',
+  ironSword: 'blade',
+  castleForged: 'blade',
+  valyrian: 'blade',
+  woodAxe: 'axe',
+  warhammer: 'hammer',
+  boarSpear: 'spear',
+  huntingBow: 'bow',
+};
+
+/** Armour decides the cut of what you are wearing and its colours. */
+const ARMOUR_LOOK = {
+  roughspun:      { outfit: 'tunic',    cloak: '#6a6154', cloakDark: '#4b4438', trim: '#8f8674' },
+  gambeson:       { outfit: 'leathers', cloak: '#c4b48c', cloakDark: '#9a8c68', trim: '#e0d4b0' },
+  boiledLeather:  { outfit: 'leathers', cloak: '#7a5330', cloakDark: '#553722', trim: '#a8783f' },
+  ringmail:       { outfit: 'mail',     cloak: '#8b93a0', cloakDark: '#5f6672', trim: '#c2cad8' },
+  scaleArmour:    { outfit: 'mail',     cloak: '#6f7f92', cloakDark: '#4a5666', trim: '#a8bcd0' },
+  knightPlate:    { outfit: 'plate',    cloak: '#a8b0bc', cloakDark: '#767e8c', trim: '#e8eef8' },
+  kingsguardPlate:{ outfit: 'plate',    cloak: '#eceef4', cloakDark: '#b8bcc8', trim: '#f0d878' },
+};
+
+/**
+ * What the player looks like right now. The overworld, the duel and the gear
+ * screen all draw from this, so a change of armour is visible everywhere the
+ * moment it is equipped.
+ */
+export function playerAppearance() {
+  const base = ACTOR_PALETTES[game.state.player.sprite] ?? ACTOR_PALETTES.hero;
+  const armour = equipped('armour');
+  const look = ARMOUR_LOOK[armour.id] ?? ARMOUR_LOOK.roughspun;
+
+  return {
+    build: base.build ?? 'man',
+    hair: base.hair ?? 'short',
+    outfit: look.outfit,
+    weapon: WEAPON_SHAPE[equipped('weapon').id] ?? 'none',
+    shield: equipped('shield').id,
+    palette: {
+      ...base.palette,
+      cloak: look.cloak,
+      cloakDark: look.cloakDark,
+      trim: look.trim,
+    },
+  };
 }
 
 // state.js calls this after a rest so it can heal the player without needing to

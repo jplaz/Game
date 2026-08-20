@@ -2,6 +2,7 @@
 
 import { TILE, tileCanvas, tileDef, TILE_GROUP, N, E, S, W } from '../art/tiles.js';
 import { drawActor, ACTOR_H } from '../art/actors.js';
+import { playerAppearance } from '../game/player.js';
 import { getMap, tileAt } from '../data/maps.js';
 import { input } from '../engine/input.js';
 import { audio } from '../engine/audio.js';
@@ -598,9 +599,12 @@ export class Overworld {
     }
 
     const px = this.playerPixel();
+    // Built fresh each frame so equipping armour shows up immediately; the
+    // sprite sheets themselves are cached by appearance inside drawActor.
+    const look = playerAppearance();
     drawables.push({
       y: px.y,
-      draw: () => drawActor(ctx, this.player.sprite, this.player.dir, this.player.step,
+      draw: () => drawActor(ctx, look, this.player.dir, this.player.step,
         px.x - camX, px.y - camY - (ACTOR_H - TILE) - px.lift),
     });
 

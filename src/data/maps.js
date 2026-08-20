@@ -168,7 +168,7 @@ export const MAPS = {
       { x: 5, y: 6, to: 'winterfell', tx: 17, ty: 13, dir: 'down' },
     ],
     npcs: [
-      { x: 7, y: 3, dir: 'left', sprite: 'smallfolk', name: 'Old Nan', script: 'oldNan' },
+      { x: 7, y: 3, dir: 'left', sprite: 'goodwife', name: 'Old Nan', script: 'oldNan' },
     ],
     signs: [
       { x: 4, y: 1, text: 'Shelves of Maester Luwin\'s cast-off books. Most of them are about ravens.' },
@@ -226,8 +226,8 @@ export const MAPS = {
       { x: 9, y: 9, dir: 'down', sprite: 'stark', name: 'Jory Cassel', script: 'joryGate' },
       { x: 15, y: 16, dir: 'left', sprite: 'ironborn', name: 'Theon Greyjoy', script: 'duel',
         data: { duel: 'theon' } },
-      { x: 19, y: 15, dir: 'left', sprite: 'smallfolk', name: 'Stablehand', script: 'winterfellStable' },
-      { x: 5, y: 17, dir: 'right', sprite: 'stark', name: 'Septa', script: 'winterfellSepta' },
+      { x: 19, y: 15, dir: 'left', sprite: 'child', name: 'Stable Boy', script: 'winterfellStable' },
+      { x: 5, y: 17, dir: 'right', sprite: 'septa', name: 'Septa Mordane', script: 'winterfellSepta' },
       { x: 4, y: 8, dir: 'down', sprite: 'nightswatch', name: 'Recruiter', script: 'blackBrother' },
     ],
   },
@@ -308,7 +308,7 @@ export const MAPS = {
         data: { trainer: 'starkGuard1' } },
       { x: 11, y: 8, dir: 'left', sprite: 'guard', name: 'Torrhen', script: 'trainer',
         data: { trainer: 'starkGuard2' } },
-      { x: 3, y: 13, dir: 'right', sprite: 'smallfolk', name: 'Steward', script: 'gymHintStark' },
+      { x: 3, y: 13, dir: 'right', sprite: 'oldman', name: 'Steward', script: 'gymHintStark' },
     ],
   },
 
@@ -346,7 +346,7 @@ export const MAPS = {
         data: { trainer: 'northRanger' } },
       { x: 14, y: 17, dir: 'left', sprite: 'wildling', name: 'Ygritte', script: 'duel',
         data: { duel: 'ygritte' } },
-      { x: 4, y: 21, dir: 'down', sprite: 'smallfolk', name: 'Carter', script: 'northRoadHint' },
+      { x: 4, y: 21, dir: 'down', sprite: 'goodwife', name: 'Carter', script: 'northRoadHint' },
     ],
     items: [
       { x: 16, y: 3, item: 'weirwoodSap', count: 1, flag: 'item_kroadnorth_sap' },
@@ -370,7 +370,7 @@ export const MAPS = {
         data: { duel: 'jonSnow' } },
       { x: 14, y: 10, dir: 'left', sprite: 'wildling', name: 'Tormund', script: 'duel',
         data: { duel: 'tormund' } },
-      { x: 5, y: 17, dir: 'right', sprite: 'nightswatch', name: 'Steward', script: 'wallHint' },
+      { x: 5, y: 17, dir: 'right', sprite: 'child', name: 'Steward Boy', script: 'wallHint' },
       { x: 16, y: 17, dir: 'left', sprite: 'maester', name: 'Maester Aemon', script: 'aemon' },
     ],
   }),
@@ -507,8 +507,8 @@ export const MAPS = {
     ],
     npcs: [
       { x: 8, y: 9, dir: 'down', sprite: 'noble', name: 'Lord Baelish', script: 'littlefinger' },
-      { x: 14, y: 10, dir: 'left', sprite: 'arryn', name: 'Lady Arryn', script: 'lysa' },
-      { x: 5, y: 17, dir: 'right', sprite: 'smallfolk', name: 'Sky Cell Guard', script: 'eyrieHint' },
+      { x: 14, y: 10, dir: 'left', sprite: 'starkLady', name: 'Lady Arryn', script: 'lysa' },
+      { x: 5, y: 17, dir: 'right', sprite: 'guard', name: 'Sky Cell Guard', script: 'eyrieHint' },
     ],
   }),
 
@@ -608,9 +608,9 @@ export const MAPS = {
       { x: 9, y: 10, text: 'HIGHGARDEN\nSeat of House Tyrell.\nEvery hedge is deliberate.' },
     ],
     npcs: [
-      { x: 8, y: 9, dir: 'down', sprite: 'tyrell', name: 'Lady Olenna', script: 'olenna' },
-      { x: 14, y: 10, dir: 'left', sprite: 'tyrell', name: 'Margaery', script: 'margaery' },
-      { x: 5, y: 17, dir: 'right', sprite: 'smallfolk', name: 'Gardener', script: 'reachHint' },
+      { x: 8, y: 9, dir: 'down', sprite: 'goodwife', name: 'Lady Olenna', script: 'olenna' },
+      { x: 14, y: 10, dir: 'left', sprite: 'starkLady', name: 'Margaery', script: 'margaery' },
+      { x: 5, y: 17, dir: 'right', sprite: 'girl', name: 'Gardener\u2019s Girl', script: 'reachHint' },
     ],
   }),
 
@@ -705,8 +705,8 @@ export const MAPS = {
     npcs: [
       { x: 8, y: 9, dir: 'down', sprite: 'martell', name: 'Oberyn Martell', script: 'duel',
         data: { duel: 'oberyn' } },
-      { x: 14, y: 10, dir: 'left', sprite: 'martell', name: 'Prince Doran', script: 'doran' },
-      { x: 5, y: 17, dir: 'right', sprite: 'smallfolk', name: 'Orphan', script: 'dorneHint' },
+      { x: 14, y: 10, dir: 'left', sprite: 'oldman', name: 'Prince Doran', script: 'doran' },
+      { x: 5, y: 17, dir: 'right', sprite: 'child', name: 'Orphan', script: 'dorneHint' },
     ],
   }),
 
@@ -805,7 +805,7 @@ export const MAPS = {
     npcs: [
       { x: 8, y: 9, dir: 'down', sprite: 'redPriest', name: 'Melisandre', script: 'melisandre' },
       { x: 14, y: 10, dir: 'left', sprite: 'baratheon', name: 'Ser Davos', script: 'davos' },
-      { x: 5, y: 17, dir: 'right', sprite: 'smallfolk', name: 'Fisherman', script: 'stormHint' },
+      { x: 5, y: 17, dir: 'right', sprite: 'goodwife', name: 'Fisherwife', script: 'stormHint' },
     ],
   }),
 
@@ -973,9 +973,9 @@ export const MAPS = {
         data: { trainer: 'forager' } },
       { x: 14, y: 12, dir: 'left', sprite: 'nightswatch', name: 'Ranger Jon', script: 'trainer',
         data: { trainer: 'ranger' } },
-      { x: 5, y: 22, dir: 'up', sprite: 'wildling', name: 'Wildling', script: 'trainer',
+      { x: 5, y: 22, dir: 'up', sprite: 'wildlingWoman', name: 'Wildling', script: 'trainer',
         data: { trainer: 'wildling1' } },
-      { x: 16, y: 20, dir: 'left', sprite: 'smallfolk', name: 'Woodsman', script: 'wolfswoodHint' },
+      { x: 16, y: 20, dir: 'left', sprite: 'oldman', name: 'Woodsman', script: 'wolfswoodHint' },
     ],
     items: [
       { x: 3, y: 3, item: 'sigilBanner', count: 3, flag: 'item_wolfswood_banners' },
@@ -1028,7 +1028,7 @@ export const MAPS = {
     npcs: [
       { x: 13, y: 10, dir: 'down', sprite: 'guard', name: 'Bog Guard', script: 'trainer',
         data: { trainer: 'bogGuard' } },
-      { x: 4, y: 15, dir: 'right', sprite: 'smallfolk', name: 'Crannogman', script: 'moatHint' },
+      { x: 4, y: 15, dir: 'right', sprite: 'goodwife', name: 'Crannogwoman', script: 'moatHint' },
       { x: 16, y: 4, dir: 'down', sprite: 'bolton', name: 'Ramsay Bolton', script: 'duel',
         data: { duel: 'ramsay' } },
       { x: 14, y: 4, dir: 'down', sprite: 'rival', name: 'Joffrey', script: 'rivalMoat',
@@ -1102,7 +1102,7 @@ export const MAPS = {
         data: { trainer: 'pedlar' } },
       { x: 6, y: 20, dir: 'up', sprite: 'guard', name: 'Freerider', script: 'trainer',
         data: { trainer: 'freerider' } },
-      { x: 14, y: 4, dir: 'down', sprite: 'smallfolk', name: 'Traveller', script: 'riverlandsHint' },
+      { x: 14, y: 4, dir: 'down', sprite: 'girl', name: 'Traveller\u2019s Daughter', script: 'riverlandsHint' },
     ],
     items: [
       { x: 3, y: 19, item: 'warBanner', count: 2, flag: 'item_riverlands_banner' },
@@ -1153,9 +1153,9 @@ export const MAPS = {
       { x: 18, y: 9, text: 'RIVERRUN\nSeat of House Tully.\nSigil-holder: LADY CATELYN.' },
     ],
     npcs: [
-      { x: 8, y: 10, dir: 'down', sprite: 'tully', name: 'Squire', script: 'riverrunSquire' },
-      { x: 17, y: 13, dir: 'left', sprite: 'smallfolk', name: 'Boatwright', script: 'riverrunHint' },
-      { x: 4, y: 17, dir: 'right', sprite: 'merchant', name: 'Fishwife', script: 'riverrunFishwife' },
+      { x: 8, y: 10, dir: 'down', sprite: 'child', name: 'Squire', script: 'riverrunSquire' },
+      { x: 17, y: 13, dir: 'left', sprite: 'oldman', name: 'Boatwright', script: 'riverrunHint' },
+      { x: 4, y: 17, dir: 'right', sprite: 'goodwife', name: 'Fishwife', script: 'riverrunFishwife' },
     ],
   },
 
@@ -1188,7 +1188,7 @@ export const MAPS = {
       { x: 7, y: 1, dir: 'down', sprite: 'merchant', name: 'Innkeep', script: 'innkeep' },
       { x: 3, y: 3, dir: 'right', sprite: 'lannister', name: 'Sellsword', script: 'trainer',
         data: { trainer: 'sellsword' } },
-      { x: 8, y: 5, dir: 'left', sprite: 'smallfolk', name: 'Drunk', script: 'innDrunk' },
+      { x: 8, y: 5, dir: 'left', sprite: 'oldman', name: 'Drunk', script: 'innDrunk' },
     ],
   },
 
@@ -1219,12 +1219,12 @@ export const MAPS = {
       { x: 8, y: 15, to: 'riverrun', tx: 10, ty: 17, dir: 'down' },
     ],
     npcs: [
-      { x: 8, y: 4, dir: 'down', sprite: 'tully', name: 'Lady Catelyn', script: 'gymTully' },
+      { x: 8, y: 4, dir: 'down', sprite: 'tullyLady', name: 'Lady Catelyn', script: 'gymTully' },
       { x: 4, y: 7, dir: 'right', sprite: 'tully', name: 'Ser Edmure', script: 'trainer',
         data: { trainer: 'tullyKnight1' } },
       { x: 12, y: 10, dir: 'left', sprite: 'tully', name: 'Ser Brynden', script: 'trainer',
         data: { trainer: 'tullyKnight2' } },
-      { x: 3, y: 14, dir: 'right', sprite: 'smallfolk', name: 'Steward', script: 'gymHintTully' },
+      { x: 3, y: 14, dir: 'right', sprite: 'goodwife', name: 'Steward', script: 'gymHintTully' },
     ],
   },
 
@@ -1282,7 +1282,7 @@ export const MAPS = {
         data: { trainer: 'hedgeKnight' } },
       { x: 15, y: 20, dir: 'up', sprite: 'merchant', name: 'Caravanner', script: 'trainer',
         data: { trainer: 'caravanner' } },
-      { x: 4, y: 4, dir: 'down', sprite: 'smallfolk', name: 'Miner', script: 'goldRoadHint' },
+      { x: 4, y: 4, dir: 'down', sprite: 'oldman', name: 'Miner', script: 'goldRoadHint' },
     ],
     items: [
       { x: 18, y: 12, item: 'kingsguardBanner', count: 1, flag: 'item_goldroad_banner' },
@@ -1375,7 +1375,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 6, y: 9, dir: 'down', sprite: 'lannister', name: 'Gold Cloak', script: 'lannisportGuard' },
-      { x: 15, y: 17, dir: 'left', sprite: 'merchant', name: 'Goldsmith', script: 'lannisportHint' },
+      { x: 15, y: 17, dir: 'left', sprite: 'goodwife', name: 'Goldsmith', script: 'lannisportHint' },
       { x: 4, y: 17, dir: 'right', sprite: 'rival', name: 'Joffrey', script: 'rivalLannisport',
         hideIfFlag: 'trainer_rival2' },
     ],
@@ -1448,7 +1448,7 @@ export const MAPS = {
         data: { trainer: 'lionKnight1' } },
       { x: 11, y: 14, dir: 'left', sprite: 'lannister', name: 'Ser Addam', script: 'trainer',
         data: { trainer: 'lionKnight2' } },
-      { x: 3, y: 16, dir: 'right', sprite: 'smallfolk', name: 'Steward', script: 'gymHintLannister' },
+      { x: 3, y: 16, dir: 'right', sprite: 'child', name: 'Page', script: 'gymHintLannister' },
       { x: 13, y: 3, dir: 'down', sprite: 'mountain', name: 'Gregor Clegane', script: 'duel',
         data: { duel: 'mountain' } },
       { x: 4, y: 3, dir: 'down', sprite: 'lannister', name: 'Ser Jaime', script: 'duel',
@@ -1510,7 +1510,7 @@ export const MAPS = {
         data: { trainer: 'stormKnight2' } },
       { x: 6, y: 17, dir: 'up', sprite: 'nightswatch', name: 'Deserter', script: 'trainer',
         data: { trainer: 'deserter' } },
-      { x: 14, y: 20, dir: 'left', sprite: 'smallfolk', name: 'Pilgrim', script: 'kingsroadHint' },
+      { x: 14, y: 20, dir: 'left', sprite: 'septa', name: 'Pilgrim', script: 'kingsroadHint' },
       { x: 4, y: 20, dir: 'right', sprite: 'hound', name: 'Sandor Clegane', script: 'duel',
         data: { duel: 'hound' } },
     ],
@@ -1563,9 +1563,9 @@ export const MAPS = {
     ],
     npcs: [
       { x: 8, y: 9, dir: 'down', sprite: 'guard', name: 'Gold Cloak', script: 'klGuard' },
-      { x: 18, y: 19, dir: 'left', sprite: 'smallfolk', name: 'Beggar', script: 'klHint' },
+      { x: 18, y: 19, dir: 'left', sprite: 'child', name: 'Beggar Boy', script: 'klHint' },
       { x: 4, y: 19, dir: 'right', sprite: 'nightswatch', name: 'Recruiter', script: 'klRecruiter' },
-      { x: 14, y: 12, dir: 'down', sprite: 'targaryen', name: 'Stranger', script: 'klStranger' },
+      { x: 14, y: 12, dir: 'down', sprite: 'redPriest', name: 'Stranger', script: 'klStranger' },
     ],
   },
 

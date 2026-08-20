@@ -264,6 +264,9 @@ const duelPlaced = new Set();
 for (const map of Object.values(MAPS)) {
   for (const npc of map.npcs ?? []) if (npc.data?.duel) duelPlaced.add(npc.data.duel);
 }
+// A few duellists are reached through a bespoke script rather than a data.duel
+// NPC; name them here so the "never placed" warning stays meaningful.
+for (const id of ['joryCassel', 'cersei']) duelPlaced.add(id);
 for (const id of Object.keys(DUELLISTS)) {
   if (!duelPlaced.has(id)) warn(`duellist ${id}: defined but never placed on a map`);
 }

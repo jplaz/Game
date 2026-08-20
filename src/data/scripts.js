@@ -450,8 +450,139 @@ export const SCRIPTS = {
     }
   },
 
+
+  // =========================================================================
+  //  The North and the Wall
+  // =========================================================================
+  async northRoadHint({ say }) {
+    await say('Carter: Road keeps going north till it runs out of road. Then it is just the Wall.');
+    await say('Carter: Wrap up. And do not talk to anything that talks back.');
+  },
+
+  async wallHint({ say }) {
+    await say("Steward: The Watch holds the Wall with a tenth of the men it needs.");
+    await say('Steward: Beyond it, the wights come in numbers. Bring fire, or dragonglass, or both.');
+  },
+
+  async aemon({ say }) {
+    await say('Maester Aemon: I am blind, old, and a Targaryen. Two of those I can do nothing about.');
+    await say('Maester Aemon: Kill the boy and let the man be born. It is the only advice worth the raven.');
+  },
+
+  /** The white direwolf beyond the Wall. */
+  async ghostfang({ say, npc, battle, setFlag, flag }) {
+    if (flag('ghostfang_done')) { npc.hidden = true; return; }
+    await say('The snow ahead is moving. Not blown — walking.');
+    await say('A direwolf the colour of the drifts steps out and looks straight through you.');
+    const foe = createCreature('ghostfang', 46);
+    const outcome = await battle({ kind: 'wild', foe });
+    if (outcome === 'caught' || outcome === 'won') {
+      setFlag('ghostfang_done');
+      npc.hidden = true;
+      if (outcome === 'won') await say('It turns and is gone into the white, unhurried.');
+    } else {
+      await say('It watches you leave. It does not follow. That is somehow worse.');
+    }
+  },
+
+  // =========================================================================
+  //  The Vale
+  // =========================================================================
+  async littlefinger({ say }) {
+    await say('Lord Baelish: Chaos is a ladder. Most people never look up long enough to notice.');
+    await say('Lord Baelish: You have collected sigils. Good. Collect debts next — they last longer.');
+  },
+
+  async lysa({ say }) {
+    await say('Lady Arryn: The Vale has stayed out of every war since the Conquest. That is not cowardice, it is arithmetic.');
+    await say('Lady Arryn: Do not ask me for knights. Ask me for a bed and I might say yes.');
+  },
+
+  async eyrieHint({ say }) {
+    await say('Guard: Sky cells have three walls and a very persuasive fourth side.');
+    await say('Guard: WIND creatures nest all over the mountain. Bring something that throws stones.');
+  },
+
+  // =========================================================================
+  //  The Reach
+  // =========================================================================
+  async olenna({ say }) {
+    await say('Lady Olenna: You are the northern one everybody is talking about. You are shorter than the stories.');
+    await say('Lady Olenna: A word of advice, since it costs me nothing: the throne is a chair. Chairs can be moved.');
+  },
+
+  async margaery({ say }) {
+    await say('Margaery: The smallfolk will love you if you let them see you. That is most of ruling.');
+    await say('Margaery: The rest is knowing which of your friends is counting your guards.');
+  },
+
+  async reachHint({ say }) {
+    await say('Gardener: WILD creatures thrive here. Fire and cold both undo them, and so does a good hard wing.');
+  },
+
+  // =========================================================================
+  //  Dorne
+  // =========================================================================
+  async doran({ say }) {
+    await say('Prince Doran: I am slow, and gouty, and I have outlived cleverer men than you.');
+    await say('Prince Doran: Dorne remembers every slight. We simply take our time about them.');
+  },
+
+  async dorneHint({ say }) {
+    await say('Orphan: VENOM creatures own the sands. Steel turns their fangs; nothing else does.');
+  },
+
+  // =========================================================================
+  //  The Stormlands
+  // =========================================================================
+  async melisandre({ say, choose }) {
+    await say('Melisandre: The night is dark and full of terrors. You already knew that, or you would not be armed.');
+    const answer = await choose('She offers to look into the flames for you. Let her?', ['Yes', 'No']);
+    if (answer === 0) {
+      await say('Melisandre: I see snow, and a chair made of swords, and a shadow with wings.');
+      await say('Melisandre: The flames do not lie. They simply do not explain.');
+    } else {
+      await say('Melisandre: Wise. Most people do not like what looks back.');
+    }
+  },
+
+  async davos({ say }) {
+    await say('Ser Davos: I was a smuggler before I was a ser. The king took my fingertips and gave me a title.');
+    await say('Ser Davos: Whatever you become, keep somebody near you who will tell you when you are wrong.');
+  },
+
+  async stormHint({ say }) {
+    await say('Fisherman: STORM creatures ride the front in off the bay. Stone weathers them best.');
+  },
+
+  // =========================================================================
+  //  Dragonstone
+  // =========================================================================
+  async daenerys({ say }) {
+    await say('Daenerys: I was born on this island in a storm, and I have not had a quiet day since.');
+    await say('Daenerys: You want the chair. So does everyone. What I want to know is what you will do the morning after.');
+    await say('Daenerys: Go into the Dragonmont if you are brave. Something down there is older than my house.');
+  },
+
+  /** The Black Dread, sleeping under Dragonstone. */
+  async blackdread({ say, npc, battle, setFlag, flag }) {
+    if (flag('blackdread_done')) { npc.hidden = true; return; }
+    await say('The heat here is wrong for a cave. The rock underfoot is warm as a hearthstone.');
+    await say('Something enormous shifts in the dark, and opens one eye the colour of a forge.');
+    const foe = createCreature('blackdread', 50);
+    const outcome = await battle({ kind: 'wild', foe });
+    if (outcome === 'caught' || outcome === 'won') {
+      setFlag('blackdread_done');
+      npc.hidden = true;
+      if (outcome === 'won') await say('It folds back into the dark, and the mountain settles.');
+    } else {
+      await say('It loses interest in you, which is the only reason you are still standing.');
+    }
+  },
+
   // --------------------------------------------------------- the endgame ---
-  async gymThrone({ say, overworld, battle, setFlag, flag }) {
+  async gymThrone(api) {
+    const { say, overworld, battle, setFlag, flag } = api;
     const def = TRAINERS.gymThrone;
     if (flag('trainer_gymThrone')) {
       await say(def.after);
@@ -466,8 +597,16 @@ export const SCRIPTS = {
     if (outcome !== 'won') return;
 
     setFlag('trainer_gymThrone');
-    setFlag('gameComplete');
     await say(def.defeat, { theme: 'royal' });
+
+    // She does not concede the chair to someone who only beat her animals.
+    const duelOutcome = await api.duel('cersei');
+    if (duelOutcome !== 'won') {
+      await say('Cersei Lannister: Come back when you can finish what you start.', { theme: 'royal' });
+      return;
+    }
+
+    setFlag('gameComplete');
     await say(def.after, { theme: 'royal' });
     await say('You sit. The blades are exactly as uncomfortable as everyone said.', { theme: 'royal' });
 

@@ -18,10 +18,10 @@ export const TRAINERS = {
     party: [{ species: 'ravenling', level: 10 }, { species: 'boartusk', level: 11 }],
   },
   gymStark: {
-    name: 'Lord Rickard Stark', sprite: 'stark', reward: 1500, leader: true, sigil: 'wolf',
-    intro: 'Winter is coming, and it does not care how ready you are. Show me you are anyway.',
-    defeat: 'The wolf yields. You have earned the Wolf Sigil, and the road south with it.',
-    after: 'Ride to Riverrun. Lady Catelyn holds the Trout Sigil, and she is a harder judge than I am.',
+    name: 'Lord Eddard Stark', sprite: 'stark', reward: 1500, leader: true, sigil: 'wolf',
+    intro: 'Lord Eddard Stark: Winter is coming, and it does not care how ready you are. Show me you are anyway.',
+    defeat: 'Lord Eddard Stark: The wolf yields. You have earned the Wolf Sigil, and the road south with it.',
+    after: 'Lord Eddard Stark: Ride to Riverrun. Catelyn holds the Trout Sigil, and she is a harder judge than I am.',
     party: [
       { species: 'bearcub', level: 12 },
       { species: 'boartusk', level: 12 },
@@ -228,10 +228,10 @@ export const TRAINERS = {
     party: [{ species: 'skytalon', level: 37 }, { species: 'deepmaw', level: 38 }],
   },
   gymThrone: {
-    name: 'The Claimant', sprite: 'baratheon', reward: 12000, leader: true, sigil: 'stag',
-    intro: 'Everyone who climbs this stair wants the chair. Nobody who has sat in it does.',
-    defeat: 'Then it is yours. Gods help you. The Stag Sigil, and the Iron Throne with it.',
-    after: 'The realm is yours to hold. Holding is the hard part. Nobody warned me either.',
+    name: 'Queen Cersei', sprite: 'cersei', reward: 12000, leader: true, sigil: 'stag',
+    intro: 'Cersei Lannister: Everyone who climbs this stair wants the chair. Nobody who has sat in it does.',
+    defeat: 'Cersei Lannister: My beasts are finished. I am not. Draw your steel.',
+    after: 'Cersei Lannister: The realm is yours to hold. Holding is the hard part. Nobody warned me either.',
     party: [
       { species: 'tuskrend', level: 40 },
       { species: 'deepmaw', level: 40 },
@@ -271,6 +271,58 @@ export const TRAINERS = {
       { species: 'tuskrend', level: 39 },
       { species: 'goldmane', level: 42 },
     ],
+  },
+
+  // ---------------------------------------------------- the road to the Wall --
+  northRanger: {
+    name: 'Ranger Qhorin', sprite: 'nightswatch', sight: 4, reward: 900,
+    intro: 'Ranger Qhorin: Nobody rides north for a good reason. Show me yours.',
+    defeat: 'Ranger Qhorin: Good enough. The gate will open for you.',
+    after: 'Ranger Qhorin: Past the Wall, the cold is the least of it.',
+    party: [{ species: 'snowpup', level: 16 }, { species: 'direwolf', level: 18 }],
+  },
+  freeFolk: {
+    name: 'Free Folk Raider', sprite: 'wildling', sight: 4, reward: 2600,
+    intro: 'Raider: You are a long way from a fire, kneeler.',
+    defeat: 'Raider: Aye. All right. Go where you like.',
+    after: 'Raider: The dead do not care whose banner you carry. Remember it.',
+    party: [{ species: 'bearhold', level: 32 }, { species: 'barrowlord', level: 34 }],
+  },
+
+  // ------------------------------------------------------------- the Vale --
+  valeKnight: {
+    name: 'Ser Vardis', sprite: 'arryn', sight: 4, reward: 1700,
+    intro: 'Ser Vardis: The Bloody Gate has turned back armies. It can turn back one rider.',
+    defeat: 'Ser Vardis: Pass, then. The climb will finish what I started.',
+    after: 'Ser Vardis: As high as honour. And as cold.',
+    party: [{ species: 'falconet', level: 24 }, { species: 'skytalon', level: 26 }],
+  },
+
+  // ------------------------------------------------------------ the Reach --
+  reachKnight: {
+    name: 'Ser Loras', sprite: 'tyrell', sight: 5, reward: 2100,
+    intro: 'Ser Loras: The Knight of Flowers. I would apologise for the name, but I did win it.',
+    defeat: 'Ser Loras: Beautifully done. I shall be insufferable about having fought you.',
+    after: 'Ser Loras: Growing strong. It sounds gentler than it is.',
+    party: [{ species: 'sapling', level: 29 }, { species: 'heartwarden', level: 31 }],
+  },
+
+  // ------------------------------------------------------------------ Dorne --
+  dorneRider: {
+    name: 'Sand Steed Rider', sprite: 'martell', sight: 4, reward: 2400,
+    intro: 'Rider: Dorne was never conquered. People forget why. I will remind you.',
+    defeat: 'Rider: Unbowed. Unbent. Somewhat broken. Go on.',
+    after: 'Rider: Water is worth more than gold out here. Carry both.',
+    party: [{ species: 'sandviper', level: 32 }, { species: 'dornspine', level: 34 }],
+  },
+
+  // ------------------------------------------------------------ Stormlands --
+  stormKnight3: {
+    name: 'Ser Cortnay', sprite: 'baratheon', sight: 4, reward: 2200,
+    intro: "Ser Cortnay: Storm's End has never fallen. Neither have I, yet.",
+    defeat: 'Ser Cortnay: First time for everything, then.',
+    after: 'Ser Cortnay: The storm always passes. That is the whole trick of it.',
+    party: [{ species: 'fawnhart', level: 31 }, { species: 'crownstag', level: 34 }],
   },
 };
 

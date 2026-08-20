@@ -45,6 +45,109 @@ function maesterHall({ exitTo, exitX, exitY, stock, healerLine, merchantLine, ex
   };
 }
 
+/**
+ * A settlement laid out to one plan: a crossroads, a Maester's Hall on the
+ * north-west corner, a shop or forge opposite, and a keep on the south side.
+ * Building the towns from one template keeps every door, path and warp aligned,
+ * which is where hand-drawn maps go wrong.
+ *
+ * Doors: hall (6,6) forge (17,6) keep (7,14)
+ * Exits: north (11,0) south (11,19)
+ */
+function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = '.',
+                    encounters = [], warps = [], npcs = [], signs = [], items = [] }) {
+  const W = wall;
+  const g = floor;
+  const row = (...parts) => parts.join('');
+  const fill = (n) => g.repeat(n);
+
+  const tiles = [
+    W.repeat(11) + '-' + W.repeat(12),
+    row(W, fill(10), '-', fill(11), W),
+    row(W, fill(10), '-', fill(11), W),
+    row(W, fill(2), 'rrrrrr', fill(2), '-', fill(2), 'rrrrrr', fill(3), W),
+    row(W, fill(2), 'RRRRRR', fill(2), '-', fill(2), 'RRRRRR', fill(3), W),
+    row(W, fill(2), 'RRRRRR', fill(2), '-', fill(2), 'RRRRRR', fill(3), W),
+    row(W, fill(2), 'HwHDHw', fill(2), '-', fill(2), 'HwHDHw', fill(3), W),
+    row(W, fill(5), '-', fill(4), '-', fill(5), '-', fill(5), W),
+    row(W, fill(2), '-'.repeat(18), fill(2), W),
+    row(W, fill(10), '-', fill(11), W),
+    row(W, fill(8), '!', g, '-', fill(11), W),
+    row(W, fill(2), 'rrrrrrrr', '-', fill(11), W),
+    row(W, fill(2), 'RRRRRRRR', '-', fill(11), W),
+    row(W, fill(2), 'RRRRRRRR', '-', fill(11), W),
+    row(W, fill(2), 'HwHwDHwH', '-', fill(11), W),
+    row(W, fill(6), '-', fill(3), '-', fill(11), W),
+    row(W, fill(2), '-'.repeat(18), fill(2), W),
+    row(W, fill(10), '-', fill(11), W),
+    row(W, fill(10), '-', fill(11), W),
+    W.repeat(11) + '-' + W.repeat(12),
+  ];
+
+  return { name, music, ground, tiles, encounters, warps, npcs, signs, items };
+}
+
+/** Standard door and exit coordinates for a makeTown map. */
+export const TOWN = {
+  hallDoor: [6, 6], hallStand: [6, 7],
+  shopDoor: [17, 6], shopStand: [17, 7],
+  keepDoor: [7, 14], keepStand: [7, 15],
+  north: [11, 0], northStand: [11, 1],
+  south: [11, 19], southStand: [11, 18],
+};
+
+/**
+ * A stretch of open country: walls down both sides, a road through the middle,
+ * and stamped features. Hand-placing every tile of a dozen routes is where the
+ * typos live, so the layout is described as regions instead.
+ *
+ * features: [{ type, x, y, w, h }] where type is one of
+ *   grass | trees | water | cliff | ledge | flowers | sand | rubble
+ */
+function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor = '.',
+                     grass = ',', road = 10, width = 20, height = 24,
+                     features = [], encounters = [], warps = [], npcs = [],
+                     signs = [], items = [] }) {
+  const CHAR = {
+    grass, trees: wall, water: '~', cliff: 'C', ledge: 'L',
+    flowers: '*', sand: 's', rubble: 'U', ice: 'i', snow: 'S', sign: '!',
+  };
+
+  const grid = [];
+  for (let y = 0; y < height; y++) {
+    grid.push(new Array(width).fill(floor));
+  }
+  // Side walls and the road.
+  for (let y = 0; y < height; y++) {
+    grid[y][0] = wall;
+    grid[y][width - 1] = wall;
+    grid[y][road] = '-';
+  }
+  // Sealed ends with a gap for the road.
+  for (let x = 0; x < width; x++) {
+    if (x !== road) { grid[0][x] = wall; grid[height - 1][x] = wall; }
+  }
+
+  for (const f of features) {
+    const char = CHAR[f.type] ?? floor;
+    for (let y = f.y; y < f.y + (f.h ?? 1); y++) {
+      for (let x = f.x; x < f.x + (f.w ?? 1); x++) {
+        // Never build over the road or the border; a feature that would block
+        // the route is clipped rather than sealing the map.
+        if (y <= 0 || y >= height - 1 || x <= 0 || x >= width - 1) continue;
+        if (x === road) continue;
+        grid[y][x] = char;
+      }
+    }
+  }
+
+  return {
+    name, music, ground,
+    tiles: grid.map((r) => r.join('')),
+    encounters, warps, npcs, signs, items,
+  };
+}
+
 export const MAPS = {
   // =========================================================== hero's home ==
   heroHouse: {
@@ -79,7 +182,7 @@ export const MAPS = {
     music: 'town',
     ground: 'snow',
     tiles: [
-      'PPPPPPPPPPPPPPPPPPPPPPPP',
+      'PPPPPPPPPPPP-PPPPPPPPPPP',
       'PSSSSSSSSSSSSSSSSSSSSSSP',
       'PSSSSSSSSSSSSSSSSSSSSSSP',
       'PSSSSSSSSrrrrrrSSSSSSSSP',
@@ -112,6 +215,7 @@ export const MAPS = {
       { x: 12, y: 6, to: 'greatKeep', tx: 8, ty: 13, dir: 'up' },
       { x: 10, y: 6, to: 'winterfellForge', tx: 5, ty: 6, dir: 'up' },
       { x: 12, y: 19, to: 'wolfswood', tx: 10, ty: 1, dir: 'down' },
+      { x: 12, y: 0, to: 'kingsroadNorth', tx: 10, ty: 22, dir: 'up' },
     ],
     signs: [
       { x: 9, y: 7, text: 'THE GREAT KEEP OF WINTERFELL\nSeat of House Stark.\nSigil-holder: LORD RICKARD.' },
@@ -199,12 +303,619 @@ export const MAPS = {
       { x: 8, y: 14, to: 'winterfell', tx: 12, ty: 7, dir: 'down' },
     ],
     npcs: [
-      { x: 8, y: 4, dir: 'down', sprite: 'stark', name: 'Lord Rickard', script: 'gymStark' },
+      { x: 8, y: 4, dir: 'down', sprite: 'stark', name: 'Lord Eddard', script: 'gymStark' },
       { x: 5, y: 10, dir: 'right', sprite: 'guard', name: 'Hallis', script: 'trainer',
         data: { trainer: 'starkGuard1' } },
       { x: 11, y: 8, dir: 'left', sprite: 'guard', name: 'Torrhen', script: 'trainer',
         data: { trainer: 'starkGuard2' } },
       { x: 3, y: 13, dir: 'right', sprite: 'smallfolk', name: 'Steward', script: 'gymHintStark' },
+    ],
+  },
+
+
+  // =========================================================================
+  //  THE NORTH — the kingsroad up to the Wall
+  // =========================================================================
+  kingsroadNorth: makeRoute({
+    name: 'The Kingsroad North', ground: 'snow', wall: 'P', floor: 'S', grass: ';',
+    music: 'wild',
+    features: [
+      { type: 'grass', x: 2, y: 3, w: 5, h: 3 },
+      { type: 'grass', x: 13, y: 6, w: 5, h: 3 },
+      { type: 'trees', x: 3, y: 10, w: 3, h: 2 },
+      { type: 'trees', x: 14, y: 11, w: 4, h: 2 },
+      { type: 'grass', x: 2, y: 14, w: 6, h: 3 },
+      { type: 'grass', x: 12, y: 15, w: 6, h: 3 },
+      { type: 'ice', x: 4, y: 19, w: 5, h: 2 },
+      { type: 'ice', x: 13, y: 19, w: 4, h: 2 },
+    ],
+    encounters: [
+      { species: 'snowpup', min: 12, max: 16, weight: 20 },
+      { species: 'bearcub', min: 13, max: 17, weight: 18 },
+      { species: 'wightling', min: 14, max: 18, weight: 18 },
+      { species: 'ravenling', min: 12, max: 16, weight: 16 },
+      { species: 'direwolf', min: 16, max: 19, weight: 12 },
+      { species: 'falconet', min: 13, max: 17, weight: 16 },
+    ],
+    warps: [
+      { x: 10, y: 0, to: 'castleBlack', tx: 11, ty: 18, dir: 'up' },
+      { x: 10, y: 23, to: 'winterfell', tx: 12, ty: 1, dir: 'down' },
+    ],
+    npcs: [
+      { x: 6, y: 8, dir: 'right', sprite: 'nightswatch', name: 'Ranger', script: 'trainer',
+        data: { trainer: 'northRanger' } },
+      { x: 14, y: 17, dir: 'left', sprite: 'wildling', name: 'Ygritte', script: 'duel',
+        data: { duel: 'ygritte' } },
+      { x: 4, y: 21, dir: 'down', sprite: 'smallfolk', name: 'Carter', script: 'northRoadHint' },
+    ],
+    items: [
+      { x: 16, y: 3, item: 'weirwoodSap', count: 1, flag: 'item_kroadnorth_sap' },
+    ],
+  }),
+
+  castleBlack: makeTown({
+    name: 'Castle Black', ground: 'snow', wall: 'P', floor: 'S',
+    music: 'wild',
+    warps: [
+      { x: 11, y: 19, to: 'kingsroadNorth', tx: 10, ty: 1, dir: 'down' },
+      { x: 11, y: 0, to: 'beyondTheWall', tx: 10, ty: 22, dir: 'up' },
+      { x: 6, y: 6, to: 'maesterHallCastleBlack', tx: 5, ty: 7, dir: 'up' },
+      { x: 17, y: 6, to: 'castleBlackArmoury', tx: 5, ty: 6, dir: 'up' },
+    ],
+    signs: [
+      { x: 9, y: 10, text: 'CASTLE BLACK\nSeat of the Night\u2019s Watch.\nNorth of here the maps stop.' },
+    ],
+    npcs: [
+      { x: 8, y: 9, dir: 'down', sprite: 'nightswatch', name: 'Jon Snow', script: 'duel',
+        data: { duel: 'jonSnow' } },
+      { x: 14, y: 10, dir: 'left', sprite: 'wildling', name: 'Tormund', script: 'duel',
+        data: { duel: 'tormund' } },
+      { x: 5, y: 17, dir: 'right', sprite: 'nightswatch', name: 'Steward', script: 'wallHint' },
+      { x: 16, y: 17, dir: 'left', sprite: 'maester', name: 'Maester Aemon', script: 'aemon' },
+    ],
+  }),
+
+  maesterHallCastleBlack: maesterHall({
+    exitTo: 'castleBlack', exitX: 6, exitY: 7,
+    stock: ['warBanner', 'kingsguardBanner', 'poppyMilk', 'weirwoodSap', 'frostTonic', 'kissOfFire'],
+    healerLine: 'Cold does worse to a creature than any blade. Let me look.',
+    merchantLine: 'The Watch has little, and shares it.',
+  }),
+
+  castleBlackArmoury: {
+    name: 'The Watch Armoury',
+    indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIIIIII',
+      'I=FF=====B=I',
+      'I=====KKK==I',
+      'I==========I',
+      'I=TT====TT=I',
+      'I==========I',
+      'I=F======F=I',
+      'IIIII__IIIII',
+    ],
+    warps: [
+      { x: 5, y: 7, to: 'castleBlack', tx: 17, ty: 7, dir: 'down' },
+      { x: 6, y: 7, to: 'castleBlack', tx: 17, ty: 7, dir: 'down' },
+    ],
+    npcs: [
+      { x: 7, y: 1, dir: 'down', sprite: 'nightswatch', name: 'Donal Noye', script: 'smith',
+        data: {
+          line: 'Donal Noye: One arm, one forge, and the best steel north of the Neck.',
+          stock: {
+            weapon: ['ironSword', 'woodAxe', 'huntingBow', 'castleForged'],
+            armour: ['boiledLeather', 'ringmail'],
+            shield: ['buckler', 'oakShield'],
+          },
+        } },
+    ],
+  },
+
+  beyondTheWall: makeRoute({
+    name: 'Beyond the Wall', ground: 'snow', wall: 'P', floor: 'S', grass: ';',
+    music: 'wild', height: 24,
+    features: [
+      { type: 'sign', x: 8, y: 21 },
+      { type: 'ice', x: 2, y: 2, w: 7, h: 3 },
+      { type: 'ice', x: 12, y: 3, w: 6, h: 3 },
+      { type: 'grass', x: 3, y: 7, w: 6, h: 3 },
+      { type: 'grass', x: 12, y: 8, w: 6, h: 3 },
+      { type: 'cliff', x: 2, y: 12, w: 4, h: 3 },
+      { type: 'cliff', x: 14, y: 12, w: 4, h: 3 },
+      { type: 'grass', x: 3, y: 16, w: 6, h: 4 },
+      { type: 'grass', x: 12, y: 16, w: 6, h: 4 },
+    ],
+    encounters: [
+      { species: 'wightling', min: 28, max: 34, weight: 26 },
+      { species: 'barrowlord', min: 32, max: 38, weight: 14 },
+      { species: 'direwolf', min: 28, max: 33, weight: 18 },
+      { species: 'bearhold', min: 30, max: 36, weight: 14 },
+      { species: 'winterfang', min: 34, max: 39, weight: 10 },
+      { species: 'ravenling', min: 26, max: 30, weight: 18 },
+    ],
+    warps: [
+      { x: 10, y: 23, to: 'castleBlack', tx: 11, ty: 1, dir: 'down' },
+    ],
+    signs: [
+      { x: 8, y: 21, text: 'Somebody has driven a spear into the ice here.\nThere is no message. The message is the spear.' },
+    ],
+    npcs: [
+      { x: 10, y: 4, dir: 'down', sprite: 'whitewalker', name: '?', script: 'ghostfang',
+        hideIfFlag: 'ghostfang_done' },
+      { x: 6, y: 14, dir: 'right', sprite: 'wildling', name: 'Free Folk', script: 'trainer',
+        data: { trainer: 'freeFolk' } },
+    ],
+    items: [
+      { x: 15, y: 20, item: 'dragonglass', count: 1, flag: 'item_beyond_glass' },
+    ],
+  }),
+
+  // =========================================================================
+  //  THE VALE
+  // =========================================================================
+  bloodyGate: makeRoute({
+    name: 'The Bloody Gate', ground: 'grass', wall: 'C', music: 'route',
+    features: [
+      { type: 'sign', x: 8, y: 21 },
+      { type: 'cliff', x: 2, y: 2, w: 5, h: 4 },
+      { type: 'cliff', x: 14, y: 2, w: 4, h: 4 },
+      { type: 'grass', x: 3, y: 7, w: 5, h: 3 },
+      { type: 'grass', x: 13, y: 7, w: 5, h: 3 },
+      { type: 'cliff', x: 2, y: 11, w: 6, h: 3 },
+      { type: 'cliff', x: 13, y: 11, w: 5, h: 3 },
+      { type: 'ledge', x: 1, y: 15, w: 9, h: 1 },
+      { type: 'ledge', x: 11, y: 15, w: 8, h: 1 },
+      { type: 'grass', x: 3, y: 17, w: 6, h: 3 },
+      { type: 'grass', x: 12, y: 17, w: 6, h: 3 },
+    ],
+    encounters: [
+      { species: 'falconet', min: 22, max: 27, weight: 26 },
+      { species: 'skytalon', min: 26, max: 30, weight: 10 },
+      { species: 'boartusk', min: 22, max: 26, weight: 18 },
+      { species: 'cubmane', min: 22, max: 26, weight: 16 },
+      { species: 'crabcrag', min: 23, max: 27, weight: 14 },
+      { species: 'ravenling', min: 21, max: 25, weight: 16 },
+    ],
+    warps: [
+      { x: 10, y: 23, to: 'riverlands', tx: 18, ty: 12, dir: 'down' },
+      { x: 10, y: 0, to: 'theEyrie', tx: 11, ty: 18, dir: 'up' },
+    ],
+    signs: [
+      { x: 8, y: 21, text: 'THE BLOODY GATE\n"You may not pass."\nSomeone has scratched: "unless"' },
+    ],
+    npcs: [
+      { x: 6, y: 10, dir: 'right', sprite: 'arryn', name: 'Ser Vardis', script: 'trainer',
+        data: { trainer: 'valeKnight' } },
+      { x: 13, y: 19, dir: 'left', sprite: 'brienne', name: 'Brienne of Tarth', script: 'duel',
+        data: { duel: 'brienne' } },
+    ],
+    items: [
+      { x: 3, y: 20, item: 'kingsRansom', count: 1, flag: 'item_vale_ransom' },
+    ],
+  }),
+
+  theEyrie: makeTown({
+    name: 'The Eyrie', ground: 'stone', wall: 'C', floor: 'o', music: 'town',
+    warps: [
+      { x: 11, y: 19, to: 'bloodyGate', tx: 10, ty: 1, dir: 'down' },
+      { x: 6, y: 6, to: 'maesterHallEyrie', tx: 5, ty: 7, dir: 'up' },
+      { x: 17, y: 6, to: 'eyrieArmoury', tx: 5, ty: 6, dir: 'up' },
+    ],
+    signs: [
+      { x: 9, y: 10, text: 'THE EYRIE\nSeat of House Arryn.\nAs high as honour, and a good deal colder.' },
+    ],
+    npcs: [
+      { x: 8, y: 9, dir: 'down', sprite: 'noble', name: 'Lord Baelish', script: 'littlefinger' },
+      { x: 14, y: 10, dir: 'left', sprite: 'arryn', name: 'Lady Arryn', script: 'lysa' },
+      { x: 5, y: 17, dir: 'right', sprite: 'smallfolk', name: 'Sky Cell Guard', script: 'eyrieHint' },
+    ],
+  }),
+
+  maesterHallEyrie: maesterHall({
+    exitTo: 'theEyrie', exitX: 6, exitY: 7,
+    stock: ['warBanner', 'kingsguardBanner', 'poppyMilk', 'weirwoodSap', 'kissOfFire'],
+    healerLine: 'The climb is hard on them. Sit a while.',
+    merchantLine: 'Vale goods, at Vale prices. I do not set them.',
+  }),
+
+  eyrieArmoury: {
+    name: 'The Eyrie Armoury',
+    indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIIIIII',
+      'I=BB=====B=I',
+      'I=====KKK==I',
+      'I==========I',
+      'I=TT====TT=I',
+      'I==========I',
+      'I=F======F=I',
+      'IIIII__IIIII',
+    ],
+    warps: [
+      { x: 5, y: 7, to: 'theEyrie', tx: 17, ty: 7, dir: 'down' },
+      { x: 6, y: 7, to: 'theEyrie', tx: 17, ty: 7, dir: 'down' },
+    ],
+    npcs: [
+      { x: 7, y: 1, dir: 'down', sprite: 'arryn', name: 'Armourer', script: 'smith',
+        data: {
+          line: 'Armourer: Falcon-etched and overpriced. It is the Vale, what did you expect.',
+          stock: {
+            weapon: ['castleForged', 'boarSpear', 'huntingBow'],
+            armour: ['ringmail', 'scaleArmour'],
+            shield: ['oakShield'],
+          },
+        } },
+      { x: 5, y: 4, dir: 'right', sprite: 'braavosi', name: 'Syrio Forel', script: 'duel',
+        data: { duel: 'syrio' } },
+    ],
+  },
+
+  // =========================================================================
+  //  THE REACH
+  // =========================================================================
+  roseroad: makeRoute({
+    name: 'The Roseroad', ground: 'grass', music: 'route',
+    features: [
+      { type: 'sign', x: 8, y: 2 },
+      { type: 'flowers', x: 2, y: 2, w: 6, h: 2 },
+      { type: 'flowers', x: 13, y: 2, w: 5, h: 2 },
+      { type: 'grass', x: 2, y: 5, w: 7, h: 3 },
+      { type: 'grass', x: 12, y: 5, w: 6, h: 3 },
+      { type: 'trees', x: 3, y: 10, w: 4, h: 2 },
+      { type: 'trees', x: 14, y: 10, w: 4, h: 2 },
+      { type: 'grass', x: 2, y: 13, w: 7, h: 3 },
+      { type: 'grass', x: 12, y: 13, w: 6, h: 3 },
+      { type: 'flowers', x: 4, y: 18, w: 4, h: 2 },
+      { type: 'water', x: 13, y: 18, w: 5, h: 3 },
+    ],
+    encounters: [
+      { species: 'fawnhart', min: 26, max: 31, weight: 20 },
+      { species: 'sapling', min: 26, max: 31, weight: 18 },
+      { species: 'heartwarden', min: 32, max: 36, weight: 8 },
+      { species: 'cubmane', min: 27, max: 31, weight: 16 },
+      { species: 'boartusk', min: 27, max: 31, weight: 16 },
+      { species: 'emberwisp', min: 28, max: 32, weight: 12 },
+      { species: 'riverfry', min: 26, max: 30, weight: 10 },
+    ],
+    warps: [
+      { x: 10, y: 0, to: 'lannisport', tx: 18, ty: 17, dir: 'down' },
+      { x: 10, y: 23, to: 'highgarden', tx: 11, ty: 1, dir: 'down' },
+    ],
+    signs: [
+      { x: 8, y: 2, text: 'THE ROSEROAD\nSouth to Highgarden, and on to Dorne.\nGrowing strong.' },
+    ],
+    npcs: [
+      { x: 6, y: 9, dir: 'right', sprite: 'tyrell', name: 'Ser Loras', script: 'trainer',
+        data: { trainer: 'reachKnight' } },
+      { x: 14, y: 16, dir: 'left', sprite: 'sellsword', name: 'Bronn', script: 'duel',
+        data: { duel: 'bronn' } },
+    ],
+    items: [
+      { x: 3, y: 21, item: 'kingsguardBanner', count: 2, flag: 'item_roseroad_banner' },
+    ],
+  }),
+
+  highgarden: makeTown({
+    name: 'Highgarden', ground: 'grass', music: 'town',
+    warps: [
+      { x: 11, y: 0, to: 'roseroad', tx: 10, ty: 22, dir: 'up' },
+      { x: 11, y: 19, to: 'princesPass', tx: 10, ty: 1, dir: 'down' },
+      { x: 6, y: 6, to: 'maesterHallHighgarden', tx: 5, ty: 7, dir: 'up' },
+      { x: 17, y: 6, to: 'highgardenArmoury', tx: 5, ty: 6, dir: 'up' },
+    ],
+    signs: [
+      { x: 9, y: 10, text: 'HIGHGARDEN\nSeat of House Tyrell.\nEvery hedge is deliberate.' },
+    ],
+    npcs: [
+      { x: 8, y: 9, dir: 'down', sprite: 'tyrell', name: 'Lady Olenna', script: 'olenna' },
+      { x: 14, y: 10, dir: 'left', sprite: 'tyrell', name: 'Margaery', script: 'margaery' },
+      { x: 5, y: 17, dir: 'right', sprite: 'smallfolk', name: 'Gardener', script: 'reachHint' },
+    ],
+  }),
+
+  maesterHallHighgarden: maesterHall({
+    exitTo: 'highgarden', exitX: 6, exitY: 7,
+    stock: ['kingsguardBanner', 'kingsRansom', 'weirwoodSap', 'kissOfFire', 'poppyMilk'],
+    healerLine: 'The Reach feeds the realm. It can certainly feed your creatures.',
+    merchantLine: 'Everything here is grown, brewed or embroidered within a mile.',
+  }),
+
+  highgardenArmoury: {
+    name: 'The Highgarden Forge',
+    indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIIIIII',
+      'I=FF=====B=I',
+      'I=====KKK==I',
+      'I==========I',
+      'I=TT====TT=I',
+      'I==========I',
+      'I=F======F=I',
+      'IIIII__IIIII',
+    ],
+    warps: [
+      { x: 5, y: 7, to: 'highgarden', tx: 17, ty: 7, dir: 'down' },
+      { x: 6, y: 7, to: 'highgarden', tx: 17, ty: 7, dir: 'down' },
+    ],
+    npcs: [
+      { x: 7, y: 1, dir: 'down', sprite: 'tyrell', name: 'Master Smith', script: 'smith',
+        data: {
+          line: 'Master Smith: Tourney plate, mostly. It still stops a sword.',
+          stock: {
+            weapon: ['castleForged', 'warhammer', 'boarSpear'],
+            armour: ['scaleArmour', 'knightPlate'],
+            shield: ['oakShield', 'towerShield'],
+          },
+        } },
+    ],
+  },
+
+  // =========================================================================
+  //  DORNE
+  // =========================================================================
+  princesPass: makeRoute({
+    name: "The Prince's Pass", ground: 'sand', wall: 'C', floor: 's', music: 'route',
+    features: [
+      { type: 'sign', x: 8, y: 2 },
+      { type: 'cliff', x: 2, y: 2, w: 5, h: 3 },
+      { type: 'cliff', x: 14, y: 2, w: 4, h: 3 },
+      { type: 'grass', x: 3, y: 6, w: 5, h: 3 },
+      { type: 'grass', x: 13, y: 6, w: 5, h: 3 },
+      { type: 'cliff', x: 2, y: 11, w: 4, h: 3 },
+      { type: 'cliff', x: 15, y: 11, w: 3, h: 3 },
+      { type: 'grass', x: 3, y: 15, w: 6, h: 3 },
+      { type: 'grass', x: 12, y: 15, w: 6, h: 3 },
+      { type: 'water', x: 5, y: 20, w: 4, h: 2 },
+    ],
+    encounters: [
+      { species: 'sandviper', min: 30, max: 35, weight: 24 },
+      { species: 'dornspine', min: 34, max: 38, weight: 10 },
+      { species: 'emberwisp', min: 30, max: 34, weight: 18 },
+      { species: 'cubmane', min: 30, max: 34, weight: 16 },
+      { species: 'falconet', min: 30, max: 34, weight: 16 },
+      { species: 'crabcrag', min: 31, max: 35, weight: 16 },
+    ],
+    warps: [
+      { x: 10, y: 0, to: 'highgarden', tx: 11, ty: 18, dir: 'up' },
+      { x: 10, y: 23, to: 'sunspear', tx: 11, ty: 1, dir: 'down' },
+    ],
+    signs: [
+      { x: 8, y: 2, text: "THE PRINCE'S PASS\nThe only easy road into Dorne.\nIt is not easy." },
+    ],
+    npcs: [
+      { x: 6, y: 10, dir: 'right', sprite: 'martell', name: 'Sand Steed Rider', script: 'trainer',
+        data: { trainer: 'dorneRider' } },
+    ],
+    items: [
+      { x: 16, y: 19, item: 'kingsRansom', count: 1, flag: 'item_dorne_ransom' },
+    ],
+  }),
+
+  sunspear: makeTown({
+    name: 'Sunspear', ground: 'sand', wall: 'C', floor: 's', music: 'town',
+    warps: [
+      { x: 11, y: 0, to: 'princesPass', tx: 10, ty: 22, dir: 'up' },
+      { x: 6, y: 6, to: 'maesterHallSunspear', tx: 5, ty: 7, dir: 'up' },
+      { x: 17, y: 6, to: 'sunspearArmoury', tx: 5, ty: 6, dir: 'up' },
+    ],
+    signs: [
+      { x: 9, y: 10, text: 'SUNSPEAR\nSeat of House Martell.\nUnbowed. Unbent. Unbroken.' },
+    ],
+    npcs: [
+      { x: 8, y: 9, dir: 'down', sprite: 'martell', name: 'Oberyn Martell', script: 'duel',
+        data: { duel: 'oberyn' } },
+      { x: 14, y: 10, dir: 'left', sprite: 'martell', name: 'Prince Doran', script: 'doran' },
+      { x: 5, y: 17, dir: 'right', sprite: 'smallfolk', name: 'Orphan', script: 'dorneHint' },
+    ],
+  }),
+
+  maesterHallSunspear: maesterHall({
+    exitTo: 'sunspear', exitX: 6, exitY: 7,
+    stock: ['kingsguardBanner', 'kingsRansom', 'antidote', 'weirwoodSap', 'kissOfFire'],
+    healerLine: 'Dornish sun burns creatures raised in the North. Rest them.',
+    merchantLine: 'Sun-dried, salt-cured and strong enough to strip paint.',
+  }),
+
+  sunspearArmoury: {
+    name: 'The Sunspear Bazaar',
+    indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIIIIII',
+      'I=TT=====B=I',
+      'I=====KKK==I',
+      'I==========I',
+      'I=TT====TT=I',
+      'I==========I',
+      'I=F======F=I',
+      'IIIII__IIIII',
+    ],
+    warps: [
+      { x: 5, y: 7, to: 'sunspear', tx: 17, ty: 7, dir: 'down' },
+      { x: 6, y: 7, to: 'sunspear', tx: 17, ty: 7, dir: 'down' },
+    ],
+    npcs: [
+      { x: 7, y: 1, dir: 'down', sprite: 'martell', name: 'Bazaar Smith', script: 'smith',
+        data: {
+          line: 'Bazaar Smith: Light armour, long spears, and poison if you ask quietly.',
+          stock: {
+            weapon: ['boarSpear', 'huntingKnife', 'castleForged'],
+            armour: ['boiledLeather', 'scaleArmour'],
+            shield: ['buckler', 'oakShield'],
+          },
+        } },
+    ],
+  },
+
+  // =========================================================================
+  //  THE STORMLANDS
+  // =========================================================================
+  stormlands: makeRoute({
+    name: 'The Stormlands', ground: 'grass', music: 'route',
+    features: [
+      { type: 'sign', x: 8, y: 2 },
+      { type: 'water', x: 2, y: 2, w: 5, h: 3 },
+      { type: 'grass', x: 13, y: 2, w: 5, h: 3 },
+      { type: 'trees', x: 2, y: 6, w: 4, h: 2 },
+      { type: 'trees', x: 15, y: 6, w: 3, h: 2 },
+      { type: 'grass', x: 2, y: 9, w: 7, h: 3 },
+      { type: 'grass', x: 12, y: 9, w: 6, h: 3 },
+      { type: 'ledge', x: 1, y: 13, w: 9, h: 1 },
+      { type: 'ledge', x: 11, y: 13, w: 8, h: 1 },
+      { type: 'grass', x: 3, y: 15, w: 6, h: 3 },
+      { type: 'grass', x: 12, y: 15, w: 6, h: 3 },
+      { type: 'water', x: 12, y: 19, w: 6, h: 3 },
+    ],
+    encounters: [
+      { species: 'fawnhart', min: 28, max: 33, weight: 20 },
+      { species: 'crownstag', min: 33, max: 37, weight: 10 },
+      { species: 'falconet', min: 28, max: 32, weight: 18 },
+      { species: 'krakenling', min: 29, max: 33, weight: 16 },
+      { species: 'boartusk', min: 28, max: 32, weight: 18 },
+      { species: 'riverfry', min: 28, max: 32, weight: 18 },
+    ],
+    warps: [
+      { x: 10, y: 0, to: 'kingsroad', tx: 18, ty: 14, dir: 'down' },
+      { x: 10, y: 23, to: 'stormsEnd', tx: 11, ty: 1, dir: 'down' },
+    ],
+    signs: [
+      { x: 8, y: 2, text: 'THE STORMLANDS\nSouth to Storm\u2019s End.\nThe weather here has opinions.' },
+    ],
+    npcs: [
+      { x: 6, y: 11, dir: 'right', sprite: 'brotherhood', name: 'Beric Dondarrion', script: 'duel',
+        data: { duel: 'beric' } },
+      { x: 14, y: 17, dir: 'left', sprite: 'baratheon', name: 'Storm Knight', script: 'trainer',
+        data: { trainer: 'stormKnight3' } },
+    ],
+    items: [
+      { x: 16, y: 3, item: 'kissOfFire', count: 2, flag: 'item_storm_revive' },
+    ],
+  }),
+
+  stormsEnd: makeTown({
+    name: "Storm's End", ground: 'grass', wall: 'C', music: 'town',
+    warps: [
+      { x: 11, y: 0, to: 'stormlands', tx: 10, ty: 22, dir: 'up' },
+      { x: 6, y: 6, to: 'maesterHallStormsEnd', tx: 5, ty: 7, dir: 'up' },
+      { x: 17, y: 6, to: 'stormsEndArmoury', tx: 5, ty: 6, dir: 'up' },
+    ],
+    signs: [
+      { x: 9, y: 10, text: "STORM'S END\nSeat of House Baratheon.\nNo storm has ever taken it. Many have tried." },
+    ],
+    npcs: [
+      { x: 8, y: 9, dir: 'down', sprite: 'redPriest', name: 'Melisandre', script: 'melisandre' },
+      { x: 14, y: 10, dir: 'left', sprite: 'baratheon', name: 'Ser Davos', script: 'davos' },
+      { x: 5, y: 17, dir: 'right', sprite: 'smallfolk', name: 'Fisherman', script: 'stormHint' },
+    ],
+  }),
+
+  maesterHallStormsEnd: maesterHall({
+    exitTo: "stormsEnd", exitX: 6, exitY: 7,
+    stock: ['kingsguardBanner', 'kingsRansom', 'weirwoodSap', 'kissOfFire', 'stillwater'],
+    healerLine: 'Storm-country creatures are hardy. Yours look tired all the same.',
+    merchantLine: 'Salt, rope, and whatever the last wreck gave up.',
+  }),
+
+  stormsEndArmoury: {
+    name: "The Storm's End Forge",
+    indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIIIIII',
+      'I=FF=====B=I',
+      'I=====KKK==I',
+      'I==========I',
+      'I=TT====TT=I',
+      'I==========I',
+      'I=F======F=I',
+      'IIIII__IIIII',
+    ],
+    warps: [
+      { x: 5, y: 7, to: 'stormsEnd', tx: 17, ty: 7, dir: 'down' },
+      { x: 6, y: 7, to: 'stormsEnd', tx: 17, ty: 7, dir: 'down' },
+    ],
+    npcs: [
+      { x: 7, y: 1, dir: 'down', sprite: 'baratheon', name: 'Forgemaster', script: 'smith',
+        data: {
+          line: 'Forgemaster: Heavy work for heavy weather. Nothing pretty.',
+          stock: {
+            weapon: ['warhammer', 'castleForged', 'woodAxe'],
+            armour: ['ringmail', 'scaleArmour', 'knightPlate'],
+            shield: ['oakShield', 'towerShield'],
+          },
+        } },
+    ],
+  },
+
+  // =========================================================================
+  //  DRAGONSTONE
+  // =========================================================================
+  dragonstone: makeTown({
+    name: 'Dragonstone', ground: 'stone', wall: 'C', floor: 'o', music: 'battleBoss',
+    warps: [
+      { x: 11, y: 19, to: 'kingsLanding', tx: 22, ty: 21, dir: 'down' },
+      { x: 6, y: 6, to: 'maesterHallDragonstone', tx: 5, ty: 7, dir: 'up' },
+      { x: 7, y: 14, to: 'dragonmont', tx: 8, ty: 14, dir: 'up' },
+    ],
+    signs: [
+      { x: 9, y: 10, text: 'DRAGONSTONE\nAncient seat of House Targaryen.\nThe stone here was shaped while it was still soft.' },
+    ],
+    npcs: [
+      { x: 8, y: 9, dir: 'down', sprite: 'unsullied', name: 'Grey Worm', script: 'duel',
+        data: { duel: 'greyWorm' } },
+      { x: 14, y: 10, dir: 'left', sprite: 'braavosi', name: 'Daario', script: 'duel',
+        data: { duel: 'daario' } },
+      { x: 5, y: 17, dir: 'right', sprite: 'targaryen', name: 'Daenerys', script: 'daenerys' },
+      { x: 16, y: 17, dir: 'left', sprite: 'ironborn', name: 'Euron Greyjoy', script: 'duel',
+        data: { duel: 'euron' } },
+    ],
+  }),
+
+  maesterHallDragonstone: maesterHall({
+    exitTo: 'dragonstone', exitX: 6, exitY: 7,
+    stock: ['kingsguardBanner', 'kingsRansom', 'weirwoodSap', 'kissOfFire'],
+    healerLine: 'The island is hot and the stone never cools. Rest them here.',
+    merchantLine: 'Little trade reaches the island. What there is, is good.',
+  }),
+
+  dragonmont: {
+    name: 'The Dragonmont',
+    indoor: true, music: 'wild',
+    tiles: [
+      '@@@@@@@@@@@@@@@@@',
+      '@%%%%%%%%%%%%%%%@',
+      '@%%@@@%%%%%@@@%%@',
+      '@%%@@@%%%%%@@@%%@',
+      '@%%%%%%%%%%%%%%%@',
+      '@%%%%%@@@@@%%%%%@',
+      '@%%%%%@%%%@%%%%%@',
+      '@%%%%%@%%%@%%%%%@',
+      '@%%%%%@%%%@%%%%%@',
+      '@%%%%%@@%@@%%%%%@',
+      '@%%%%%%%%%%%%%%%@',
+      '@%%@@@%%%%%@@@%%@',
+      '@%%@@@%%%%%@@@%%@',
+      '@%%%%%%%%%%%%%%%@',
+      '@%%%%%%%%%%%%%%%@',
+      '@@@@@@@@%@@@@@@@@',
+    ],
+    encounters: [
+      { species: 'emberwisp', min: 34, max: 40, weight: 26 },
+      { species: 'pyremaw', min: 40, max: 45, weight: 12 },
+      { species: 'scaleflight', min: 36, max: 42, weight: 18 },
+      { species: 'sandviper', min: 34, max: 39, weight: 16 },
+      { species: 'crabcrag', min: 34, max: 39, weight: 14 },
+      { species: 'dreadwyrm', min: 44, max: 48, weight: 6 },
+    ],
+    warps: [
+      { x: 8, y: 15, to: 'dragonstone', tx: 7, ty: 15, dir: 'down' },
+    ],
+    npcs: [
+      { x: 8, y: 7, dir: 'down', sprite: 'targaryen', name: '?', script: 'blackdread',
+        hideIfFlag: 'blackdread_done' },
+    ],
+    items: [
+      { x: 2, y: 1, item: 'dragonglass', count: 1, flag: 'item_dragonmont_glass' },
+      { x: 14, y: 14, item: 'kingsRansom', count: 2, flag: 'item_dragonmont_ransom' },
     ],
   },
 
@@ -318,6 +1029,8 @@ export const MAPS = {
       { x: 13, y: 10, dir: 'down', sprite: 'guard', name: 'Bog Guard', script: 'trainer',
         data: { trainer: 'bogGuard' } },
       { x: 4, y: 15, dir: 'right', sprite: 'smallfolk', name: 'Crannogman', script: 'moatHint' },
+      { x: 16, y: 4, dir: 'down', sprite: 'bolton', name: 'Ramsay Bolton', script: 'duel',
+        data: { duel: 'ramsay' } },
       { x: 14, y: 4, dir: 'down', sprite: 'rival', name: 'Joffrey', script: 'rivalMoat',
         hideIfFlag: 'trainer_rival1' },
     ],
@@ -351,7 +1064,7 @@ export const MAPS = {
       '#....##...-...##...#',
       '#.........-........#',
       '#LLLLLLLLL-LLLLLLLL#',
-      '#.........-........#',
+      '#.........-........-',
       '#..,,,,,,.-.,,,,,,.#',
       '#..,,,,,,.-.,,,,,,.#',
       '#.........-........#',
@@ -377,6 +1090,7 @@ export const MAPS = {
     warps: [
       { x: 10, y: 0, to: 'moatCailin', tx: 11, ty: 18, dir: 'up' },
       { x: 10, y: 24, to: 'riverrun', tx: 12, ty: 1, dir: 'down' },
+      { x: 19, y: 12, to: 'bloodyGate', tx: 10, ty: 22, dir: 'right' },
     ],
     signs: [
       { x: 9, y: 1, text: 'THE RIVERLANDS\nSouth to Riverrun.\nMind the fords.' },
@@ -643,7 +1357,7 @@ export const MAPS = {
       '#.o..HwHwDHwH....o.#',
       '#.o......-.......o.#',
       '#.oooooo.-.oooooooo#',
-      '#........-.........#',
+      '#........-.........-',
       '#........-.........#',
       '#########-##########',
     ],
@@ -654,6 +1368,7 @@ export const MAPS = {
       { x: 14, y: 6, to: 'lannisportForge', tx: 5, ty: 6, dir: 'up' },
       { x: 9, y: 14, to: 'casterlyRock', tx: 8, ty: 16, dir: 'up' },
       { x: 9, y: 19, to: 'kingsroad', tx: 10, ty: 1, dir: 'down' },
+      { x: 19, y: 17, to: 'roseroad', tx: 10, ty: 1, dir: 'right' },
     ],
     signs: [
       { x: 14, y: 10, text: 'LANNISPORT\nBeneath Casterly Rock.\nSigil-holder: SER JAIME.' },
@@ -734,6 +1449,10 @@ export const MAPS = {
       { x: 11, y: 14, dir: 'left', sprite: 'lannister', name: 'Ser Addam', script: 'trainer',
         data: { trainer: 'lionKnight2' } },
       { x: 3, y: 16, dir: 'right', sprite: 'smallfolk', name: 'Steward', script: 'gymHintLannister' },
+      { x: 13, y: 3, dir: 'down', sprite: 'mountain', name: 'Gregor Clegane', script: 'duel',
+        data: { duel: 'mountain' } },
+      { x: 4, y: 3, dir: 'down', sprite: 'lannister', name: 'Ser Jaime', script: 'duel',
+        data: { duel: 'jaime' } },
     ],
   },
 
@@ -757,7 +1476,7 @@ export const MAPS = {
       '#.........-........#',
       '#..,,,,,,.-.,,,,,,.#',
       '#..,,,,,,.-.,,,,,,.#',
-      '#.........-........#',
+      '#.........-........-',
       '#...CC....-....CC..#',
       '#.........-........#',
       '#..,,,,,..-..,,,,,.#',
@@ -779,6 +1498,7 @@ export const MAPS = {
     warps: [
       { x: 10, y: 0, to: 'lannisport', tx: 9, ty: 18, dir: 'up' },
       { x: 10, y: 22, to: 'kingsLanding', tx: 12, ty: 1, dir: 'down' },
+      { x: 19, y: 14, to: 'stormlands', tx: 10, ty: 1, dir: 'right' },
     ],
     signs: [
       { x: 9, y: 1, text: "THE KINGSROAD\nSouth to King's Landing.\nThe end of the road, one way or another." },
@@ -791,6 +1511,8 @@ export const MAPS = {
       { x: 6, y: 17, dir: 'up', sprite: 'nightswatch', name: 'Deserter', script: 'trainer',
         data: { trainer: 'deserter' } },
       { x: 14, y: 20, dir: 'left', sprite: 'smallfolk', name: 'Pilgrim', script: 'kingsroadHint' },
+      { x: 4, y: 20, dir: 'right', sprite: 'hound', name: 'Sandor Clegane', script: 'duel',
+        data: { duel: 'hound' } },
     ],
     items: [
       { x: 3, y: 15, item: 'kingsRansom', count: 1, flag: 'item_kingsroad_ransom' },
@@ -825,12 +1547,13 @@ export const MAPS = {
       '#.o.oooooo.-.oooooooo.o#',
       '#.o........-.........o.#',
       '#.oooooooo.-.ooooooooo.#',
-      '#..........-...........#',
+      '#..........-..........--',
       '########################',
     ],
     encounters: [],
     warps: [
       { x: 11, y: 1, to: 'kingsroad', tx: 10, ty: 21, dir: 'up' },
+      { x: 23, y: 21, to: 'dragonstone', tx: 11, ty: 18, dir: 'right' },
       { x: 6, y: 6, to: 'maesterHallKL', tx: 5, ty: 7, dir: 'up' },
       { x: 16, y: 6, to: 'klArmoury', tx: 5, ty: 6, dir: 'up' },
       { x: 11, y: 16, to: 'redKeep', tx: 8, ty: 21, dir: 'up' },
@@ -913,7 +1636,7 @@ export const MAPS = {
       { x: 8, y: 22, to: 'kingsLanding', tx: 11, ty: 17, dir: 'down' },
     ],
     npcs: [
-      { x: 9, y: 4, dir: 'down', sprite: 'baratheon', name: 'The Claimant', script: 'gymThrone' },
+      { x: 9, y: 4, dir: 'down', sprite: 'cersei', name: 'Queen Cersei', script: 'gymThrone' },
       { x: 6, y: 9, dir: 'right', sprite: 'guard', name: 'Ser Meryn', script: 'trainer',
         data: { trainer: 'kingsguard1' } },
       { x: 12, y: 12, dir: 'left', sprite: 'guard', name: 'Ser Boros', script: 'trainer',
@@ -922,6 +1645,10 @@ export const MAPS = {
         data: { trainer: 'kingsguard3' } },
       { x: 9, y: 20, dir: 'up', sprite: 'rival', name: 'Joffrey', script: 'rivalThrone',
         hideIfFlag: 'trainer_rival3' },
+      { x: 12, y: 17, dir: 'left', sprite: 'kingsguard', name: 'Ser Meryn', script: 'duel',
+        data: { duel: 'meryn' } },
+      { x: 6, y: 12, dir: 'right', sprite: 'kingsguard', name: 'Ser Barristan', script: 'duel',
+        data: { duel: 'barristan' } },
     ],
   },
 };

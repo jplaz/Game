@@ -9,6 +9,8 @@ import { audio } from '../engine/audio.js';
 import { TRACKS } from '../data/music.js';
 import { rng } from '../engine/rng.js';
 import { makeRoamer, ROAMERS } from '../data/duellists.js';
+import { creatureSpecies, displayName } from '../game/creature.js';
+import { creatureSprite, SPRITE_SIZE } from '../art/creatures.js';
 import { dialog } from '../ui/textbox.js';
 import { drawPanel } from '../ui/panel.js';
 import { drawText, measure } from '../engine/font.js';
@@ -20,7 +22,12 @@ const SCREEN_W = 240;
 const SCREEN_H = 160;
 const WALK_TIME = 0.17;
 const RUN_TIME = 0.095;
+const RIDE_TIME = 0.075;
 const ENCOUNTER_CHANCE = 0.11;
+// Mounted you cover ground faster and trouble is likelier to let you pass.
+const MOUNTED_ENCOUNTER_SCALE = 0.35;
+const MOUNT_SIZE = 30;
+const RIDER_LIFT = 13;
 
 export class Overworld {
   constructor() {
@@ -37,6 +44,7 @@ export class Overworld {
     this.turnDelay = 0;
     this.bumpCooldown = 0;
     this.pendingEncounter = null;
+    this.mount = null;      // { creature, kind } while you are riding
     this.alert = null;      // '!' bubble over a trainer who has spotted you
     this.approach = null;   // trainer walking toward the player
     this.onLoadScript = null;
@@ -54,6 +62,11 @@ export class Overworld {
   loadMap(mapId, { x, y, dir }) {
     this.map = getMap(mapId);
     this.region = regionOf(mapId);
+    // You leave the beast outside; it does not follow you through a doorway.
+    if (this.map.indoor) this.mount = null;
+    // Nor does a mount that has been taken out of your party or knocked down.
+    if (this.mount && !game.state.party.includes(this.mount.creature)) this.mount = null;
+    if (this.mount && this.mount.creature.hp <= 0) this.mount = null;
     this.player.x = x;
     this.player.y = y;
     this.player.dir = dir ?? 'down';
@@ -105,7 +118,11 @@ export class Overworld {
   blocked(x, y) {
     if (x < 0 || y < 0 || x >= this.map.width || y >= this.map.height) return true;
     const def = tileDef(tileAt(this.map, x, y));
-    if (def.kind === 'solid' || def.kind === 'water') return true;
+    // A swimming or flying mount carries you over water that would stop you on
+    // foot; nothing carries you through a wall.
+    const overWater = this.mount && (this.mount.kind === 'swim' || this.mount.kind === 'fly');
+    if (def.kind === 'solid') return true;
+    if (def.kind === 'water' && !overWater) return true;
     if (this.npcAt(x, y)) return true;
     if (this.itemAt(x, y)) return true;
     return false;
@@ -149,6 +166,10 @@ export class Overworld {
       this.interact();
       return;
     }
+    if (input.pressed('ride')) {
+      this.toggleRide();
+      return;
+    }
     if (this.player.moving || this.turnDelay > 0) return;
 
     const dir = input.direction();
@@ -172,6 +193,10 @@ export class Overworld {
     const targetTile = tileAt(this.map, nx, ny);
 
     // Ledges: you may hop down them, never up.
+    if (tileDef(targetTile).kind === 'ledge' && this.mount?.kind === 'fly') {
+      this.startMove(nx, ny, false);
+      return;
+    }
     if (tileDef(targetTile).kind === 'ledge' && dir === 'down') {
       this.startMove(nx, ny + 1, true);
       audio.sfx('bump');
@@ -190,13 +215,60 @@ export class Overworld {
 
   startMove(x, y, hop) {
     const running = input.held('b') && !hop;
+    let duration = hop ? 0.3 : (running ? RUN_TIME : WALK_TIME);
+    if (this.mount && !hop) duration = RIDE_TIME;
     this.player.moving = {
       fromX: this.player.x, fromY: this.player.y,
       toX: x, toY: y,
       t: 0,
-      duration: hop ? 0.3 : (running ? RUN_TIME : WALK_TIME),
+      duration,
       hop,
     };
+  }
+
+  // ----------------------------------------------------------------- riding --
+
+  /** The lead creature that is grown enough to carry you, if any. */
+  rideable() {
+    for (const creature of game.state.party) {
+      if (creature.hp <= 0) continue;
+      const kind = creatureSpecies(creature).mount;
+      if (kind) return { creature, kind };
+    }
+    return null;
+  }
+
+  async toggleRide() {
+    if (this.mount) {
+      // You cannot get down in the middle of water or thin air.
+      const def = tileDef(tileAt(this.map, this.player.x, this.player.y));
+      if (def.kind === 'water') {
+        await dialog.say('Not here. Find dry land first.');
+        return;
+      }
+      const name = displayName(this.mount.creature);
+      this.mount = null;
+      audio.sfx('cancel');
+      await dialog.say(`You swing down from ${name}.`);
+      return;
+    }
+
+    if (this.map.indoor) {
+      await dialog.say('There is no room for that in here.');
+      return;
+    }
+    const found = this.rideable();
+    if (!found) {
+      const party = game.state.party.filter((c) => c.hp > 0);
+      await dialog.say(party.length
+        ? 'Nothing you keep is grown enough to carry you yet.'
+        : 'You have nothing to ride.');
+      return;
+    }
+    this.mount = found;
+    audio.sfx('confirm');
+    const verb = { fly: 'climb onto', swim: 'wade out on', ground: 'swing up onto' }[found.kind];
+    await dialog.say(`You ${verb} ${displayName(found.creature)}.`);
   }
 
   updateMovement(dt) {
@@ -250,7 +322,8 @@ export class Overworld {
     if (def.kind !== 'encounter') return;
     if (!(this.map.encounters?.length)) return;
     if (game.state.player.wounded) return;
-    if (!rng.chance(ENCOUNTER_CHANCE)) return;
+    const chance = ENCOUNTER_CHANCE * (this.mount ? MOUNTED_ENCOUNTER_SCALE : 1);
+    if (!rng.chance(chance)) return;
 
     const entry = rng.weighted(this.map.encounters);
     const level = rng.int(entry.min, entry.max);
@@ -631,10 +704,29 @@ export class Overworld {
     // Built fresh each frame so equipping armour shows up immediately; the
     // sprite sheets themselves are cached by appearance inside drawActor.
     const look = playerAppearance();
+    const mount = this.mount;
     drawables.push({
       y: px.y,
-      draw: () => drawActor(ctx, look, this.player.dir, this.player.step,
-        px.x - camX, px.y - camY - (ACTOR_H - TILE) - px.lift),
+      draw: () => {
+        // Mounted, the beast is drawn first and you sit above it, so a rider
+        // reads as one figure rather than a sprite standing on another.
+        const lift = mount ? RIDER_LIFT : 0;
+        if (mount) {
+          const sprite = creatureSprite(creatureSpecies(mount.creature));
+          const size = MOUNT_SIZE;
+          const bob = this.player.moving ? Math.sin(this.player.moving.t * Math.PI * 2) : 0;
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          // Seated so the beast's feet land on the tile it occupies.
+          ctx.drawImage(sprite, 0, 0, SPRITE_SIZE, SPRITE_SIZE,
+            Math.round(px.x - camX + (TILE - size) / 2),
+            Math.round(px.y - camY + TILE - size + 2 - px.lift + bob),
+            size, size);
+          ctx.restore();
+        }
+        drawActor(ctx, look, this.player.dir, mount ? 0 : this.player.step,
+          px.x - camX, px.y - camY - (ACTOR_H - TILE) - px.lift - lift);
+      },
     });
 
     drawables.sort((a, b) => a.y - b.y);
@@ -671,7 +763,9 @@ export class Overworld {
     if (this.map.indoor) return;
     if (this.frameTimer > 3) return;
     const alpha = this.frameTimer > 2.4 ? 1 - (this.frameTimer - 2.4) / 0.6 : 1;
-    const region = this.region ?? '';
+    // Some places share their name with the region they are in; naming it
+    // twice on the same card reads as a mistake.
+    const region = this.region && this.region !== this.map.name ? this.region : '';
     const width = Math.max(measure(this.map.name), measure(region)) + 22;
     const height = region ? 32 : 20;
 

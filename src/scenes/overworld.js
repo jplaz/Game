@@ -1,6 +1,6 @@
 // The overworld: grid movement, collision, warps, NPCs, trainers, encounters.
 
-import { TILE, tileCanvas, tileDef } from '../art/tiles.js';
+import { TILE, tileCanvas, tileDef, TILE_GROUP, N, E, S, W } from '../art/tiles.js';
 import { drawActor, ACTOR_H } from '../art/actors.js';
 import { getMap, tileAt } from '../data/maps.js';
 import { input } from '../engine/input.js';
@@ -507,7 +507,8 @@ export class Overworld {
     for (let y = startY; y <= endY; y++) {
       for (let x = startX; x <= endX; x++) {
         const char = tileAt(this.map, x, y);
-        ctx.drawImage(tileCanvas(char, this.animFrame), x * TILE - camX, y * TILE - camY);
+        ctx.drawImage(tileCanvas(char, this.animFrame, this.neighbourMask(char, x, y), this.map.ground),
+          x * TILE - camX, y * TILE - camY);
       }
     }
 
@@ -517,6 +518,28 @@ export class Overworld {
     this.drawAlert(ctx, camX, camY);
     this.drawLocationBanner(ctx);
     dialog.draw(ctx);
+  }
+
+  /**
+   * Which of a tile's four neighbours share its visual group. Tiles outside the
+   * map count as matching, so a forest that runs off the edge of the map stays
+   * closed rather than growing a lit rim against the void.
+   */
+  neighbourMask(char, x, y) {
+    const group = TILE_GROUP[char];
+    if (!group) return 0;
+    // Off-map counts as matching for masses that should stay closed at the
+    // border (water, caves). Woodland does not: a single row of trees along the
+    // map edge should read as trees, not as a sliced-off canopy.
+    const outsideMatches = group !== 'forest';
+    const same = (nx, ny) => {
+      if (nx < 0 || ny < 0 || nx >= this.map.width || ny >= this.map.height) return outsideMatches;
+      return TILE_GROUP[tileAt(this.map, nx, ny)] === group;
+    };
+    return (same(x, y - 1) ? N : 0)
+         | (same(x + 1, y) ? E : 0)
+         | (same(x, y + 1) ? S : 0)
+         | (same(x - 1, y) ? W : 0);
   }
 
   drawItems(ctx, camX, camY) {
@@ -568,7 +591,7 @@ export class Overworld {
     const check = (tileX, tileY, pixelX, pixelY) => {
       const char = tileAt(this.map, tileX, tileY);
       if (tileDef(char).kind !== 'encounter') return;
-      const canvas = tileCanvas(char, this.animFrame);
+      const canvas = tileCanvas(char, this.animFrame, this.neighbourMask(char, tileX, tileY), this.map.ground);
       ctx.drawImage(canvas, 0, 8, TILE, 8, pixelX, pixelY + 8, TILE, 8);
     };
     const px = this.playerPixel();

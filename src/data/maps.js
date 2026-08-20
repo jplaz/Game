@@ -77,6 +77,7 @@ export const MAPS = {
   winterfell: {
     name: 'Winterfell',
     music: 'town',
+    ground: 'snow',
     tiles: [
       'PPPPPPPPPPPPPPPPPPPPPPPP',
       'PSSSSSSSSSSSSSSSSSSSSSSP',
@@ -170,6 +171,7 @@ export const MAPS = {
   wolfswood: {
     name: 'The Wolfswood',
     music: 'route',
+    ground: 'grass',
     tiles: [
       'PPPPPPPPPP-PPPPPPPPP',
       'PSSSSSSSSS-S!SSSSSSP',
@@ -233,6 +235,7 @@ export const MAPS = {
   moatCailin: {
     name: 'Moat Cailin',
     music: 'town',
+    ground: 'grass',
     tiles: [
       '####################',
       '#........-.........#',
@@ -293,6 +296,7 @@ export const MAPS = {
   riverlands: {
     name: 'The Riverlands',
     music: 'route',
+    ground: 'grass',
     tiles: [
       '##########-#########',
       '#........!-*.......#',
@@ -355,6 +359,7 @@ export const MAPS = {
   riverrun: {
     name: 'Riverrun',
     music: 'town',
+    ground: 'grass',
     tiles: [
       '~~~~~~~~~~~~-~~~~~~~~~~~',
       '~..........s-s.........~',
@@ -472,6 +477,7 @@ export const MAPS = {
   goldRoad: {
     name: 'The Gold Road',
     music: 'route',
+    ground: 'grass',
     tiles: [
       '##########-#########',
       '#........!-s.......#',
@@ -534,6 +540,7 @@ export const MAPS = {
     name: 'The Barrow Deeps',
     indoor: true,
     music: 'wild',
+    ground: 'cave',
     tiles: [
       '@@@@@@@@@@@@@@@@@',
       '@%%%%%%%%%%%%%%%@',
@@ -576,6 +583,7 @@ export const MAPS = {
   lannisport: {
     name: 'Lannisport',
     music: 'town',
+    ground: 'grass',
     tiles: [
       '####################',
       '#.........-........#',
@@ -692,6 +700,7 @@ export const MAPS = {
   kingsroad: {
     name: 'The Kingsroad',
     music: 'route',
+    ground: 'grass',
     tiles: [
       '##########-#########',
       '#........!-s.......#',
@@ -752,6 +761,7 @@ export const MAPS = {
   kingsLanding: {
     name: "King's Landing",
     music: 'town',
+    ground: 'grass',
     tiles: [
       '########################',
       '#..........-...........#',

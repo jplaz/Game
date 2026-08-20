@@ -39,55 +39,73 @@ function rect(ctx, x, y, w, h, color) {
 
 const painters = {
   grass(ctx) {
-    speckle(ctx, '#4e9a56', [
-      { color: '#5fae62', chance: 0.16 },
-      { color: '#41864b', chance: 0.26 },
-    ], 11);
-    // A few upright blades to break up the noise.
-    for (let i = 0; i < 5; i++) {
-      const x = Math.floor(hash(i, 3, 7) * 15);
-      const y = Math.floor(hash(i, 9, 7) * 14);
-      rect(ctx, x, y, 1, 2, '#6cbd6c');
+    // Emerald's grass is a flat mid-green with a sparse two-tone dither rather
+    // than heavy noise; too much texture reads as static at this size.
+    ctx.fillStyle = '#68b048';
+    ctx.fillRect(0, 0, TILE, TILE);
+    for (let y = 0; y < TILE; y++) {
+      for (let x = 0; x < TILE; x++) {
+        const n = hash(x, y, 11);
+        if (n < 0.10) rect(ctx, x, y, 1, 1, '#7cc058');
+        else if (n < 0.18) rect(ctx, x, y, 1, 1, '#589838');
+      }
     }
   },
 
   tallGrass(ctx, frame) {
     painters.grass(ctx);
     const sway = frame ? 1 : 0;
-    rect(ctx, 0, 10, TILE, 6, '#3d7d45');
-    for (let i = 0; i < 8; i++) {
-      const x = i * 2 + (i % 2 ? 0 : 1);
-      const h = 5 + ((i * 3) % 4);
+    // A dense clump that fills the tile, the way Emerald's does, rather than a
+    // fringe along the bottom edge.
+    rect(ctx, 1, 6, TILE - 2, 10, '#3f8a3c');
+    rect(ctx, 2, 5, TILE - 4, 1, '#57a84c');
+    for (let i = 0; i < 7; i++) {
+      const x = 1 + i * 2;
+      const h = 6 + ((i * 5) % 5);
       const lean = ((i + sway) % 2) ? 0 : 1;
-      rect(ctx, x + lean, TILE - h - 1, 1, h, i % 3 === 0 ? '#79c46f' : '#5aa458');
+      rect(ctx, x + lean, TILE - h, 2, h - 1, i % 3 === 0 ? '#6cc059' : '#4d9843');
+      rect(ctx, x + lean, TILE - h, 1, 2, '#84d068');
     }
-    rect(ctx, 0, 15, TILE, 1, '#356c3c');
+    rect(ctx, 1, TILE - 2, TILE - 2, 2, '#2f6c30');
   },
 
   snowGrass(ctx, frame) {
     painters.snow(ctx);
     const sway = frame ? 1 : 0;
-    for (let i = 0; i < 8; i++) {
-      const x = i * 2 + (i % 2 ? 0 : 1);
-      const h = 5 + ((i * 5) % 4);
+    rect(ctx, 1, 7, TILE - 2, 9, '#5f8f7c');
+    rect(ctx, 2, 6, TILE - 4, 1, '#7fae98');
+    for (let i = 0; i < 7; i++) {
+      const x = 1 + i * 2;
+      const h = 6 + ((i * 5) % 5);
       const lean = ((i + sway) % 2) ? 0 : 1;
-      rect(ctx, x + lean, TILE - h - 1, 1, h, i % 3 === 0 ? '#9fd7c4' : '#7fb6a8');
+      rect(ctx, x + lean, TILE - h, 2, h - 1, i % 3 === 0 ? '#8fc0aa' : '#6a9c88');
+      rect(ctx, x + lean, TILE - h, 1, 2, '#c8e4d8');
     }
-    rect(ctx, 0, 14, TILE, 2, '#dfe9f2');
+    rect(ctx, 1, TILE - 2, TILE - 2, 2, '#dfe9f2');
   },
 
   snow(ctx) {
-    speckle(ctx, '#e4ecf4', [
-      { color: '#f6fbff', chance: 0.14 },
-      { color: '#cbd8e6', chance: 0.24 },
-    ], 23);
+    // Cooler and a shade darker than pure white: snow at full brightness eats
+    // the whole screen and leaves nothing for the sprites to read against.
+    rect(ctx, 0, 0, TILE, TILE, '#cfdcea');
+    for (let y = 0; y < TILE; y++) {
+      for (let x = 0; x < TILE; x++) {
+        const n = hash(x, y, 23);
+        if (n < 0.10) rect(ctx, x, y, 1, 1, '#e4edf6');
+        else if (n < 0.18) rect(ctx, x, y, 1, 1, '#b6c6d8');
+      }
+    }
   },
 
   path(ctx) {
-    speckle(ctx, '#c8b58c', [
-      { color: '#d8c9a4', chance: 0.18 },
-      { color: '#ac9770', chance: 0.24 },
-    ], 31);
+    rect(ctx, 0, 0, TILE, TILE, '#d8c090');
+    for (let y = 0; y < TILE; y++) {
+      for (let x = 0; x < TILE; x++) {
+        const n = hash(x, y, 31);
+        if (n < 0.10) rect(ctx, x, y, 1, 1, '#e8d4ac');
+        else if (n < 0.17) rect(ctx, x, y, 1, 1, '#bda476');
+      }
+    }
   },
 
   sand(ctx) {
@@ -108,17 +126,29 @@ const painters = {
     rect(ctx, 8, 8, 1, 8, '#6f6f7c');
   },
 
-  water(ctx, frame) {
-    speckle(ctx, '#3f6fc0', [
-      { color: '#4d81d4', chance: 0.18 },
-      { color: '#345da6', chance: 0.22 },
-    ], 61);
-    const offset = frame ? 4 : 0;
-    for (let y = 2; y < TILE; y += 5) {
-      const x = (y * 3 + offset) % TILE;
-      rect(ctx, x, y, 5, 1, '#8fc4f0');
-      rect(ctx, (x + 8) % TILE, y + 2, 3, 1, '#6fa8e4');
+  water(ctx, frame, mask) {
+    rect(ctx, 0, 0, TILE, TILE, '#3868c0');
+    for (let y = 0; y < TILE; y++) {
+      for (let x = 0; x < TILE; x++) {
+        const n = hash(x, y, 61);
+        if (n < 0.12) rect(ctx, x, y, 1, 1, '#4878d0');
+        else if (n < 0.20) rect(ctx, x, y, 1, 1, '#2c58a8');
+      }
     }
+    // Drifting glints, offset per frame so the surface moves.
+    const offset = frame ? 5 : 0;
+    for (let i = 0; i < 3; i++) {
+      const y = 3 + i * 5;
+      const x = (i * 7 + offset) % TILE;
+      rect(ctx, x, y, 4, 1, '#88b8f0');
+      rect(ctx, (x + 9) % TILE, y + 2, 2, 1, '#6098e0');
+    }
+    // Foam wherever the water meets land.
+    const foam = '#c8e8f8', foamDark = '#78b0e0';
+    if (!(mask & N)) { rect(ctx, 0, 0, TILE, 2, foam); rect(ctx, 0, 2, TILE, 1, foamDark); }
+    if (!(mask & S)) { rect(ctx, 0, TILE - 2, TILE, 2, foam); rect(ctx, 0, TILE - 3, TILE, 1, foamDark); }
+    if (!(mask & W)) { rect(ctx, 0, 0, 2, TILE, foam); rect(ctx, 2, 0, 1, TILE, foamDark); }
+    if (!(mask & E)) { rect(ctx, TILE - 2, 0, 2, TILE, foam); rect(ctx, TILE - 3, 0, 1, TILE, foamDark); }
   },
 
   ice(ctx, frame) {
@@ -131,33 +161,126 @@ const painters = {
     rect(ctx, shine + 1, 4, 2, 1, '#eaf8ff');
   },
 
-  tree(ctx) {
-    painters.grass(ctx);
-    rect(ctx, 6, 11, 4, 5, '#5b4023');
-    rect(ctx, 7, 11, 1, 5, '#75542f');
-    // Canopy: overlapping blobs so a forest edge reads as organic.
-    const blobs = [[3, 1, 10, 9], [1, 3, 14, 6], [4, 0, 8, 4]];
-    for (const [x, y, w, h] of blobs) rect(ctx, x, y, w, h, '#2f6b39');
-    rect(ctx, 4, 2, 8, 6, '#3d8546');
-    rect(ctx, 5, 2, 5, 3, '#4d9c52');
-    rect(ctx, 3, 8, 10, 2, '#27562f');
+  // Forest canopy. Interior tiles are seamless; edge tiles get a lit rim on
+  // the open side and a trunk where the mass ends at the bottom.
+  tree(ctx, _frame, mask, ground = painters.grass) {
+    ground(ctx);
+    const dark = '#1f5230', mid = '#2f7340', lit = '#419a4c', rim = '#5cb85e';
+
+    // A tile with open sky above and below is a single tree, not a slice of
+    // canopy — drawing it as canopy is what makes scattered woodland read as
+    // random green bars.
+    if (!(mask & N) && !(mask & S)) {
+      painters.loneTree(ctx, '#2a6b38', '#3d8a45', '#55a855', '#74c46c', '#5b4023', '#7a5a32');
+      return;
+    }
+
+    rect(ctx, 0, 0, TILE, TILE, mid);
+    for (let y = 0; y < TILE; y++) {
+      for (let x = 0; x < TILE; x++) {
+        const n = hash(x, y, 17);
+        if (n < 0.16) rect(ctx, x, y, 1, 1, lit);
+        else if (n < 0.28) rect(ctx, x, y, 1, 1, dark);
+      }
+    }
+    // Four crowns per tile, each a small dome with a lit cap and a shadowed
+    // gutter beneath, so the mass breaks up into individual trees.
+    for (let cy = 0; cy < 2; cy++) {
+      for (let cx = 0; cx < 2; cx++) {
+        const ox = cx * 8;
+        const oy = cy * 8;
+        rect(ctx, ox, oy + 6, 8, 2, dark);        // gutter between crowns
+        rect(ctx, ox + 1, oy, 6, 6, mid);
+        rect(ctx, ox + 2, oy, 4, 2, lit);
+        rect(ctx, ox + 1, oy + 1, 2, 2, lit);
+        rect(ctx, ox + 3, oy + 4, 3, 2, dark);
+        rect(ctx, ox, oy, 1, 6, dark);            // trunk shadow at the join
+      }
+    }
+
+    if (!(mask & N)) { rect(ctx, 0, 0, TILE, 2, rim); rect(ctx, 0, 2, TILE, 1, lit); }
+    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, dark);
+    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, dark);
+    if (!(mask & S)) {
+      rect(ctx, 0, TILE - 4, TILE, 4, dark);
+      rect(ctx, 6, TILE - 5, 4, 5, '#5b4023');   // trunk
+      rect(ctx, 7, TILE - 5, 1, 5, '#7a5a32');
+      rect(ctx, 0, TILE - 1, TILE, 1, '#1a3f26');
+    }
   },
 
-  pine(ctx) {
+  // A single round tree: canopy, highlight and trunk.
+  loneTree(ctx, dark, mid, lit, rim, trunk, trunkLit) {
+    rect(ctx, 6, 10, 4, 6, trunk);
+    rect(ctx, 7, 10, 1, 6, trunkLit);
+    rect(ctx, 5, 14, 6, 2, dark);
+
+    // Canopy built from stacked rows so the silhouette is round, not square.
+    const rows = [[4, 1, 8], [2, 2, 12], [1, 4, 14], [1, 7, 14], [2, 9, 12], [4, 11, 8]];
+    for (const [x, y, w] of rows) rect(ctx, x, y, w, 2, dark);
+    const inner = [[5, 2, 6], [3, 3, 10], [2, 5, 12], [3, 8, 10], [5, 10, 6]];
+    for (const [x, y, w] of inner) rect(ctx, x, y, w, 2, mid);
+    rect(ctx, 4, 3, 7, 4, lit);
+    rect(ctx, 5, 3, 4, 2, rim);
+    rect(ctx, 3, 9, 9, 2, dark);
+  },
+
+  pine(ctx, _frame, mask) {
     painters.snow(ctx);
-    rect(ctx, 7, 12, 2, 4, '#4a3520');
-    for (let i = 0; i < 3; i++) {
-      const w = 6 + i * 3;
-      const y = 2 + i * 4;
-      rect(ctx, 8 - Math.floor(w / 2), y, w, 4, '#26543a');
-      rect(ctx, 8 - Math.floor(w / 2), y, w, 1, '#e8f2f8');
+    const dark = '#173d2c', mid = '#245139', lit = '#356b48', snow = '#e8f2f8';
+
+    if (!(mask & N) && !(mask & S)) {
+      // A lone conifer: stacked skirts under a snow cap.
+      rect(ctx, 7, 12, 2, 4, '#452f1c');
+      for (let i = 0; i < 3; i++) {
+        const w = 5 + i * 3;
+        const y = 2 + i * 4;
+        const x = 8 - Math.floor(w / 2);
+        rect(ctx, x, y, w, 4, dark);
+        rect(ctx, x + 1, y + 1, w - 2, 3, mid);
+        rect(ctx, x + 1, y, w - 2, 1, snow);
+      }
+      rect(ctx, 7, 0, 2, 3, dark);
+      rect(ctx, 7, 0, 2, 1, snow);
+      return;
     }
-    rect(ctx, 7, 0, 2, 2, '#26543a');
+
+    rect(ctx, 0, 0, TILE, TILE, dark);
+    for (let y = 0; y < TILE; y++) {
+      for (let x = 0; x < TILE; x++) {
+        const n = hash(x, y, 29);
+        if (n < 0.14) rect(ctx, x, y, 1, 1, lit);
+      }
+    }
+    // Two conifer tops per tile, stepped like a fir and dusted with snow.
+    for (let cy = 0; cy < 2; cy++) {
+      for (let cx = 0; cx < 2; cx++) {
+        const ox = cx * 8;
+        const oy = cy * 8;
+        for (let tier = 0; tier < 3; tier++) {
+          const w = 2 + tier * 2;
+          const x = ox + 4 - Math.floor(w / 2);
+          const y = oy + tier * 2 + 1;
+          rect(ctx, x, y, w, 2, mid);
+          rect(ctx, x, y, w, 1, snow);
+          rect(ctx, x, y + 1, 1, 1, dark);
+        }
+        rect(ctx, ox, oy + 7, 8, 1, dark);
+      }
+    }
+    if (!(mask & N)) { rect(ctx, 0, 0, TILE, 3, snow); rect(ctx, 0, 3, TILE, 1, '#b9cddc'); }
+    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, dark);
+    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, dark);
+    if (!(mask & S)) {
+      rect(ctx, 0, TILE - 4, TILE, 4, dark);
+      rect(ctx, 7, TILE - 5, 2, 5, '#452f1c');
+      rect(ctx, 0, TILE - 1, TILE, 1, '#0f2a1d');
+    }
   },
 
   // The heart tree of the North: bone-white bark, blood-red leaves.
-  weirwood(ctx) {
-    painters.grass(ctx);
+  weirwood(ctx, _frame, _mask, ground = painters.grass) {
+    ground(ctx);
     rect(ctx, 6, 9, 4, 7, '#e8e4dc');
     rect(ctx, 7, 9, 1, 7, '#fbf8f2');
     rect(ctx, 5, 12, 1, 4, '#d0ccc2');
@@ -172,42 +295,70 @@ const painters = {
     rect(ctx, 7, 12, 2, 1, '#6b2020');
   },
 
-  cliff(ctx) {
-    speckle(ctx, '#6f6a63', [
-      { color: '#847e75', chance: 0.16 },
-      { color: '#575349', chance: 0.24 },
-    ], 71);
-    rect(ctx, 0, 0, TILE, 2, '#4a473f');
-    rect(ctx, 0, 2, TILE, 1, '#918a80');
+  cliff(ctx, _frame, mask) {
+    rect(ctx, 0, 0, TILE, TILE, '#8a7f6d');
+    for (let y = 0; y < TILE; y++) {
+      for (let x = 0; x < TILE; x++) {
+        const n = hash(x, y, 71);
+        if (n < 0.14) rect(ctx, x, y, 1, 1, '#9e9280');
+        else if (n < 0.26) rect(ctx, x, y, 1, 1, '#6f6559');
+      }
+    }
+    // Blocky strata so the face reads as cut stone.
+    for (let y = 3; y < TILE; y += 6) {
+      rect(ctx, 0, y, TILE, 1, '#5f5648');
+      rect(ctx, 0, y + 1, TILE, 1, '#a3977f');
+    }
+    if (!(mask & N)) { rect(ctx, 0, 0, TILE, 3, '#a89a80'); rect(ctx, 0, 3, TILE, 1, '#c0b294'); }
+    if (!(mask & W)) rect(ctx, 0, 0, 2, TILE, '#5a5145');
+    if (!(mask & E)) rect(ctx, TILE - 2, 0, 2, TILE, '#5a5145');
+    if (!(mask & S)) { rect(ctx, 0, TILE - 3, TILE, 3, '#403a31'); }
   },
 
-  wall(ctx) {
-    speckle(ctx, '#9a8f7e', [
-      { color: '#ab9f8c', chance: 0.14 },
-      { color: '#847a6a', chance: 0.2 },
-    ], 79);
-    for (let y = 0; y < TILE; y += 4) {
-      rect(ctx, 0, y, TILE, 1, '#6f665a');
-      const offset = (y / 4) % 2 ? 4 : 12;
-      rect(ctx, offset, y, 1, 4, '#6f665a');
+  wall(ctx, _frame, mask) {
+    rect(ctx, 0, 0, TILE, TILE, '#b0a894');
+    // Coursed blocks with a highlight along the top of each course.
+    for (let row = 0; row < 4; row++) {
+      const y = row * 4;
+      rect(ctx, 0, y, TILE, 1, '#8a8070');
+      rect(ctx, 0, y + 1, TILE, 1, '#c4bca8');
+      const offset = row % 2 ? 4 : 12;
+      rect(ctx, offset, y, 1, 4, '#8a8070');
+      rect(ctx, (offset + 8) % TILE, y, 1, 4, '#8a8070');
+    }
+    if (!(mask & N)) { rect(ctx, 0, 0, TILE, 2, '#6d6456'); }
+    if (!(mask & S)) { rect(ctx, 0, TILE - 2, TILE, 2, '#6d6456'); }
+  },
+
+  roof(ctx, _frame, mask) {
+    rect(ctx, 0, 0, TILE, TILE, '#9c4038');
+    // Overlapping shingle courses.
+    for (let row = 0; row < 4; row++) {
+      const y = row * 4;
+      rect(ctx, 0, y, TILE, 1, '#6d2724');
+      rect(ctx, 0, y + 1, TILE, 2, '#b04a40');
+      rect(ctx, 0, y + 3, TILE, 1, '#853430');
+      const offset = row % 2 ? 3 : 11;
+      rect(ctx, offset, y + 1, 1, 3, '#6d2724');
+      rect(ctx, (offset + 8) % TILE, y + 1, 1, 3, '#6d2724');
+    }
+    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, '#5a1f1c');
+    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, '#5a1f1c');
+    // Eaves: the roof overhangs the wall below it.
+    if (!(mask & S)) {
+      rect(ctx, 0, TILE - 3, TILE, 3, '#4e1a18');
+      rect(ctx, 0, TILE - 3, TILE, 1, '#c66056');
     }
   },
 
-  roof(ctx) {
-    speckle(ctx, '#8c3b3b', [
-      { color: '#a04747', chance: 0.14 },
-      { color: '#73302f', chance: 0.2 },
-    ], 83);
-    for (let y = 1; y < TILE; y += 4) {
-      rect(ctx, 0, y, TILE, 1, '#632828');
-      rect(ctx, 0, y + 1, TILE, 1, '#a75050');
-    }
-  },
-
-  roofNorth(ctx) {
-    painters.roof(ctx);
-    rect(ctx, 0, 0, TILE, 3, '#4c1f20');
-    rect(ctx, 0, 3, TILE, 1, '#b96060');
+  // The ridge tile that caps a roof.
+  roofNorth(ctx, _frame, mask) {
+    painters.roof(ctx, 0, mask | S);
+    rect(ctx, 0, 0, TILE, 2, '#411614');
+    rect(ctx, 0, 2, TILE, 2, '#c86a5e');
+    rect(ctx, 0, 4, TILE, 1, '#7a2c28');
+    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, '#411614');
+    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, '#411614');
   },
 
   door(ctx) {
@@ -228,8 +379,8 @@ const painters = {
     rect(ctx, 3, 7, 10, 1, '#2c3446');
   },
 
-  sign(ctx) {
-    painters.grass(ctx);
+  sign(ctx, _frame, _mask, ground = painters.grass) {
+    ground(ctx);
     rect(ctx, 7, 10, 2, 6, '#5b4023');
     rect(ctx, 2, 3, 12, 8, '#8a5f33');
     rect(ctx, 3, 4, 10, 6, '#b9884c');
@@ -237,8 +388,8 @@ const painters = {
     rect(ctx, 4, 7, 6, 1, '#7a5228');
   },
 
-  flowers(ctx) {
-    painters.grass(ctx);
+  flowers(ctx, _frame, _mask, ground = painters.grass) {
+    ground(ctx);
     const spots = [[3, 4], [10, 3], [6, 10], [12, 11]];
     const colors = ['#e8d24a', '#e07a9a', '#e8d24a', '#c9a2e0'];
     spots.forEach(([x, y], i) => {
@@ -248,16 +399,24 @@ const painters = {
   },
 
   // Walk-off-only edge; the player hops south and cannot climb back up.
-  ledge(ctx) {
-    painters.grass(ctx);
-    rect(ctx, 0, 6, TILE, 10, '#7a6b4a');
-    rect(ctx, 0, 6, TILE, 2, '#a89468');
-    rect(ctx, 0, 14, TILE, 2, '#5d5136');
-    for (let x = 1; x < TILE; x += 5) rect(ctx, x, 9, 3, 3, '#8d7c56');
+  ledge(ctx, _frame, _mask, ground = painters.grass) {
+    ground(ctx);
+    // A grassy lip, then the earth face you drop down.
+    rect(ctx, 0, 5, TILE, 2, '#4f8c34');
+    rect(ctx, 0, 7, TILE, 9, '#8a7550');
+    rect(ctx, 0, 7, TILE, 1, '#ab9468');
+    rect(ctx, 0, TILE - 2, TILE, 2, '#5d5136');
+    for (let x = 2; x < TILE - 2; x += 6) {
+      rect(ctx, x, 10, 3, 2, '#75623f');
+      rect(ctx, x + 1, 9, 2, 1, '#9c885e');
+    }
+    // The little downward chevron that marks a one-way hop.
+    rect(ctx, 6, 11, 4, 1, '#e8dcc0');
+    rect(ctx, 7, 12, 2, 1, '#e8dcc0');
   },
 
-  fence(ctx) {
-    painters.grass(ctx);
+  fence(ctx, _frame, _mask, ground = painters.grass) {
+    ground(ctx);
     rect(ctx, 0, 6, TILE, 2, '#8a6a3e');
     rect(ctx, 0, 11, TILE, 2, '#8a6a3e');
     rect(ctx, 3, 3, 2, 13, '#a07e4c');
@@ -380,12 +539,19 @@ const painters = {
     ], 107);
   },
 
-  caveWall(ctx) {
-    speckle(ctx, '#2c2a36', [
-      { color: '#3a3746', chance: 0.16 },
-      { color: '#221f2a', chance: 0.22 },
-    ], 109);
-    rect(ctx, 0, 0, TILE, 2, '#1a1822');
+  caveWall(ctx, _frame, mask) {
+    rect(ctx, 0, 0, TILE, TILE, '#39364a');
+    for (let y = 0; y < TILE; y++) {
+      for (let x = 0; x < TILE; x++) {
+        const n = hash(x, y, 109);
+        if (n < 0.14) rect(ctx, x, y, 1, 1, '#484459');
+        else if (n < 0.26) rect(ctx, x, y, 1, 1, '#2a2837');
+      }
+    }
+    if (!(mask & N)) { rect(ctx, 0, 0, TILE, 2, '#5a5570'); rect(ctx, 0, 2, TILE, 1, '#46425a'); }
+    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, '#211f2c');
+    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, '#211f2c');
+    if (!(mask & S)) rect(ctx, 0, TILE - 3, TILE, 3, '#191722');
   },
 };
 
@@ -407,21 +573,21 @@ export const TILE_DEFS = {
   '-': { paint: painters.path, kind: 'floor' },
   's': { paint: painters.sand, kind: 'floor' },
   'o': { paint: painters.stone, kind: 'floor' },
-  '~': { paint: painters.water, kind: 'water', frames: 2 },
+  '~': { paint: painters.water, kind: 'water', frames: 2, autotile: true },
   'i': { paint: painters.ice, kind: 'floor', frames: 2 },
-  '#': { paint: painters.tree, kind: 'solid' },
-  'P': { paint: painters.pine, kind: 'solid' },
-  'W': { paint: painters.weirwood, kind: 'solid' },
-  'C': { paint: painters.cliff, kind: 'solid' },
-  'H': { paint: painters.wall, kind: 'solid' },
-  'R': { paint: painters.roof, kind: 'solid' },
-  'r': { paint: painters.roofNorth, kind: 'solid' },
+  '#': { paint: painters.tree, kind: 'solid', autotile: true, grounded: true },
+  'P': { paint: painters.pine, kind: 'solid', autotile: true },
+  'W': { paint: painters.weirwood, kind: 'solid', grounded: true },
+  'C': { paint: painters.cliff, kind: 'solid', autotile: true },
+  'H': { paint: painters.wall, kind: 'solid', autotile: true },
+  'R': { paint: painters.roof, kind: 'solid', autotile: true },
+  'r': { paint: painters.roofNorth, kind: 'solid', autotile: true },
   'D': { paint: painters.door, kind: 'floor' },
   'w': { paint: painters.window, kind: 'solid' },
-  '!': { paint: painters.sign, kind: 'solid' },
-  '*': { paint: painters.flowers, kind: 'floor' },
-  'L': { paint: painters.ledge, kind: 'ledge' },
-  'f': { paint: painters.fence, kind: 'solid' },
+  '!': { paint: painters.sign, kind: 'solid', grounded: true },
+  '*': { paint: painters.flowers, kind: 'floor', grounded: true },
+  'L': { paint: painters.ledge, kind: 'ledge', grounded: true },
+  'f': { paint: painters.fence, kind: 'solid', grounded: true },
   '_': { paint: painters.floorWood, kind: 'floor' },
   '=': { paint: painters.floorStone, kind: 'floor' },
   'c': { paint: painters.carpet, kind: 'floor' },
@@ -435,21 +601,54 @@ export const TILE_DEFS = {
   'F': { paint: painters.brazier, kind: 'solid' },
   'U': { paint: painters.rubble, kind: 'solid' },
   '%': { paint: painters.caveFloor, kind: 'floor' },
-  '@': { paint: painters.caveWall, kind: 'solid' },
+  '@': { paint: painters.caveWall, kind: 'solid', autotile: true },
 };
 
 const rendered = new Map();
 
-/** Returns the painted canvas for a tile char at a given animation frame. */
-export function tileCanvas(char, frame = 0) {
+/**
+ * Neighbour mask bits, used by the autotiling painters. A tile knows which of
+ * its four orthogonal neighbours belong to the same visual group, which is what
+ * lets a block of trees read as one canopy with lit top edges and shadowed
+ * bottoms rather than a grid of identical stamps.
+ */
+export const N = 1, E = 2, S = 4, W = 8;
+
+/** Tiles that autotile, and the group each belongs to. */
+export const TILE_GROUP = {
+  '#': 'forest', 'P': 'forest', 'W': 'forest',
+  'C': 'rock', 'U': 'rock',
+  '~': 'water',
+  '@': 'cave',
+  'H': 'building', 'w': 'building', 'D': 'building',
+  'R': 'roof', 'r': 'roof',
+};
+
+/**
+ * The ground a map's scenery stands on. Signs, fences and lone trees paint this
+ * underneath themselves, so the same tile reads correctly in a snowfield and in
+ * a summer meadow without needing separate characters for each.
+ */
+export const GROUNDS = {
+  grass: (ctx) => painters.grass(ctx),
+  snow: (ctx) => painters.snow(ctx),
+  sand: (ctx) => painters.sand(ctx),
+  stone: (ctx) => painters.stone(ctx),
+  cave: (ctx) => painters.caveFloor(ctx),
+};
+
+/** Returns the painted canvas for a tile at a given frame, mask and ground. */
+export function tileCanvas(char, frame = 0, mask = 0, ground = 'grass') {
   const def = TILE_DEFS[char] ?? TILE_DEFS['.'];
   const frameCount = def.frames ?? 1;
   const useFrame = frameCount > 1 ? frame % frameCount : 0;
-  const key = `${char}:${useFrame}`;
+  const useMask = def.autotile ? mask : 0;
+  const useGround = def.grounded ? ground : '-';
+  const key = `${char}:${useFrame}:${useMask}:${useGround}`;
   let canvas = rendered.get(key);
   if (!canvas) {
     const surface = makeCanvas(TILE, TILE);
-    def.paint(surface.ctx, useFrame);
+    def.paint(surface.ctx, useFrame, useMask, GROUNDS[ground] ?? GROUNDS.grass);
     canvas = surface.canvas;
     rendered.set(key, canvas);
   }

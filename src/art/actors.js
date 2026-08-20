@@ -6,7 +6,7 @@
 import { makeCanvas } from '../engine/sprites.js';
 
 export const ACTOR_W = 16;
-export const ACTOR_H = 22;
+export const ACTOR_H = 32;
 
 export const ACTOR_PALETTES = {
   // The player: a ward of Winterfell in Stark grey.
@@ -44,14 +44,16 @@ export const ACTOR_PALETTES = {
 
 export const DIRECTIONS = ['down', 'up', 'left', 'right'];
 
+const OUTLINE = '#20202c';
+
 function rect(ctx, x, y, w, h, color) {
   ctx.fillStyle = color;
   ctx.fillRect(x, y, w, h);
 }
 
 /**
- * Leg offsets per walk step. Step 0 and 2 are the neutral pose, 1 and 3 swing
- * opposite legs, which is the classic four-frame GBA cycle.
+ * Leg positions per walk step. Steps 0 and 2 are the neutral stance; 1 and 3
+ * swing opposite legs, which is the four-frame cycle the GBA games use.
  */
 const LEG_STEPS = [
   { left: 0, right: 0 },
@@ -63,74 +65,96 @@ const LEG_STEPS = [
 function paintLegs(ctx, p, step, dir) {
   const swing = LEG_STEPS[step % LEG_STEPS.length];
   const legs = dir === 'left' || dir === 'right'
-    // In profile the legs overlap, so one strides forward and one trails.
-    ? [{ x: 5, dy: swing.left, w: 3 }, { x: 8, dy: swing.right, w: 3 }]
-    : [{ x: 5, dy: swing.left, w: 3 }, { x: 8, dy: swing.right, w: 3 }];
+    // In profile one leg strides forward and the other trails behind it.
+    ? [{ x: 5, dy: swing.left }, { x: 8, dy: swing.right }]
+    : [{ x: 4, dy: swing.left }, { x: 9, dy: swing.right }];
 
   for (const leg of legs) {
-    rect(ctx, leg.x, 17, leg.w, 4 + leg.dy, p.legs);
-    rect(ctx, leg.x, 20 + leg.dy, leg.w, 2, p.boots);
+    const top = 25;
+    const height = 5 + leg.dy;
+    rect(ctx, leg.x - 1, top, 5, height + 1, OUTLINE);
+    rect(ctx, leg.x, top, 3, height - 1, p.legs);
+    rect(ctx, leg.x, top + height - 1, 3, 2, p.boots);
   }
 }
 
-function paintCloak(ctx, p, dir) {
-  // Torso block.
-  rect(ctx, 3, 10, 10, 8, p.cloakDark);
-  rect(ctx, 4, 10, 8, 7, p.cloak);
+function paintBody(ctx, p, dir) {
+  // Silhouette first, then the fill inside it — cheaper than tracing an outline
+  // and it guarantees the sprite reads against any tile.
+  rect(ctx, 2, 16, 12, 11, OUTLINE);
+  rect(ctx, 3, 17, 10, 9, p.cloakDark);
+  rect(ctx, 3, 17, 10, 7, p.cloak);
+  rect(ctx, 4, 17, 8, 2, p.cloak);
 
   if (dir === 'down') {
-    rect(ctx, 7, 11, 2, 7, p.trim);      // clasp and front seam
-    rect(ctx, 2, 11, 2, 6, p.cloakDark); // sleeves
-    rect(ctx, 12, 11, 2, 6, p.cloakDark);
-    rect(ctx, 2, 16, 2, 2, p.skin);      // hands
-    rect(ctx, 12, 16, 2, 2, p.skin);
+    rect(ctx, 7, 18, 2, 8, p.trim);          // front seam
+    rect(ctx, 6, 17, 4, 2, p.trim);          // collar
+    rect(ctx, 1, 18, 3, 8, OUTLINE);         // sleeves
+    rect(ctx, 12, 18, 3, 8, OUTLINE);
+    rect(ctx, 2, 19, 2, 6, p.cloakDark);
+    rect(ctx, 12, 19, 2, 6, p.cloakDark);
+    rect(ctx, 2, 24, 2, 3, p.skin);          // hands
+    rect(ctx, 12, 24, 2, 3, p.skin);
   } else if (dir === 'up') {
-    rect(ctx, 4, 10, 8, 8, p.cloak);
-    rect(ctx, 7, 10, 2, 8, p.cloakDark);
-    rect(ctx, 2, 11, 2, 6, p.cloakDark);
-    rect(ctx, 12, 11, 2, 6, p.cloakDark);
+    rect(ctx, 3, 17, 10, 9, p.cloak);
+    rect(ctx, 7, 17, 2, 9, p.cloakDark);     // the seam down the back
+    rect(ctx, 1, 18, 3, 8, OUTLINE);
+    rect(ctx, 12, 18, 3, 8, OUTLINE);
+    rect(ctx, 2, 19, 2, 7, p.cloakDark);
+    rect(ctx, 12, 19, 2, 7, p.cloakDark);
   } else {
-    // Profile: narrower body, one visible arm swinging in front.
-    rect(ctx, 4, 10, 8, 8, p.cloakDark);
-    rect(ctx, 5, 10, 6, 7, p.cloak);
-    rect(ctx, 9, 12, 3, 5, p.cloakDark);
-    rect(ctx, 10, 16, 2, 2, p.skin);
-    rect(ctx, 5, 11, 1, 6, p.trim);
+    rect(ctx, 3, 17, 10, 9, p.cloakDark);
+    rect(ctx, 4, 17, 7, 8, p.cloak);
+    rect(ctx, 4, 18, 2, 7, p.trim);          // cloak edge catching the light
+    rect(ctx, 9, 19, 5, 7, OUTLINE);         // leading arm
+    rect(ctx, 10, 20, 3, 5, p.cloakDark);
+    rect(ctx, 10, 24, 3, 3, p.skin);
   }
 }
 
 function paintHead(ctx, p, dir) {
-  const outline = '#20202a';
+  // Emerald heads are large and rounded, roughly two fifths of the sprite.
+  rect(ctx, 2, 3, 12, 14, OUTLINE);
+  rect(ctx, 1, 5, 14, 10, OUTLINE);
 
-  if (dir === 'down' || dir === 'up') {
-    rect(ctx, 3, 1, 10, 10, outline);
-    rect(ctx, 4, 2, 8, 8, dir === 'up' ? p.hair : p.skin);
-    if (dir === 'down') {
-      rect(ctx, 4, 2, 8, 3, p.hair);          // fringe
-      rect(ctx, 4, 2, 8, 1, p.hairLight);
-      rect(ctx, 3, 3, 1, 5, p.hair);          // side hair
-      rect(ctx, 12, 3, 1, 5, p.hair);
-      rect(ctx, 5, 6, 2, 2, outline);         // eyes
-      rect(ctx, 9, 6, 2, 2, outline);
-      rect(ctx, 5, 6, 1, 1, '#ffffff');
-      rect(ctx, 9, 6, 1, 1, '#ffffff');
-      rect(ctx, 7, 9, 2, 1, p.skinDark);      // mouth
-    } else {
-      rect(ctx, 4, 2, 8, 2, p.hairLight);
-      rect(ctx, 4, 9, 8, 1, p.skinDark);      // neckline under the hair
-    }
-  } else {
-    // Profile head: shifted forward, with a nose bump.
-    rect(ctx, 3, 1, 10, 10, outline);
-    rect(ctx, 4, 2, 8, 8, p.skin);
-    rect(ctx, 4, 2, 8, 3, p.hair);
-    rect(ctx, 4, 2, 8, 1, p.hairLight);
-    rect(ctx, 4, 3, 2, 6, p.hair);            // hair falls at the back
-    rect(ctx, 9, 6, 2, 2, outline);           // the single visible eye
-    rect(ctx, 9, 6, 1, 1, '#ffffff');
-    rect(ctx, 12, 6, 1, 2, p.skin);           // nose
-    rect(ctx, 10, 9, 2, 1, p.skinDark);
+  if (dir === 'up') {
+    rect(ctx, 3, 4, 10, 12, p.hair);
+    rect(ctx, 2, 6, 12, 9, p.hair);
+    rect(ctx, 4, 4, 8, 3, p.hairLight);
+    rect(ctx, 3, 14, 10, 2, p.hairDark ?? p.hair);
+    return;
   }
+
+  if (dir === 'down') {
+    rect(ctx, 3, 5, 10, 11, p.skin);         // face
+    rect(ctx, 2, 7, 12, 8, p.skin);
+    rect(ctx, 3, 4, 10, 5, p.hair);          // hair cap
+    rect(ctx, 2, 6, 12, 3, p.hair);
+    rect(ctx, 4, 4, 8, 2, p.hairLight);
+    rect(ctx, 2, 8, 2, 4, p.hair);           // sideburns
+    rect(ctx, 12, 8, 2, 4, p.hair);
+    rect(ctx, 4, 11, 2, 3, OUTLINE);         // eyes
+    rect(ctx, 10, 11, 2, 3, OUTLINE);
+    rect(ctx, 4, 11, 2, 1, '#ffffff');
+    rect(ctx, 10, 11, 2, 1, '#ffffff');
+    rect(ctx, 7, 14, 2, 1, p.skinDark);      // mouth
+    rect(ctx, 3, 14, 2, 2, p.skinDark);      // jaw shading
+    rect(ctx, 11, 14, 2, 2, p.skinDark);
+    return;
+  }
+
+  // Profile: hair falls at the back, a nose breaks the front edge.
+  rect(ctx, 3, 5, 10, 11, p.skin);
+  rect(ctx, 2, 7, 12, 8, p.skin);
+  rect(ctx, 3, 4, 10, 5, p.hair);
+  rect(ctx, 2, 6, 12, 3, p.hair);
+  rect(ctx, 2, 6, 5, 8, p.hair);
+  rect(ctx, 4, 4, 6, 2, p.hairLight);
+  rect(ctx, 9, 11, 2, 3, OUTLINE);           // the single visible eye
+  rect(ctx, 9, 11, 2, 1, '#ffffff');
+  rect(ctx, 13, 10, 2, 3, OUTLINE);          // nose
+  rect(ctx, 13, 10, 1, 2, p.skin);
+  rect(ctx, 10, 14, 3, 1, p.skinDark);
 }
 
 /** Paints one frame of one facing into a fresh canvas. */
@@ -138,12 +162,13 @@ export function paintActorFrame(palette, dir, step) {
   const { canvas, ctx } = makeCanvas(ACTOR_W, ACTOR_H);
   const p = palette;
 
-  // Contact shadow keeps the sprite planted on the tile.
-  ctx.fillStyle = 'rgba(0,0,0,0.22)';
-  ctx.fillRect(4, 20, 8, 2);
+  // Contact shadow, so the sprite sits on the tile rather than floating.
+  ctx.fillStyle = 'rgba(0,0,0,0.20)';
+  ctx.fillRect(3, 30, 10, 2);
+  ctx.fillRect(2, 31, 12, 1);
 
   paintLegs(ctx, p, step, dir);
-  paintCloak(ctx, p, dir);
+  paintBody(ctx, p, dir);
   paintHead(ctx, p, dir);
 
   if (dir === 'right') {
@@ -166,9 +191,7 @@ export function actorSheet(paletteName) {
   const palette = ACTOR_PALETTES[paletteName] ?? ACTOR_PALETTES.smallfolk;
   sheet = {};
   for (const dir of DIRECTIONS) {
-    // 'right' reuses the 'left' drawing, mirrored inside paintActorFrame.
-    sheet[dir] = LEG_STEPS.map((_, step) =>
-      paintActorFrame(palette, dir === 'right' ? 'right' : dir, step));
+    sheet[dir] = LEG_STEPS.map((_, step) => paintActorFrame(palette, dir, step));
   }
   sheets.set(paletteName, sheet);
   return sheet;

@@ -2,7 +2,7 @@
 // so the flow reads top to bottom; `update` only services timers, animations
 // and whichever menu is currently open.
 
-import { drawPanel, drawBar, HP_COLORS, EXP_COLORS } from '../ui/panel.js';
+import { drawPanel, drawStatusBox, drawHpGauge, drawExpGauge, THEMES } from '../ui/panel.js';
 import { drawText, measure, LINE_HEIGHT } from '../engine/font.js';
 import { dialog } from '../ui/textbox.js';
 import { input } from '../engine/input.js';
@@ -30,8 +30,8 @@ import {
 
 const FOE_SPRITE = { x: 154, y: 12, size: 56 };
 const PLAYER_SPRITE = { x: 22, y: 44, size: 64 };
-const FOE_HUD = { x: 8, y: 14, w: 108, h: 30 };
-const PLAYER_HUD = { x: 122, y: 68, w: 110, h: 38 };
+const FOE_HUD = { x: 10, y: 16, w: 104, h: 28 };
+const PLAYER_HUD = { x: 126, y: 70, w: 104, h: 36 };
 
 export class Battle {
   /**
@@ -815,38 +815,42 @@ export class Battle {
 
   drawHud(ctx, combatant, box, isPlayer) {
     const creature = combatant.creature;
-    const theme = drawPanel(ctx, box.x, box.y, box.w, box.h, 'night');
+    const t = drawStatusBox(ctx, box.x, box.y, box.w, box.h, { notchLeft: isPlayer });
 
-    const name = displayName(creature);
-    drawText(ctx, name, box.x + 6, box.y + 4, { color: theme.text, shadow: theme.textShadow });
+    const name = displayName(creature).toUpperCase();
+    drawText(ctx, name, box.x + 7, box.y + 4, { color: t.text, shadow: t.textShadow });
+
     const levelLabel = `Lv${creature.level}`;
-    drawText(ctx, levelLabel, box.x + box.w - measure(levelLabel) - 7, box.y + 4,
-      { color: theme.text, shadow: theme.textShadow });
+    drawText(ctx, levelLabel, box.x + box.w - measure(levelLabel) - 8, box.y + 4,
+      { color: t.text, shadow: t.textShadow });
 
     const shown = this.hpDisplay.get(creature) ?? creature.hp;
     const ratio = Math.max(0, shown / maxHp(creature));
-    drawText(ctx, 'HP', box.x + 6, box.y + 15, { color: '#f0dca0', shadow: theme.textShadow });
-    drawBar(ctx, box.x + 22, box.y + 17, box.w - 30, 4, ratio, HP_COLORS(ratio));
+    drawHpGauge(ctx, box.x + 7, box.y + 16, box.w - 14, ratio);
 
     if (creature.status) {
       const s = STATUSES[creature.status];
+      const tagW = 20;
+      const tagX = box.x + 7;
+      const tagY = box.y + (isPlayer ? 25 : 24);
+      ctx.fillStyle = '#38383f';
+      ctx.fillRect(tagX - 1, tagY - 1, tagW + 2, 9);
       ctx.fillStyle = s.color;
-      ctx.fillRect(box.x + 6, box.y + 22, 20, 8);
-      drawText(ctx, s.name, box.x + 8, box.y + 22, { color: '#20222e', shadow: null });
+      ctx.fillRect(tagX, tagY, tagW, 7);
+      drawText(ctx, s.name, tagX + 2, tagY, { color: '#2a2a30', shadow: null });
     }
 
     if (isPlayer) {
-      const hpLabel = `${Math.round(shown)}/${maxHp(creature)}`;
-      drawText(ctx, hpLabel, box.x + box.w - measure(hpLabel) - 7, box.y + 22,
-        { color: theme.text, shadow: theme.textShadow });
+      const hpLabel = `${Math.round(shown)}/ ${maxHp(creature)}`;
+      drawText(ctx, hpLabel, box.x + box.w - measure(hpLabel) - 8, box.y + 24,
+        { color: t.text, shadow: t.textShadow });
 
-      // EXP toward the next level.
       const def = creatureSpecies(creature);
       const current = expForLevel(def.growth, creature.level);
       const next = expForLevel(def.growth, creature.level + 1);
       const progress = next > current ? (creature.exp - current) / (next - current) : 0;
-      drawBar(ctx, box.x + 6, box.y + box.h - 7, box.w - 12, 3,
-        Math.max(0, Math.min(1, progress)), EXP_COLORS);
+      drawExpGauge(ctx, box.x + 5, box.y + box.h + 1, box.w - 10,
+        Math.max(0, Math.min(1, progress)));
     }
   }
 

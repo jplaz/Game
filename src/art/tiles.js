@@ -3,6 +3,8 @@
 // patch of grass looks the same every time you walk past it.
 
 import { makeCanvas } from '../engine/sprites.js';
+import { paintArt } from './pixels.js';
+import { GROUND_ART, TALL_GRASS, CLUMP_KEY, SNOW_GRASS_KEY, LONE_TREE, TREE_KEY } from './tilesets.js';
 
 export const TILE = 16;
 
@@ -35,140 +37,106 @@ function rect(ctx, x, y, w, h, color) {
   ctx.fillRect(x, y, w, h);
 }
 
+/**
+ * Paints one of a ground's hand-drawn variants. Everything that used to fill a
+ * rectangle and speckle it goes through here instead.
+ */
+function ground(ctx, name, variant = 0) {
+  const set = GROUND_ART[name] ?? GROUND_ART.grass;
+  paintArt(ctx, set.rows[variant % set.rows.length], set.key);
+}
+
+// How deep the fringe bites along each of the sixteen pixels of an edge. A
+// fixed pattern rather than a random one, so the boundary is wavy in a way that
+// repeats predictably instead of shimmering.
+const FRINGE = [1, 2, 1, 1, 2, 2, 1, 2, 2, 1, 1, 2, 1, 2, 1, 1];
+
+/**
+ * Softens the join where one ground meets another. Two grounds butting up
+ * against each other in a straight line is the single most artificial thing a
+ * tile map can do; a shallow uneven band along the open sides reads as one
+ * surface giving way to the next.
+ */
+function fringeEdges(ctx, mask, shade, deep) {
+  if (!(mask & N)) {
+    for (let x = 0; x < TILE; x++) {
+      const d = FRINGE[x];
+      rect(ctx, x, 0, 1, d, shade);
+      if (d > 1) rect(ctx, x, 0, 1, 1, deep);
+    }
+  }
+  if (!(mask & S)) {
+    for (let x = 0; x < TILE; x++) {
+      const d = FRINGE[(x + 5) % TILE];
+      rect(ctx, x, TILE - d, 1, d, shade);
+      if (d > 1) rect(ctx, x, TILE - 1, 1, 1, deep);
+    }
+  }
+  if (!(mask & W)) {
+    for (let y = 0; y < TILE; y++) {
+      const d = FRINGE[(y + 9) % TILE];
+      rect(ctx, 0, y, d, 1, shade);
+      if (d > 1) rect(ctx, 0, y, 1, 1, deep);
+    }
+  }
+  if (!(mask & E)) {
+    for (let y = 0; y < TILE; y++) {
+      const d = FRINGE[(y + 3) % TILE];
+      rect(ctx, TILE - d, y, d, 1, shade);
+      if (d > 1) rect(ctx, TILE - 1, y, 1, 1, deep);
+    }
+  }
+}
+
+/** How many drawings a ground has, so the map knows how far to vary it. */
+export function groundVariants(name) {
+  return (GROUND_ART[name] ?? GROUND_ART.grass).rows.length;
+}
+
 // ---------------------------------------------------------------- painters --
 
 const painters = {
-  grass(ctx) {
-    // Emerald's grass is a flat mid-green with a sparse two-tone dither rather
-    // than heavy noise; too much texture reads as static at this size.
-    ctx.fillStyle = '#68b048';
-    ctx.fillRect(0, 0, TILE, TILE);
-    for (let y = 0; y < TILE; y++) {
-      for (let x = 0; x < TILE; x++) {
-        const n = hash(x, y, 11);
-        if (n < 0.10) rect(ctx, x, y, 1, 1, '#7cc058');
-        else if (n < 0.18) rect(ctx, x, y, 1, 1, '#589838');
-      }
-    }
+  grass(ctx, _frame, mask = 15, _ground, variant = 0) {
+    ground(ctx, 'grass', variant);
+    fringeEdges(ctx, mask, '#4a7c34', '#3d6629');
   },
 
-  tallGrass(ctx, frame) {
-    painters.grass(ctx);
-    const sway = frame ? 1 : 0;
-    // A dense clump that fills the tile, the way Emerald's does, rather than a
-    // fringe along the bottom edge.
-    rect(ctx, 1, 6, TILE - 2, 10, '#3f8a3c');
-    rect(ctx, 2, 5, TILE - 4, 1, '#57a84c');
-    for (let i = 0; i < 7; i++) {
-      const x = 1 + i * 2;
-      const h = 6 + ((i * 5) % 5);
-      const lean = ((i + sway) % 2) ? 0 : 1;
-      rect(ctx, x + lean, TILE - h, 2, h - 1, i % 3 === 0 ? '#6cc059' : '#4d9843');
-      rect(ctx, x + lean, TILE - h, 1, 2, '#84d068');
-    }
-    rect(ctx, 1, TILE - 2, TILE - 2, 2, '#2f6c30');
+  tallGrass(ctx, frame = 0, _mask, _ground, variant = 0) {
+    ground(ctx, 'grass', variant);
+    // The sway is the clump leaning: two of the drawings, alternating.
+    const rows = TALL_GRASS[(variant + frame) % TALL_GRASS.length];
+    paintArt(ctx, rows, CLUMP_KEY);
   },
 
-  snowGrass(ctx, frame) {
-    painters.snow(ctx);
-    const sway = frame ? 1 : 0;
-    rect(ctx, 1, 7, TILE - 2, 9, '#5f8f7c');
-    rect(ctx, 2, 6, TILE - 4, 1, '#7fae98');
-    for (let i = 0; i < 7; i++) {
-      const x = 1 + i * 2;
-      const h = 6 + ((i * 5) % 5);
-      const lean = ((i + sway) % 2) ? 0 : 1;
-      rect(ctx, x + lean, TILE - h, 2, h - 1, i % 3 === 0 ? '#8fc0aa' : '#6a9c88');
-      rect(ctx, x + lean, TILE - h, 1, 2, '#c8e4d8');
-    }
-    rect(ctx, 1, TILE - 2, TILE - 2, 2, '#dfe9f2');
+  snowGrass(ctx, frame = 0, _mask, _ground, variant = 0) {
+    ground(ctx, 'snow', variant);
+    const rows = TALL_GRASS[(variant + frame) % TALL_GRASS.length];
+    paintArt(ctx, rows, SNOW_GRASS_KEY);
   },
 
-  snow(ctx) {
-    // Cooler and a shade darker than pure white: snow at full brightness eats
-    // the whole screen and leaves nothing for the sprites to read against.
-    rect(ctx, 0, 0, TILE, TILE, '#c2d2e4');
-    for (let y = 0; y < TILE; y++) {
-      for (let x = 0; x < TILE; x++) {
-        const n = hash(x, y, 23);
-        if (n < 0.09) rect(ctx, x, y, 1, 1, '#e2ecf7');
-        else if (n < 0.17) rect(ctx, x, y, 1, 1, '#a5b9d0');
-        else if (n < 0.20) rect(ctx, x, y, 1, 1, '#8fa6c2');
-      }
-    }
+  snow(ctx, _frame, mask = 15, _ground, variant = 0) {
+    ground(ctx, 'snow', variant);
+    fringeEdges(ctx, mask, '#bccadd', '#a6b6cc');
   },
 
   /** A country track: packed earth, wheel ruts, and loose gravel. */
-  dirt(ctx) {
-    rect(ctx, 0, 0, TILE, TILE, '#b09669');
-    for (let y = 0; y < TILE; y++) {
-      for (let x = 0; x < TILE; x++) {
-        const n = hash(x, y, 37);
-        if (n < 0.11) rect(ctx, x, y, 1, 1, '#c4ac7e');
-        else if (n < 0.21) rect(ctx, x, y, 1, 1, '#9c8355');
-        else if (n < 0.25) rect(ctx, x, y, 1, 1, '#846c42');
-      }
-    }
-    // Loose stones on an eight-pixel lattice, so they carry across tile seams
-    // without stamping a visible sixteen-pixel grid.
-    for (let cy = 0; cy < 2; cy++) {
-      for (let cx = 0; cx < 2; cx++) {
-        const x = cx * 8;
-        const y = cy * 8;
-        rect(ctx, x + 2, y + 5, 2, 1, '#8d7548');
-        rect(ctx, x + 2, y + 4, 2, 1, '#cbb488');
-        rect(ctx, x + 6, y + 1, 1, 1, '#cbb488');
-        rect(ctx, x + 5, y + 2, 2, 1, '#8d7548');
-      }
-    }
+  dirt(ctx, _frame, mask = 15, _ground, variant = 0) {
+    ground(ctx, 'dirt', variant);
+    fringeEdges(ctx, mask, '#8d7049', '#6f573a');
   },
 
-  path(ctx) {
-    // A cobbled road. The stone grid is period-8 in both axes so it runs
-    // unbroken across tile seams instead of stamping a visible 16px lattice.
-    rect(ctx, 0, 0, TILE, TILE, '#6b6151');
-    const tones = ['#b9ae92', '#aa9f84', '#c3b89b', '#a0957b'];
-    for (let row = 0; row < 4; row++) {
-      const y = row * 4;
-      const offset = row % 2 ? 4 : 0;
-      for (let cell = -1; cell < 3; cell++) {
-        const x = cell * 8 + offset;
-        const tone = tones[(row * 2 + ((cell % 2) + 2) % 2) % 4];
-        rect(ctx, x, y, 7, 3, tone);
-        rect(ctx, x + 1, y, 5, 1, '#d4c9ac');
-        rect(ctx, x, y + 2, 7, 1, '#867a63');
-        rect(ctx, x, y, 1, 1, '#6b6151');
-        rect(ctx, x + 6, y, 1, 1, '#6b6151');
-      }
-    }
+  path(ctx, _frame, _mask, _ground, variant = 0) {
+    ground(ctx, 'path', variant);
   },
 
-  sand(ctx) {
-    speckle(ctx, '#dfd097', [
-      { color: '#efe3b3', chance: 0.15 },
-      { color: '#c6b47b', chance: 0.2 },
-    ], 41);
+  sand(ctx, _frame, mask = 15, _ground, variant = 0) {
+    ground(ctx, 'sand', variant);
+    fringeEdges(ctx, mask, '#c2a870', '#a68d58');
   },
 
-  stone(ctx) {
-    // Fitted flagstones: large slabs with a lit top edge, period-8 so a plaza
-    // reads as one paved surface rather than a grid of stamps.
-    rect(ctx, 0, 0, TILE, TILE, '#69645a');
-    const tones = ['#9c9585', '#948d7d', '#a49d8c', '#8d8677'];
-    for (let row = 0; row < 2; row++) {
-      const y = row * 8;
-      const offset = row % 2 ? 4 : 0;
-      for (let cell = -1; cell < 3; cell++) {
-        const x = cell * 8 + offset;
-        const tone = tones[(row * 2 + ((cell % 2) + 2) % 2) % 4];
-        rect(ctx, x, y, 7, 7, tone);
-        rect(ctx, x, y, 7, 1, '#b1a998');
-        rect(ctx, x, y + 6, 7, 1, '#75705f');
-        for (let k = 0; k < 7; k++) {
-          if (hash(x + k, y, 71) < 0.10) rect(ctx, x + k, y + 2 + (k % 4), 1, 1, '#867f6f');
-        }
-      }
-    }
+  stone(ctx, _frame, mask = 15, _ground, variant = 0) {
+    ground(ctx, 'stone', variant);
+    fringeEdges(ctx, mask, '#74716a', '#4a4740');
   },
 
   water(ctx, frame, mask) {
@@ -216,7 +184,7 @@ const painters = {
     // canopy — drawing it as canopy is what makes scattered woodland read as
     // random green bars.
     if (!(mask & N) && !(mask & S)) {
-      painters.loneTree(ctx, '#2a6b38', '#3d8a45', '#55a855', '#74c46c', '#5b4023', '#7a5a32');
+      painters.loneTree(ctx);
       return;
     }
 
@@ -255,19 +223,9 @@ const painters = {
   },
 
   // A single round tree: canopy, highlight and trunk.
-  loneTree(ctx, dark, mid, lit, rim, trunk, trunkLit) {
-    rect(ctx, 6, 10, 4, 6, trunk);
-    rect(ctx, 7, 10, 1, 6, trunkLit);
-    rect(ctx, 5, 14, 6, 2, dark);
-
-    // Canopy built from stacked rows so the silhouette is round, not square.
-    const rows = [[4, 1, 8], [2, 2, 12], [1, 4, 14], [1, 7, 14], [2, 9, 12], [4, 11, 8]];
-    for (const [x, y, w] of rows) rect(ctx, x, y, w, 2, dark);
-    const inner = [[5, 2, 6], [3, 3, 10], [2, 5, 12], [3, 8, 10], [5, 10, 6]];
-    for (const [x, y, w] of inner) rect(ctx, x, y, w, 2, mid);
-    rect(ctx, 4, 3, 7, 4, lit);
-    rect(ctx, 5, 3, 4, 2, rim);
-    rect(ctx, 3, 9, 9, 2, dark);
+  /** A tree standing on its own, drawn pixel by pixel in tilesets.js. */
+  loneTree(ctx) {
+    paintArt(ctx, LONE_TREE, TREE_KEY);
   },
 
   pine(ctx, _frame, mask) {
@@ -702,11 +660,8 @@ const painters = {
     rect(ctx, 3, 9, 3, 2, '#8c8c98');
   },
 
-  caveFloor(ctx) {
-    speckle(ctx, '#4e4a58', [
-      { color: '#5c5867', chance: 0.15 },
-      { color: '#403d4a', chance: 0.22 },
-    ], 107);
+  caveFloor(ctx, _frame, _mask, _ground, variant = 0) {
+    ground(ctx, 'cave', variant);
   },
 
   caveWall(ctx, _frame, mask) {
@@ -736,14 +691,14 @@ const painters = {
  *   'water'      blocks movement (no surfing in this game)
  */
 export const TILE_DEFS = {
-  '.': { paint: painters.grass, kind: 'floor' },
-  ',': { paint: painters.tallGrass, kind: 'encounter', frames: 2, rate: 0.55 },
-  'S': { paint: painters.snow, kind: 'floor' },
-  ';': { paint: painters.snowGrass, kind: 'encounter', frames: 2, rate: 0.55 },
-  '-': { paint: painters.path, kind: 'floor' },
-  'd': { paint: painters.dirt, kind: 'floor' },
-  's': { paint: painters.sand, kind: 'floor' },
-  'o': { paint: painters.stone, kind: 'floor' },
+  '.': { paint: painters.grass, kind: 'floor', varies: true, autotile: true },
+  ',': { paint: painters.tallGrass, kind: 'encounter', frames: 2, rate: 0.55, varies: true },
+  'S': { paint: painters.snow, kind: 'floor', varies: true, autotile: true },
+  ';': { paint: painters.snowGrass, kind: 'encounter', frames: 2, rate: 0.55, varies: true },
+  '-': { paint: painters.path, kind: 'floor', varies: true },
+  'd': { paint: painters.dirt, kind: 'floor', varies: true, autotile: true },
+  's': { paint: painters.sand, kind: 'floor', varies: true, autotile: true },
+  'o': { paint: painters.stone, kind: 'floor', varies: true, autotile: true },
   '~': { paint: painters.water, kind: 'water', frames: 2, autotile: true },
   'i': { paint: painters.ice, kind: 'floor', frames: 2 },
   '#': { paint: painters.tree, kind: 'solid', autotile: true, grounded: true },
@@ -775,7 +730,7 @@ export const TILE_DEFS = {
   'X': { paint: painters.throne, kind: 'solid' },
   'F': { paint: painters.brazier, kind: 'solid' },
   'U': { paint: painters.rubble, kind: 'solid' },
-  '%': { paint: painters.caveFloor, kind: 'floor' },
+  '%': { paint: painters.caveFloor, kind: 'floor', varies: true },
   '@': { paint: painters.caveWall, kind: 'solid', autotile: true },
 };
 
@@ -791,6 +746,14 @@ export const N = 1, E = 2, S = 4, W = 8;
 
 /** Tiles that autotile, and the group each belongs to. */
 export const TILE_GROUP = {
+  // Grounds, so that where two of them meet gets a softened edge rather than a
+  // ruled line. Tall grass belongs to the field it grows in, so there is no
+  // seam between a meadow and the cover in it.
+  '.': 'grassland', ',': 'grassland', '*': 'grassland',
+  'S': 'snowfield', ';': 'snowfield', 'i': 'snowfield',
+  'd': 'earth',
+  's': 'shore',
+  'o': 'paved', '=': 'paved',
   '#': 'forest', 'P': 'forest', 'W': 'forest',
   'C': 'rock', 'U': 'rock',
   '~': 'water',
@@ -806,25 +769,27 @@ export const TILE_GROUP = {
  * a summer meadow without needing separate characters for each.
  */
 export const GROUNDS = {
-  grass: (ctx) => painters.grass(ctx),
-  snow: (ctx) => painters.snow(ctx),
-  sand: (ctx) => painters.sand(ctx),
-  stone: (ctx) => painters.stone(ctx),
-  cave: (ctx) => painters.caveFloor(ctx),
+  grass: (ctx, variant) => painters.grass(ctx, 0, 0, null, variant),
+  snow: (ctx, variant) => painters.snow(ctx, 0, 0, null, variant),
+  sand: (ctx, variant) => painters.sand(ctx, 0, 0, null, variant),
+  stone: (ctx, variant) => painters.stone(ctx, 0, 0, null, variant),
+  cave: (ctx, variant) => painters.caveFloor(ctx, 0, 0, null, variant),
 };
 
 /** Returns the painted canvas for a tile at a given frame, mask and ground. */
-export function tileCanvas(char, frame = 0, mask = 0, ground = 'grass') {
+export function tileCanvas(char, frame = 0, mask = 0, ground = 'grass', variant = 0) {
   const def = TILE_DEFS[char] ?? TILE_DEFS['.'];
   const frameCount = def.frames ?? 1;
   const useFrame = frameCount > 1 ? frame % frameCount : 0;
   const useMask = def.autotile ? mask : 0;
   const useGround = def.grounded ? ground : '-';
-  const key = `${char}:${useFrame}:${useMask}:${useGround}`;
+  // Only the drawings that actually vary need the variant in their cache key.
+  const useVariant = def.varies ? variant : 0;
+  const key = `${char}:${useFrame}:${useMask}:${useGround}:${useVariant}`;
   let canvas = rendered.get(key);
   if (!canvas) {
     const surface = makeCanvas(TILE, TILE);
-    def.paint(surface.ctx, useFrame, useMask, GROUNDS[ground] ?? GROUNDS.grass);
+    def.paint(surface.ctx, useFrame, useMask, GROUNDS[ground] ?? GROUNDS.grass, useVariant);
     canvas = surface.canvas;
     rendered.set(key, canvas);
   }

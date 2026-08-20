@@ -1,6 +1,7 @@
 // The overworld: grid movement, collision, warps, NPCs, trainers, encounters.
 
 import { TILE, tileCanvas, tileDef, TILE_GROUP, N, E, S, W } from '../art/tiles.js';
+import { variantFor } from '../art/pixels.js';
 import { drawActor, ACTOR_H } from '../art/actors.js';
 import { playerAppearance } from '../game/player.js';
 import { getMap, regionOf, tileAt } from '../data/maps.js';
@@ -632,7 +633,8 @@ export class Overworld {
     for (let y = startY; y <= endY; y++) {
       for (let x = startX; x <= endX; x++) {
         const char = tileAt(this.map, x, y);
-        ctx.drawImage(tileCanvas(char, this.animFrame, this.neighbourMask(char, x, y), this.map.ground),
+        ctx.drawImage(tileCanvas(char, this.animFrame, this.neighbourMask(char, x, y), this.map.ground,
+          variantFor(x, y, 4)),
           x * TILE - camX, y * TILE - camY);
       }
     }
@@ -738,7 +740,8 @@ export class Overworld {
     const check = (tileX, tileY, pixelX, pixelY) => {
       const char = tileAt(this.map, tileX, tileY);
       if (tileDef(char).kind !== 'encounter') return;
-      const canvas = tileCanvas(char, this.animFrame, this.neighbourMask(char, tileX, tileY), this.map.ground);
+      const canvas = tileCanvas(char, this.animFrame, this.neighbourMask(char, tileX, tileY),
+        this.map.ground, variantFor(tileX, tileY, 4));
       ctx.drawImage(canvas, 0, 8, TILE, 8, pixelX, pixelY + 8, TILE, 8);
     };
     const px = this.playerPixel();

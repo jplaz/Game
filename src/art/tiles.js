@@ -4,7 +4,11 @@
 
 import { makeCanvas } from '../engine/sprites.js';
 import { paintArt } from './pixels.js';
-import { GROUND_ART, TALL_GRASS, CLUMP_KEY, SNOW_GRASS_KEY, LONE_TREE, TREE_KEY } from './tilesets.js';
+import {
+  GROUND_ART, TALL_GRASS, CLUMP_KEY, SNOW_GRASS_KEY, LONE_TREE, TREE_KEY,
+  ROOF, ROOF_RIDGE, ROOF_EAVE, ROOF_KEY,
+  CLIFF, CLIFF_TOP, CLIFF_KEY, WATER, WATER_KEY,
+} from './tilesets.js';
 
 export const TILE = 16;
 
@@ -140,28 +144,10 @@ const painters = {
   },
 
   water(ctx, frame, mask) {
-    rect(ctx, 0, 0, TILE, TILE, '#3868c0');
-    for (let y = 0; y < TILE; y++) {
-      for (let x = 0; x < TILE; x++) {
-        const n = hash(x, y, 61);
-        if (n < 0.12) rect(ctx, x, y, 1, 1, '#4878d0');
-        else if (n < 0.20) rect(ctx, x, y, 1, 1, '#2c58a8');
-      }
-    }
-    // Drifting glints, offset per frame so the surface moves.
-    const offset = frame ? 5 : 0;
-    for (let i = 0; i < 3; i++) {
-      const y = 3 + i * 5;
-      const x = (i * 7 + offset) % TILE;
-      rect(ctx, x, y, 4, 1, '#88b8f0');
-      rect(ctx, (x + 9) % TILE, y + 2, 2, 1, '#6098e0');
-    }
-    // Foam wherever the water meets land.
-    const foam = '#c8e8f8', foamDark = '#78b0e0';
-    if (!(mask & N)) { rect(ctx, 0, 0, TILE, 2, foam); rect(ctx, 0, 2, TILE, 1, foamDark); }
-    if (!(mask & S)) { rect(ctx, 0, TILE - 2, TILE, 2, foam); rect(ctx, 0, TILE - 3, TILE, 1, foamDark); }
-    if (!(mask & W)) { rect(ctx, 0, 0, 2, TILE, foam); rect(ctx, 2, 0, 1, TILE, foamDark); }
-    if (!(mask & E)) { rect(ctx, TILE - 2, 0, 2, TILE, foam); rect(ctx, TILE - 3, 0, 1, TILE, foamDark); }
+    paintArt(ctx, WATER[frame % WATER.length], WATER_KEY);
+    // Foam where the water meets land. Uneven along its length, or a pond ends
+    // up looking like a tiled swimming bath.
+    fringeEdges(ctx, mask, '#cfe8fa', '#7fb2e4');
   },
 
   ice(ctx, frame) {
@@ -310,23 +296,11 @@ const painters = {
   },
 
   cliff(ctx, _frame, mask) {
-    rect(ctx, 0, 0, TILE, TILE, '#8a7f6d');
-    for (let y = 0; y < TILE; y++) {
-      for (let x = 0; x < TILE; x++) {
-        const n = hash(x, y, 71);
-        if (n < 0.14) rect(ctx, x, y, 1, 1, '#9e9280');
-        else if (n < 0.26) rect(ctx, x, y, 1, 1, '#6f6559');
-      }
-    }
-    // Blocky strata so the face reads as cut stone.
-    for (let y = 3; y < TILE; y += 6) {
-      rect(ctx, 0, y, TILE, 1, '#5f5648');
-      rect(ctx, 0, y + 1, TILE, 1, '#a3977f');
-    }
-    if (!(mask & N)) { rect(ctx, 0, 0, TILE, 3, '#a89a80'); rect(ctx, 0, 3, TILE, 1, '#c0b294'); }
-    if (!(mask & W)) rect(ctx, 0, 0, 2, TILE, '#5a5145');
-    if (!(mask & E)) rect(ctx, TILE - 2, 0, 2, TILE, '#5a5145');
-    if (!(mask & S)) { rect(ctx, 0, TILE - 3, TILE, 3, '#403a31'); }
+    if (!(mask & N)) paintArt(ctx, CLIFF_TOP, CLIFF_KEY);
+    else paintArt(ctx, CLIFF, CLIFF_KEY);
+    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, CLIFF_KEY.k);
+    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, CLIFF_KEY.k);
+    if (!(mask & S)) rect(ctx, 0, TILE - 2, TILE, 2, '#2b261f');
   },
 
   wall(ctx, _frame, mask) {
@@ -451,29 +425,13 @@ const painters = {
   },
 
   roof(ctx, _frame, mask) {
-    // Overlapping clay tiles. Each course is offset half a tile, giving a
-    // period of four pixels across and eight down, so the seams disappear.
-    rect(ctx, 0, 0, TILE, TILE, '#6d2724');
-    for (let row = 0; row < 4; row++) {
-      const y = row * 4;
-      const offset = row % 2 ? 2 : 0;
-      for (let cell = -1; cell < 5; cell++) {
-        const x = cell * 4 + offset;
-        const tone = (row + cell) % 2 ? '#a8443b' : '#9a3c34';
-        rect(ctx, x, y, 3, 4, tone);
-        rect(ctx, x, y, 3, 1, '#c05a4e');
-        rect(ctx, x, y + 3, 3, 1, '#7c2d29');
-      }
-    }
-    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, '#4e1a18');
-    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, '#4e1a18');
-    // Eaves: the roof overhangs the wall below it.
-    if (!(mask & S)) {
-      rect(ctx, 0, TILE - 4, TILE, 4, '#4e1a18');
-      rect(ctx, 0, TILE - 4, TILE, 1, '#c66056');
-      rect(ctx, 0, TILE - 3, TILE, 1, '#8b3630');
-      for (let x = 1; x < TILE; x += 4) rect(ctx, x, TILE - 2, 2, 1, '#3a1210');
-    }
+    // A course of tiles, capped where the roof ends and overhanging where it
+    // meets the wall below.
+    if (!(mask & N)) paintArt(ctx, ROOF_RIDGE, ROOF_KEY);
+    else if (!(mask & S)) paintArt(ctx, ROOF_EAVE, ROOF_KEY);
+    else paintArt(ctx, ROOF, ROOF_KEY);
+    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, ROOF_KEY.k);
+    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, ROOF_KEY.k);
   },
 
   // The ridge tile that caps a roof.

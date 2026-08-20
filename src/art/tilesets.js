@@ -494,3 +494,180 @@ export const LONE_TREE = [
   '....kkTttk......',
   '....kkkkkk......',
 ];
+
+// ------------------------------------------------------------------- roof --
+
+export const ROOF_KEY = {
+  '.': null,
+  k: '#4a1614',  // keyline and the gap under each course
+  d: '#7c2b26',  // a tile in shadow
+  m: '#9a3c34',  // the body of the tile
+  l: '#b04a3e',  // its lit face
+  h: '#c96353',  // the ridge of each tile, catching the sun
+};
+
+// Clay tiles in overlapping courses. The old roof was one flat lattice of
+// identical shingles; these are staggered, and each course is a shade lighter
+// toward the ridge, so a roof has a direction to it.
+export const ROOF = [
+  'hhlhhlhhlhhlhhlh',
+  'mmlmmlmmlmmlmmlm',
+  'mdmmdmmdmmdmmdmm',
+  'kkkkkkkkkkkkkkkk',
+  'lhhlhhlhhlhhlhhl',
+  'lmmlmmlmmlmmlmml',
+  'mmdmmdmmdmmdmmdm',
+  'kkkkkkkkkkkkkkkk',
+  'hhlhhlhhlhhlhhlh',
+  'mmlmmlmmlmmlmmlm',
+  'mdmmdmmdmmdmmdmm',
+  'kkkkkkkkkkkkkkkk',
+  'lhhlhhlhhlhhlhhl',
+  'lmmlmmlmmlmmlmml',
+  'mmdmmdmmdmmdmmdm',
+  'kkkkkkkkkkkkkkkk',
+];
+
+// The ridge tile that caps a roof, lit along its very top.
+export const ROOF_RIDGE = [
+  'kkkkkkkkkkkkkkkk',
+  'hhhhhhhhhhhhhhhh',
+  'hhhhhhhhhhhhhhhh',
+  'llllllllllllllll',
+  'kkkkkkkkkkkkkkkk',
+  'lhhlhhlhhlhhlhhl',
+  'lmmlmmlmmlmmlmml',
+  'mmdmmdmmdmmdmmdm',
+  'kkkkkkkkkkkkkkkk',
+  'hhlhhlhhlhhlhhlh',
+  'mmlmmlmmlmmlmmlm',
+  'mdmmdmmdmmdmmdmm',
+  'kkkkkkkkkkkkkkkk',
+  'lhhlhhlhhlhhlhhl',
+  'lmmlmmlmmlmmlmml',
+  'mmdmmdmmdmmdmmdm',
+];
+
+// The overhanging eave, with the shadow it throws on the wall beneath.
+export const ROOF_EAVE = [
+  'hhlhhlhhlhhlhhlh',
+  'mmlmmlmmlmmlmmlm',
+  'mdmmdmmdmmdmmdmm',
+  'kkkkkkkkkkkkkkkk',
+  'lhhlhhlhhlhhlhhl',
+  'lmmlmmlmmlmmlmml',
+  'mmdmmdmmdmmdmmdm',
+  'kkkkkkkkkkkkkkkk',
+  'hhlhhlhhlhhlhhlh',
+  'mmlmmlmmlmmlmmlm',
+  'mdmmdmmdmmdmmdmm',
+  'hhhhhhhhhhhhhhhh',
+  'llllllllllllllll',
+  'kkkkkkkkkkkkkkkk',
+  'kdkkdkkdkkdkkdkk',
+  'kkkkkkkkkkkkkkkk',
+];
+
+// ------------------------------------------------------------------ cliff --
+
+export const CLIFF_KEY = {
+  '.': null,
+  k: '#3a342b',  // the crack between blocks
+  d: '#5f5648',  // a block face turned away
+  m: '#7d7362',  // the block itself
+  l: '#948972',  // its lit top edge
+  h: '#b0a488',  // the very top of the cliff, in the sun
+};
+
+// Cut stone in courses, each block lit along its top and shaded down its right,
+// so a cliff face has depth instead of being a speckled wall with lines on it.
+export const CLIFF = [
+  'llllllllllllllll',
+  'mmmmmdmmmmmmmmdm',
+  'mmmmmdmmmmmmmmdm',
+  'dddddkddddddddkd',
+  'kkkkkkkkkkkkkkkk',
+  'llllllllllllllll',
+  'mmdmmmmmmdmmmmmm',
+  'mmdmmmmmmdmmmmmm',
+  'ddkdddddddkddddd',
+  'kkkkkkkkkkkkkkkk',
+  'llllllllllllllll',
+  'mmmmmmmdmmmmmmdm',
+  'mmmmmmmdmmmmmmdm',
+  'dddddddkddddddkd',
+  'kkkkkkkkkkkkkkkk',
+  'llllllllllllllll',
+];
+
+// The lip where a cliff meets the sky above it.
+export const CLIFF_TOP = [
+  'hhhhhhhhhhhhhhhh',
+  'hhhhhhhhhhhhhhhh',
+  'llllllllllllllll',
+  'kkkkkkkkkkkkkkkk',
+  'llllllllllllllll',
+  'mmmmmdmmmmmmmmdm',
+  'mmmmmdmmmmmmmmdm',
+  'dddddkddddddddkd',
+  'kkkkkkkkkkkkkkkk',
+  'llllllllllllllll',
+  'mmdmmmmmmdmmmmmm',
+  'mmdmmmmmmdmmmmmm',
+  'ddkdddddddkddddd',
+  'kkkkkkkkkkkkkkkk',
+  'llllllllllllllll',
+  'mmmmmmmdmmmmmmdm',
+];
+
+// ------------------------------------------------------------------ water --
+
+export const WATER_KEY = {
+  '.': null,
+  D: '#26509c',  // the deep
+  m: '#3868c0',  // open water
+  l: '#4a7cd4',  // a swell catching light
+  h: '#7dabe8',  // a glint on the surface
+};
+
+// Two drawings the map alternates between, so the surface moves. The ripples
+// are drawn as broken horizontal strokes rather than scattered pixels, which is
+// what makes water read as water rather than as blue noise.
+export const WATER = [
+  [
+    'mmmmmmmmmmmmmmmm',
+    'mmmhhhmmmmmmmmmm',
+    'mmmmmmmmmmhhhmmm',
+    'mmmmmmmmmmmmmmmm',
+    'mmmmmmmmmmmmmmmm',
+    'DDmmmmmmmDDDmmmm',
+    'mmmmmmmmmmmmmmmm',
+    'mmmmhhhmmmmmmmmm',
+    'mmmmmmmmmmmmmhhh',
+    'mmmmmmmmmmmmmmmm',
+    'mmmmmmmmmmmmmmmm',
+    'mmmmmDDDmmmmmmmm',
+    'DDmmmmmmmmmmmmmm',
+    'mmmmmmmmmmmmmmmm',
+    'mmhhhmmmmmmmhhmm',
+    'mmmmmmmmmmmmmmmm',
+  ],
+  [
+    'mmmmmmmmmmmmmmmm',
+    'mmmmmmmmhhhmmmmm',
+    'mmmmmmmmmmmmmmmm',
+    'hhhmmmmmmmmmmhhh',
+    'mmmmmmmmmmmmmmmm',
+    'mmmmmDDDmmmmmmDD',
+    'mmmmmmmmmmmmmmmm',
+    'mmmmmmmmmhhhmmmm',
+    'mmhhhmmmmmmmmmmm',
+    'mmmmmmmmmmmmmmmm',
+    'mmmmmmmmmmmmmmmm',
+    'mmmmmmmmmmDDDmmm',
+    'mmmmmmmDDmmmmmmm',
+    'mmmmmmmmmmmmmmmm',
+    'mmmmmmmhhhmmmmmm',
+    'mmmmmmmmmmmmmmmm',
+  ],
+];

@@ -5,8 +5,8 @@
 // mechanism: heavy techniques cost more than you regain in a round, so you have
 // to spend and recover rather than mash the biggest number.
 
-import { drawPanel, drawStatusBox, drawHpGauge, drawExpGauge, THEMES } from '../ui/panel.js';
-import { drawText, measure, LINE_HEIGHT } from '../engine/font.js';
+import { drawPanel, drawStatusBox, drawHpGauge, drawExpGauge, drawWindGauge, THEMES } from '../ui/panel.js';
+import { drawText, fitText, measure, LINE_HEIGHT } from '../engine/font.js';
 import { dialog } from '../ui/textbox.js';
 import { input } from '../engine/input.js';
 import { audio } from '../engine/audio.js';
@@ -25,7 +25,7 @@ import { game, addMoney, setFlag, takeItem, itemCount } from '../game/state.js';
 const PLAYER_POS = { x: 26, y: 44, scale: 2 };
 const FOE_POS = { x: 172, y: 14, scale: 2 };
 const FOE_HUD = { x: 10, y: 14, w: 106, h: 28 };
-const PLAYER_HUD = { x: 124, y: 68, w: 106, h: 36 };
+const PLAYER_HUD = { x: 124, y: 52, w: 106, h: 52 };
 
 /** Damage: might against guard, softened so no single blow ends a duel. */
 function computeDamage(attacker, defender, tech) {
@@ -525,14 +525,15 @@ export class Duel {
 
   drawHud(ctx, side, box, isPlayer) {
     const t = drawStatusBox(ctx, box.x, box.y, box.w, box.h, { notchLeft: isPlayer });
-    drawText(ctx, side.name.toUpperCase(), box.x + 7, box.y + 4,
-      { color: t.text, shadow: t.textShadow });
     const lvl = `Lv${side.level}`;
-    drawText(ctx, lvl, box.x + box.w - measure(lvl) - 8, box.y + 4,
+    const lvlW = measure(lvl);
+    const name = fitText(side.name.toUpperCase(), box.w - lvlW - 22);
+    drawText(ctx, name, box.x + 8, box.y + 3, { color: t.text, shadow: t.textShadow });
+    drawText(ctx, lvl, box.x + box.w - lvlW - 9, box.y + 3,
       { color: t.text, shadow: t.textShadow });
 
     const shown = this.hpShown.get(side) ?? side.hp;
-    drawHpGauge(ctx, box.x + 7, box.y + 16, box.w - 14, Math.max(0, shown / side.maxHp));
+    drawHpGauge(ctx, box.x + 7, box.y + 15, box.w - 15, Math.max(0, shown / side.maxHp));
 
     // Condition flags sit under the gauge.
     const marks = [];
@@ -542,8 +543,8 @@ export class Duel {
     marks.slice(0, 2).forEach(([label, color], i) => {
       const w = measure(label) + 4;
       const mx = box.x + 7 + i * (w + 3);
-      const my = box.y + (isPlayer ? 25 : 23);
-      ctx.fillStyle = '#38383f';
+      const my = box.y + 24;
+      ctx.fillStyle = '#2b3f2c';
       ctx.fillRect(mx - 1, my - 1, w + 2, 9);
       ctx.fillStyle = color;
       ctx.fillRect(mx, my, w, 7);
@@ -551,27 +552,19 @@ export class Duel {
     });
 
     if (isPlayer) {
-      // Wind gauge, then the experience bar beneath the box.
-      const windX = box.x + 7;
-      const windY = box.y + box.h - 9;
-      drawText(ctx, 'WIND', windX, windY - 1, { color: t.text, shadow: t.textShadow });
-      const barX = windX + 26;
-      const barW = box.w - 34;
-      ctx.fillStyle = '#38383f';
-      ctx.fillRect(barX - 1, windY, barW + 2, 6);
-      ctx.fillStyle = '#606068';
-      ctx.fillRect(barX, windY + 1, barW, 4);
-      const filled = Math.round(barW * (side.wind / side.maxWind));
-      ctx.fillStyle = '#2f7fa8';
-      ctx.fillRect(barX, windY + 1, filled, 4);
-      ctx.fillStyle = '#6fc0e0';
-      ctx.fillRect(barX, windY + 1, filled, 2);
+      const hpLabel = `${Math.round(shown)}/${side.maxHp}`;
+      drawText(ctx, hpLabel, box.x + box.w - measure(hpLabel) - 9, box.y + 24,
+        { color: t.text, shadow: t.textShadow });
+
+      // Wind, then the experience bar, both inside the plate.
+      drawWindGauge(ctx, box.x + 7, box.y + 34, box.w - 15,
+        Math.max(0, Math.min(1, side.wind / side.maxWind)));
 
       const p = game.state.player;
       const cur = expForPlayerLevel(p.level);
       const next = expForPlayerLevel(p.level + 1);
       const ratio = next > cur ? (p.exp - cur) / (next - cur) : 0;
-      drawExpGauge(ctx, box.x + 5, box.y + box.h + 1, box.w - 10,
+      drawExpGauge(ctx, box.x + 7, box.y + 43, box.w - 15,
         Math.max(0, Math.min(1, ratio)));
     }
   }
@@ -579,14 +572,14 @@ export class Duel {
   drawMenu(ctx) {
     const menu = this.menu;
     if (menu.type === 'action') {
-      const box = { x: 138, y: 108, w: 100, h: 50 };
-      const t = drawPanel(ctx, box.x, box.y, box.w, box.h, 'night');
+      const box = { x: 136, y: 106, w: 100, h: 50 };
+      const t = drawPanel(ctx, box.x, box.y, box.w, box.h, 'command');
       menu.options.forEach((label, i) => {
         const col = i % 2;
         const row = Math.floor(i / 2);
-        const x = box.x + 12 + col * 46;
-        const y = box.y + 9 + row * 18;
-        if (i === menu.index) drawText(ctx, '▸', x - 9, y, { color: t.text, shadow: t.textShadow });
+        const x = box.x + 15 + col * 44;
+        const y = box.y + 9 + row * 17;
+        if (i === menu.index) drawText(ctx, '▸', x - 9, y, { color: t.accent, shadow: null });
         drawText(ctx, label, x, y, { color: t.text, shadow: t.textShadow });
       });
       return;

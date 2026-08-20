@@ -221,6 +221,19 @@ function paintGlyph(ctx, glyph, x, y, color) {
   }
 }
 
+/**
+ * Shortens a string until it fits a pixel width, ending it in a full stop so
+ * the truncation reads as deliberate. Long names in a fixed HUD would otherwise
+ * run into whatever is drawn beside them.
+ */
+export function fitText(text, maxWidth) {
+  const clean = normaliseText(text);
+  if (measure(clean) <= maxWidth) return clean;
+  let cut = clean;
+  while (cut.length > 1 && measure(`${cut}.`) > maxWidth) cut = cut.slice(0, -1);
+  return `${cut.trimEnd()}.`;
+}
+
 /** Greedy word wrap to a pixel width, returning an array of lines. */
 export function wrapText(text, maxWidth) {
   const lines = [];

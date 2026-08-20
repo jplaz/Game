@@ -3,14 +3,14 @@
 import { TILE, tileCanvas, tileDef, TILE_GROUP, N, E, S, W } from '../art/tiles.js';
 import { drawActor, ACTOR_H } from '../art/actors.js';
 import { playerAppearance } from '../game/player.js';
-import { getMap, tileAt } from '../data/maps.js';
+import { getMap, regionOf, tileAt } from '../data/maps.js';
 import { input } from '../engine/input.js';
 import { audio } from '../engine/audio.js';
 import { TRACKS } from '../data/music.js';
 import { rng } from '../engine/rng.js';
 import { dialog } from '../ui/textbox.js';
 import { drawPanel } from '../ui/panel.js';
-import { drawText } from '../engine/font.js';
+import { drawText, measure } from '../engine/font.js';
 import { game, flag, setFlag } from '../game/state.js';
 import { SCRIPTS } from '../data/scripts.js';
 import { TRAINERS } from '../data/trainers.js';
@@ -53,6 +53,7 @@ export class Overworld {
   /** Swaps to a map and places the player. */
   loadMap(mapId, { x, y, dir }) {
     this.map = getMap(mapId);
+    this.region = regionOf(mapId);
     this.player.x = x;
     this.player.y = y;
     this.player.dir = dir ?? 'down';
@@ -637,15 +638,25 @@ export class Overworld {
     drawText(ctx, '!', x + 6, y + 3, { color: '#8a2028', shadow: null });
   }
 
-  /** A short location card when the map changes. */
+  /** A short location card when the map changes: the place, then the region. */
   drawLocationBanner(ctx) {
     if (this.map.indoor) return;
     if (this.frameTimer > 3) return;
     const alpha = this.frameTimer > 2.4 ? 1 - (this.frameTimer - 2.4) / 0.6 : 1;
+    const region = this.region ?? '';
+    const width = Math.max(measure(this.map.name), measure(region)) + 22;
+    const height = region ? 32 : 20;
+
     ctx.save();
     ctx.globalAlpha = Math.max(0, alpha);
-    drawPanel(ctx, 6, 6, 108, 20, 'night');
-    drawText(ctx, this.map.name, 14, 12, { color: '#f2f4ff', shadow: '#151a2c' });
+    const t = drawPanel(ctx, 6, 6, width, height, 'night');
+    drawText(ctx, this.map.name, 15, 12, { color: t.text, shadow: t.textShadow });
+    if (region) {
+      // A gold rule between the two lines, the way a signboard is scored.
+      ctx.fillStyle = t.accent;
+      ctx.fillRect(13, 22, width - 26, 1);
+      drawText(ctx, region, 15, 24, { color: t.accent, shadow: t.textShadow });
+    }
     ctx.restore();
   }
 }

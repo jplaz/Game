@@ -87,23 +87,58 @@ const painters = {
   snow(ctx) {
     // Cooler and a shade darker than pure white: snow at full brightness eats
     // the whole screen and leaves nothing for the sprites to read against.
-    rect(ctx, 0, 0, TILE, TILE, '#cfdcea');
+    rect(ctx, 0, 0, TILE, TILE, '#c2d2e4');
     for (let y = 0; y < TILE; y++) {
       for (let x = 0; x < TILE; x++) {
         const n = hash(x, y, 23);
-        if (n < 0.10) rect(ctx, x, y, 1, 1, '#e4edf6');
-        else if (n < 0.18) rect(ctx, x, y, 1, 1, '#b6c6d8');
+        if (n < 0.09) rect(ctx, x, y, 1, 1, '#e2ecf7');
+        else if (n < 0.17) rect(ctx, x, y, 1, 1, '#a5b9d0');
+        else if (n < 0.20) rect(ctx, x, y, 1, 1, '#8fa6c2');
+      }
+    }
+  },
+
+  /** A country track: packed earth, wheel ruts, and loose gravel. */
+  dirt(ctx) {
+    rect(ctx, 0, 0, TILE, TILE, '#b09669');
+    for (let y = 0; y < TILE; y++) {
+      for (let x = 0; x < TILE; x++) {
+        const n = hash(x, y, 37);
+        if (n < 0.11) rect(ctx, x, y, 1, 1, '#c4ac7e');
+        else if (n < 0.21) rect(ctx, x, y, 1, 1, '#9c8355');
+        else if (n < 0.25) rect(ctx, x, y, 1, 1, '#846c42');
+      }
+    }
+    // Loose stones on an eight-pixel lattice, so they carry across tile seams
+    // without stamping a visible sixteen-pixel grid.
+    for (let cy = 0; cy < 2; cy++) {
+      for (let cx = 0; cx < 2; cx++) {
+        const x = cx * 8;
+        const y = cy * 8;
+        rect(ctx, x + 2, y + 5, 2, 1, '#8d7548');
+        rect(ctx, x + 2, y + 4, 2, 1, '#cbb488');
+        rect(ctx, x + 6, y + 1, 1, 1, '#cbb488');
+        rect(ctx, x + 5, y + 2, 2, 1, '#8d7548');
       }
     }
   },
 
   path(ctx) {
-    rect(ctx, 0, 0, TILE, TILE, '#d8c090');
-    for (let y = 0; y < TILE; y++) {
-      for (let x = 0; x < TILE; x++) {
-        const n = hash(x, y, 31);
-        if (n < 0.10) rect(ctx, x, y, 1, 1, '#e8d4ac');
-        else if (n < 0.17) rect(ctx, x, y, 1, 1, '#bda476');
+    // A cobbled road. The stone grid is period-8 in both axes so it runs
+    // unbroken across tile seams instead of stamping a visible 16px lattice.
+    rect(ctx, 0, 0, TILE, TILE, '#6b6151');
+    const tones = ['#b9ae92', '#aa9f84', '#c3b89b', '#a0957b'];
+    for (let row = 0; row < 4; row++) {
+      const y = row * 4;
+      const offset = row % 2 ? 4 : 0;
+      for (let cell = -1; cell < 3; cell++) {
+        const x = cell * 8 + offset;
+        const tone = tones[(row * 2 + ((cell % 2) + 2) % 2) % 4];
+        rect(ctx, x, y, 7, 3, tone);
+        rect(ctx, x + 1, y, 5, 1, '#d4c9ac');
+        rect(ctx, x, y + 2, 7, 1, '#867a63');
+        rect(ctx, x, y, 1, 1, '#6b6151');
+        rect(ctx, x + 6, y, 1, 1, '#6b6151');
       }
     }
   },
@@ -116,14 +151,24 @@ const painters = {
   },
 
   stone(ctx) {
-    speckle(ctx, '#8d8d99', [
-      { color: '#a0a0ad', chance: 0.15 },
-      { color: '#767683', chance: 0.22 },
-    ], 53);
-    rect(ctx, 0, 0, TILE, 1, '#6f6f7c');
-    rect(ctx, 0, 8, TILE, 1, '#6f6f7c');
-    rect(ctx, 0, 0, 1, 8, '#6f6f7c');
-    rect(ctx, 8, 8, 1, 8, '#6f6f7c');
+    // Fitted flagstones: large slabs with a lit top edge, period-8 so a plaza
+    // reads as one paved surface rather than a grid of stamps.
+    rect(ctx, 0, 0, TILE, TILE, '#69645a');
+    const tones = ['#9c9585', '#948d7d', '#a49d8c', '#8d8677'];
+    for (let row = 0; row < 2; row++) {
+      const y = row * 8;
+      const offset = row % 2 ? 4 : 0;
+      for (let cell = -1; cell < 3; cell++) {
+        const x = cell * 8 + offset;
+        const tone = tones[(row * 2 + ((cell % 2) + 2) % 2) % 4];
+        rect(ctx, x, y, 7, 7, tone);
+        rect(ctx, x, y, 7, 1, '#b1a998');
+        rect(ctx, x, y + 6, 7, 1, '#75705f');
+        for (let k = 0; k < 7; k++) {
+          if (hash(x + k, y, 71) < 0.10) rect(ctx, x + k, y + 2 + (k % 4), 1, 1, '#867f6f');
+        }
+      }
+    }
   },
 
   water(ctx, frame, mask) {
@@ -327,47 +372,161 @@ const painters = {
   },
 
   wall(ctx, _frame, mask) {
-    rect(ctx, 0, 0, TILE, TILE, '#b0a894');
-    // Coursed blocks with a highlight along the top of each course.
+    // A timber-framed house: daub panels between dark posts, on a stone footing.
+    rect(ctx, 0, 0, TILE, TILE, '#c3b088');
+    for (let y = 0; y < TILE; y++) {
+      for (let x = 0; x < TILE; x++) {
+        const n = hash(x, y, 61);
+        if (n < 0.08) rect(ctx, x, y, 1, 1, '#d2c09b');
+        else if (n < 0.15) rect(ctx, x, y, 1, 1, '#ac9a74');
+      }
+    }
+    const beam = '#4a3722';
+    const beamLit = '#6b5334';
+    const beamDark = '#2c2013';
+
+    // A post at each tile edge, so a run of wall reads as framed bays.
+    rect(ctx, 0, 0, 3, TILE, beam);
+    rect(ctx, TILE - 3, 0, 3, TILE, beam);
+    rect(ctx, 0, 0, 1, TILE, beamDark);
+    rect(ctx, TILE - 1, 0, 1, TILE, beamDark);
+    rect(ctx, 2, 0, 1, TILE, beamLit);
+    rect(ctx, TILE - 3, 0, 1, TILE, beamLit);
+
+    // Top plate under the eaves.
+    rect(ctx, 0, 0, TILE, 3, beam);
+    rect(ctx, 0, 0, TILE, 1, beamDark);
+    rect(ctx, 0, 2, TILE, 1, beamLit);
+
+    // Stone footing along the ground.
+    if (!(mask & S)) {
+      rect(ctx, 0, TILE - 4, TILE, 4, '#938a78');
+      rect(ctx, 0, TILE - 4, TILE, 1, '#6a6255');
+      rect(ctx, 0, TILE - 1, TILE, 1, '#585044');
+      rect(ctx, 5, TILE - 3, 1, 3, '#6a6255');
+      rect(ctx, 12, TILE - 3, 1, 3, '#6a6255');
+    } else {
+      rect(ctx, 0, TILE - 3, TILE, 3, beam);
+      rect(ctx, 0, TILE - 3, TILE, 1, beamDark);
+    }
+  },
+
+  /** Dressed castle stone: big coursed ashlar blocks, cool and heavy. */
+  ashlar(ctx, _frame, mask) {
+    rect(ctx, 0, 0, TILE, TILE, '#5b5b5f');
+    const tones = ['#7e7e86', '#75757d', '#87878f', '#6e6e76'];
     for (let row = 0; row < 4; row++) {
       const y = row * 4;
-      rect(ctx, 0, y, TILE, 1, '#8a8070');
-      rect(ctx, 0, y + 1, TILE, 1, '#c4bca8');
-      const offset = row % 2 ? 4 : 12;
-      rect(ctx, offset, y, 1, 4, '#8a8070');
-      rect(ctx, (offset + 8) % TILE, y, 1, 4, '#8a8070');
+      const offset = row % 2 ? 4 : 0;
+      for (let cell = -1; cell < 3; cell++) {
+        const x = cell * 8 + offset;
+        const tone = tones[(row * 2 + ((cell % 2) + 2) % 2) % 4];
+        rect(ctx, x, y, 7, 3, tone);
+        rect(ctx, x, y, 7, 1, '#93939c');
+        rect(ctx, x, y + 2, 7, 1, '#535359');
+      }
     }
-    if (!(mask & N)) { rect(ctx, 0, 0, TILE, 2, '#6d6456'); }
-    if (!(mask & S)) { rect(ctx, 0, TILE - 2, TILE, 2, '#6d6456'); }
+    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, '#3a3a3f');
+    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, '#3a3a3f');
+    if (!(mask & S)) {
+      rect(ctx, 0, TILE - 2, TILE, 2, '#3a3a3f');
+      rect(ctx, 0, TILE - 2, TILE, 1, '#4a4a50');
+    }
+  },
+
+  /** The crenellated top of a castle wall: merlons with shadowed embrasures. */
+  battlement(ctx, _frame, mask) {
+    painters.ashlar(ctx, 0, mask | N);
+    // Merlons crown the topmost course only. Further down a wall run the tile
+    // is plain ashlar, or the crenellations would repeat every sixteen pixels.
+    if (mask & N) {
+      if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, '#3a3a3f');
+      if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, '#3a3a3f');
+      return;
+    }
+    // Embrasures: the gaps between merlons show the shadowed far parapet.
+    rect(ctx, 0, 0, TILE, 6, '#2f2f34');
+    for (let cell = 0; cell < 2; cell++) {
+      const x = cell * 8;
+      rect(ctx, x, 0, 5, 6, '#7d7d86');
+      rect(ctx, x, 0, 5, 1, '#9a9aa3');
+      rect(ctx, x, 5, 5, 1, '#4d4d53');
+      rect(ctx, x + 4, 0, 1, 6, '#4d4d53');
+    }
+    rect(ctx, 0, 6, TILE, 1, '#3a3a3f');
+    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, '#3a3a3f');
+    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, '#3a3a3f');
+  },
+
+  /** A house banner hung down a castle wall. */
+  banner(ctx, _frame, _mask, _ground, cloth = '#8c2630', trim = '#e8c060',
+         shade = '#5e161d') {
+    painters.ashlar(ctx, 0, N | S | E | W);
+    // The rail it hangs from, with a bracket at each end.
+    rect(ctx, 1, 0, 14, 2, '#3a2c1c');
+    rect(ctx, 1, 0, 14, 1, '#6d5738');
+    rect(ctx, 1, 2, 1, 2, '#3a2c1c');
+    rect(ctx, 14, 2, 1, 2, '#3a2c1c');
+
+    // The cloth: full-width, edge-lit on the left and falling into shade.
+    rect(ctx, 2, 2, 12, 12, shade);
+    rect(ctx, 2, 2, 9, 12, cloth);
+    rect(ctx, 2, 2, 1, 12, trim);
+    rect(ctx, 13, 2, 1, 12, trim);
+    rect(ctx, 2, 2, 12, 1, trim);
+
+    // A charge in the centre, and the swallow-tailed hem.
+    rect(ctx, 6, 5, 4, 1, trim);
+    rect(ctx, 5, 6, 1, 3, trim);
+    rect(ctx, 10, 6, 1, 3, trim);
+    rect(ctx, 7, 6, 2, 5, trim);
+    rect(ctx, 6, 9, 4, 1, trim);
+    rect(ctx, 2, 14, 3, 2, cloth);
+    rect(ctx, 11, 14, 3, 2, shade);
+    rect(ctx, 7, 14, 2, 2, cloth);
+    rect(ctx, 2, 14, 1, 2, trim);
+    rect(ctx, 13, 14, 1, 2, trim);
+  },
+
+  bannerGrey(ctx, _frame, mask) {
+    painters.banner(ctx, 0, mask, null, '#4a5364', '#dfe4ee', '#333a47');
   },
 
   roof(ctx, _frame, mask) {
-    rect(ctx, 0, 0, TILE, TILE, '#9c4038');
-    // Overlapping shingle courses.
+    // Overlapping clay tiles. Each course is offset half a tile, giving a
+    // period of four pixels across and eight down, so the seams disappear.
+    rect(ctx, 0, 0, TILE, TILE, '#6d2724');
     for (let row = 0; row < 4; row++) {
       const y = row * 4;
-      rect(ctx, 0, y, TILE, 1, '#6d2724');
-      rect(ctx, 0, y + 1, TILE, 2, '#b04a40');
-      rect(ctx, 0, y + 3, TILE, 1, '#853430');
-      const offset = row % 2 ? 3 : 11;
-      rect(ctx, offset, y + 1, 1, 3, '#6d2724');
-      rect(ctx, (offset + 8) % TILE, y + 1, 1, 3, '#6d2724');
+      const offset = row % 2 ? 2 : 0;
+      for (let cell = -1; cell < 5; cell++) {
+        const x = cell * 4 + offset;
+        const tone = (row + cell) % 2 ? '#a8443b' : '#9a3c34';
+        rect(ctx, x, y, 3, 4, tone);
+        rect(ctx, x, y, 3, 1, '#c05a4e');
+        rect(ctx, x, y + 3, 3, 1, '#7c2d29');
+      }
     }
-    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, '#5a1f1c');
-    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, '#5a1f1c');
+    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, '#4e1a18');
+    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, '#4e1a18');
     // Eaves: the roof overhangs the wall below it.
     if (!(mask & S)) {
-      rect(ctx, 0, TILE - 3, TILE, 3, '#4e1a18');
-      rect(ctx, 0, TILE - 3, TILE, 1, '#c66056');
+      rect(ctx, 0, TILE - 4, TILE, 4, '#4e1a18');
+      rect(ctx, 0, TILE - 4, TILE, 1, '#c66056');
+      rect(ctx, 0, TILE - 3, TILE, 1, '#8b3630');
+      for (let x = 1; x < TILE; x += 4) rect(ctx, x, TILE - 2, 2, 1, '#3a1210');
     }
   },
 
   // The ridge tile that caps a roof.
   roofNorth(ctx, _frame, mask) {
     painters.roof(ctx, 0, mask | S);
-    rect(ctx, 0, 0, TILE, 2, '#411614');
-    rect(ctx, 0, 2, TILE, 2, '#c86a5e');
-    rect(ctx, 0, 4, TILE, 1, '#7a2c28');
+    // The ridge cap along the top of the roof.
+    rect(ctx, 0, 0, TILE, 5, '#411614');
+    rect(ctx, 0, 1, TILE, 3, '#b8544a');
+    rect(ctx, 0, 1, TILE, 1, '#d4796b');
+    rect(ctx, 0, 4, TILE, 1, '#6d2724');
+    for (let x = 2; x < TILE; x += 4) rect(ctx, x, 1, 1, 3, '#8b3630');
     if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, '#411614');
     if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, '#411614');
   },
@@ -582,6 +741,7 @@ export const TILE_DEFS = {
   'S': { paint: painters.snow, kind: 'floor' },
   ';': { paint: painters.snowGrass, kind: 'encounter', frames: 2, rate: 0.55 },
   '-': { paint: painters.path, kind: 'floor' },
+  'd': { paint: painters.dirt, kind: 'floor' },
   's': { paint: painters.sand, kind: 'floor' },
   'o': { paint: painters.stone, kind: 'floor' },
   '~': { paint: painters.water, kind: 'water', frames: 2, autotile: true },
@@ -591,6 +751,10 @@ export const TILE_DEFS = {
   'W': { paint: painters.weirwood, kind: 'solid', grounded: true },
   'C': { paint: painters.cliff, kind: 'solid', autotile: true },
   'H': { paint: painters.wall, kind: 'solid', autotile: true },
+  'A': { paint: painters.ashlar, kind: 'solid', autotile: true },
+  'M': { paint: painters.battlement, kind: 'solid', autotile: true },
+  'V': { paint: painters.banner, kind: 'solid' },
+  'v': { paint: painters.bannerGrey, kind: 'solid' },
   'R': { paint: painters.roof, kind: 'solid', autotile: true },
   'r': { paint: painters.roofNorth, kind: 'solid', autotile: true },
   'D': { paint: painters.door, kind: 'floor' },
@@ -632,6 +796,7 @@ export const TILE_GROUP = {
   '~': 'water',
   '@': 'cave',
   'H': 'building', 'w': 'building', 'D': 'building',
+  'A': 'castle', 'M': 'castle', 'V': 'castle', 'v': 'castle',
   'R': 'roof', 'r': 'roof',
 };
 

@@ -3,7 +3,7 @@
 // and whichever menu is currently open.
 
 import { drawPanel, drawStatusBox, drawHpGauge, drawExpGauge, THEMES } from '../ui/panel.js';
-import { drawText, measure, LINE_HEIGHT } from '../engine/font.js';
+import { drawText, fitText, measure, LINE_HEIGHT } from '../engine/font.js';
 import { dialog } from '../ui/textbox.js';
 import { input } from '../engine/input.js';
 import { audio } from '../engine/audio.js';
@@ -30,8 +30,8 @@ import {
 
 const FOE_SPRITE = { x: 154, y: 12, size: 56 };
 const PLAYER_SPRITE = { x: 22, y: 44, size: 64 };
-const FOE_HUD = { x: 10, y: 16, w: 104, h: 28 };
-const PLAYER_HUD = { x: 126, y: 70, w: 104, h: 36 };
+const FOE_HUD = { x: 10, y: 16, w: 106, h: 28 };
+const PLAYER_HUD = { x: 124, y: 60, w: 106, h: 44 };
 
 export class Battle {
   /**
@@ -143,7 +143,7 @@ export class Battle {
   async chooseAction() {
     while (true) {
       dialog.show(`What will ${displayName(this.player.creature)} do?`);
-      const choice = await this.openMenu('action', ['FIGHT', 'BAG', 'PARTY', 'RUN'], { cancellable: false });
+      const choice = await this.openMenu('action', ['FIGHT', 'BAG', 'SWEAR', 'RUN'], { cancellable: false });
 
       if (choice === 0) {
         const moveIndex = await this.chooseMove();
@@ -827,23 +827,23 @@ export class Battle {
     const creature = combatant.creature;
     const t = drawStatusBox(ctx, box.x, box.y, box.w, box.h, { notchLeft: isPlayer });
 
-    const name = displayName(creature).toUpperCase();
-    drawText(ctx, name, box.x + 7, box.y + 4, { color: t.text, shadow: t.textShadow });
-
     const levelLabel = `Lv${creature.level}`;
-    drawText(ctx, levelLabel, box.x + box.w - measure(levelLabel) - 8, box.y + 4,
+    const levelW = measure(levelLabel);
+    const name = fitText(displayName(creature).toUpperCase(), box.w - levelW - 22);
+    drawText(ctx, name, box.x + 8, box.y + 4, { color: t.text, shadow: t.textShadow });
+    drawText(ctx, levelLabel, box.x + box.w - levelW - 9, box.y + 4,
       { color: t.text, shadow: t.textShadow });
 
     const shown = this.hpDisplay.get(creature) ?? creature.hp;
     const ratio = Math.max(0, shown / maxHp(creature));
-    drawHpGauge(ctx, box.x + 7, box.y + 16, box.w - 14, ratio);
+    drawHpGauge(ctx, box.x + 7, box.y + 16, box.w - 15, ratio);
 
     if (creature.status) {
       const s = STATUSES[creature.status];
       const tagW = 20;
       const tagX = box.x + 7;
-      const tagY = box.y + (isPlayer ? 25 : 24);
-      ctx.fillStyle = '#38383f';
+      const tagY = box.y + 25;
+      ctx.fillStyle = '#2b3f2c';
       ctx.fillRect(tagX - 1, tagY - 1, tagW + 2, 9);
       ctx.fillStyle = s.color;
       ctx.fillRect(tagX, tagY, tagW, 7);
@@ -851,15 +851,15 @@ export class Battle {
     }
 
     if (isPlayer) {
-      const hpLabel = `${Math.round(shown)}/ ${maxHp(creature)}`;
-      drawText(ctx, hpLabel, box.x + box.w - measure(hpLabel) - 8, box.y + 24,
+      const hpLabel = `${Math.round(shown)}/${maxHp(creature)}`;
+      drawText(ctx, hpLabel, box.x + box.w - measure(hpLabel) - 9, box.y + 27,
         { color: t.text, shadow: t.textShadow });
 
       const def = creatureSpecies(creature);
       const current = expForLevel(def.growth, creature.level);
       const next = expForLevel(def.growth, creature.level + 1);
       const progress = next > current ? (creature.exp - current) / (next - current) : 0;
-      drawExpGauge(ctx, box.x + 5, box.y + box.h + 1, box.w - 10,
+      drawExpGauge(ctx, box.x + 7, box.y + box.h - 9, box.w - 15,
         Math.max(0, Math.min(1, progress)));
     }
   }
@@ -872,15 +872,15 @@ export class Battle {
   }
 
   drawActionMenu(ctx) {
-    const box = { x: 138, y: 108, w: 100, h: 50 };
-    const theme = drawPanel(ctx, box.x, box.y, box.w, box.h, 'night');
+    const box = { x: 136, y: 106, w: 100, h: 50 };
+    const theme = drawPanel(ctx, box.x, box.y, box.w, box.h, 'command');
     this.menu.options.forEach((label, i) => {
       const col = i % 2;
       const row = Math.floor(i / 2);
-      const x = box.x + 10 + col * 46;
-      const y = box.y + 9 + row * 18;
+      const x = box.x + 15 + col * 44;
+      const y = box.y + 9 + row * 17;
       if (i === this.menu.index) {
-        drawText(ctx, '▸', x - 8, y, { color: theme.text, shadow: theme.textShadow });
+        drawText(ctx, '\u25b8', x - 9, y, { color: theme.accent, shadow: null });
       }
       drawText(ctx, label, x, y, { color: theme.text, shadow: theme.textShadow });
     });

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>A Song of Ice and Monsters</title>
+<link rel="stylesheet" href="./styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>&#128009;</text></svg>">
+</head>
+<body>
+  <div id="shell">
+    <canvas id="screen" width="240" height="160"></canvas>
+    <div id="touch" hidden>
+      <div class="pad">
+        <button class="btn up"    data-key="ArrowUp"    aria-label="Up">&#9650;</button>
+        <button class="btn left"  data-key="ArrowLeft"  aria-label="Left">&#9664;</button>
+        <button class="btn right" data-key="ArrowRight" aria-label="Right">&#9654;</button>
+        <button class="btn down"  data-key="ArrowDown"  aria-label="Down">&#9660;</button>
+      </div>
+      <div class="face">
+        <button class="btn b" data-key="x" aria-label="B">B</button>
+        <button class="btn a" data-key="z" aria-label="A">A</button>
+        <button class="btn start" data-key="Enter" aria-label="Start">START</button>
+      </div>
+    </div>
+  </div>
+  <p id="hint">
+    Arrows / WASD move &nbsp;&middot;&nbsp; <b>Z</b> confirm &nbsp;&middot;&nbsp; <b>X</b> cancel
+    &nbsp;&middot;&nbsp; <b>Enter</b> menu &nbsp;&middot;&nbsp; <b>M</b> mute
+  </p>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

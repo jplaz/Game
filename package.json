@@ -1,0 +1,19 @@
+{
+  "name": "iron-throne-emerald",
+  "version": "1.0.0",
+  "description": "A Game of Thrones flavoured, Pokemon Emerald style monster-collecting RPG that runs entirely in the browser.",
+  "type": "module",
+  "scripts": {
+    "start": "node serve.js",
+    "serve": "node serve.js",
+    "validate": "node tools/validate.mjs"
+  },
+  "keywords": [
+    "game",
+    "rpg",
+    "canvas",
+    "pixel-art"
+  ],
+  "license": "MIT",
+  "private": true
+}

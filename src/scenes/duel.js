@@ -28,6 +28,7 @@ import { move as moveDef } from '../data/moves.js';
 import { technique, gear } from '../data/gear.js';
 import { duellist as getDuellist } from '../data/duellists.js';
 import { item as getItem, ITEMS } from '../data/items.js';
+import { attemptCatch } from '../game/combat.js';
 import {
   playerStats, playerTechniques, maxVigour, gainPlayerExp, equipped,
   giveGear, expToNextLevel, expForPlayerLevel, playerAppearance,
@@ -97,10 +98,13 @@ function computeDamage(attacker, defender, tech) {
 }
 
 export class Duel {
-  /** config: { duellistId, onEnd, canYield } */
+  /**
+   * config: { duellistId, onEnd } for a named opponent, or { def } for one
+   * built on the spot — the people you run into on the road.
+   */
   constructor(config) {
     this.config = config;
-    this.def = getDuellist(config.duellistId);
+    this.def = config.def ?? getDuellist(config.duellistId);
 
     const stats = playerStats();
     this.you = {
@@ -247,9 +251,12 @@ export class Duel {
   }
 
   async chooseItem() {
+    // Banners are only worth carrying into a duel when there is a beast on the
+    // other side to win over.
+    const canClaim = this.foeBeast && this.foeBeast.hp > 0;
     const usable = Object.keys(game.state.bag)
-      .filter((id) => ITEMS[id] && !ITEMS[id].key && ITEMS[id].use?.kind !== 'catch'
-        && itemCount(id) > 0);
+      .filter((id) => ITEMS[id] && !ITEMS[id].key && itemCount(id) > 0
+        && (ITEMS[id].use?.kind !== 'catch' || canClaim));
     if (!usable.length) {
       await this.say('Nothing in your pack will help here.');
       return null;
@@ -468,6 +475,8 @@ export class Duel {
       audio.sfx('heal');
       await this.animateHp(this.you);
       await this.say(`You bind your wounds and recover ${this.you.hp - before}.`);
+    } else if (use.kind === 'catch') {
+      await this.claimBeast(itemId);
     } else if (use.kind === 'cure' || use.kind === 'revive') {
       takeItem(itemId);
       this.you.bleeding = 0;
@@ -476,6 +485,43 @@ export class Duel {
     } else {
       await this.say('That is no use in a fight.');
     }
+  }
+
+  /**
+   * Throwing your banner at the beast on the other side. A hurt animal comes
+   * over more easily than a fresh one, so this is worth doing late rather than
+   * opening with it.
+   */
+  async claimBeast(itemId) {
+    const beast = this.foeBeast;
+    const def = getItem(itemId);
+    takeItem(itemId);
+    await this.say(`You raise the ${def.name} at ${beast.name}!`);
+
+    // The beast side carries the real creature, which is what the roll reads.
+    const result = attemptCatch(beast, def.bonus ?? 1);
+    audio.sfx('ball');
+    await this.wait(0.7);
+
+    if (!result.caught) {
+      await this.say(`${beast.name} will not leave its master's side.`);
+      return;
+    }
+    if (game.state.party.length >= 6) {
+      await this.say(`${beast.name} comes to you — but you have no room for it.`);
+      return;
+    }
+
+    const creature = beast.creature;
+    creature.hp = Math.max(1, Math.round(beast.hp));
+    creature.originalTrainer = game.state.player.name;
+    game.state.party.push(creature);
+    markCaught(creature.speciesId);
+    beast.hp = 0;
+    beast.reported = true;
+    audio.sfx('caught');
+    await this.say(`${beast.name} swears itself to you!`);
+    await this.say(`${this.def.name}: My own beast. Turned. You will pay for that.`);
   }
 
   // -------------------------------------------------------------- endgame --
@@ -521,7 +567,7 @@ export class Duel {
         audio.sfx('confirm');
         await this.say(`You claim their ${gear(slot, id).name}!`);
       }
-      setFlag(`duel_${this.def.id}`);
+      if (!this.def.roamer) setFlag(`duel_${this.def.id}`);
     } else if (this.outcome === 'lost') {
       game.state.player.duelsLost++;
       game.state.player.wounded = true;
@@ -737,7 +783,7 @@ export class Duel {
   drawBeastRow(ctx, beast, box, y, t, reserve = 0) {
     if (!beast) return;
     const down = beast.hp <= 0;
-    const NAME_W = 50;
+    const NAME_W = 56;
     drawText(ctx, fitText(beast.name, NAME_W), box.x + 8, y,
       { color: down ? '#8d9080' : t.text, shadow: t.textShadow });
 

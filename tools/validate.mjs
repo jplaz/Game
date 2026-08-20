@@ -11,7 +11,7 @@ import { SPECIES, SPECIES_IDS } from '../src/data/species.js';
 import { MOVES } from '../src/data/moves.js';
 import { ITEMS } from '../src/data/items.js';
 import { TRAINERS } from '../src/data/trainers.js';
-import { DUELLISTS } from '../src/data/duellists.js';
+import { DUELLISTS, ROAMERS, ROAMER_TABLES, makeRoamer } from '../src/data/duellists.js';
 import { WEAPONS, ARMOUR, SHIELDS, TECHNIQUES } from '../src/data/gear.js';
 import { SCRIPTS } from '../src/data/scripts.js';
 import { TILE_DEFS } from '../src/art/tiles.js';
@@ -181,14 +181,22 @@ for (const [mapId, map] of Object.entries(MAPS)) {
     occupied.set(key, npc.name);
   }
 
+  // Encounters are people on the road, so each entry names a roaming archetype
+  // and the levels the region builds it at.
   for (const entry of map.encounters ?? []) {
-    if (!SPECIES[entry.species]) fail(`map ${mapId}: encounter table names unknown species "${entry.species}"`);
-    if (entry.min > entry.max) fail(`map ${mapId}: encounter ${entry.species} has min > max`);
-    if (!(entry.weight > 0)) fail(`map ${mapId}: encounter ${entry.species} has no weight`);
+    if (!ROAMERS[entry.roamer]) {
+      fail(`map ${mapId}: encounter table names unknown roamer "${entry.roamer}"`);
+      continue;
+    }
+    if (entry.min > entry.max) fail(`map ${mapId}: encounter ${entry.roamer} has min > max`);
+    if (!(entry.min >= 1 && entry.max <= 100)) {
+      fail(`map ${mapId}: encounter ${entry.roamer} levels ${entry.min}-${entry.max} out of range`);
+    }
+    if (!(entry.weight > 0)) fail(`map ${mapId}: encounter ${entry.roamer} has no weight`);
   }
   const hasGrass = map.grid.some((row) => [...row].some((c) => TILE_DEFS[c]?.kind === 'encounter'));
   if (hasGrass && !(map.encounters ?? []).length) {
-    warn(`map ${mapId}: has tall grass but no encounter table`);
+    warn(`map ${mapId}: has cover to ambush from but no encounter table`);
   }
 
   const seenFlags = new Set();
@@ -251,6 +259,34 @@ for (const [id, def] of Object.entries(DUELLISTS)) {
     if (!(def.beast.level >= 1 && def.beast.level <= 100)) {
       fail(`duellist ${id}: beast level ${def.beast.level} is out of range`);
     }
+  }
+}
+
+// --------------------------------------------------------------- roamers --
+for (const [id, def] of Object.entries(ROAMERS)) {
+  if (!def.sprites?.length) fail(`roamer ${id}: no sprites`);
+  for (const sprite of def.sprites ?? []) {
+    if (!ACTOR_PALETTES[sprite]) fail(`roamer ${id}: unknown sprite "${sprite}"`);
+  }
+  if (!def.lines?.length) fail(`roamer ${id}: no opening lines`);
+  for (const t of def.techniques ?? []) {
+    if (!TECHNIQUES[t]) fail(`roamer ${id}: unknown technique "${t}"`);
+  }
+  if (def.beast && !SPECIES[def.beast.species]) {
+    fail(`roamer ${id}: beast species "${def.beast.species}" does not exist`);
+  }
+  // Build one at each end of the scale and check the numbers come out sane.
+  for (const level of [1, 50]) {
+    const built = makeRoamer(id, level, (list) => list[0]);
+    for (const key of ['vigour', 'might', 'guard', 'swiftness', 'wind']) {
+      if (!(built[key] > 0)) fail(`roamer ${id}: ${key} is ${built[key]} at level ${level}`);
+    }
+  }
+}
+
+for (const [region, table] of Object.entries(ROAMER_TABLES)) {
+  for (const id of table) {
+    if (!ROAMERS[id]) fail(`roamer table for ${region}: unknown roamer "${id}"`);
   }
 }
 

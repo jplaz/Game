@@ -253,3 +253,229 @@ export function duellist(id) {
   if (!found) throw new Error(`Unknown duellist: ${id}`);
   return { id, ...found };
 }
+
+// ============================================================== roamers ====
+//
+// The people you meet on the road. These are not named characters — they are
+// the bandits, deserters and raiders who make travelling dangerous — so they
+// are described as archetypes and built to whatever level the region calls for
+// rather than written out one by one.
+//
+//   build      multipliers on the level-scaled base
+//   sprites    the looks this kind of person comes in, picked at random
+//   beast      { species, chance } for the ones who travel with an animal
+
+const ROAMER_BUILDS = {
+  brute:   { vigour: 1.30, might: 1.15, guard: 1.10, swiftness: 0.80, wind: 0.95 },
+  soldier: { vigour: 1.05, might: 1.00, guard: 1.20, swiftness: 0.95, wind: 1.05 },
+  skirmisher: { vigour: 0.85, might: 0.95, guard: 0.80, swiftness: 1.35, wind: 1.15 },
+  archer:  { vigour: 0.80, might: 1.05, guard: 0.75, swiftness: 1.20, wind: 1.00 },
+  ruffian: { vigour: 0.95, might: 1.00, guard: 0.90, swiftness: 1.05, wind: 1.00 },
+};
+
+export const ROAMERS = {
+  bandit: {
+    title: 'Bandit', build: 'ruffian',
+    sprites: ['smallfolk', 'wildling', 'goodwife'],
+    techniques: ['quickCut', 'slash', 'guard'],
+    beast: { species: 'snowpup', chance: 0.15 },
+    lines: [
+      'Purse or throat. Choose quickly, it is cold.',
+      'This road belongs to us now. Toll is everything you carry.',
+    ],
+  },
+  deserter: {
+    title: 'Deserter', build: 'soldier',
+    sprites: ['nightswatch', 'guard'],
+    techniques: ['slash', 'riposte', 'guard'],
+    lines: [
+      'I took the black. I am taking it off again. Do not try to stop me.',
+      'They hang deserters. So I have nothing left to lose and you do.',
+    ],
+  },
+  sellsword: {
+    title: 'Sellsword', build: 'skirmisher',
+    sprites: ['sellsword', 'braavosi'],
+    techniques: ['quickCut', 'backstab', 'guard'],
+    lines: [
+      'Someone paid me to be on this road. They did not say who for.',
+      'Nothing personal. Coin is coin and you are in the way of it.',
+    ],
+  },
+  hedgeKnight: {
+    title: 'Hedge Knight', build: 'soldier',
+    sprites: ['guard', 'noble', 'brienne'],
+    techniques: ['slash', 'shieldBash', 'guard'],
+    lines: [
+      'A hedge knight with no lord still has a sword and a code. Draw.',
+      'I have no castle and no lands. I have this. Come and test it.',
+    ],
+  },
+  poacher: {
+    title: 'Poacher', build: 'archer',
+    sprites: ['smallfolk', 'wildlingWoman'],
+    techniques: ['loose', 'volley', 'guard'],
+    beast: { species: 'ravenling', chance: 0.25 },
+    lines: [
+      'You saw nothing. Best keep it that way, or you saw your last thing.',
+      'These woods feed my family. They do not feed strangers.',
+    ],
+  },
+  wildlingRaider: {
+    title: 'Raider', build: 'brute',
+    sprites: ['wildling', 'smallfolk'],
+    techniques: ['cleave', 'hook', 'guard'],
+    beast: { species: 'bearcub', chance: 0.3 },
+    lines: [
+      'Kneeler. You are a long way from your walls.',
+      'We come south because the cold comes behind us. Move or be moved.',
+    ],
+  },
+  spearwife: {
+    title: 'Spearwife', build: 'skirmisher',
+    sprites: ['wildlingWoman', 'goodwife'],
+    techniques: ['lunge', 'skewer', 'guard'],
+    beast: { species: 'snowpup', chance: 0.25 },
+    lines: [
+      'You fight like a man who has only ever fought men.',
+      'Free folk do not ask leave. Not of you, not of anyone.',
+    ],
+  },
+  clansman: {
+    title: 'Clansman', build: 'brute',
+    sprites: ['smallfolk', 'wildling'],
+    techniques: ['crush', 'sweep', 'guard'],
+    lines: [
+      'The mountains are ours. The roads through them too.',
+      'Stone Crows take what the valley will not give.',
+    ],
+  },
+  goldCloak: {
+    title: 'Gold Cloak', build: 'soldier',
+    sprites: ['guard', 'lannister'],
+    techniques: ['thrust', 'shieldBash', 'guard'],
+    lines: [
+      'City Watch. You are being detained. Struggling is traditional.',
+      'The Queen pays us to notice people like you.',
+    ],
+  },
+  ironbornReaver: {
+    title: 'Reaver', build: 'brute',
+    sprites: ['ironborn'],
+    techniques: ['cleave', 'crush', 'guard'],
+    beast: { species: 'krakenling', chance: 0.25 },
+    lines: [
+      'We do not sow. We take. Today we take from you.',
+      'What is dead may never die. You have no such comfort.',
+    ],
+  },
+  dornishOutrider: {
+    title: 'Outrider', build: 'skirmisher',
+    sprites: ['martell', 'sellsword'],
+    techniques: ['lunge', 'quickCut', 'guard'],
+    beast: { species: 'sandviper', chance: 0.3 },
+    lines: [
+      'Dorne was never conquered. Do not mistake courtesy for weakness.',
+      'The sun is on my side. Everything here is.',
+    ],
+  },
+  manAtArms: {
+    title: 'Man-at-arms', build: 'soldier',
+    sprites: ['tyrell', 'arryn', 'tully', 'baratheon', 'lannister', 'bolton'],
+    techniques: ['slash', 'thrust', 'guard'],
+    lines: [
+      'My lord holds this ground and I hold it for him.',
+      'State your business, then state it again with steel.',
+    ],
+  },
+  brotherhoodBowman: {
+    title: 'Bowman', build: 'archer',
+    sprites: ['brotherhood', 'smallfolk'],
+    techniques: ['loose', 'volley', 'guard'],
+    lines: [
+      'We are the brotherhood without banners. We ask the poor for nothing.',
+      'Lower your hands. I have not decided about you yet.',
+    ],
+  },
+  redPriestess: {
+    title: 'Red Priestess', build: 'skirmisher',
+    sprites: ['redPriest'],
+    techniques: ['quickCut', 'backstab', 'guard'],
+    beast: { species: 'emberwisp', chance: 0.4 },
+    lines: [
+      'The night is dark and full of terrors. You are one of the smaller ones.',
+      'The Lord of Light has shown me your face. It was on fire.',
+    ],
+  },
+  gravedigger: {
+    title: 'Grave-robber', build: 'ruffian',
+    sprites: ['smallfolk', 'oldman'],
+    techniques: ['crush', 'quickCut', 'guard'],
+    beast: { species: 'wightling', chance: 0.35 },
+    lines: [
+      'The barrows keep their gold and I keep mine. Walk on.',
+      'Dead kings do not need what they were buried with. I do.',
+    ],
+  },
+};
+
+/** Level-scaled opposition, before the archetype's own build is applied. */
+function roamerBase(level) {
+  return {
+    vigour: Math.round(30 + level * 6.5),
+    might: Math.round(8 + level * 2.6),
+    guard: Math.round(5 + level * 1.8),
+    swiftness: Math.round(8 + level * 1.9),
+    wind: Math.round(12 + level * 1.2),
+  };
+}
+
+/**
+ * Builds one of the roaming people as a duellist at the given level. `pick` is
+ * the caller's random source, so the overworld and the tests can both drive it.
+ */
+export function makeRoamer(id, level, pick) {
+  const def = ROAMERS[id];
+  if (!def) throw new Error(`Unknown roamer: ${id}`);
+  const build = ROAMER_BUILDS[def.build];
+  const base = roamerBase(level);
+  const sprite = pick(def.sprites);
+  const line = pick(def.lines);
+
+  const roamer = {
+    id: `roamer_${id}`,
+    roamer: true,
+    name: def.title,
+    sprite,
+    level,
+    vigour: Math.max(12, Math.round(base.vigour * build.vigour)),
+    might: Math.max(3, Math.round(base.might * build.might)),
+    guard: Math.max(1, Math.round(base.guard * build.guard)),
+    swiftness: Math.max(1, Math.round(base.swiftness * build.swiftness)),
+    wind: Math.max(8, Math.round(base.wind * build.wind)),
+    techniques: def.techniques,
+    reward: Math.round(30 + level * 26),
+    exp: Math.round(24 + level * 14),
+    canYield: true,
+    intro: `${def.title}: ${line}`,
+    defeat: `${def.title}: Enough! Take the road, it is not worth my life.`,
+    after: `${def.title}: Go on, then.`,
+  };
+  return roamer;
+}
+
+/** The roaming archetypes a region throws at you, as a weighted table. */
+export const ROAMER_TABLES = {
+  'The North': ['bandit', 'poacher', 'deserter', 'manAtArms'],
+  'The Wall': ['deserter', 'wildlingRaider', 'spearwife'],
+  'Beyond the Wall': ['wildlingRaider', 'spearwife', 'gravedigger'],
+  'The Neck': ['bandit', 'poacher', 'clansman'],
+  'The Riverlands': ['bandit', 'brotherhoodBowman', 'sellsword', 'manAtArms'],
+  'The Vale': ['clansman', 'hedgeKnight', 'manAtArms'],
+  'The Westerlands': ['sellsword', 'manAtArms', 'gravedigger', 'bandit'],
+  'The Reach': ['hedgeKnight', 'manAtArms', 'poacher'],
+  'Dorne': ['dornishOutrider', 'sellsword', 'bandit'],
+  'The Stormlands': ['manAtArms', 'hedgeKnight', 'ironbornReaver'],
+  'The Crownlands': ['goldCloak', 'sellsword', 'bandit', 'brotherhoodBowman'],
+  'Dragonstone': ['redPriestess', 'ironbornReaver', 'sellsword'],
+};

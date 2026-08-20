@@ -8,13 +8,13 @@ import { input } from '../engine/input.js';
 import { audio } from '../engine/audio.js';
 import { TRACKS } from '../data/music.js';
 import { rng } from '../engine/rng.js';
+import { makeRoamer, ROAMERS } from '../data/duellists.js';
 import { dialog } from '../ui/textbox.js';
 import { drawPanel } from '../ui/panel.js';
 import { drawText, measure } from '../engine/font.js';
 import { game, flag, setFlag } from '../game/state.js';
 import { SCRIPTS } from '../data/scripts.js';
 import { TRAINERS } from '../data/trainers.js';
-import { wildCreature } from '../game/creature.js';
 
 const SCREEN_W = 240;
 const SCREEN_H = 160;
@@ -240,17 +240,45 @@ export class Overworld {
     });
   }
 
+  /**
+   * Who steps out of the trees. The road is dangerous because of the people on
+   * it, not because of the animals, so an encounter is always somebody who
+   * means to fight you themselves — sometimes with a beast at their heel.
+   */
   checkEncounter() {
     const def = tileDef(tileAt(this.map, this.player.x, this.player.y));
     if (def.kind !== 'encounter') return;
     if (!(this.map.encounters?.length)) return;
-    if (!game.state.party.some((c) => c.hp > 0)) return;
+    if (game.state.player.wounded) return;
     if (!rng.chance(ENCOUNTER_CHANCE)) return;
 
     const entry = rng.weighted(this.map.encounters);
-    const foe = wildCreature(entry.species, entry.min, entry.max);
+    const level = rng.int(entry.min, entry.max);
+    const foe = makeRoamer(entry.roamer, level, (list) => rng.pick(list));
+
+    // Some of them travel with an animal, which is the only time you meet a
+    // beast on the road rather than in someone's keeping.
+    const companion = ROAMERS[entry.roamer].beast;
+    if (companion && rng.chance(companion.chance)) {
+      foe.beast = { species: companion.species, level: Math.max(2, level - 1) };
+    }
+
     audio.sfx('encounter');
-    this.startBattle({ kind: 'wild', foe });
+    this.startAmbush(foe);
+  }
+
+  /** A roadside fight. Losing one still costs you, the same as any duel. */
+  startAmbush(def) {
+    return new Promise((resolve) => {
+      const onEnd = async (outcome) => {
+        if (outcome === 'lost') await this.whiteout(true);
+        resolve(outcome);
+      };
+      this.manager.transition(async () => {
+        const { Duel } = await import('./duel.js');
+        this.manager.push(new Duel({ def, onEnd }));
+      }, { color: '#1a1016' });
+    });
   }
 
   /** Any trainer with line of sight to the player starts walking over. */

@@ -85,8 +85,8 @@ export const MAPS = {
       'PSSSSSSSSrrrrrrSSSSSSSSP',
       'PSSSSSSSSRRRRRRSSSSSSSSP',
       'PSSSSSSSSRRRRRRSSSSSSSSP',
-      'PSSSSSSSSHwHDHwSSSSSSSSP',
-      'PSSSSSSSSS!--SSSSSSSSSSP',
+      'PSSSSSSSSHDHDHwSSSSSSSSP',
+      'PSSSSSSSS!--SSSSSSSSSSSP',
       'PSS------------------SSP',
       'PSSSSSSSSSSS-SSSSSSSSSSP',
       'PSSrrrrrrSSS-SSSrrrrSSSP',
@@ -110,15 +110,18 @@ export const MAPS = {
       { x: 17, y: 12, to: 'heroHouse', tx: 4, ty: 5, dir: 'up' },
       { x: 6, y: 13, to: 'maesterHallWinterfell', tx: 5, ty: 7, dir: 'up' },
       { x: 12, y: 6, to: 'greatKeep', tx: 8, ty: 13, dir: 'up' },
+      { x: 10, y: 6, to: 'winterfellForge', tx: 5, ty: 6, dir: 'up' },
       { x: 12, y: 19, to: 'wolfswood', tx: 10, ty: 1, dir: 'down' },
     ],
     signs: [
-      { x: 10, y: 7, text: 'THE GREAT KEEP OF WINTERFELL\nSeat of House Stark.\nSigil-holder: LORD RICKARD.' },
+      { x: 9, y: 7, text: 'THE GREAT KEEP OF WINTERFELL\nSeat of House Stark.\nSigil-holder: LORD RICKARD.' },
       { x: 6, y: 17, text: 'THE GODSWOOD\nA heart tree has watched this ground for ten thousand years.\nIt is still watching.' },
     ],
     npcs: [
       { x: 12, y: 16, dir: 'down', sprite: 'maester', name: 'Maester Luwin', script: 'starter' },
-      { x: 9, y: 9, dir: 'down', sprite: 'guard', name: 'Guardsman', script: 'winterfellGuard' },
+      { x: 9, y: 9, dir: 'down', sprite: 'stark', name: 'Jory Cassel', script: 'joryGate' },
+      { x: 15, y: 16, dir: 'left', sprite: 'ironborn', name: 'Theon Greyjoy', script: 'duel',
+        data: { duel: 'theon' } },
       { x: 19, y: 15, dir: 'left', sprite: 'smallfolk', name: 'Stablehand', script: 'winterfellStable' },
       { x: 5, y: 17, dir: 'right', sprite: 'stark', name: 'Septa', script: 'winterfellSepta' },
       { x: 4, y: 8, dir: 'down', sprite: 'nightswatch', name: 'Recruiter', script: 'blackBrother' },
@@ -130,7 +133,45 @@ export const MAPS = {
     stock: ['sigilBanner', 'maesterKit', 'antidote', 'burnSalve', 'frostTonic'],
     healerLine: 'Rest your creatures a while. The North is hard on them.',
     merchantLine: 'Winterfell\'s stores are open to you.',
+    extraNpcs: [
+      { x: 5, y: 5, dir: 'down', sprite: 'stark', name: 'Robb Stark', script: 'duel',
+        data: { duel: 'robb' } },
+    ],
   }),
+
+  // ------------------------------------------------ the Winterfell armoury --
+  winterfellForge: {
+    name: 'The Winterfell Forge',
+    indoor: true,
+    music: 'town',
+    tiles: [
+      'IIIIIIIIIIII',
+      'I=FF=====B=I',
+      'I=====KKK==I',
+      'I==========I',
+      'I=TT====TT=I',
+      'I==========I',
+      'I=F======F=I',
+      'IIIII__IIIII',
+    ],
+    warps: [
+      { x: 5, y: 7, to: 'winterfell', tx: 10, ty: 7, dir: 'down' },
+      { x: 6, y: 7, to: 'winterfell', tx: 10, ty: 7, dir: 'down' },
+    ],
+    npcs: [
+      { x: 7, y: 1, dir: 'down', sprite: 'smallfolk', name: 'Mikken', script: 'smith',
+        data: {
+          line: 'Mikken: Northern steel. Plain, heavy and it will not let you down.',
+          stock: {
+            weapon: ['huntingKnife', 'ironSword', 'woodAxe'],
+            armour: ['gambeson', 'boiledLeather'],
+            shield: ['buckler'],
+          },
+        } },
+      { x: 5, y: 4, dir: 'right', sprite: 'stark', name: 'Ser Rodrik', script: 'duel',
+        data: { duel: 'rodrikCassel' } },
+    ],
+  },
 
   // -------------------------------------------------- gym 1: the Great Keep --
   greatKeep: {

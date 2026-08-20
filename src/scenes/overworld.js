@@ -439,7 +439,9 @@ export class Overworld {
       say: (text, opts) => dialog.say(text, opts),
       choose: (text, options, opts) => dialog.choose(text, options, opts),
       battle: (config) => this.startBattle(config),
+      duel: (duellistId) => this.startDuel(duellistId),
       openShop: (stock) => this.openShop(stock),
+      openSmithy: (stock) => this.openSmithy(stock),
       healParty: () => this.healAtHall(),
       setFlag,
       flag,
@@ -461,17 +463,37 @@ export class Overworld {
     });
   }
 
+  /** A duel: you, in person, against a named opponent. */
+  startDuel(duellistId) {
+    return new Promise((resolve) => {
+      const onEnd = async (outcome) => {
+        if (outcome === 'lost') await this.whiteout(true);
+        resolve(outcome);
+      };
+      this.manager.transition(async () => {
+        const { Duel } = await import('./duel.js');
+        this.manager.push(new Duel({ duellistId, onEnd }));
+      }, { color: '#1a1016' });
+    });
+  }
+
+  async openSmithy(stock) {
+    const { Smithy } = await import('./smithy.js');
+    return new Promise((resolve) => {
+      this.manager.push(new Smithy({ stock, onClose: resolve }));
+    });
+  }
+
   /** Defeat: you wake up back at the last Maester's Hall, whole but poorer. */
-  async whiteout() {
+  async whiteout(personal = false) {
     const { healParty, game: g, addMoney } = await import('../game/state.js');
     const lost = Math.floor(g.state.player.money * 0.2);
     addMoney(-lost);
     healParty();
-    await dialog.say(
-      lost > 0
-        ? `You woke in a Maester's Hall with your creatures tended... and ${lost} fewer gold dragons.`
-        : "You woke in a Maester's Hall with your creatures tended.",
-    );
+    const wound = personal
+      ? 'You wake on a cot in a Maester\'s Hall, stitched and aching'
+      : "You woke in a Maester's Hall with your creatures tended";
+    await dialog.say(lost > 0 ? `${wound}... and ${lost} fewer gold dragons.` : `${wound}.`);
     const spot = g.state.respawn;
     this.manager.transition(() => {
       this.loadMap(spot.map, { x: spot.x, y: spot.y, dir: spot.dir ?? 'down' });

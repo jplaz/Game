@@ -40,6 +40,40 @@ export const ACTOR_PALETTES = {
            cloak: '#8a1f28', cloakDark: '#5f151c', trim: '#e0c458', legs: '#4a1a1e', boots: '#2c1012' },
   whitewalker: { hair: '#cfe8f4', hairLight: '#ffffff', skin: '#b8d8e8', skinDark: '#8ab4cc',
                  cloak: '#3a4a5c', cloakDark: '#26323f', trim: '#9fd8f0', legs: '#2c3844', boots: '#1c242c' },
+
+  // --- named characters ---------------------------------------------------
+  ironborn: { hair: '#2f2a24', hairLight: '#4a4238', skin: '#d4a678', skinDark: '#a87f52',
+              cloak: '#2b3a44', cloakDark: '#1b262e', trim: '#6f8894', legs: '#232f38', boots: '#151d24' },
+  hound: { hair: '#3a3430', hairLight: '#524a44', skin: '#c89878', skinDark: '#8f6244',
+           cloak: '#4a4a4e', cloakDark: '#2e2e32', trim: '#8a8a90', legs: '#33333a', boots: '#1e1e24' },
+  braavosi: { hair: '#54483c', hairLight: '#6f6050', skin: '#d8a87c', skinDark: '#ac7f56',
+              cloak: '#5c4a6c', cloakDark: '#3e3049', trim: '#c8b46a', legs: '#413350', boots: '#281f33' },
+  sellsword: { hair: '#4a4038', hairLight: '#665a4c', skin: '#d4a678', skinDark: '#a87f52',
+               cloak: '#5c5348', cloakDark: '#3e3830', trim: '#9a8c74', legs: '#443c34', boots: '#2a251f' },
+  brienne: { hair: '#e0cc84', hairLight: '#f4e4a8', skin: '#e4b892', skinDark: '#bb8c64',
+             cloak: '#8fa2c0', cloakDark: '#5f7290', trim: '#e8eef8', legs: '#4a5568', boots: '#2c3442' },
+  brotherhood: { hair: '#6a3a28', hairLight: '#8a5238', skin: '#d8a87c', skinDark: '#ac7f56',
+                 cloak: '#7a3020', cloakDark: '#4f1e14', trim: '#e8a040', legs: '#4a3024', boots: '#2c1c14' },
+  mountain: { hair: '#2a2622', hairLight: '#3e3934', skin: '#c09070', skinDark: '#8f6248',
+              cloak: '#6a2a2a', cloakDark: '#421818', trim: '#9a9aa4', legs: '#3a2424', boots: '#241414' },
+  martell: { hair: '#2e2620', hairLight: '#483c30', skin: '#c8905e', skinDark: '#9a6a40',
+             cloak: '#c85a20', cloakDark: '#8f3c12', trim: '#f0c860', legs: '#7a3a14', boots: '#4a220c' },
+  kingsguard: { hair: '#4a4238', hairLight: '#655c4e', skin: '#dcae86', skinDark: '#b4855e',
+                cloak: '#e8e8ec', cloakDark: '#b4b4bc', trim: '#d8c060', legs: '#a0a0a8', boots: '#5c5c64' },
+  bolton: { hair: '#3a3028', hairLight: '#544838', skin: '#d0a078', skinDark: '#a07452',
+            cloak: '#7c2020', cloakDark: '#4e1212', trim: '#e0d8cc', legs: '#3a2a2a', boots: '#221818' },
+  cersei: { hair: '#d8c070', hairLight: '#f0dc9c', skin: '#e8c49c', skinDark: '#bd9670',
+            cloak: '#6f1f2c', cloakDark: '#48131c', trim: '#d8b040', legs: '#4a1a22', boots: '#2c0f14' },
+  unsullied: { hair: '#1e1a18', hairLight: '#332c28', skin: '#a87048', skinDark: '#7a4e30',
+               cloak: '#3a4048', cloakDark: '#242a30', trim: '#8a9098', legs: '#2c3238', boots: '#1a1e24' },
+  tyrell: { hair: '#5a4028', hairLight: '#7a5a38', skin: '#e4b892', skinDark: '#bb8c64',
+            cloak: '#3f8a4a', cloakDark: '#296030', trim: '#e8d878', legs: '#356a3a', boots: '#1f4224' },
+  arryn: { hair: '#6a5a48', hairLight: '#8a7a64', skin: '#dcae86', skinDark: '#b4855e',
+           cloak: '#5a86b8', cloakDark: '#3a5c86', trim: '#e8f0fa', legs: '#3a5570', boots: '#243546' },
+  redPriest: { hair: '#a83a30', hairLight: '#c85a48', skin: '#e0b494', skinDark: '#b4886a',
+               cloak: '#a02020', cloakDark: '#6a1212', trim: '#f0a840', legs: '#5a1818', boots: '#360e0e' },
+  noble: { hair: '#3a2c20', hairLight: '#554134', skin: '#e0b48c', skinDark: '#b88a62',
+           cloak: '#4a3c6a', cloakDark: '#312848', trim: '#c8b070', legs: '#3a3050', boots: '#221c30' },
 };
 
 export const DIRECTIONS = ['down', 'up', 'left', 'right'];
@@ -171,7 +205,9 @@ export function paintActorFrame(palette, dir, step) {
   paintBody(ctx, p, dir);
   paintHead(ctx, p, dir);
 
-  if (dir === 'right') {
+  // The profile is drawn facing right — hair at the back on the left, nose
+  // breaking the right edge — so it is the left-facing frame that gets mirrored.
+  if (dir === 'left') {
     const flipped = makeCanvas(ACTOR_W, ACTOR_H);
     flipped.ctx.translate(ACTOR_W, 0);
     flipped.ctx.scale(-1, 1);

@@ -1,0 +1,242 @@
+// People who will fight you themselves, with steel, rather than setting a beast
+// on you. Stats are read directly by the duel scene.
+//
+//   vigour     health pool
+//   might      damage dealt
+//   guard      damage resisted
+//   swiftness  strike order
+//   wind       stamina pool
+//   loot       [slot, gearId] taken from them on victory
+
+export const DUELLISTS = {
+  // ------------------------------------------------------ Winterfell yard --
+  rodrikCassel: {
+    name: 'Ser Rodrik', sprite: 'stark', level: 3,
+    vigour: 70, might: 16, guard: 10, swiftness: 12, wind: 18,
+    techniques: ['slash', 'guard'],
+    reward: 150, exp: 60, canYield: true,
+    intro: 'Ser Rodrik Cassel: Blunted steel, and I will still put you in the dirt. Guard up.',
+    defeat: 'Ser Rodrik Cassel: Better. Your feet finally caught up with your hands.',
+    after: 'Ser Rodrik Cassel: Practise the parry. Everything else follows from it.',
+  },
+  joryCassel: {
+    name: 'Jory Cassel', sprite: 'stark', level: 6,
+    vigour: 95, might: 22, guard: 15, swiftness: 17, wind: 20,
+    techniques: ['slash', 'riposte', 'guard'],
+    reward: 320, exp: 110, canYield: true,
+    loot: ['weapon', 'ironSword'],
+    intro: 'Jory Cassel: Captain of the guard. If you can pass me, the road south is yours.',
+    defeat: 'Jory Cassel: Well struck. Take my spare blade — you have more use for it than I do.',
+    after: 'Jory Cassel: Keep to the kingsroad and keep your steel where you can reach it.',
+  },
+  theon: {
+    name: 'Theon Greyjoy', sprite: 'ironborn', level: 9,
+    vigour: 110, might: 26, guard: 14, swiftness: 26, wind: 22,
+    techniques: ['loose', 'volley', 'quickCut', 'guard'],
+    reward: 480, exp: 170, canYield: true,
+    intro: "Theon Greyjoy: Ward of Winterfell, same as you. Only I'm better at this. Watch.",
+    defeat: "Theon Greyjoy: Lucky. That's all that was.",
+    after: 'Theon Greyjoy: Ask me again when I have a proper bow and a proper reason.',
+  },
+  robb: {
+    name: 'Robb Stark', sprite: 'stark', level: 12,
+    vigour: 145, might: 33, guard: 22, swiftness: 24, wind: 24,
+    techniques: ['slash', 'thrust', 'shieldBash', 'guard'],
+    reward: 700, exp: 260, canYield: true,
+    intro: 'Robb Stark: My father says a lord should never ask a man to do what he will not. So — me first.',
+    defeat: 'Robb Stark: Gods. You will do. Ride south and do it there.',
+    after: 'Robb Stark: Whatever you find down there, send a raven. I will come.',
+  },
+
+  // ------------------------------------------------------- the Kingsroad ---
+  hound: {
+    name: 'Sandor Clegane', sprite: 'hound', level: 20,
+    vigour: 230, might: 52, guard: 34, swiftness: 22, wind: 26,
+    techniques: ['cleave', 'slash', 'hook', 'guard'],
+    reward: 1600, exp: 520, canYield: false,
+    loot: ['armour', 'ringmail'],
+    intro: "Sandor Clegane: Knights. Sers. Vows. You want a real fight, you fight a dog. Come on then.",
+    defeat: 'Sandor Clegane: Hah. Take the mail off my back, you earned it. Now piss off.',
+    after: 'Sandor Clegane: Still breathing? Good. Stay that way, it annoys people.',
+  },
+  syrio: {
+    name: 'Syrio Forel', sprite: 'braavosi', level: 16,
+    vigour: 140, might: 34, guard: 12, swiftness: 46, wind: 30,
+    techniques: ['quickCut', 'riposte', 'thrust', 'guard'],
+    reward: 900, exp: 380, canYield: true,
+    loot: ['weapon', 'huntingKnife'],
+    intro: 'Syrio Forel: The First Sword of Braavos does not dance with just anyone. Watch me. Just watch me.',
+    defeat: 'Syrio Forel: Just so. You are not seeing with your eyes any more. This is the beginning.',
+    after: 'Syrio Forel: What do we say to the God of Death? Not today.',
+  },
+  bronn: {
+    name: 'Bronn', sprite: 'sellsword', level: 18,
+    vigour: 175, might: 42, guard: 24, swiftness: 30, wind: 26,
+    techniques: ['slash', 'quickCut', 'hook', 'guard'],
+    reward: 1200, exp: 440, canYield: true,
+    intro: 'Bronn: I fight for coin. But I will take a free swing at a northerner on principle.',
+    defeat: 'Bronn: Right. You are worth hiring. Find me when you can afford it.',
+    after: 'Bronn: A man who fights fair has already lost. Write that down.',
+  },
+
+  // ----------------------------------------------------------- Riverlands --
+  brienne: {
+    name: 'Brienne of Tarth', sprite: 'brienne', level: 24,
+    vigour: 260, might: 55, guard: 42, swiftness: 20, wind: 26,
+    techniques: ['slash', 'thrust', 'shieldBash', 'guard'],
+    reward: 2000, exp: 640, canYield: true,
+    loot: ['shield', 'oakShield'],
+    intro: 'Brienne of Tarth: I have no lands and no title. I have a sword, and I keep my oaths. Draw.',
+    defeat: 'Brienne of Tarth: You fight honestly. That is rarer than skill. Take my shield.',
+    after: 'Brienne of Tarth: When you sit that chair, remember who kept their word to you.',
+  },
+  beric: {
+    name: 'Beric Dondarrion', sprite: 'brotherhood', level: 22,
+    vigour: 205, might: 48, guard: 28, swiftness: 26, wind: 24,
+    techniques: ['slash', 'riposte', 'sweep', 'guard'],
+    reward: 1500, exp: 560, canYield: true,
+    intro: 'Beric Dondarrion: The Brotherhood asks a toll of every armed man on this road. Or a fight.',
+    defeat: 'Beric Dondarrion: The Lord of Light is not finished with either of us, it seems.',
+    after: 'Beric Dondarrion: Every time I come back I bring less of myself. Remember that when you want more.',
+  },
+
+  // ---------------------------------------------------------- Westerlands --
+  mountain: {
+    name: 'Gregor Clegane', sprite: 'mountain', level: 32,
+    vigour: 400, might: 78, guard: 52, swiftness: 12, wind: 24,
+    techniques: ['crush', 'cleave', 'sweep', 'guard'],
+    reward: 4000, exp: 1100, canYield: false, boss: true,
+    loot: ['weapon', 'warhammer'],
+    intro: 'Gregor Clegane says nothing at all. He simply lifts the greatsword and starts walking.',
+    defeat: 'The Mountain goes down like a felled tower, and the yard is very quiet.',
+    after: 'Nobody has moved the body. Nobody wants to.',
+  },
+  jaime: {
+    name: 'Ser Jaime Lannister', sprite: 'lannister', level: 30,
+    vigour: 300, might: 66, guard: 40, swiftness: 40, wind: 30,
+    techniques: ['valyrianArc', 'thrust', 'riposte', 'guard'],
+    reward: 3500, exp: 980, canYield: false, boss: true,
+    loot: ['armour', 'knightPlate'],
+    intro: 'Ser Jaime Lannister: They call me Kingslayer and never ask how good I had to be to manage it. Guard.',
+    defeat: 'Ser Jaime Lannister: Beaten fairly, by someone who has actually read the histories. Take the plate.',
+    after: 'Ser Jaime Lannister: The things we do for love. And for thrones. Mostly thrones.',
+  },
+
+  // ---------------------------------------------------------------- Dorne --
+  oberyn: {
+    name: 'Oberyn Martell', sprite: 'martell', level: 34,
+    vigour: 285, might: 70, guard: 26, swiftness: 52, wind: 34,
+    techniques: ['lunge', 'skewer', 'quickCut', 'guard'],
+    reward: 4200, exp: 1200, canYield: true, boss: true,
+    loot: ['weapon', 'boarSpear'],
+    intro: 'Oberyn Martell: I am not here for you. But I am here, and you are armed, and it would be rude not to.',
+    defeat: 'Oberyn Martell: Ha! Good. Very good. Do not let it go to your head, it goes to everyone else\'s.',
+    after: 'Oberyn Martell: When you meet the Mountain, do not talk. I talked.',
+  },
+
+  // ------------------------------------------------------------- the Wall --
+  ygritte: {
+    name: 'Ygritte', sprite: 'wildling', level: 15,
+    vigour: 135, might: 32, guard: 12, swiftness: 38, wind: 28,
+    techniques: ['loose', 'volley', 'quickCut', 'guard'],
+    reward: 800, exp: 340, canYield: true,
+    loot: ['weapon', 'huntingBow'],
+    intro: 'Ygritte: You know nothing. Let us find out how much nothing.',
+    defeat: 'Ygritte: All right. You know one thing. Keep the bow, southron.',
+    after: 'Ygritte: You are still a kneeler. But you are a kneeler who can shoot.',
+  },
+  tormund: {
+    name: 'Tormund', sprite: 'wildling', level: 26,
+    vigour: 300, might: 58, guard: 30, swiftness: 20, wind: 28,
+    techniques: ['cleave', 'hook', 'crush', 'guard'],
+    reward: 2200, exp: 720, canYield: true,
+    intro: 'Tormund: Free folk do not kneel and do not queue. One fight, right now, and then we drink.',
+    defeat: 'Tormund: HAH! Good. You will drink with me and you will not enjoy it.',
+    after: 'Tormund: The dead are coming. Everything south of here is arguing about chairs.',
+  },
+  jonSnow: {
+    name: 'Jon Snow', sprite: 'nightswatch', level: 28,
+    vigour: 290, might: 62, guard: 38, swiftness: 34, wind: 30,
+    techniques: ['valyrianArc', 'slash', 'riposte', 'guard'],
+    reward: 3000, exp: 900, canYield: true, boss: true,
+    intro: 'Jon Snow: I am not going to talk you out of this, am I. All right. Longclaw is heavier than it looks.',
+    defeat: 'Jon Snow: Enough. You are better than me and we both need to be somewhere else.',
+    after: 'Jon Snow: The war that matters is north of the Wall. Come find me when the chair bores you.',
+  },
+
+  // ---------------------------------------------------- King's Landing -----
+  meryn: {
+    name: 'Ser Meryn Trant', sprite: 'kingsguard', level: 27,
+    vigour: 245, might: 54, guard: 40, swiftness: 22, wind: 24,
+    techniques: ['slash', 'shieldBash', 'guard'],
+    reward: 2400, exp: 780, canYield: false,
+    intro: 'Ser Meryn Trant: The white cloak stops here. It stops everyone.',
+    defeat: 'Ser Meryn Trant: You... you are not on the list...',
+    after: 'Ser Meryn Trant: I only ever guarded doors.',
+  },
+  barristan: {
+    name: 'Ser Barristan Selmy', sprite: 'kingsguard', level: 36,
+    vigour: 330, might: 72, guard: 48, swiftness: 34, wind: 30,
+    techniques: ['thrust', 'slash', 'riposte', 'guard'],
+    reward: 5000, exp: 1400, canYield: true, boss: true,
+    loot: ['armour', 'kingsguardPlate'],
+    intro: 'Ser Barristan Selmy: Barristan the Bold, they called me, when I was young enough to enjoy it. Come.',
+    defeat: 'Ser Barristan Selmy: I have served five kings. You are the first to put me on the ground. Take the white plate.',
+    after: 'Ser Barristan Selmy: A knight protects. That is the whole of it. The rest is heraldry.',
+  },
+  ramsay: {
+    name: 'Ramsay Bolton', sprite: 'bolton', level: 29,
+    vigour: 265, might: 60, guard: 32, swiftness: 32, wind: 26,
+    techniques: ['backstab', 'quickCut', 'hook', 'guard'],
+    reward: 2800, exp: 860, canYield: false,
+    loot: ['weapon', 'huntingKnife'],
+    intro: 'Ramsay Bolton: I do so love it when they still have some fight in them at the start.',
+    defeat: 'Ramsay Bolton: No. No, this is not how the story goes—',
+    after: 'The Bolton banners came down that same evening. Nobody put them back up.',
+  },
+  euron: {
+    name: 'Euron Greyjoy', sprite: 'ironborn', level: 33,
+    vigour: 310, might: 68, guard: 34, swiftness: 36, wind: 28,
+    techniques: ['cleave', 'hook', 'quickCut', 'guard'],
+    reward: 3800, exp: 1050, canYield: false, boss: true,
+    intro: 'Euron Greyjoy: I have sailed further than any of you and come back with worse ideas. Shall we?',
+    defeat: 'Euron Greyjoy: What is dead may never die. But it can certainly be inconvenienced.',
+    after: 'The Iron Fleet weighed anchor without him and nobody sent word.',
+  },
+  cersei: {
+    name: 'Cersei Lannister', sprite: 'cersei', level: 31,
+    vigour: 250, might: 56, guard: 44, swiftness: 26, wind: 26,
+    techniques: ['quickCut', 'hook', 'guard'],
+    reward: 4500, exp: 1000, canYield: false, boss: true,
+    intro: 'Cersei Lannister: When you play the game of thrones, you win or you die. There is no middle ground.',
+    defeat: 'Cersei Lannister: I did everything I did for my children. Remember that when they write it down.',
+    after: 'Cersei Lannister: The chair is yours. It was never as comfortable as it looked from below.',
+  },
+
+  // -------------------------------------------------------- Dragonstone ---
+  greyWorm: {
+    name: 'Grey Worm', sprite: 'unsullied', level: 30,
+    vigour: 285, might: 62, guard: 46, swiftness: 30, wind: 30,
+    techniques: ['lunge', 'skewer', 'shieldBash', 'guard'],
+    reward: 3200, exp: 940, canYield: true,
+    loot: ['shield', 'towerShield'],
+    intro: 'Grey Worm: Unsullied do not duel for honour. We duel to know what you are. Begin.',
+    defeat: 'Grey Worm: You are strong. The Queen will want to speak with you herself.',
+    after: 'Grey Worm: We hold this beach. You may pass. Only you.',
+  },
+  daario: {
+    name: 'Daario Naharis', sprite: 'braavosi', level: 27,
+    vigour: 240, might: 56, guard: 26, swiftness: 42, wind: 30,
+    techniques: ['quickCut', 'riposte', 'backstab', 'guard'],
+    reward: 2600, exp: 820, canYield: true,
+    intro: 'Daario Naharis: You have the look of someone about to do something magnificent and stupid. I approve.',
+    defeat: 'Daario Naharis: Beautiful. Truly. I shall tell it badly in every tavern from here to Meereen.',
+    after: 'Daario Naharis: Fight for what you love, or do not fight. Anything else is just employment.',
+  },
+};
+
+export function duellist(id) {
+  const found = DUELLISTS[id];
+  if (!found) throw new Error(`Unknown duellist: ${id}`);
+  return { id, ...found };
+}

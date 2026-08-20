@@ -11,6 +11,8 @@ import { SPECIES, SPECIES_IDS } from '../src/data/species.js';
 import { MOVES } from '../src/data/moves.js';
 import { ITEMS } from '../src/data/items.js';
 import { TRAINERS } from '../src/data/trainers.js';
+import { DUELLISTS } from '../src/data/duellists.js';
+import { WEAPONS, ARMOUR, SHIELDS, TECHNIQUES } from '../src/data/gear.js';
 import { SCRIPTS } from '../src/data/scripts.js';
 import { TILE_DEFS } from '../src/art/tiles.js';
 import { ARCHETYPES } from '../src/art/creatures.js';
@@ -151,8 +153,23 @@ for (const [mapId, map] of Object.entries(MAPS)) {
         referencedTrainers.add(npc.data.trainer);
       }
     }
-    for (const id of npc.data?.stock ?? []) {
-      if (!ITEMS[id]) fail(`map ${mapId}: shop stocks unknown item "${id}"`);
+    // A merchant stocks a flat list of items; a smith stocks gear by slot.
+    const stock = npc.data?.stock;
+    if (Array.isArray(stock)) {
+      for (const id of stock) {
+        if (!ITEMS[id]) fail(`map ${mapId}: shop stocks unknown item "${id}"`);
+      }
+    } else if (stock && typeof stock === 'object') {
+      const tables = { weapon: WEAPONS, armour: ARMOUR, shield: SHIELDS };
+      for (const [slot, ids] of Object.entries(stock)) {
+        if (!tables[slot]) { fail(`map ${mapId}: smith stocks unknown slot "${slot}"`); continue; }
+        for (const id of ids) {
+          if (!tables[slot][id]) fail(`map ${mapId}: smith stocks unknown ${slot} "${id}"`);
+        }
+      }
+    }
+    if (npc.data?.duel && !DUELLISTS[npc.data.duel]) {
+      fail(`map ${mapId}: NPC "${npc.name}" references unknown duellist "${npc.data.duel}"`);
     }
   }
 
@@ -210,9 +227,51 @@ for (const id of Object.keys(TRAINERS)) {
   }
 }
 
+// ------------------------------------------------------------- duellists --
+for (const [id, def] of Object.entries(DUELLISTS)) {
+  if (!ACTOR_PALETTES[def.sprite]) fail(`duellist ${id}: unknown sprite "${def.sprite}"`);
+  for (const t of def.techniques) {
+    if (!TECHNIQUES[t]) fail(`duellist ${id}: unknown technique "${t}"`);
+  }
+  for (const field of ['intro', 'defeat', 'after']) {
+    if (!def[field]) fail(`duellist ${id}: missing "${field}" line`);
+  }
+  for (const key of ['vigour', 'might', 'guard', 'swiftness', 'level']) {
+    if (typeof def[key] !== 'number') fail(`duellist ${id}: missing numeric ${key}`);
+  }
+  if (def.loot) {
+    const [slot, gid] = def.loot;
+    const tables = { weapon: WEAPONS, armour: ARMOUR, shield: SHIELDS };
+    if (!tables[slot]?.[gid]) fail(`duellist ${id}: loot "${slot}/${gid}" does not exist`);
+  }
+}
+
+// ------------------------------------------------------------------ gear --
+for (const [table, name] of [[WEAPONS, 'weapon'], [ARMOUR, 'armour'], [SHIELDS, 'shield']]) {
+  for (const [id, def] of Object.entries(table)) {
+    if (!def.name) fail(`${name} ${id}: no name`);
+    if (!def.desc) fail(`${name} ${id}: no description`);
+    if (name === 'weapon') {
+      if (!def.techniques?.length) fail(`weapon ${id}: teaches no techniques`);
+      for (const t of def.techniques ?? []) {
+        if (!TECHNIQUES[t]) fail(`weapon ${id}: unknown technique "${t}"`);
+      }
+    }
+  }
+}
+
+const duelPlaced = new Set();
+for (const map of Object.values(MAPS)) {
+  for (const npc of map.npcs ?? []) if (npc.data?.duel) duelPlaced.add(npc.data.duel);
+}
+for (const id of Object.keys(DUELLISTS)) {
+  if (!duelPlaced.has(id)) warn(`duellist ${id}: defined but never placed on a map`);
+}
+
 // ---------------------------------------------------------------- summary --
 console.log(`Checked ${Object.keys(MAPS).length} maps, ${SPECIES_IDS.length} species, `
-  + `${Object.keys(MOVES).length} moves, ${Object.keys(TRAINERS).length} trainers.`);
+  + `${Object.keys(MOVES).length} moves, ${Object.keys(TRAINERS).length} trainers, `
+  + `${Object.keys(DUELLISTS).length} duellists.`);
 
 for (const w of warnings) console.log(`  warn  ${w}`);
 for (const p of problems) console.log(`  FAIL  ${p}`);

@@ -17,8 +17,13 @@ import {
   game, party, itemCount, takeItem, formatMoney, formatTime, dexCounts, SIGILS,
 } from '../game/state.js';
 import { saveGame } from '../game/save.js';
+import { gear, gearTable, GEAR_SLOTS } from '../data/gear.js';
+import {
+  playerStats, equipped, equip, playerTechniques, playerTitle,
+  maxVigour, expForPlayerLevel, expToNextLevel,
+} from '../game/player.js';
 
-const ROOT_ITEMS = ['PARTY', 'BAG', 'BESTIARY', 'SIGILS', 'CARD', 'SAVE', 'CLOSE'];
+const ROOT_ITEMS = ['PARTY', 'GEAR', 'BAG', 'BESTIARY', 'SIGILS', 'CARD', 'SAVE', 'CLOSE'];
 
 const STAT_LABELS = { hp: 'HP', atk: 'ATTACK', def: 'DEFENCE', spa: 'SP.ATK', spd: 'SP.DEF', spe: 'SPEED' };
 
@@ -33,6 +38,8 @@ export class MainMenu {
     this.bagScroll = 0;
     this.dexIndex = 0;
     this.dexScroll = 0;
+    this.gearSlot = 0;
+    this.gearIndex = 0;
     this.script = null;
   }
 
@@ -50,6 +57,7 @@ export class MainMenu {
       case 'root': return this.updateRoot();
       case 'party': return this.updateParty();
       case 'summary': return this.updateSummary();
+      case 'gear': return this.updateGear();
       case 'bag': return this.updateBag();
       case 'dex': return this.updateDex();
       case 'dexEntry': return this.updateDexEntry();
@@ -91,6 +99,10 @@ export class MainMenu {
       }
       this.partyIndex = 0;
       this.view = 'party';
+    } else if (choice === 'GEAR') {
+      this.gearSlot = 0;
+      this.gearIndex = 0;
+      this.view = 'gear';
     } else if (choice === 'BAG') {
       this.pocketIndex = 0;
       this.bagIndex = 0;
@@ -146,6 +158,45 @@ export class MainMenu {
       audio.sfx('cursor');
     }
     if (input.pressed('b') || input.pressed('a')) this.back('party');
+  }
+
+  // ---------------------------------------------------------------- gear --
+
+  gearRows() {
+    const slot = GEAR_SLOTS[this.gearSlot];
+    const owned = game.state.player.gearOwned?.[slot] ?? [];
+    return [...new Set(owned)].filter((id) => gearTable(slot)[id]);
+  }
+
+  updateGear() {
+    if (input.repeat('left')) {
+      this.gearSlot = (this.gearSlot - 1 + GEAR_SLOTS.length) % GEAR_SLOTS.length;
+      this.gearIndex = 0;
+      audio.sfx('cursor');
+    }
+    if (input.repeat('right')) {
+      this.gearSlot = (this.gearSlot + 1) % GEAR_SLOTS.length;
+      this.gearIndex = 0;
+      audio.sfx('cursor');
+    }
+    const rows = this.gearRows();
+    if (rows.length) {
+      if (input.repeat('up')) {
+        this.gearIndex = (this.gearIndex - 1 + rows.length) % rows.length;
+        audio.sfx('cursor');
+      }
+      if (input.repeat('down')) {
+        this.gearIndex = (this.gearIndex + 1) % rows.length;
+        audio.sfx('cursor');
+      }
+    }
+    if (input.pressed('b')) return this.back('root');
+    if (input.pressed('a') && rows.length) {
+      const slot = GEAR_SLOTS[this.gearSlot];
+      equip(slot, rows[this.gearIndex]);
+      audio.sfx('confirm');
+    }
+    return undefined;
   }
 
   // ----------------------------------------------------------------- bag --
@@ -302,6 +353,7 @@ export class MainMenu {
       case 'root': this.drawRoot(ctx); break;
       case 'party': this.drawParty(ctx); break;
       case 'summary': this.drawSummary(ctx); break;
+      case 'gear': this.drawGear(ctx); break;
       case 'bag': this.drawBag(ctx); break;
       case 'dex': this.drawDex(ctx); break;
       case 'dexEntry': this.drawDexEntry(ctx); break;
@@ -407,6 +459,60 @@ export class MainMenu {
 
     const nextLevel = expForLevel(def.growth, creature.level + 1);
     drawText(ctx, `EXP to next: ${Math.max(0, nextLevel - creature.exp)}`, 12, 142,
+      { color: '#98a0bc', shadow: '#151a2c' });
+  }
+
+  drawGear(ctx) {
+    drawPanel(ctx, 4, 4, 232, 152, 'night');
+    const p = game.state.player;
+    const stats = playerStats();
+
+    drawText(ctx, `${p.name.toUpperCase()}  Lv${p.level}`, 12, 9,
+      { color: '#f0dca0', shadow: '#151a2c' });
+    drawText(ctx, playerTitle(), 12, 21, { color: '#98a0bc', shadow: '#151a2c' });
+
+    // What you are currently wearing.
+    GEAR_SLOTS.forEach((slot, i) => {
+      const y = 36 + i * 12;
+      const active = i === this.gearSlot;
+      drawText(ctx, slot.toUpperCase().slice(0, 6), 12, y,
+        { color: active ? '#f0dca0' : '#98a0bc', shadow: '#151a2c' });
+      drawText(ctx, equipped(slot).name, 62, y, { color: '#f2f4ff', shadow: '#151a2c' });
+    });
+
+    const line = `HEALTH ${Math.round(p.hp ?? maxVigour())}/${maxVigour()}   `
+      + `MIGHT ${stats.might}   GUARD ${stats.guard}   SWIFT ${stats.swiftness}`;
+    drawText(ctx, line, 12, 74, { color: '#f2f4ff', shadow: '#151a2c' });
+    drawText(ctx, `Next level in ${expToNextLevel()} exp`, 12, 86,
+      { color: '#98a0bc', shadow: '#151a2c' });
+
+    // The techniques your current arms grant you.
+    drawText(ctx, 'TECHNIQUES', 130, 86, { color: '#f0dca0', shadow: '#151a2c' });
+    playerTechniques().forEach((t, i) => {
+      drawText(ctx, t.name, 130, 98 + i * 11, { color: '#f2f4ff', shadow: '#151a2c' });
+    });
+
+    // The pack for the highlighted slot.
+    const slot = GEAR_SLOTS[this.gearSlot];
+    const rows = this.gearRows();
+    drawText(ctx, `IN YOUR PACK — ${slot.toUpperCase()}`, 12, 98,
+      { color: '#f0dca0', shadow: '#151a2c' });
+    if (!rows.length) {
+      drawText(ctx, 'Nothing spare.', 12, 110, { color: '#98a0bc', shadow: '#151a2c' });
+    } else {
+      rows.slice(0, 4).forEach((id, i) => {
+        const def = gear(slot, id);
+        const y = 110 + i * 11;
+        if (i === this.gearIndex) {
+          drawText(ctx, '▸', 12, y, { color: '#f2f4ff', shadow: '#151a2c' });
+        }
+        const worn = equipped(slot).id === id;
+        drawText(ctx, def.name, 22, y,
+          { color: worn ? '#f0dca0' : '#f2f4ff', shadow: '#151a2c' });
+      });
+    }
+
+    drawText(ctx, 'Left/Right: slot   A: equip   B: back', 12, 144,
       { color: '#98a0bc', shadow: '#151a2c' });
   }
 

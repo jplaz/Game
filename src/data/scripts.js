@@ -10,6 +10,7 @@ import {
 } from '../game/state.js';
 import { createCreature, displayName } from '../game/creature.js';
 import { TRAINERS } from './trainers.js';
+import { DUELLISTS } from './duellists.js';
 import { item as getItem } from './items.js';
 import { audio } from '../engine/audio.js';
 
@@ -56,6 +57,30 @@ export const SCRIPTS = {
     const stock = npc.data?.stock ?? [];
     if (npc.data?.line) await say(npc.data.line);
     await openShop(stock);
+  },
+
+  /**
+   * Duels. People fight you as themselves — steel against steel — rather than
+   * setting a creature on you. Beasts still use the creature battle system.
+   */
+  async duel({ say, npc, duel, setFlag, flag }) {
+    const id = npc.data.duel;
+    const def = DUELLISTS[id];
+    if (flag(`duel_${id}`)) {
+      await say(def.after);
+      return;
+    }
+    const outcome = await duel(id);
+    if (outcome === 'won') {
+      setFlag(`duel_${id}`);
+      await say(def.after);
+    }
+  },
+
+  /** Blacksmiths sell arms and armour and will fit them for you. */
+  async smith({ say, npc, openSmithy }) {
+    if (npc.data?.line) await say(npc.data.line);
+    await openSmithy(npc.data?.stock ?? {});
   },
 
   /** Every trainer battle funnels through here. */
@@ -129,6 +154,26 @@ export const SCRIPTS = {
       'Old Nan: You think it is a story. Everyone thinks it is a story, right up until it is not.',
     ];
     for (const line of lines) await say(line);
+  },
+
+  /** Jory holds the gate until you have proved you can hold a sword. */
+  async joryGate({ say, npc, duel, setFlag, flag }) {
+    if (flag('duel_joryCassel')) {
+      await say(DUELLISTS.joryCassel.after);
+      return;
+    }
+    if (!flag('gotStarter')) {
+      await say('Jory Cassel: Maester Luwin wants you, down by the south road. Go on.');
+      return;
+    }
+    await say('Jory Cassel: Lord Rickard will not send a rider south who cannot hold a blade. Humour me.');
+    const outcome = await duel('joryCassel');
+    if (outcome === 'won') {
+      setFlag('duel_joryCassel');
+      await say(DUELLISTS.joryCassel.after);
+    } else {
+      await say('Jory Cassel: Again, when you have your wind back. The road will keep.');
+    }
   },
 
   async winterfellGuard({ say, flag }) {

@@ -21,6 +21,15 @@ export function newGame(playerName = 'Snow') {
       money: 3000,
       playtime: 0,
       steps: 0,
+      // You are a fighter too, on your own level track.
+      level: 1,
+      exp: 0,
+      hp: 34,
+      wounded: false,
+      equipment: { weapon: 'fists', armour: 'roughspun', shield: 'none' },
+      gearOwned: { weapon: ['fists'], armour: ['roughspun'], shield: ['none'] },
+      duelsWon: 0,
+      duelsLost: 0,
     },
     party: [],
     box: [],
@@ -68,7 +77,18 @@ export function addCreature(creature) {
 
 export function healParty() {
   for (const creature of game.state.party) healFully(creature);
+  // Resting mends the rider as much as the beasts. The player's maximum health
+  // depends on gear, so the actual figure is settled by restorePlayer().
+  const p = game.state.player;
+  p.wounded = false;
+  p.hp = null;
+  restorePlayer?.();
 }
+
+// Set by game/player.js at import time; kept as a hook so state.js does not
+// have to import the equipment tables just to know a health maximum.
+let restorePlayer = null;
+export function setPlayerRestorer(fn) { restorePlayer = fn; }
 
 // -------------------------------------------------------------------- bag --
 

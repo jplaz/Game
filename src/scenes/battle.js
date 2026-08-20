@@ -434,6 +434,16 @@ export class Battle {
     if (!alive.length) return;
     const amount = expFor(this.foe, alive.length, this.isTrainer);
 
+    // Commanding a fight teaches you something too, at a third of the rate a
+    // duel would, so neither play style locks you out of the other.
+    const { gainPlayerExp } = await import('../game/player.js');
+    const yours = Math.max(1, Math.round(amount / 3));
+    const mine = gainPlayerExp(yours);
+    if (mine.levels > 0) {
+      audio.sfx('levelup');
+      await this.say(`You reached level ${game.state.player.level}!`);
+    }
+
     for (const creature of alive) {
       const result = gainExp(creature, amount);
       await this.say(`${displayName(creature)} gained ${amount} experience.`);

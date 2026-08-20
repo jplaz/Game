@@ -1,11 +1,18 @@
 // Duels: you, in person, against another person.
 //
-// Creature battles are a separate system. This one is about steel — your level,
-// your weapon and your armour against theirs. Wind (stamina) is the pacing
-// mechanism: heavy techniques cost more than you regain in a round, so you have
-// to spend and recover rather than mash the biggest number.
+// This is about steel — your level, your weapon and your armour against theirs.
+// Wind (stamina) is the pacing mechanism: heavy techniques cost more than you
+// regain in a round, so you have to spend and recover rather than mash the
+// biggest number.
+//
+// A beast fights beside you rather than instead of you. Calling it takes your
+// action for the round, so it is a real trade: your blow, or its. It uses its
+// own health, which does not come back when the duel ends, and it earns its own
+// experience for the rounds it fought.
 
-import { drawPanel, drawStatusBox, drawHpGauge, drawExpGauge, drawWindGauge, THEMES } from '../ui/panel.js';
+import {
+  drawPanel, drawStatusBox, drawHpGauge, drawExpGauge, drawWindGauge, HP_COLORS, THEMES,
+} from '../ui/panel.js';
 import { drawText, fitText, measure, LINE_HEIGHT } from '../engine/font.js';
 import { dialog } from '../ui/textbox.js';
 import { input } from '../engine/input.js';
@@ -13,6 +20,11 @@ import { audio } from '../engine/audio.js';
 import { TRACKS } from '../data/music.js';
 import { rng } from '../engine/rng.js';
 import { drawActor, ACTOR_W, ACTOR_H } from '../art/actors.js';
+import { creatureSprite, SPRITE_SIZE } from '../art/creatures.js';
+import {
+  createCreature, creatureSpecies, displayName, maxHp, gainExp, evolve, learnMove,
+} from '../game/creature.js';
+import { move as moveDef } from '../data/moves.js';
 import { technique, gear } from '../data/gear.js';
 import { duellist as getDuellist } from '../data/duellists.js';
 import { item as getItem, ITEMS } from '../data/items.js';
@@ -20,12 +32,56 @@ import {
   playerStats, playerTechniques, maxVigour, gainPlayerExp, equipped,
   giveGear, expToNextLevel, expForPlayerLevel, playerAppearance,
 } from '../game/player.js';
-import { game, addMoney, setFlag, takeItem, itemCount } from '../game/state.js';
+import { game, addMoney, setFlag, takeItem, itemCount, markCaught } from '../game/state.js';
 
 const PLAYER_POS = { x: 26, y: 44, scale: 2 };
 const FOE_POS = { x: 172, y: 14, scale: 2 };
 const FOE_HUD = { x: 10, y: 14, w: 106, h: 28 };
+const FOE_HUD_BEAST = { x: 10, y: 12, w: 106, h: 40 };
 const PLAYER_HUD = { x: 124, y: 52, w: 106, h: 52 };
+const PLAYER_HUD_BEAST = { x: 124, y: 42, w: 106, h: 62 };
+// A beast's health is a row inside its owner's plate rather than a plate of its
+// own: four floating windows on a 240x160 screen leaves nowhere to stand.
+const FOE_BEAST_POS = { x: 124, y: 6, size: 34 };
+const YOUR_BEAST_POS = { x: 66, y: 62, size: 36 };
+
+/**
+ * A creature standing in a duel. It is described in the duel's own terms —
+ * might against guard — so every blow in the fight runs through one formula
+ * whether it comes from a sword or a set of teeth.
+ */
+function beastSide(creature, isPlayer) {
+  const st = creature.stats;
+  return {
+    creature,
+    isBeast: true,
+    isPlayer,
+    name: displayName(creature).toUpperCase(),
+    level: creature.level,
+    hp: creature.hp,
+    maxHp: maxHp(creature),
+    wind: 0,
+    maxWind: 0,
+    might: Math.max(1, Math.round(st.atk * 0.85)),
+    guard: Math.max(1, Math.round(st.def * 1.1)),
+    swiftness: st.spe,
+    bleeding: 0, stunned: false, defending: false, guardBroken: false,
+  };
+}
+
+/** A creature's move, described as a duel technique. */
+function beastTechnique(slot) {
+  const def = moveDef(slot.id);
+  return {
+    id: slot.id,
+    name: def.name,
+    power: def.power > 0 ? def.power : 0,
+    accuracy: def.accuracy,
+    stamina: 0,
+    effect: def.power > 0 ? {} : { defend: true },
+    slot,
+  };
+}
 
 /** Damage: might against guard, softened so no single blow ends a duel. */
 function computeDamage(attacker, defender, tech) {
@@ -80,7 +136,18 @@ export class Duel {
       isPlayer: false,
     };
 
+    // Beasts. Yours is whichever of your creatures is still standing; theirs is
+    // written into the duellist, and only some of them keep one.
+    const lead = game.state.party.find((c) => c.hp > 0);
+    this.yourBeast = lead ? beastSide(lead, true) : null;
+    this.foeBeast = d.beast
+      ? beastSide(createCreature(d.beast.species, d.beast.level), false)
+      : null;
+    this.beastRounds = 0;
+
     this.hpShown = new Map([[this.you, this.you.hp], [this.foe, this.foe.hp]]);
+    if (this.yourBeast) this.hpShown.set(this.yourBeast, this.yourBeast.hp);
+    if (this.foeBeast) this.hpShown.set(this.foeBeast, this.foeBeast.hp);
     this.menu = null;
     this.timer = 0;
     this.waitResolve = null;
@@ -128,17 +195,18 @@ export class Duel {
   async chooseAction() {
     while (true) {
       dialog.show(`${this.you.name} — what will you do?`);
-      const choice = await this.openMenu('action', ['STRIKE', 'PACK', 'STANCE', 'YIELD'],
+      const choice = await this.openMenu('action', ['STRIKE', 'BEAST', 'PACK', 'YIELD'],
         { columns: 2, cancellable: false });
 
       if (choice === 0) {
         const tech = await this.chooseTechnique();
         if (tech) return { type: 'tech', tech };
       } else if (choice === 1) {
+        const tech = await this.chooseBeastMove();
+        if (tech) return { type: 'beast', tech };
+      } else if (choice === 2) {
         const itemId = await this.chooseItem();
         if (itemId) return { type: 'item', itemId };
-      } else if (choice === 2) {
-        return { type: 'tech', tech: technique('guard') };
       } else if (choice === 3) {
         if (await this.tryYield()) return { type: 'yield' };
       }
@@ -155,6 +223,27 @@ export class Duel {
       return this.chooseTechnique();
     }
     return tech;
+  }
+
+  /** Set your beast on them. Taking this costs you your own blow for the round. */
+  async chooseBeastMove() {
+    if (!this.yourBeast) {
+      await this.say('You have no beast at your side.');
+      return null;
+    }
+    if (this.yourBeast.hp <= 0) {
+      await this.say(`${this.yourBeast.name} is down and cannot answer you.`);
+      return null;
+    }
+    const slots = this.yourBeast.creature.moves;
+    const labels = slots.map((slot) => `${moveDef(slot.id).name} ${slot.pp}/${slot.maxPp}`);
+    const index = await this.openMenu('beast', labels, { columns: 2 });
+    if (index < 0) return null;
+    if (slots[index].pp <= 0) {
+      await this.say(`${this.yourBeast.name} has nothing left in that one.`);
+      return this.chooseBeastMove();
+    }
+    return beastTechnique(slots[index]);
   }
 
   async chooseItem() {
@@ -192,6 +281,19 @@ export class Duel {
     if (action.type === 'item') {
       await this.useItem(action.itemId);
       if (this.outcome === 'ongoing') await this.foeAct();
+    } else if (action.type === 'beast') {
+      // Your beast acts in your place, so it strikes on your initiative.
+      const beast = this.yourBeast;
+      const youFirst = beast.swiftness >= this.foe.swiftness;
+      if (youFirst) {
+        await this.beastStrike(beast, action.tech);
+        if (this.checkDown()) return;
+        await this.foeAct();
+      } else {
+        await this.foeAct();
+        if (this.checkDown()) return;
+        if (beast.hp > 0) await this.beastStrike(beast, action.tech);
+      }
     } else {
       const foeTech = this.pickFoeTechnique();
       const youFirst = (action.tech.priority ?? 0) !== (foeTech?.priority ?? 0)
@@ -212,6 +314,32 @@ export class Duel {
     await this.endOfRound();
   }
 
+  /** Whichever of the enemy pair the beast should go for. */
+  beastTarget(beast) {
+    const theirBeast = beast.isPlayer ? this.foeBeast : this.yourBeast;
+    if (theirBeast && theirBeast.hp > 0) return theirBeast;
+    return beast.isPlayer ? this.foe : this.you;
+  }
+
+  async beastStrike(beast, tech) {
+    if (beast.hp <= 0) return;
+    this.beastRounds++;
+    if (tech.slot && tech.slot.pp > 0) tech.slot.pp--;
+    const target = this.beastTarget(beast);
+    await this.perform(beast, target, tech);
+  }
+
+  /** The foe sets their own beast on you, when they have one still standing. */
+  async foeBeastAct() {
+    const beast = this.foeBeast;
+    if (!beast || beast.hp <= 0 || this.outcome !== 'ongoing') return;
+    const slots = beast.creature.moves.filter((slot) => slot.pp > 0);
+    const slot = slots.length ? rng.pick(slots) : null;
+    if (!slot) return;
+    slot.pp--;
+    await this.perform(beast, this.beastTarget(beast), beastTechnique(slot));
+  }
+
   pickFoeTechnique() {
     const affordable = this.foe.techniques.filter((t) => t.stamina <= this.foe.wind);
     if (!affordable.length) return technique('guard');
@@ -223,6 +351,12 @@ export class Duel {
 
   async foeAct(preChosen) {
     if (this.foe.hp <= 0 || this.outcome !== 'ongoing') return;
+    // With a beast at their side they will sometimes send it in instead, which
+    // is the same trade you are making when you call yours.
+    if (!preChosen && this.foeBeast?.hp > 0 && rng.chance(0.4)) {
+      await this.foeBeastAct();
+      return;
+    }
     await this.perform(this.foe, this.you, preChosen ?? this.pickFoeTechnique());
   }
 
@@ -285,7 +419,8 @@ export class Duel {
   }
 
   async endOfRound() {
-    for (const side of [this.you, this.foe]) {
+    for (const side of [this.you, this.foe, this.yourBeast, this.foeBeast]) {
+      if (!side) continue;
       if (side.hp <= 0) continue;
       if (side.bleeding > 0) {
         side.bleeding--;
@@ -297,7 +432,23 @@ export class Duel {
       // Everyone gets some wind back each round.
       side.wind = Math.min(side.maxWind, side.wind + 4 + Math.floor(side.level / 4));
     }
+    await this.reportDownedBeasts();
+    this.syncBeasts();
     this.checkDown();
+  }
+
+  /** A beast that has been put down says so once, then stays out of it. */
+  async reportDownedBeasts() {
+    for (const beast of [this.yourBeast, this.foeBeast]) {
+      if (!beast || beast.hp > 0 || beast.reported) continue;
+      beast.reported = true;
+      await this.say(`${beast.name} is driven off and cannot fight on.`);
+    }
+  }
+
+  /** Beast wounds are real: they are written back onto the creature itself. */
+  syncBeasts() {
+    if (this.yourBeast) this.yourBeast.creature.hp = Math.max(0, Math.round(this.yourBeast.hp));
   }
 
   checkDown() {
@@ -331,6 +482,7 @@ export class Duel {
 
   async finish() {
     game.state.player.hp = Math.max(0, this.you.hp);
+    this.syncBeasts();
 
     if (this.outcome === 'won') {
       game.state.player.duelsWon++;
@@ -348,6 +500,20 @@ export class Duel {
         addMoney(this.def.reward);
         audio.sfx('money');
         await this.say(`You take ${this.def.reward} gold dragons from the field.`);
+      }
+      // A beast that actually fought is trained by the fighting.
+      if (this.yourBeast && this.beastRounds > 0) {
+        const creature = this.yourBeast.creature;
+        const share = Math.max(1, Math.round(exp * 0.6));
+        const before = creature.level;
+        const result = gainExp(creature, share);
+        await this.say(`${this.yourBeast.name} gained ${share} experience.`);
+        if (creature.level > before) {
+          audio.sfx('levelup');
+          await this.say(`${this.yourBeast.name} grew to level ${creature.level}!`);
+        }
+        for (const moveId of result.learned) await this.teachMove(creature, moveId);
+        if (result.evolveTo) await this.doEvolve(creature, result.evolveTo);
       }
       if (this.def.loot) {
         const [slot, id] = this.def.loot;
@@ -367,6 +533,45 @@ export class Duel {
       this.manager.pop();
       this.config.onEnd?.(this.outcome);
     });
+  }
+
+  async teachMove(creature, moveId) {
+    const def = moveDef(moveId);
+    if (creature.moves.length < 4) {
+      learnMove(creature, moveId);
+      audio.sfx('confirm');
+      await this.say(`${displayName(creature)} learned ${def.name}!`);
+      return;
+    }
+    const keep = await dialog.choose(
+      `${displayName(creature)} wants to learn ${def.name}, but already knows four. Replace one?`,
+      ['Yes', 'No'],
+    );
+    if (keep !== 0) {
+      await this.say(`${displayName(creature)} did not learn ${def.name}.`);
+      return;
+    }
+    const labels = creature.moves.map((slot) => moveDef(slot.id).name);
+    const index = await this.openMenu('list', labels, { columns: 1, cancellable: true });
+    if (index < 0) {
+      await this.say(`${displayName(creature)} did not learn ${def.name}.`);
+      return;
+    }
+    const replaced = moveDef(creature.moves[index].id).name;
+    learnMove(creature, moveId, index);
+    audio.sfx('confirm');
+    await this.say(`${displayName(creature)} forgot ${replaced} and learned ${def.name}!`);
+  }
+
+  async doEvolve(creature, intoId) {
+    const oldName = displayName(creature);
+    await this.say(`What? ${oldName} is changing!`);
+    audio.sfx('levelup');
+    this.anim.flash = 1.2;
+    await this.wait(1.2);
+    evolve(creature, intoId);
+    markCaught(intoId);
+    await this.say(`${oldName} became ${creatureSpecies(creature).name}!`);
   }
 
   // ------------------------------------------------------------ animation --
@@ -455,10 +660,12 @@ export class Duel {
 
   draw(ctx) {
     this.drawBackdrop(ctx);
+    this.drawBeast(ctx, this.foeBeast, FOE_BEAST_POS);
     this.drawFighter(ctx, this.foe, FOE_POS, 'left');
+    this.drawBeast(ctx, this.yourBeast, YOUR_BEAST_POS);
     this.drawFighter(ctx, this.you, PLAYER_POS, 'right');
-    this.drawHud(ctx, this.foe, FOE_HUD, false);
-    this.drawHud(ctx, this.you, PLAYER_HUD, true);
+    this.drawHud(ctx, this.foe, this.foeBeast ? FOE_HUD_BEAST : FOE_HUD, false);
+    this.drawHud(ctx, this.you, this.yourBeast ? PLAYER_HUD_BEAST : PLAYER_HUD, true);
     dialog.draw(ctx);
     if (this.menu) this.drawMenu(ctx);
   }
@@ -523,7 +730,60 @@ export class Duel {
     ctx.restore();
   }
 
+  /**
+   * One line inside a fighter's plate for the beast standing with them: who it
+   * is, and how much fight it has left.
+   */
+  drawBeastRow(ctx, beast, box, y, t, reserve = 0) {
+    if (!beast) return;
+    const down = beast.hp <= 0;
+    const NAME_W = 50;
+    drawText(ctx, fitText(beast.name, NAME_W), box.x + 8, y,
+      { color: down ? '#8d9080' : t.text, shadow: t.textShadow });
+
+    const barX = box.x + 8 + NAME_W + 3;
+    const barW = Math.max(8, box.w - (NAME_W + 11) - 16 - reserve);
+    ctx.fillStyle = '#2b3f2c';
+    ctx.fillRect(barX - 1, y + 1, barW + 2, 6);
+    ctx.fillStyle = '#6d7a63';
+    ctx.fillRect(barX, y + 2, barW, 4);
+
+    const shown = this.hpShown.get(beast) ?? beast.hp;
+    const ratio = Math.max(0, shown / beast.maxHp);
+    const filled = Math.max(0, Math.min(barW, Math.round(barW * ratio)));
+    if (filled > 0) {
+      const c = HP_COLORS(ratio);
+      ctx.fillStyle = c.dark;
+      ctx.fillRect(barX, y + 2, filled, 4);
+      ctx.fillStyle = c.light;
+      ctx.fillRect(barX, y + 2, filled, 2);
+    }
+  }
+
+  /** The beast itself, standing at its owner's shoulder. */
+  drawBeast(ctx, beast, pos) {
+    if (!beast || beast.hp <= 0) return;
+    const sprite = creatureSprite(creatureSpecies(beast.creature));
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(pos.x + pos.size / 2, pos.y + pos.size - 3, pos.size * 0.32, pos.size * 0.09,
+      0, 0, Math.PI * 2);
+    ctx.fill();
+    // The player's beast faces the foe; the foe's faces back.
+    if (beast.isPlayer) {
+      ctx.drawImage(sprite, 0, 0, SPRITE_SIZE, SPRITE_SIZE, pos.x, pos.y, pos.size, pos.size);
+    } else {
+      ctx.translate(pos.x + pos.size, pos.y);
+      ctx.scale(-1, 1);
+      ctx.drawImage(sprite, 0, 0, SPRITE_SIZE, SPRITE_SIZE, 0, 0, pos.size, pos.size);
+    }
+    ctx.restore();
+  }
+
   drawHud(ctx, side, box, isPlayer) {
+    const beast = isPlayer ? this.yourBeast : this.foeBeast;
     const t = drawStatusBox(ctx, box.x, box.y, box.w, box.h, { notchLeft: isPlayer });
     const lvl = `Lv${side.level}`;
     const lvlW = measure(lvl);
@@ -535,38 +795,48 @@ export class Duel {
     const shown = this.hpShown.get(side) ?? side.hp;
     drawHpGauge(ctx, box.x + 7, box.y + 15, box.w - 15, Math.max(0, shown / side.maxHp));
 
-    // Condition flags sit under the gauge.
+    // Condition flags sit under the gauge, sharing the row with the beast when
+    // there is one, which is why the beast bar reserves room for them.
     const marks = [];
     if (side.bleeding > 0) marks.push(['BLEED', '#c83c3c']);
     if (side.stunned) marks.push(['STUN', '#e8c040']);
     if (side.guardBroken) marks.push(['BROKEN', '#9060c0']);
-    marks.slice(0, 2).forEach(([label, color], i) => {
+    const shownMarks = marks.slice(0, beast ? 1 : 2);
+    let markWidth = 0;
+    shownMarks.forEach(([label, color], i) => {
       const w = measure(label) + 4;
-      const mx = box.x + 7 + i * (w + 3);
+      const mx = beast
+        ? box.x + box.w - 9 - w
+        : box.x + 7 + i * (w + 3);
       const my = box.y + 24;
       ctx.fillStyle = '#2b3f2c';
       ctx.fillRect(mx - 1, my - 1, w + 2, 9);
       ctx.fillStyle = color;
       ctx.fillRect(mx, my, w, 7);
       drawText(ctx, label, mx + 2, my, { color: '#241a1a', shadow: null });
+      markWidth = w + 4;
     });
 
-    if (isPlayer) {
-      const hpLabel = `${Math.round(shown)}/${side.maxHp}`;
-      drawText(ctx, hpLabel, box.x + box.w - measure(hpLabel) - 9, box.y + 24,
-        { color: t.text, shadow: t.textShadow });
-
-      // Wind, then the experience bar, both inside the plate.
-      drawWindGauge(ctx, box.x + 7, box.y + 34, box.w - 15,
-        Math.max(0, Math.min(1, side.wind / side.maxWind)));
-
-      const p = game.state.player;
-      const cur = expForPlayerLevel(p.level);
-      const next = expForPlayerLevel(p.level + 1);
-      const ratio = next > cur ? (p.exp - cur) / (next - cur) : 0;
-      drawExpGauge(ctx, box.x + 7, box.y + 43, box.w - 15,
-        Math.max(0, Math.min(1, ratio)));
+    if (!isPlayer) {
+      if (beast) this.drawBeastRow(ctx, beast, box, box.y + 25, t, markWidth);
+      return;
     }
+
+    const hpLabel = `${Math.round(shown)}/${side.maxHp}`;
+    drawText(ctx, hpLabel, box.x + box.w - measure(hpLabel) - 9, box.y + 24,
+      { color: t.text, shadow: t.textShadow });
+
+    // Wind, then the experience bar, both inside the plate.
+    drawWindGauge(ctx, box.x + 7, box.y + 34, box.w - 15,
+      Math.max(0, Math.min(1, side.wind / side.maxWind)));
+
+    const p = game.state.player;
+    const cur = expForPlayerLevel(p.level);
+    const next = expForPlayerLevel(p.level + 1);
+    const ratio = next > cur ? (p.exp - cur) / (next - cur) : 0;
+    drawExpGauge(ctx, box.x + 7, box.y + 43, box.w - 15, Math.max(0, Math.min(1, ratio)));
+
+    if (beast) this.drawBeastRow(ctx, beast, box, box.y + 52, t);
   }
 
   drawMenu(ctx) {
@@ -605,6 +875,33 @@ export class Duel {
         drawText(ctx, sel.power > 0 ? `POW ${sel.power}` : 'DEFENSIVE', box.x + 66, infoY,
           { color: t.text, shadow: t.textShadow });
         drawText(ctx, `ACC ${sel.accuracy}`, box.x + 140, infoY, { color: t.text, shadow: t.textShadow });
+      }
+      return;
+    }
+
+    if (menu.type === 'beast') {
+      const box = { x: 4, y: 104, w: 232, h: 52 };
+      const t = drawPanel(ctx, box.x, box.y, box.w, box.h, 'night');
+      const slots = this.yourBeast.creature.moves;
+      slots.forEach((slot, i) => {
+        const col = i % 2;
+        const row = Math.floor(i / 2);
+        const x = box.x + 14 + col * 96;
+        const y = box.y + 6 + row * 14;
+        if (i === menu.index) drawText(ctx, '▸', x - 9, y, { color: t.text, shadow: t.textShadow });
+        drawText(ctx, moveDef(slot.id).name, x, y,
+          { color: slot.pp > 0 ? t.text : '#8a8fa4', shadow: t.textShadow });
+      });
+      const slot = slots[menu.index];
+      if (slot) {
+        const def = moveDef(slot.id);
+        const infoY = box.y + 36;
+        drawText(ctx, `PP ${slot.pp}/${slot.maxPp}`, box.x + 10, infoY,
+          { color: t.text, shadow: t.textShadow });
+        drawText(ctx, def.power > 0 ? `POW ${def.power}` : 'STATUS', box.x + 78, infoY,
+          { color: t.text, shadow: t.textShadow });
+        drawText(ctx, `ACC ${def.accuracy}`, box.x + 150, infoY,
+          { color: t.text, shadow: t.textShadow });
       }
       return;
     }

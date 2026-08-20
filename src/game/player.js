@@ -71,8 +71,9 @@ export function playerTechniques() {
   const shield = equipped('shield');
   const ids = [...weapon.techniques];
   if (shield.id !== 'none') ids.push('shieldBash');
-  ids.push('guard');
-  return ids.slice(0, 4).map((id) => technique(id));
+  // Guard always keeps the last slot. It is the only way to catch a breath, so
+  // a weapon with a full set of techniques must not crowd it out.
+  return [...ids.slice(0, 3), 'guard'].map((id) => technique(id));
 }
 
 export function healPlayer() {

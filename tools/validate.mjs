@@ -244,6 +244,14 @@ for (const [id, def] of Object.entries(DUELLISTS)) {
     const tables = { weapon: WEAPONS, armour: ARMOUR, shield: SHIELDS };
     if (!tables[slot]?.[gid]) fail(`duellist ${id}: loot "${slot}/${gid}" does not exist`);
   }
+  if (def.beast) {
+    if (!SPECIES[def.beast.species]) {
+      fail(`duellist ${id}: beast species "${def.beast.species}" does not exist`);
+    }
+    if (!(def.beast.level >= 1 && def.beast.level <= 100)) {
+      fail(`duellist ${id}: beast level ${def.beast.level} is out of range`);
+    }
+  }
 }
 
 // ------------------------------------------------------------------ gear --

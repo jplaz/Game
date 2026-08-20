@@ -7,6 +7,7 @@
 //   swiftness  strike order
 //   wind       stamina pool
 //   loot       [slot, gearId] taken from them on victory
+//   beast      optional { species, level } that fights at their side
 
 export const DUELLISTS = {
   // ------------------------------------------------------ Winterfell yard --
@@ -33,6 +34,7 @@ export const DUELLISTS = {
     name: 'Theon Greyjoy', sprite: 'ironborn', level: 9,
     vigour: 110, might: 26, guard: 14, swiftness: 26, wind: 22,
     techniques: ['loose', 'volley', 'quickCut', 'guard'],
+    beast: { species: 'krakenling', level: 9 },
     reward: 480, exp: 170, canYield: true,
     intro: "Theon Greyjoy: Ward of Winterfell, same as you. Only I'm better at this. Watch.",
     defeat: "Theon Greyjoy: Lucky. That's all that was.",
@@ -42,6 +44,7 @@ export const DUELLISTS = {
     name: 'Robb Stark', sprite: 'stark', level: 12,
     vigour: 145, might: 33, guard: 22, swiftness: 24, wind: 24,
     techniques: ['slash', 'thrust', 'shieldBash', 'guard'],
+    beast: { species: 'direwolf', level: 12 },
     reward: 700, exp: 260, canYield: true,
     intro: 'Robb Stark: My father says a lord should never ask a man to do what he will not. So — me first.',
     defeat: 'Robb Stark: Gods. You will do. Ride south and do it there.',
@@ -94,6 +97,7 @@ export const DUELLISTS = {
     name: 'Beric Dondarrion', sprite: 'brotherhood', level: 22,
     vigour: 205, might: 48, guard: 28, swiftness: 26, wind: 24,
     techniques: ['slash', 'riposte', 'sweep', 'guard'],
+    beast: { species: 'emberwisp', level: 22 },
     reward: 1500, exp: 560, canYield: true,
     intro: 'Beric Dondarrion: The Brotherhood asks a toll of every armed man on this road. Or a fight.',
     defeat: 'Beric Dondarrion: The Lord of Light is not finished with either of us, it seems.',
@@ -105,6 +109,7 @@ export const DUELLISTS = {
     name: 'Gregor Clegane', sprite: 'mountain', level: 32,
     vigour: 400, might: 78, guard: 52, swiftness: 12, wind: 24,
     techniques: ['crush', 'cleave', 'sweep', 'guard'],
+    beast: { species: 'tuskrend', level: 32 },
     reward: 4000, exp: 1100, canYield: false, boss: true,
     loot: ['weapon', 'warhammer'],
     intro: 'Gregor Clegane says nothing at all. He simply lifts the greatsword and starts walking.',
@@ -115,6 +120,7 @@ export const DUELLISTS = {
     name: 'Ser Jaime Lannister', sprite: 'lannister', level: 30,
     vigour: 300, might: 66, guard: 40, swiftness: 40, wind: 30,
     techniques: ['valyrianArc', 'thrust', 'riposte', 'guard'],
+    beast: { species: 'goldmane', level: 30 },
     reward: 3500, exp: 980, canYield: false, boss: true,
     loot: ['armour', 'knightPlate'],
     intro: 'Ser Jaime Lannister: They call me Kingslayer and never ask how good I had to be to manage it. Guard.',
@@ -127,6 +133,7 @@ export const DUELLISTS = {
     name: 'Oberyn Martell', sprite: 'martell', level: 34,
     vigour: 285, might: 70, guard: 26, swiftness: 52, wind: 34,
     techniques: ['lunge', 'skewer', 'quickCut', 'guard'],
+    beast: { species: 'sandviper', level: 34 },
     reward: 4200, exp: 1200, canYield: true, boss: true,
     loot: ['weapon', 'boarSpear'],
     intro: 'Oberyn Martell: I am not here for you. But I am here, and you are armed, and it would be rude not to.',
@@ -139,6 +146,7 @@ export const DUELLISTS = {
     name: 'Ygritte', sprite: 'wildling', level: 15,
     vigour: 135, might: 32, guard: 12, swiftness: 38, wind: 28,
     techniques: ['loose', 'volley', 'quickCut', 'guard'],
+    beast: { species: 'falconet', level: 15 },
     reward: 800, exp: 340, canYield: true,
     loot: ['weapon', 'huntingBow'],
     intro: 'Ygritte: You know nothing. Let us find out how much nothing.',
@@ -149,6 +157,7 @@ export const DUELLISTS = {
     name: 'Tormund', sprite: 'wildling', level: 26,
     vigour: 300, might: 58, guard: 30, swiftness: 20, wind: 28,
     techniques: ['cleave', 'hook', 'crush', 'guard'],
+    beast: { species: 'bearhold', level: 26 },
     reward: 2200, exp: 720, canYield: true,
     intro: 'Tormund: Free folk do not kneel and do not queue. One fight, right now, and then we drink.',
     defeat: 'Tormund: HAH! Good. You will drink with me and you will not enjoy it.',
@@ -158,6 +167,7 @@ export const DUELLISTS = {
     name: 'Jon Snow', sprite: 'nightswatch', level: 28,
     vigour: 290, might: 62, guard: 38, swiftness: 34, wind: 30,
     techniques: ['valyrianArc', 'slash', 'riposte', 'guard'],
+    beast: { species: 'ghostfang', level: 28 },
     reward: 3000, exp: 900, canYield: true, boss: true,
     intro: 'Jon Snow: I am not going to talk you out of this, am I. All right. Longclaw is heavier than it looks.',
     defeat: 'Jon Snow: Enough. You are better than me and we both need to be somewhere else.',
@@ -188,6 +198,7 @@ export const DUELLISTS = {
     name: 'Ramsay Bolton', sprite: 'bolton', level: 29,
     vigour: 265, might: 60, guard: 32, swiftness: 32, wind: 26,
     techniques: ['backstab', 'quickCut', 'hook', 'guard'],
+    beast: { species: 'winterfang', level: 29 },
     reward: 2800, exp: 860, canYield: false,
     loot: ['weapon', 'huntingKnife'],
     intro: 'Ramsay Bolton: I do so love it when they still have some fight in them at the start.',
@@ -198,6 +209,7 @@ export const DUELLISTS = {
     name: 'Euron Greyjoy', sprite: 'ironborn', level: 33,
     vigour: 310, might: 68, guard: 34, swiftness: 36, wind: 28,
     techniques: ['cleave', 'hook', 'quickCut', 'guard'],
+    beast: { species: 'deepmaw', level: 33 },
     reward: 3800, exp: 1050, canYield: false, boss: true,
     intro: 'Euron Greyjoy: I have sailed further than any of you and come back with worse ideas. Shall we?',
     defeat: 'Euron Greyjoy: What is dead may never die. But it can certainly be inconvenienced.',
@@ -207,6 +219,7 @@ export const DUELLISTS = {
     name: 'Cersei Lannister', sprite: 'cersei', level: 31,
     vigour: 250, might: 56, guard: 44, swiftness: 26, wind: 26,
     techniques: ['quickCut', 'hook', 'guard'],
+    beast: { species: 'goldmane', level: 31 },
     reward: 4500, exp: 1000, canYield: false, boss: true,
     intro: 'Cersei Lannister: When you play the game of thrones, you win or you die. There is no middle ground.',
     defeat: 'Cersei Lannister: I did everything I did for my children. Remember that when they write it down.',

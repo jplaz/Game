@@ -4,7 +4,7 @@
 // own rather than a quantity, and lets you swap between pieces for free.
 
 import { drawPanel } from '../ui/panel.js';
-import { drawText, measure, LINE_HEIGHT } from '../engine/font.js';
+import { drawText, measure, wrapText, LINE_HEIGHT } from '../engine/font.js';
 import { dialog } from '../ui/textbox.js';
 import { input } from '../engine/input.js';
 import { audio } from '../engine/audio.js';
@@ -153,20 +153,22 @@ export class Smithy {
     if (!selected) return;
     const def = gear(slot, selected);
     const current = equipped(slot);
-    drawPanel(ctx, 6, 100, 228, 30, 'parchment');
+    drawPanel(ctx, 6, 100, 228, 34, 'parchment');
 
     const deltas = [];
-    for (const key of ['might', 'guard', 'swiftness']) {
+    for (const [key, label] of [['might', 'MIGHT'], ['guard', 'GUARD'], ['swiftness', 'SWIFT']]) {
       const diff = (def[key] ?? 0) - (current[key] ?? 0);
-      if (diff !== 0) deltas.push(`${key.toUpperCase().slice(0, 3)} ${diff > 0 ? '+' : ''}${diff}`);
+      if (diff !== 0) deltas.push(`${label} ${diff > 0 ? '+' : ''}${diff}`);
     }
-    const line = deltas.length ? deltas.join('   ') : 'No change to your fighting.';
-    drawText(ctx, line, 12, 104, { color: '#3d3d47', shadow: '#b8bcc8' });
-    const blurb = def.desc.length > 58 ? `${def.desc.slice(0, 55)}...` : def.desc;
-    drawText(ctx, blurb, 12, 116, { color: '#3d3d47', shadow: '#b8bcc8' });
+    drawText(ctx, deltas.length ? deltas.join('   ') : 'No change to your fighting.',
+      13, 105, { color: '#3d3d47', shadow: '#b8bcc8' });
+    // Wrap rather than truncate; a clipped sentence looks like a bug.
+    const blurb = wrapText(def.desc, 206)[0] ?? '';
+    drawText(ctx, blurb, 13, 117, { color: '#3d3d47', shadow: '#b8bcc8' });
 
     const stats = playerStats();
-    const summary = `MIGHT ${stats.might}  GUARD ${stats.guard}  SWIFT ${stats.swiftness}`;
-    drawText(ctx, summary, 6, 136, { color: '#f0dca0', shadow: '#151a2c' });
+    const summary = `MIGHT ${stats.might}   GUARD ${stats.guard}   SWIFT ${stats.swiftness}`;
+    drawPanel(ctx, 6, 136, measure(summary) + 20, 20, 'night');
+    drawText(ctx, summary, 16, 142, { color: '#f0dca0', shadow: '#151a2c' });
   }
 }

@@ -653,6 +653,7 @@ export class Overworld {
       choose: (text, options, opts) => dialog.choose(text, options, opts),
       battle: (config) => this.startBattle(config),
       duel: (duellistId) => this.startDuel(duellistId),
+      holdCourt: () => this.holdCourt(),
       openShop: (stock) => this.openShop(stock),
       openSmithy: (stock) => this.openSmithy(stock),
       healParty: () => this.healAtHall(),
@@ -686,6 +687,25 @@ export class Overworld {
       this.manager.transition(async () => {
         const { Duel } = await import('./duel.js');
         this.manager.push(new Duel({ duellistId, onEnd }));
+      }, { color: '#1a1016' });
+    });
+  }
+
+  /** A turn of ruling, held from the chair. */
+  holdCourt() {
+    return new Promise((resolve) => {
+      this.manager.transition(async () => {
+        const { Court } = await import('./court.js');
+        this.manager.push(new Court({
+          onEnd: async (outcome) => {
+            audio.play(this.map.music ?? 'town', TRACKS);
+            if (outcome === 'deposed') {
+              const { Credits } = await import('./credits.js');
+              this.manager.push(new Credits());
+            }
+            resolve(outcome);
+          },
+        }));
       }, { color: '#1a1016' });
     });
   }

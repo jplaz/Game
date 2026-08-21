@@ -11,6 +11,7 @@ import {
 } from '../game/state.js';
 import { HOUSES, SWEARABLE } from './houses.js';
 import { giveEgg } from '../game/eggs.js';
+import { beginReign, reigning } from '../game/realm.js';
 import { COMPANIONS } from './companions.js';
 import {
   willJoin, recruit as doRecruit, dismiss, activeCompanion, restCompanion,
@@ -710,6 +711,16 @@ export const SCRIPTS = {
   async gymThrone(api) {
     const { say, overworld, battle, setFlag, flag } = api;
     const def = TRAINERS.gymThrone;
+    // Once the chair is yours, sitting it again is a turn of ruling rather than
+    // a repeat of the fight that won it.
+    if (flag('gameComplete')) {
+      if (!reigning()) {
+        await say('They took the crown off you. The chair is somebody else\'s problem now.');
+        return;
+      }
+      await overworld.holdCourt();
+      return;
+    }
     if (flag('trainer_gymThrone')) {
       await say(def.after);
       return;
@@ -736,7 +747,24 @@ export const SCRIPTS = {
     await say(def.after, { theme: 'royal' });
     await say('You sit. The blades are exactly as uncomfortable as everyone said.', { theme: 'royal' });
 
-    const { Credits } = await import('../scenes/credits.js');
-    overworld.manager.push(new Credits());
+    // Winning the chair is not the end of it. The realm you made on the way up
+    // is the realm you now have to hold.
+    beginReign();
+    await say('And then the room fills with people who want things from you.', { theme: 'royal' });
+    await say('Sit the throne again whenever you are ready to hold court.', { theme: 'royal' });
+    await overworld.holdCourt();
+  },
+
+  /** Returning to the chair. Every visit after the first is a turn of ruling. */
+  async throne({ say, overworld, flag }) {
+    if (!flag('gameComplete')) {
+      await say('The chair is empty. It does not look like it wants company.');
+      return;
+    }
+    if (!reigning()) {
+      await say('They took the crown off you. The chair is somebody else\'s problem now.');
+      return;
+    }
+    await overworld.holdCourt();
   },
 };

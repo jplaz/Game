@@ -183,6 +183,14 @@ export const REGION_HOUSE = {
   'The Stormlands': 'baratheon',
   'The Crownlands': 'lannister',
   'Dragonstone': 'targaryen',
+  // Across the Narrow Sea nobody cares which Westerosi banner you carry, which
+  // is most of the reason to go: no house holds this ground, so no house prices
+  // it either.
+  'Braavos': null,
+  'Pentos': null,
+  'Volantis': null,
+  'Meereen': null,
+  'The Narrow Sea': null,
 };
 
 /**

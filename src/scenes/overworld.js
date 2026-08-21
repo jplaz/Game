@@ -995,6 +995,13 @@ export class Overworld {
     });
   }
 
+  /** Carries you across the Narrow Sea and puts you ashore where you paid to go. */
+  sailTo(port) {
+    this.manager.transition(() => {
+      this.loadMap(port.map, { x: port.x, y: port.y, dir: port.dir ?? 'down' });
+    }, { color: '#12243c' });
+  }
+
   /** A turn of ruling, held from the chair. */
   holdCourt() {
     return new Promise((resolve) => {

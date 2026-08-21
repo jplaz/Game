@@ -1544,6 +1544,155 @@ export const MAPS = {
   },
 
   // ======================================================== KING'S LANDING ==
+  // ======================================================= the Free Cities ==
+  //
+  // Across the Narrow Sea, reached by ship from King's Landing. Different
+  // ground, different money, different people — and nobody out here cares which
+  // Westerosi house you swore to, which is most of the point of going.
+
+  braavos: makeTown({
+    // Canals rather than walls, which is the one thing everybody knows
+    // about Braavos and makes it read as somewhere else at a glance.
+    name: 'Braavos', music: 'town', ground: 'stone', wall: '~', floor: 'o',
+    npcs: [
+      { x: 7, y: 9, dir: 'down', name: 'Jaqen H\'ghar', sprite: 'braavosi',
+        script: 'freeCityLocal', data: { line: "Jaqen H'ghar: A man was no one, and is someone again, "
+          + 'and will be no one after. Valar morghulis.' } },
+      { x: 15, y: 9, dir: 'down', name: 'Arya', sprite: 'girl',
+        script: 'freeCityLocal', data: { line: 'Arya: I am no one. That is what they keep telling me. '
+          + 'I am fairly sure I am still someone.' } },
+      { x: 11, y: 16, dir: 'down', name: 'Iron Banker', sprite: 'merchant',
+        script: 'shop', data: { line: 'Iron Banker: The Iron Bank will have its due. '
+          + 'In the meantime, we also sell things.',
+          stock: ['maesterKit', 'sigilBanner', 'warBanner', 'kingsguardBanner'] } },
+      { x: 4, y: 9, dir: 'right', name: 'Water Dancer', sprite: 'braavosi',
+        script: 'duel', data: { duel: 'syrio' } },
+      { x: 18, y: 9, dir: 'left', name: 'Braavosi Bravo', sprite: 'sellsword',
+        script: 'freeCityLocal', data: { line: 'Bravo: In Braavos we fight with the point. '
+          + 'Hacking is for people who chop wood.' } },
+    ],
+    signs: [{ x: 9, y: 10, text: 'THE TITAN OF BRAAVOS STANDS BEHIND YOU. IT IS THE ONLY THING THAT DOES.' }],
+    warps: [
+      { x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { x: 6, y: 6, to: 'houseOfBlackAndWhite', tx: 7, ty: 10, dir: 'up' },
+    ],
+  }),
+
+  houseOfBlackAndWhite: {
+    name: 'House of Black and White', music: 'heal', ground: 'stone', indoor: true,
+    tiles: [
+      'IIIIIIIIIIIIII',
+      'I============I',
+      'I=BB=====BB==I',
+      'I============I',
+      'I===F====F===I',
+      'I============I',
+      'I============I',
+      'I====KKKK====I',
+      'I============I',
+      'I============I',
+      'I============I',
+      'IIIIIID IIIIII'.replace(' ', '='),
+    ],
+    npcs: [
+      { x: 7, y: 5, dir: 'down', name: 'The Kindly Man', sprite: 'oldman',
+        script: 'healer', data: { line: 'The Kindly Man: All men must serve. Shall I see to yours?' } },
+    ],
+    warps: [{ x: 7, y: 11, to: 'braavos', tx: 6, ty: 7, dir: 'down' }],
+  },
+
+  pentos: makeTown({
+    name: 'Pentos', music: 'town', ground: 'sand', wall: 'C', floor: 's',
+    npcs: [
+      { x: 7, y: 9, dir: 'down', name: 'Illyrio Mopatis', sprite: 'merchant',
+        script: 'freeCityLocal', data: { line: 'Illyrio Mopatis: I am a merchant of cheese and spice. '
+          + 'Also of kings, occasionally, when the market is right.' } },
+      { x: 15, y: 9, dir: 'down', name: 'Ser Jorah', sprite: 'guard',
+        script: 'freeCityLocal', data: { line: 'Ser Jorah Mormont: I was a lord in Bear Island once. '
+          + 'Now I am a man who knows where the ships go.' } },
+      { x: 11, y: 16, dir: 'down', name: 'Spice Merchant', sprite: 'merchant',
+        script: 'shop', data: { line: 'Spice Merchant: From Qarth, Yi Ti and the Jade Sea. Mostly.',
+          stock: ['maesterKit', 'poppyMilk', 'sigilBanner', 'warBanner'] } },
+      { x: 4, y: 9, dir: 'right', name: 'Dothraki Rider', sprite: 'wildling',
+        script: 'freeCityLocal', data: { line: 'Dothraki Rider: A khal who cannot ride is no khal. '
+          + 'You walk everywhere. It is very strange.' } },
+    ],
+    signs: [{ x: 9, y: 10, text: 'PENTOS. NO WALLS WORTH THE NAME, AND NO NEED OF THEM YET.' }],
+    warps: [{ x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' }],
+  }),
+
+  volantis: makeTown({
+    name: 'Volantis', music: 'town', ground: 'sand', wall: 'C', floor: 's',
+    npcs: [
+      { x: 7, y: 9, dir: 'down', name: 'Red Priestess', sprite: 'redPriest',
+        script: 'freeCityLocal', data: { line: 'Red Priestess: The night is dark and full of terrors. '
+          + 'Volantis burns a fire against it every hour of every day.' } },
+      { x: 15, y: 9, dir: 'down', name: 'Triarch', sprite: 'noble',
+        script: 'freeCityLocal', data: { line: 'Triarch: Old Volantis was first. Everything since '
+          + 'has been a copy, and a poor one.' } },
+      { x: 11, y: 16, dir: 'down', name: 'Slaver', sprite: 'merchant',
+        script: 'shop', data: { line: 'Slaver: I deal in cargo. You would not like my usual stock, '
+          + 'so here is the other kind.',
+          stock: ['maesterKit', 'poppyMilk', 'warBanner', 'kingsguardBanner'] } },
+      { x: 4, y: 9, dir: 'right', name: 'Bridge Guard', sprite: 'unsullied',
+        script: 'freeCityLocal', data: { line: 'Bridge Guard: The Long Bridge has stood a thousand '
+          + 'years. Walk on the left.' } },
+    ],
+    signs: [{ x: 9, y: 10, text: 'THE LONG BRIDGE. BUILT BY VALYRIA. NOBODY LEFT KNOWS HOW.' }],
+    warps: [{ x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' }],
+  }),
+
+  meereen: makeTown({
+    name: 'Meereen', music: 'town', ground: 'sand', wall: 'C', floor: 's',
+    npcs: [
+      { x: 7, y: 9, dir: 'down', name: 'Missandei', sprite: 'targaryen',
+        script: 'freeCityLocal', data: { line: 'Missandei: I speak nineteen languages. '
+          + 'In all of them, this city is complicated.' } },
+      { x: 15, y: 9, dir: 'down', name: 'Grey Worm', sprite: 'unsullied',
+        script: 'duel', data: { duel: 'greyWorm' } },
+      { x: 11, y: 16, dir: 'down', name: 'Ghiscari Trader', sprite: 'merchant',
+        script: 'shop', data: { line: 'Ghiscari Trader: The Queen has views about what may be sold. '
+          + 'These are the things that remain.',
+          stock: ['maesterKit', 'poppyMilk', 'kingsguardBanner'] } },
+      { x: 4, y: 9, dir: 'right', name: 'Daario Naharis', sprite: 'braavosi',
+        script: 'duel', data: { duel: 'daario' } },
+    ],
+    signs: [{ x: 9, y: 10, text: 'THE GREAT PYRAMID OF MEEREEN. A DRAGON QUEEN SITS AT THE TOP OF IT.' }],
+    warps: [{ x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' }],
+  }),
+
+  /** The crossing itself: a deck, and the sea going past. */
+  narrowSea: {
+    name: 'The Narrow Sea', music: 'route', ground: 'stone',
+    tiles: [
+      '~~~~~~~~~~~~~~~~~~~~~~~~',
+      '~~~~~~~~~~~~~~~~~~~~~~~~',
+      '~~~~~~~~__________~~~~~~',
+      '~~~~~~~_==========_~~~~~',
+      '~~~~~~_============_~~~~',
+      '~~~~~~_============_~~~~',
+      '~~~~~~_====!=======_~~~~',
+      '~~~~~~_============_~~~~',
+      '~~~~~~_============_~~~~',
+      '~~~~~~_============_~~~~',
+      '~~~~~~~_==========_~~~~~',
+      '~~~~~~~~__________~~~~~~',
+      '~~~~~~~~~~~~~~~~~~~~~~~~',
+      '~~~~~~~~~~~~~~~~~~~~~~~~',
+    ],
+    npcs: [
+      { x: 9, y: 5, dir: 'down', name: 'Ship\'s Captain', sprite: 'braavosi',
+        script: 'ship', data: {} },
+      { x: 14, y: 8, dir: 'left', name: 'Deckhand', sprite: 'smallfolk',
+        script: 'freeCityLocal', data: { line: 'Deckhand: Four days to Braavos with this wind. '
+          + 'Longer if you keep asking.' } },
+    ],
+    signs: [{ x: 11, y: 6, text: 'SPEAK TO THE CAPTAIN TO NAME A PORT.' }],
+    // The gangplank puts you back on the last shore you sailed from; the
+    // captain's own passage list is what takes you anywhere new.
+    warps: [{ x: 11, y: 3, to: 'kingsLanding', tx: 11, ty: 21, dir: 'down' }],
+  },
+
   kingsLanding: {
     name: "King's Landing",
     music: 'town',
@@ -1585,6 +1734,8 @@ export const MAPS = {
       { x: 16, y: 10, text: "KING'S LANDING\nThe Red Keep stands above.\nSigil-holder: THE IRON THRONE." },
     ],
     npcs: [
+      { x: 11, y: 20, dir: 'down', name: 'Harbourmaster', sprite: 'merchant',
+        script: 'harbour', data: {} },
       { x: 8, y: 9, dir: 'down', sprite: 'guard', name: 'Gold Cloak', script: 'klGuard' },
       { x: 18, y: 19, dir: 'left', sprite: 'child', name: 'Beggar Boy', script: 'klHint' },
       { x: 4, y: 19, dir: 'right', sprite: 'nightswatch', name: 'Recruiter', script: 'klRecruiter' },
@@ -1707,6 +1858,9 @@ export function tileAt(map, x, y) {
  * just which gate you walked through.
  */
 export const REGIONS = {
+  braavos: 'Braavos', houseOfBlackAndWhite: 'Braavos',
+  pentos: 'Pentos', volantis: 'Volantis', meereen: 'Meereen',
+  narrowSea: 'The Narrow Sea',
   heroHouse: 'The North', winterfell: 'The North', winterfellForge: 'The North',
   greatKeep: 'The North', maesterHallWinterfell: 'The North', wolfswood: 'The North',
   kingsroadNorth: 'The North',

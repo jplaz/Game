@@ -13,6 +13,7 @@ import { HOUSES, SWEARABLE } from './houses.js';
 import { giveEgg } from '../game/eggs.js';
 import { beginReign, reigning } from '../game/realm.js';
 import { QUESTS } from './quests.js';
+import { PORTS } from './ports.js';
 import { openQuest, closeQuest, isOpen, isClosed } from '../game/questlog.js';
 import { COMPANIONS } from './companions.js';
 import {
@@ -332,6 +333,55 @@ export const SCRIPTS = {
     closeQuest(id, option.label);
     audio.sfx('confirm');
     await say(option.result);
+  },
+
+  /**
+   * The gangplank at King's Landing. Everything east of here starts with
+   * somebody at a dock asking whether you can pay.
+   */
+  async harbour({ say, choose, overworld }) {
+    await say('Harbourmaster: Ships out to Braavos, Pentos, Volantis and Meereen. '
+      + 'The captain sets the fare, not me.');
+    const answer = await choose('Go aboard?', ['Go aboard', 'Stay ashore']);
+    if (answer !== 0) {
+      await say('Harbourmaster: Suit yourself. The sea will still be there.');
+      return;
+    }
+    overworld.sailTo({ map: 'narrowSea', x: 11, y: 5, dir: 'down' });
+  },
+
+  /** Somebody standing in a Free City with something to say about it. */
+  async freeCityLocal({ say, npc }) {
+    await say(npc.data?.line ?? `${npc.name} has nothing to say to you today.`);
+  },
+
+  /**
+   * Passage across the Narrow Sea. The captain will take you anywhere he has a
+   * price for, and the price is the same in both directions.
+   */
+  async ship({ say, choose, overworld }) {
+    const here = overworld.map.id;
+    const ports = PORTS.filter((p) => p.map !== here);
+
+    await say("Ship's Captain: I sail where the money is. Name a port.");
+    const labels = ports.map((p) => `${p.name} (${p.fare}g)`);
+    const pick = await choose('Where to?', [...labels, 'Nowhere yet']);
+    if (pick < 0 || pick >= ports.length) {
+      await say("Ship's Captain: Then get off my deck or make yourself useful.");
+      return;
+    }
+
+    const port = ports[pick];
+    if (!canAfford(port.fare)) {
+      await say(`Ship's Captain: ${port.fare} gold dragons. Come back when you have them.`);
+      return;
+    }
+    addMoney(-port.fare);
+    audio.sfx('confirm');
+    await say(`Ship's Captain: ${port.name} it is. Find somewhere to sit and do not be sick `
+      + 'anywhere I can see.');
+    await say('The crossing takes days. You sleep badly and eat worse.');
+    overworld.sailTo(port);
   },
 
   // ---------------------------------------------------------- Winterfell ----

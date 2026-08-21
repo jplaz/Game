@@ -21,6 +21,7 @@ import {
   allegiance, standing, localHouse, priceFactor,
 } from '../game/state.js';
 import { saveGame } from '../game/save.js';
+import { eggs, eggProgress, bondOf, bondWord, RIDING_BOND } from '../game/eggs.js';
 import { gear, gearTable, GEAR_SLOTS } from '../data/gear.js';
 import {
   playerStats, equipped, equip, playerTechniques, playerTitle,
@@ -417,6 +418,28 @@ export class MainMenu {
       if (creature.hp <= 0) drawText(ctx, 'DOWN', x + 76, y + 4, { color: '#f07070', shadow: '#151a2c' });
     });
 
+    // Eggs sit under the party: they are not creatures yet, and the only thing
+    // worth knowing about one is how much further you have to carry it.
+    const carried = eggs();
+    if (carried.length) {
+      const rows = Math.ceil(list.length / 2);
+      let ey = 24 + rows * 42;
+      for (const egg of carried.slice(0, 2)) {
+        if (ey > 128) break;
+        drawPanel(ctx, 10, ey, 218, 20, 'night');
+        const label = egg.from ? `Egg from ${egg.from}` : 'Egg';
+        drawText(ctx, fitText(label, 100), 16, ey + 3,
+          { color: '#f0b070', shadow: '#151a2c' });
+        const left = Math.max(0, egg.steps - egg.walked);
+        const note = left > 0 ? `${left} steps` : 'Stirring';
+        drawText(ctx, note, 222 - measure(note), ey + 3,
+          { color: '#f0dca0', shadow: '#151a2c' });
+        drawBar(ctx, 120, ey + 13, 68, 4, eggProgress(egg),
+          { light: '#f0b060', dark: '#a06020' });
+        ey += 22;
+      }
+    }
+
     drawText(ctx, 'A: details   B: back', 12, 144, { color: '#98a0bc', shadow: '#151a2c' });
   }
 
@@ -468,6 +491,17 @@ export class MainMenu {
     const nextLevel = expForLevel(def.growth, creature.level + 1);
     drawText(ctx, `EXP to next: ${Math.max(0, nextLevel - creature.exp)}`, 12, 142,
       { color: '#98a0bc', shadow: '#151a2c' });
+
+    // What it makes of you, and — for anything that flies — whether that is
+    // enough for it to carry you.
+    const bond = bondOf(creature);
+    const word = bondWord(creature);
+    drawText(ctx, `${word} (${bond})`, 230 - measure(`${word} (${bond})`), 142,
+      { color: bond >= RIDING_BOND ? '#78d858' : '#f0c840', shadow: '#151a2c' });
+    if (def.mount === 'fly' && bond < RIDING_BOND) {
+      drawText(ctx, 'Will not yet be ridden', 12, 130,
+        { color: '#f0a060', shadow: '#151a2c' });
+    }
   }
 
   drawGear(ctx) {

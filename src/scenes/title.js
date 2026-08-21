@@ -1,6 +1,7 @@
 // Title screen, new-game name entry and the continue slot.
 
 import { drawPanel } from '../ui/panel.js';
+import { NamePad } from '../ui/namepad.js';
 import { drawText, measure, LINE_HEIGHT } from '../engine/font.js';
 import { input } from '../engine/input.js';
 import { audio } from '../engine/audio.js';
@@ -10,23 +11,13 @@ import { species as getSpecies } from '../data/species.js';
 import { newGame, setState, formatTime } from '../game/state.js';
 import { hasSave, loadGame, saveSummary } from '../game/save.js';
 
-const LETTER_ROWS = [
-  'ABCDEFGHI',
-  'JKLMNOPQR',
-  'STUVWXYZ ',
-  'abcdefghi',
-  'jklmnopqr',
-  'stuvwxyz-',
-];
-const MAX_NAME = 10;
 
 export class Title {
   constructor() {
     this.view = 'title';
     this.index = 0;
     this.time = 0;
-    this.name = '';
-    this.cursor = { row: 0, col: 0 };
+    this.namePad = null;
     this.options = [];
   }
 
@@ -44,7 +35,7 @@ export class Title {
   update(dt) {
     this.time += dt;
     if (this.view === 'title') this.updateTitle();
-    else if (this.view === 'name') this.updateNameEntry();
+    else if (this.view === 'name') this.updateNameEntry(dt);
   }
 
   updateTitle() {
@@ -67,48 +58,16 @@ export class Title {
         this.refreshOptions();
       }
     } else {
-      this.name = '';
-      this.cursor = { row: 0, col: 0 };
+      this.namePad = new NamePad({ prompt: 'What is your name, rider?', fallback: 'Snow' });
       this.view = 'name';
     }
   }
 
-  updateNameEntry() {
-    const rows = LETTER_ROWS;
-    if (input.repeat('up')) {
-      this.cursor.row = (this.cursor.row - 1 + rows.length) % rows.length;
-      audio.sfx('cursor');
-    }
-    if (input.repeat('down')) {
-      this.cursor.row = (this.cursor.row + 1) % rows.length;
-      audio.sfx('cursor');
-    }
-    if (input.repeat('left')) {
-      this.cursor.col = (this.cursor.col - 1 + rows[0].length) % rows[0].length;
-      audio.sfx('cursor');
-    }
-    if (input.repeat('right')) {
-      this.cursor.col = (this.cursor.col + 1) % rows[0].length;
-      audio.sfx('cursor');
-    }
-
-    if (input.pressed('a')) {
-      const char = rows[this.cursor.row][this.cursor.col];
-      if (this.name.length < MAX_NAME) {
-        this.name += char;
-        audio.sfx('cursor');
-      }
-    }
-    if (input.pressed('b')) {
-      this.name = this.name.slice(0, -1);
-      audio.sfx('cancel');
-    }
-    if (input.pressed('start')) {
-      const finalName = this.name.trim() || 'Snow';
-      audio.sfx('confirm');
-      setState(newGame(finalName));
-      this.start();
-    }
+  updateNameEntry(dt) {
+    const finished = this.namePad.update(dt);
+    if (finished === null) return;
+    setState(newGame(finished));
+    this.start();
   }
 
   async start() {
@@ -190,30 +149,6 @@ export class Title {
   }
 
   drawNameEntry(ctx) {
-    drawPanel(ctx, 12, 10, 216, 30, 'night');
-    drawText(ctx, 'What is your name, rider?', 20, 14, { color: '#f0dca0', shadow: '#151a2c' });
-    const shown = this.name + (Math.floor(this.time * 3) % 2 ? '_' : '');
-    drawText(ctx, shown || '_', 20, 26, { color: '#f2f4ff', shadow: '#151a2c' });
-
-    const grid = { x: 34, y: 46, cell: 19 };
-    drawPanel(ctx, grid.x - 10, grid.y - 8, LETTER_ROWS[0].length * grid.cell + 20,
-      LETTER_ROWS.length * 15 + 16, 'night');
-
-    LETTER_ROWS.forEach((row, r) => {
-      for (let c = 0; c < row.length; c++) {
-        const x = grid.x + c * grid.cell;
-        const y = grid.y + r * 15;
-        const selected = this.cursor.row === r && this.cursor.col === c;
-        if (selected) {
-          ctx.fillStyle = '#f0dca0';
-          ctx.fillRect(x - 4, y - 2, 15, 13);
-        }
-        drawText(ctx, row[c], x, y,
-          selected ? { color: '#20222e', shadow: null } : { color: '#f2f4ff', shadow: '#151a2c' });
-      }
-    });
-
-    drawText(ctx, 'Z: add   X: delete   ENTER: done', 30, 146,
-      { color: '#98a0bc', shadow: '#0a0d16' });
+    this.namePad.draw(ctx);
   }
 }

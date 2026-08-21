@@ -11,6 +11,7 @@ import { TRACKS } from '../data/music.js';
 import { rng } from '../engine/rng.js';
 import { makeRoamer, ROAMERS } from '../data/duellists.js';
 import { creatureSpecies, displayName } from '../game/creature.js';
+import { walkEggs, hatch, deepenBond, willCarry } from '../game/eggs.js';
 import { creatureSprite, SPRITE_SIZE } from '../art/creatures.js';
 import { dialog } from '../ui/textbox.js';
 import { drawPanel } from '../ui/panel.js';
@@ -46,6 +47,7 @@ export class Overworld {
     this.bumpCooldown = 0;
     this.pendingEncounter = null;
     this.mount = null;      // { creature, kind } while you are riding
+    this.pendingHatch = null;
     this.alert = null;      // '!' bubble over a trainer who has spotted you
     this.approach = null;   // trainer walking toward the player
     this.onLoadScript = null;
@@ -230,14 +232,19 @@ export class Overworld {
 
   // ----------------------------------------------------------------- riding --
 
-  /** The lead creature that is grown enough to carry you, if any. */
+  /**
+   * The lead creature that will carry you. A grown beast simply will; a dragon
+   * has to trust you first, and the reason it refuses is worth reporting.
+   */
   rideable() {
+    let refusal = null;
     for (const creature of game.state.party) {
       if (creature.hp <= 0) continue;
-      const kind = creatureSpecies(creature).mount;
-      if (kind) return { creature, kind };
+      const verdict = willCarry(creature);
+      if (verdict.ok) return { creature, kind: verdict.kind };
+      if (verdict.reason === 'untrusting' && !refusal) refusal = { creature, verdict };
     }
-    return null;
+    return refusal ? { refused: refusal } : null;
   }
 
   async toggleRide() {
@@ -260,6 +267,12 @@ export class Overworld {
       return;
     }
     const found = this.rideable();
+    if (found?.refused) {
+      const name = displayName(found.refused.creature);
+      await dialog.say(`${name} shows you its teeth. It is grown enough to carry you `
+        + 'and does not yet think enough of you to let you try.');
+      return;
+    }
     if (!found) {
       const party = game.state.party.filter((c) => c.hp > 0);
       await dialog.say(party.length
@@ -294,6 +307,15 @@ export class Overworld {
     game.state.position = { map: this.map.id, x: this.player.x, y: this.player.y, dir: this.player.dir };
     game.state.player.steps++;
 
+    // Eggs hatch because you carried them somewhere, not because you used them.
+    const ready = walkEggs(1);
+    if (ready.length) this.pendingHatch = ready[0];
+
+    // Carrying you is how a mount comes to trust you, a little at a time.
+    if (this.mount && game.state.player.steps % 24 === 0) {
+      deepenBond(this.mount.creature, 1);
+    }
+
     this.onArrive();
   }
 
@@ -303,8 +325,27 @@ export class Overworld {
       this.doWarp(warp);
       return;
     }
+    // An egg that finished on this step comes first: it is the reason you have
+    // been walking, and nothing should interrupt it.
+    if (this.pendingHatch) {
+      this.doHatch();
+      return;
+    }
     if (this.checkTrainers()) return;
     this.checkEncounter();
+  }
+
+  doHatch() {
+    const egg = this.pendingHatch;
+    this.pendingHatch = null;
+    const creature = hatch(egg);
+    this.manager.transition(async () => {
+      const { Hatch } = await import('./hatch.js');
+      this.manager.push(new Hatch({
+        creature,
+        onEnd: () => audio.play(this.map.music ?? 'town', TRACKS),
+      }));
+    }, { color: '#1a1018' });
   }
 
   doWarp(warp) {

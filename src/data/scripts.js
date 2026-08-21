@@ -10,6 +10,7 @@ import {
   changeStanding, recordChoice, choice,
 } from '../game/state.js';
 import { HOUSES, SWEARABLE } from './houses.js';
+import { giveEgg } from '../game/eggs.js';
 import { createCreature, displayName } from '../game/creature.js';
 import { TRAINERS } from './trainers.js';
 import { DUELLISTS } from './duellists.js';
@@ -594,19 +595,43 @@ export const SCRIPTS = {
   },
 
   /** The Black Dread, sleeping under Dragonstone. */
-  async blackdread({ say, npc, battle, setFlag, flag }) {
-    if (flag('blackdread_done')) { npc.hidden = true; return; }
+  /**
+   * The nest under the Dragonmont. You do not fight what lives here — you
+   * could not — you decide whether to take something from it.
+   */
+  async blackdread({ say, choose, npc, setFlag, flag }) {
+    if (flag('blackdread_done')) {
+      await say('The warmth is still here. Whatever left it has not come back.');
+      npc.hidden = true;
+      return;
+    }
     await say('The heat here is wrong for a cave. The rock underfoot is warm as a hearthstone.');
     await say('Something enormous shifts in the dark, and opens one eye the colour of a forge.');
-    const foe = createCreature('blackdread', 50);
-    const outcome = await battle({ kind: 'wild', foe });
-    if (outcome === 'caught' || outcome === 'won') {
+    await say('It does not attack. It watches you, the way you would watch a mouse cross a room.');
+    await say('Behind it, banked in the ash, are three eggs.');
+
+    const take = await choose('Take one?', ['Take an egg', 'Leave them be']);
+    if (take !== 0) {
+      recordChoice('dragonEgg', 'left');
+      await say('You back out the way you came. The eye follows you the whole way and does not blink.');
+      await say('Some part of you will wonder about that for the rest of your life.');
       setFlag('blackdread_done');
       npc.hidden = true;
-      if (outcome === 'won') await say('It folds back into the dark, and the mountain settles.');
-    } else {
-      await say('It loses interest in you, which is the only reason you are still standing.');
+      return;
     }
+
+    await say('You lift the smallest. It is heavier than it looks and hot enough to hurt.');
+    await say('The great head lowers until it is level with yours. Then it turns away.');
+    recordChoice('dragonEgg', 'taken');
+    giveEgg('emberling', { steps: 320, from: 'the Dragonmont' });
+    audio.sfx('caught');
+    await say('You are carrying a dragon egg.');
+    await say('Maester Luwin said eggs like this hatch for the walking, not the waiting. So walk.');
+
+    // Whoever still holds Dragonstone notices a stranger leaving with one.
+    changeStanding('targaryen', -10);
+    setFlag('blackdread_done');
+    npc.hidden = true;
   },
 
   // --------------------------------------------------------- the endgame ---

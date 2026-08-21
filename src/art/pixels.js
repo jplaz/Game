@@ -76,3 +76,17 @@ export function drawContactShadow(ctx, centreX, baseY, width) {
   ctx.fillRect(centreX - half + 1, baseY + 1, half * 2 - 2, 1);
   ctx.restore();
 }
+
+/**
+ * A filled ellipse made of whole pixels. The canvas `ellipse` path is
+ * anti-aliased, which puts soft grey fringes on everything and is exactly the
+ * thing this project is trying not to look like.
+ */
+export function pixelOval(ctx, cx, cy, rx, ry, color) {
+  ctx.fillStyle = color;
+  for (let y = -ry; y <= ry; y++) {
+    const span = Math.floor(rx * Math.sqrt(Math.max(0, 1 - (y * y) / (ry * ry))));
+    if (span <= 0) continue;
+    ctx.fillRect(Math.round(cx - span), Math.round(cy + y), span * 2, 1);
+  }
+}

@@ -37,6 +37,7 @@ import {
   game, addMoney, setFlag, takeItem, itemCount, markCaught, changeStanding, standingWord,
 } from '../game/state.js';
 import { HOUSES } from '../data/houses.js';
+import { deepenBond, bondWord } from '../game/eggs.js';
 
 const PLAYER_POS = { x: 26, y: 44, scale: 2 };
 const FOE_POS = { x: 172, y: 14, scale: 2 };
@@ -550,9 +551,15 @@ export class Duel {
         audio.sfx('money');
         await this.say(`You take ${this.def.reward} gold dragons from the field.`);
       }
-      // A beast that actually fought is trained by the fighting.
+      // A beast that actually fought is trained by the fighting, and trusts
+      // you a little more for having stood beside you in it.
       if (this.yourBeast && this.beastRounds > 0) {
         const creature = this.yourBeast.creature;
+        const bondBefore = bondWord(creature);
+        deepenBond(creature, Math.min(4, 1 + Math.floor(this.beastRounds / 3)));
+        if (bondWord(creature) !== bondBefore) {
+          await this.say(`${this.yourBeast.name} looks at you differently. ${bondWord(creature)}.`);
+        }
         const share = Math.max(1, Math.round(exp * 0.6));
         const before = creature.level;
         const result = gainExp(creature, share);

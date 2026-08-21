@@ -915,7 +915,8 @@ export const MAPS = {
       { roamer: 'redPriestess', min: 34, max: 42, weight: 36 },
       { roamer: 'ironbornReaver', min: 35, max: 44, weight: 32 },
       { roamer: 'sellsword', min: 36, max: 48, weight: 32 },
-          { beast: 'emberwisp', min: 34, max: 40, weight: 18 },
+          { roamer: 'dragonrider', min: 36, max: 44, weight: 14 },
+      { beast: 'emberwisp', min: 34, max: 40, weight: 18 },
       { beast: 'pyremaw', min: 40, max: 45, weight: 10 },
       { beast: 'scaleflight', min: 36, max: 42, weight: 12 },
     ],
@@ -1677,6 +1678,8 @@ export const MAPS = {
   meereen: makeTown({
     name: 'Meereen', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
+      { x: 11, y: 6, dir: 'down', name: 'Daenerys Targaryen', sprite: 'targaryen',
+        script: 'duel', data: { duel: 'daenerys' } },
       { x: 7, y: 9, dir: 'down', name: 'Missandei', sprite: 'targaryen',
         script: 'freeCityLocal', data: { line: 'Missandei: I speak nineteen languages. '
           + 'In all of them, this city is complicated.' } },

@@ -266,6 +266,19 @@ export const DUELLISTS = {
     defeat: 'Daario Naharis: Beautiful. Truly. I shall tell it badly in every tavern from here to Meereen.',
     after: 'Daario Naharis: Fight for what you love, or do not fight. Anything else is just employment.',
   },
+  daenerys: {
+    name: 'Daenerys Targaryen', sprite: 'targaryen', level: 38,
+    house: 'targaryen',
+    vigour: 250, might: 48, guard: 28, swiftness: 34, wind: 30,
+    techniques: ['quickCut', 'riposte', 'guard'],
+    beast: { species: 'dreadwyrm', level: 42 },
+    reward: 3200, exp: 1100, canYield: false, boss: true,
+    intro: 'Daenerys Targaryen: I am the blood of the dragon. Do not mistake courtesy for '
+         + 'permission. Drogon - leave some of them standing.',
+    defeat: 'Daenerys Targaryen: Enough. You fight like someone with nothing to lose, '
+          + 'which is the only kind worth having.',
+    after: 'Daenerys Targaryen: Fire and blood. Remember which order those come in.',
+  },
 };
 
 export function duellist(id) {
@@ -427,6 +440,17 @@ export const ROAMERS = {
       'The Lord of Light has shown me your face. It was on fire.',
     ],
   },
+  dragonrider: {
+    title: 'Dragonrider', build: 'skirmisher', house: 'targaryen',
+    sprites: ['targaryen'],
+    techniques: ['slash', 'riposte', 'guard'],
+    beast: { species: 'scaleflight', chance: 0.85 },
+    lines: [
+      'Dragonrider: The dragon decides whether this goes well. Not me, and certainly not you.',
+      'Dragonrider: Valyria rode these before your house had a name. Stand aside.',
+    ],
+  },
+
   gravedigger: {
     title: 'Grave-robber', build: 'ruffian',
     sprites: ['smallfolk', 'oldman'],

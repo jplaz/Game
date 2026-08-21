@@ -995,6 +995,16 @@ export const SCRIPTS = {
     await say('The heat here is wrong for a cave. The rock underfoot is warm as a hearthstone.');
     await say('Something enormous shifts in the dark, and opens one eye the colour of a forge.');
     await say('It does not attack. It watches you, the way you would watch a mouse cross a room.');
+
+    // It knows a Targaryen banner when it sees one, which is the whole of what
+    // being one is worth.
+    const dragonblood = allegiance() === 'targaryen';
+    if (dragonblood) {
+      await say('Then it puts its head down, level with yours, and breathes out — hot, and '
+        + 'not at you.');
+      await say('Whatever your banner means to the men who fight under it, it means '
+        + 'something older down here.');
+    }
     await say('Behind it, banked in the ash, are three eggs.');
 
     const take = await choose('Take one?', ['Take an egg', 'Leave them be']);
@@ -1010,13 +1020,23 @@ export const SCRIPTS = {
     await say('You lift the smallest. It is heavier than it looks and hot enough to hurt.');
     await say('The great head lowers until it is level with yours. Then it turns away.');
     recordChoice('dragonEgg', 'taken');
-    giveEgg('emberling', { steps: 320, from: 'the Dragonmont' });
+
+    // A Targaryen is not stealing. It hatches sooner for them, and Dragonstone
+    // thinks better of them for it rather than worse.
+    giveEgg('emberling', {
+      steps: dragonblood ? 180 : 320,
+      from: 'the Dragonmont',
+    });
     audio.sfx('caught');
     await say('You are carrying a dragon egg.');
-    await say('Maester Luwin said eggs like this hatch for the walking, not the waiting. So walk.');
-
-    // Whoever still holds Dragonstone notices a stranger leaving with one.
-    changeStanding('targaryen', -10);
+    if (dragonblood) {
+      await say('It is already warm against your ribs. It knows whose blood is carrying it.');
+      changeStanding('targaryen', 12);
+    } else {
+      await say('Maester Luwin said eggs like this hatch for the walking, not the waiting. So walk.');
+      // Whoever still holds Dragonstone notices a stranger leaving with one.
+      changeStanding('targaryen', -10);
+    }
     setFlag('blackdread_done');
     npc.hidden = true;
   },

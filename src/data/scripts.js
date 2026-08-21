@@ -6,8 +6,10 @@
 
 import {
   game, party, addCreature, giveItem, hasItem, addMoney, canAfford,
-  sigilCount, hasSigil, dexCounts,
+  sigilCount, hasSigil, dexCounts, swearTo, allegiance, standing, standingWord,
+  changeStanding, recordChoice, choice,
 } from '../game/state.js';
+import { HOUSES, SWEARABLE } from './houses.js';
 import { createCreature, displayName } from '../game/creature.js';
 import { TRAINERS } from './trainers.js';
 import { DUELLISTS } from './duellists.js';
@@ -112,7 +114,34 @@ export const SCRIPTS = {
     }
 
     await say('Maester Luwin: There you are. Lord Rickard wants a rider for the southern roads, and every other candidate is either too old or too Bolton.');
-    await say('You will need a creature of your own. I have three in my care. Choose.');
+
+    // Whose banner you ride under. Every house in the realm forms an opinion
+    // from this moment, and they all remember it.
+    await say('Before any of that. A rider carries somebody\'s banner, and the roads read banners before they read faces.');
+    let houseId = null;
+    while (!houseId) {
+      const labels = SWEARABLE.map((id) => HOUSES[id].full);
+      const pick = await choose('Whose banner will you carry?', [...labels, 'Tell me again']);
+      if (pick < 0 || pick >= SWEARABLE.length) {
+        await say('Maester Luwin: The house you name is the house that answers for you. Their friends open doors. Their enemies open throats.');
+        continue;
+      }
+      const candidate = SWEARABLE[pick];
+      const def = HOUSES[candidate];
+      await say(`${def.full}. "${def.words}." Their seat is ${def.seat}.`);
+      const confirm = await choose(`Swear to ${def.full}?`, ['I swear it', 'Let me think']);
+      if (confirm === 0) houseId = candidate;
+    }
+
+    swearTo(houseId);
+    recordChoice('allegiance', houseId);
+    audio.sfx('levelup');
+    const sworn = HOUSES[houseId];
+    await say(`You are sworn to ${sworn.full}.`);
+    await say(`Maester Luwin: ${sworn.sworn}`);
+    await say('Their rivals will have heard by the time you reach the gate. That is how it works.');
+
+    await say('Now. You will need a creature of your own. I have three in my care. Choose.');
 
     let index = -1;
     while (index < 0) {

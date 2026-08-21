@@ -33,7 +33,10 @@ import {
   playerStats, playerTechniques, maxVigour, gainPlayerExp, equipped,
   giveGear, expToNextLevel, expForPlayerLevel, playerAppearance,
 } from '../game/player.js';
-import { game, addMoney, setFlag, takeItem, itemCount, markCaught } from '../game/state.js';
+import {
+  game, addMoney, setFlag, takeItem, itemCount, markCaught, changeStanding, standingWord,
+} from '../game/state.js';
+import { HOUSES } from '../data/houses.js';
 
 const PLAYER_POS = { x: 26, y: 44, scale: 2 };
 const FOE_POS = { x: 172, y: 14, scale: 2 };

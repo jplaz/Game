@@ -6,7 +6,9 @@ import { dialog } from '../ui/textbox.js';
 import { input } from '../engine/input.js';
 import { audio } from '../engine/audio.js';
 import { item as getItem, ITEMS } from '../data/items.js';
-import { game, addMoney, canAfford, giveItem, takeItem, itemCount } from '../game/state.js';
+import {
+  game, addMoney, canAfford, giveItem, takeItem, itemCount, priceFactor,
+} from '../game/state.js';
 
 const VISIBLE_ROWS = 5;
 
@@ -77,7 +79,10 @@ export class Shop {
   /** Price of one unit of the highlighted item, in the current direction. */
   unitPrice(id) {
     const def = getItem(id);
-    return this.buying ? def.price : Math.floor(def.price / 2);
+    // What the house holding this town thinks of you moves the price.
+    const factor = priceFactor();
+    if (this.buying) return Math.max(1, Math.round(def.price * factor));
+    return Math.floor(def.price / 2 / factor);
   }
 
   /** Largest quantity the player could commit to right now. */
@@ -220,8 +225,8 @@ export class Shop {
       }
       drawText(ctx, def.name, box.x + 14, y, { color: theme.text, shadow: theme.textShadow });
       const price = this.buying
-        ? `${def.price}g`
-        : `${Math.floor(def.price / 2)}g  (${itemCount(id)})`;
+        ? `${this.unitPrice(id)}g`
+        : `${this.unitPrice(id)}g  (${itemCount(id)})`;
       drawText(ctx, price, box.x + box.w - measure(price) - 8, y,
         { color: theme.text, shadow: theme.textShadow });
     });

@@ -1,7 +1,10 @@
 // The pause menu: party, bag, bestiary, sigils, trainer card and saving.
 
 import { drawPanel, drawBar, HP_COLORS } from '../ui/panel.js';
-import { drawText, measure, LINE_HEIGHT } from '../engine/font.js';
+import {
+  HOUSES, HOUSE_IDS, BAND_COLOUR, standingBand,
+} from '../data/houses.js';
+import { drawText, measure, fitText, LINE_HEIGHT } from '../engine/font.js';
 import { dialog } from '../ui/textbox.js';
 import { input } from '../engine/input.js';
 import { audio } from '../engine/audio.js';
@@ -15,6 +18,7 @@ import {
 } from '../game/creature.js';
 import {
   game, party, itemCount, takeItem, formatMoney, formatTime, dexCounts, SIGILS,
+  allegiance, standing, localHouse, priceFactor,
 } from '../game/state.js';
 import { saveGame } from '../game/save.js';
 import { gear, gearTable, GEAR_SLOTS } from '../data/gear.js';
@@ -24,7 +28,7 @@ import {
 } from '../game/player.js';
 import { drawActor, ACTOR_W, ACTOR_H } from '../art/actors.js';
 
-const ROOT_ITEMS = ['PARTY', 'GEAR', 'BAG', 'BESTIARY', 'SIGILS', 'CARD', 'SAVE', 'CLOSE'];
+const ROOT_ITEMS = ['PARTY', 'GEAR', 'BAG', 'HOUSES', 'BESTIARY', 'SIGILS', 'CARD', 'SAVE', 'CLOSE'];
 
 const STAT_LABELS = { hp: 'HP', atk: 'ATTACK', def: 'DEFENCE', spa: 'SP.ATK', spd: 'SP.DEF', spe: 'SPEED' };
 
@@ -111,6 +115,8 @@ export class MainMenu {
     } else if (choice === 'BESTIARY') {
       this.dexIndex = 0;
       this.view = 'dex';
+    } else if (choice === 'HOUSES') {
+      this.view = 'houses';
     } else if (choice === 'SIGILS') {
       this.view = 'sigils';
     } else if (choice === 'CARD') {
@@ -358,6 +364,7 @@ export class MainMenu {
       case 'bag': this.drawBag(ctx); break;
       case 'dex': this.drawDex(ctx); break;
       case 'dexEntry': this.drawDexEntry(ctx); break;
+      case 'houses': this.drawHouses(ctx); break;
       case 'sigils': this.drawSigils(ctx); break;
       case 'card': this.drawCard(ctx); break;
       default: break;
@@ -644,6 +651,78 @@ export class MainMenu {
     lines.slice(0, 4).forEach((line, i) => {
       drawText(ctx, line.trim(), 14, 92 + i * LINE_HEIGHT, { color: '#f2f4ff', shadow: '#151a2c' });
     });
+  }
+
+  /** Where every house in the realm stands with you, and why it matters. */
+  drawHouses(ctx) {
+    drawPanel(ctx, 4, 4, 232, 152, 'night');
+    const sworn = allegiance();
+    const heading = sworn ? `SWORN TO ${HOUSES[sworn].full.toUpperCase()}` : 'SWORN TO NO ONE';
+    drawText(ctx, heading, 12, 9, { color: '#f0dca0', shadow: '#151a2c' });
+
+    const here = localHouse();
+    if (here) {
+      const note = `Here: ${HOUSES[here].name}`;
+      drawText(ctx, note, 228 - measure(note), 9, { color: '#8fa4c8', shadow: '#151a2c' });
+    }
+
+    // Two columns of six, which is exactly the number of houses there are.
+    HOUSE_IDS.forEach((id, i) => {
+      const def = HOUSES[id];
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const x = 12 + col * 112;
+      const y = 24 + row * 20;
+
+      const value = standing(id);
+      const band = standingBand(value);
+      // The word for the band will not fit beside a name like "the Free Folk",
+      // so the row carries the number and the colour says what it means.
+      const label = value > 0 ? `+${value}` : `${value}`;
+
+      // The house's own colour as a stripe, so the list is readable at a glance.
+      ctx.fillStyle = '#151a2c';
+      ctx.fillRect(x - 1, y - 1, 106, 19);
+      ctx.fillStyle = def.colour;
+      ctx.fillRect(x, y, 3, 17);
+      ctx.fillStyle = def.accent;
+      ctx.fillRect(x, y, 3, 4);
+
+      const isSworn = id === sworn;
+      const labelW = measure(label);
+      drawText(ctx, fitText(def.name, 102 - 7 - labelW - 4), x + 7, y,
+        { color: isSworn ? '#f0dca0' : '#e0e4f0', shadow: '#151a2c' });
+      drawText(ctx, label, x + 102 - labelW, y,
+        { color: BAND_COLOUR[band], shadow: '#151a2c' });
+
+      // A bar from the midpoint: right for regard, left for grievance.
+      const barX = x + 7;
+      const barW = 94;
+      const mid = barX + Math.round(barW / 2);
+      ctx.fillStyle = '#2a3048';
+      ctx.fillRect(barX, y + 11, barW, 4);
+      ctx.fillStyle = '#4a5474';
+      ctx.fillRect(mid, y + 11, 1, 4);
+      const span = Math.round((Math.abs(value) / 100) * (barW / 2));
+      if (span > 0) {
+        ctx.fillStyle = BAND_COLOUR[band];
+        if (value > 0) ctx.fillRect(mid, y + 11, span, 4);
+        else ctx.fillRect(mid - span, y + 11, span, 4);
+      }
+    });
+
+    // What your standing with the local house is costing you, which is the
+    // question the page is really there to answer.
+    if (here) {
+      const band = standingBand(standing(here));
+      const factor = priceFactor();
+      const shift = Math.round((factor - 1) * 100);
+      const note = shift === 0
+        ? `${HOUSES[here].name} hold this ground. They charge you the going rate.`
+        : `${HOUSES[here].name} hold this ground. Prices ${shift > 0 ? 'up' : 'down'} ${Math.abs(shift)}%.`;
+      drawText(ctx, fitText(note, 216), 12, 142,
+        { color: BAND_COLOUR[band], shadow: '#151a2c' });
+    }
   }
 
   drawSigils(ctx) {

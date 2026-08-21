@@ -9,11 +9,14 @@
 //   loot       [slot, gearId] taken from them on victory
 //   beast      optional { species, level } that fights at their side
 
+import { SPRITE_HOUSE, HOUSES } from './houses.js';
+
 export const DUELLISTS = {
   // ------------------------------------------------------ Winterfell yard --
   rodrikCassel: {
     name: 'Ser Rodrik', sprite: 'stark', level: 3,
     vigour: 70, might: 16, guard: 10, swiftness: 12, wind: 18,
+    house: 'stark',
     techniques: ['slash', 'guard'],
     reward: 150, exp: 60, canYield: true,
     intro: 'Ser Rodrik Cassel: Blunted steel, and I will still put you in the dirt. Guard up.',
@@ -23,6 +26,7 @@ export const DUELLISTS = {
   joryCassel: {
     name: 'Jory Cassel', sprite: 'stark', level: 6,
     vigour: 95, might: 22, guard: 15, swiftness: 17, wind: 20,
+    house: 'stark',
     techniques: ['slash', 'riposte', 'guard'],
     reward: 320, exp: 110, canYield: true,
     loot: ['weapon', 'ironSword'],
@@ -33,6 +37,7 @@ export const DUELLISTS = {
   theon: {
     name: 'Theon Greyjoy', sprite: 'ironborn', level: 9,
     vigour: 110, might: 26, guard: 14, swiftness: 26, wind: 22,
+    house: 'greyjoy',
     techniques: ['loose', 'volley', 'quickCut', 'guard'],
     beast: { species: 'krakenling', level: 9 },
     reward: 480, exp: 170, canYield: true,
@@ -43,6 +48,7 @@ export const DUELLISTS = {
   robb: {
     name: 'Robb Stark', sprite: 'stark', level: 12,
     vigour: 145, might: 33, guard: 22, swiftness: 24, wind: 24,
+    house: 'stark',
     techniques: ['slash', 'thrust', 'shieldBash', 'guard'],
     beast: { species: 'direwolf', level: 12 },
     reward: 700, exp: 260, canYield: true,
@@ -86,6 +92,7 @@ export const DUELLISTS = {
   brienne: {
     name: 'Brienne of Tarth', sprite: 'brienne', level: 24,
     vigour: 260, might: 55, guard: 42, swiftness: 20, wind: 26,
+    house: 'baratheon',
     techniques: ['slash', 'thrust', 'shieldBash', 'guard'],
     reward: 2000, exp: 640, canYield: true,
     loot: ['shield', 'oakShield'],
@@ -108,6 +115,7 @@ export const DUELLISTS = {
   mountain: {
     name: 'Gregor Clegane', sprite: 'mountain', level: 32,
     vigour: 400, might: 78, guard: 52, swiftness: 12, wind: 24,
+    house: 'lannister',
     techniques: ['crush', 'cleave', 'sweep', 'guard'],
     beast: { species: 'tuskrend', level: 32 },
     reward: 4000, exp: 1100, canYield: false, boss: true,
@@ -119,6 +127,7 @@ export const DUELLISTS = {
   jaime: {
     name: 'Ser Jaime Lannister', sprite: 'lannister', level: 30,
     vigour: 300, might: 66, guard: 40, swiftness: 40, wind: 30,
+    house: 'lannister',
     techniques: ['valyrianArc', 'thrust', 'riposte', 'guard'],
     beast: { species: 'goldmane', level: 30 },
     reward: 3500, exp: 980, canYield: false, boss: true,
@@ -132,6 +141,7 @@ export const DUELLISTS = {
   oberyn: {
     name: 'Oberyn Martell', sprite: 'martell', level: 34,
     vigour: 285, might: 70, guard: 26, swiftness: 52, wind: 34,
+    house: 'martell',
     techniques: ['lunge', 'skewer', 'quickCut', 'guard'],
     beast: { species: 'sandviper', level: 34 },
     reward: 4200, exp: 1200, canYield: true, boss: true,
@@ -145,6 +155,7 @@ export const DUELLISTS = {
   ygritte: {
     name: 'Ygritte', sprite: 'wildling', level: 15,
     vigour: 135, might: 32, guard: 12, swiftness: 38, wind: 28,
+    house: 'freefolk',
     techniques: ['loose', 'volley', 'quickCut', 'guard'],
     beast: { species: 'falconet', level: 15 },
     reward: 800, exp: 340, canYield: true,
@@ -156,6 +167,7 @@ export const DUELLISTS = {
   tormund: {
     name: 'Tormund', sprite: 'wildling', level: 26,
     vigour: 300, might: 58, guard: 30, swiftness: 20, wind: 28,
+    house: 'freefolk',
     techniques: ['cleave', 'hook', 'crush', 'guard'],
     beast: { species: 'bearhold', level: 26 },
     reward: 2200, exp: 720, canYield: true,
@@ -166,6 +178,7 @@ export const DUELLISTS = {
   jonSnow: {
     name: 'Jon Snow', sprite: 'nightswatch', level: 28,
     vigour: 290, might: 62, guard: 38, swiftness: 34, wind: 30,
+    house: 'nightswatch',
     techniques: ['valyrianArc', 'slash', 'riposte', 'guard'],
     beast: { species: 'ghostfang', level: 28 },
     reward: 3000, exp: 900, canYield: true, boss: true,
@@ -178,6 +191,7 @@ export const DUELLISTS = {
   meryn: {
     name: 'Ser Meryn Trant', sprite: 'kingsguard', level: 27,
     vigour: 245, might: 54, guard: 40, swiftness: 22, wind: 24,
+    house: 'lannister',
     techniques: ['slash', 'shieldBash', 'guard'],
     reward: 2400, exp: 780, canYield: false,
     intro: 'Ser Meryn Trant: The white cloak stops here. It stops everyone.',
@@ -187,6 +201,7 @@ export const DUELLISTS = {
   barristan: {
     name: 'Ser Barristan Selmy', sprite: 'kingsguard', level: 36,
     vigour: 330, might: 72, guard: 48, swiftness: 34, wind: 30,
+    house: 'lannister',
     techniques: ['thrust', 'slash', 'riposte', 'guard'],
     reward: 5000, exp: 1400, canYield: true, boss: true,
     loot: ['armour', 'kingsguardPlate'],
@@ -197,6 +212,7 @@ export const DUELLISTS = {
   ramsay: {
     name: 'Ramsay Bolton', sprite: 'bolton', level: 29,
     vigour: 265, might: 60, guard: 32, swiftness: 32, wind: 26,
+    house: 'bolton',
     techniques: ['backstab', 'quickCut', 'hook', 'guard'],
     beast: { species: 'winterfang', level: 29 },
     reward: 2800, exp: 860, canYield: false,
@@ -208,6 +224,7 @@ export const DUELLISTS = {
   euron: {
     name: 'Euron Greyjoy', sprite: 'ironborn', level: 33,
     vigour: 310, might: 68, guard: 34, swiftness: 36, wind: 28,
+    house: 'greyjoy',
     techniques: ['cleave', 'hook', 'quickCut', 'guard'],
     beast: { species: 'deepmaw', level: 33 },
     reward: 3800, exp: 1050, canYield: false, boss: true,
@@ -218,6 +235,7 @@ export const DUELLISTS = {
   cersei: {
     name: 'Cersei Lannister', sprite: 'cersei', level: 31,
     vigour: 250, might: 56, guard: 44, swiftness: 26, wind: 26,
+    house: 'lannister',
     techniques: ['quickCut', 'hook', 'guard'],
     beast: { species: 'goldmane', level: 31 },
     reward: 4500, exp: 1000, canYield: false, boss: true,
@@ -230,6 +248,7 @@ export const DUELLISTS = {
   greyWorm: {
     name: 'Grey Worm', sprite: 'unsullied', level: 30,
     vigour: 285, might: 62, guard: 46, swiftness: 30, wind: 30,
+    house: 'targaryen',
     techniques: ['lunge', 'skewer', 'shieldBash', 'guard'],
     reward: 3200, exp: 940, canYield: true,
     loot: ['shield', 'towerShield'],
@@ -240,6 +259,7 @@ export const DUELLISTS = {
   daario: {
     name: 'Daario Naharis', sprite: 'braavosi', level: 27,
     vigour: 240, might: 56, guard: 26, swiftness: 42, wind: 30,
+    house: 'targaryen',
     techniques: ['quickCut', 'riposte', 'backstab', 'guard'],
     reward: 2600, exp: 820, canYield: true,
     intro: 'Daario Naharis: You have the look of someone about to do something magnificent and stupid. I approve.',
@@ -285,7 +305,7 @@ export const ROAMERS = {
     ],
   },
   deserter: {
-    title: 'Deserter', build: 'soldier',
+    title: 'Deserter', build: 'soldier', house: 'nightswatch',
     sprites: ['nightswatch', 'guard'],
     techniques: ['slash', 'riposte', 'guard'],
     lines: [
@@ -351,7 +371,7 @@ export const ROAMERS = {
     ],
   },
   goldCloak: {
-    title: 'Gold Cloak', build: 'soldier',
+    title: 'Gold Cloak', build: 'soldier', house: 'lannister',
     sprites: ['guard', 'lannister'],
     techniques: ['thrust', 'shieldBash', 'guard'],
     lines: [
@@ -441,11 +461,14 @@ export function makeRoamer(id, level, pick) {
   const base = roamerBase(level);
   const sprite = pick(def.sprites);
   const line = pick(def.lines);
+  // Who answers for them, read from how they are dressed. Outlaws answer to
+  // nobody, and killing them costs you nothing with anyone.
+  const houseId = def.house ?? SPRITE_HOUSE[sprite] ?? null;
 
   const roamer = {
     id: `roamer_${id}`,
     roamer: true,
-    name: def.title,
+    name: houseId ? `${HOUSES[houseId].short} ${def.title}` : def.title,
     sprite,
     level,
     vigour: Math.max(12, Math.round(base.vigour * build.vigour)),
@@ -456,6 +479,7 @@ export function makeRoamer(id, level, pick) {
     techniques: def.techniques,
     reward: Math.round(30 + level * 26),
     exp: Math.round(24 + level * 14),
+    house: houseId,
     canYield: true,
     intro: `${def.title}: ${line}`,
     defeat: `${def.title}: Enough! Take the road, it is not worth my life.`,

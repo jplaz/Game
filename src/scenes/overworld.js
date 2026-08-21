@@ -15,7 +15,7 @@ import { creatureSprite, SPRITE_SIZE } from '../art/creatures.js';
 import { dialog } from '../ui/textbox.js';
 import { drawPanel } from '../ui/panel.js';
 import { drawText, measure } from '../engine/font.js';
-import { game, flag, setFlag } from '../game/state.js';
+import { game, flag, setFlag, standingWord, setLocalRegion } from '../game/state.js';
 import { SCRIPTS } from '../data/scripts.js';
 import { TRAINERS } from '../data/trainers.js';
 
@@ -63,6 +63,7 @@ export class Overworld {
   loadMap(mapId, { x, y, dir }) {
     this.map = getMap(mapId);
     this.region = regionOf(mapId);
+    setLocalRegion(this.region);
     // You leave the beast outside; it does not follow you through a doorway.
     if (this.map.indoor) this.mount = null;
     // Nor does a mount that has been taken out of your party or knocked down.
@@ -337,8 +338,35 @@ export class Overworld {
       foe.beast = { species: companion.species, level: Math.max(2, level - 1) };
     }
 
+    // Whose colours they are wearing decides whether this is a fight at all.
+    // Men of a house that thinks well of you step aside; men of one you have
+    // wronged come looking, and bring an extra year of training with them.
+    if (foe.house) {
+      const word = standingWord(foe.house);
+      if (word === 'sworn' || (word === 'friendly' && rng.chance(0.6))) {
+        this.greetOnRoad(foe);
+        return;
+      }
+      if (word === 'hostile') {
+        foe.level += 2;
+        foe.vigour = Math.round(foe.vigour * 1.1);
+        foe.might = Math.round(foe.might * 1.1);
+        foe.intro = `${foe.name}: We know your banner. We have been waiting for it.`;
+      }
+    }
+
     audio.sfx('encounter');
     this.startAmbush(foe);
+  }
+
+  /** Men of a friendly house let you by, and say why. */
+  async greetOnRoad(foe) {
+    const word = standingWord(foe.house);
+    const line = word === 'sworn'
+      ? `${foe.name}: Your banner is ours. The road is clear ahead — we swept it this morning.`
+      : `${foe.name}: We have no quarrel with you. Keep to the road and keep your steel down.`;
+    audio.sfx('cursor');
+    await dialog.say(line, { theme: 'parchment' });
   }
 
   /** A roadside fight. Losing one still costs you, the same as any duel. */

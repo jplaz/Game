@@ -12,6 +12,7 @@ import { MOVES } from '../src/data/moves.js';
 import { ITEMS } from '../src/data/items.js';
 import { TRAINERS } from '../src/data/trainers.js';
 import { DUELLISTS, ROAMERS, ROAMER_TABLES, makeRoamer } from '../src/data/duellists.js';
+import { HOUSES, HOUSE_IDS, SWEARABLE, SPRITE_HOUSE } from '../src/data/houses.js';
 import { WEAPONS, ARMOUR, SHIELDS, TECHNIQUES } from '../src/data/gear.js';
 import { SCRIPTS } from '../src/data/scripts.js';
 import { TILE_DEFS } from '../src/art/tiles.js';
@@ -252,6 +253,7 @@ for (const [id, def] of Object.entries(DUELLISTS)) {
     const tables = { weapon: WEAPONS, armour: ARMOUR, shield: SHIELDS };
     if (!tables[slot]?.[gid]) fail(`duellist ${id}: loot "${slot}/${gid}" does not exist`);
   }
+  if (def.house && !HOUSES[def.house]) fail(`duellist ${id}: unknown house "${def.house}"`);
   if (def.beast) {
     if (!SPECIES[def.beast.species]) {
       fail(`duellist ${id}: beast species "${def.beast.species}" does not exist`);
@@ -260,6 +262,29 @@ for (const [id, def] of Object.entries(DUELLISTS)) {
       fail(`duellist ${id}: beast level ${def.beast.level} is out of range`);
     }
   }
+}
+
+// ---------------------------------------------------------------- houses --
+for (const [id, def] of Object.entries(HOUSES)) {
+  for (const field of ['name', 'full', 'short', 'seat', 'words', 'sworn']) {
+    if (!def[field]) fail(`house ${id}: missing "${field}"`);
+  }
+  for (const key of ['colour', 'accent']) {
+    if (!/^#[0-9a-f]{6}$/i.test(def[key] ?? '')) fail(`house ${id}: ${key} is not a #rrggbb colour`);
+  }
+  for (const other of [...(def.rivals ?? []), ...(def.allies ?? [])]) {
+    if (!HOUSES[other]) fail(`house ${id}: names unknown house "${other}"`);
+    if (other === id) fail(`house ${id}: is its own rival or ally`);
+  }
+  const both = (def.rivals ?? []).filter((r) => (def.allies ?? []).includes(r));
+  if (both.length) fail(`house ${id}: ${both.join(', ')} listed as both rival and ally`);
+}
+for (const id of SWEARABLE) {
+  if (!HOUSES[id]) fail(`swearable house "${id}" does not exist`);
+}
+for (const [sprite, houseId] of Object.entries(SPRITE_HOUSE)) {
+  if (!ACTOR_PALETTES[sprite]) fail(`SPRITE_HOUSE: unknown sprite "${sprite}"`);
+  if (!HOUSES[houseId]) fail(`SPRITE_HOUSE: sprite "${sprite}" names unknown house "${houseId}"`);
 }
 
 // --------------------------------------------------------------- roamers --
@@ -275,11 +300,19 @@ for (const [id, def] of Object.entries(ROAMERS)) {
   if (def.beast && !SPECIES[def.beast.species]) {
     fail(`roamer ${id}: beast species "${def.beast.species}" does not exist`);
   }
-  // Build one at each end of the scale and check the numbers come out sane.
+  if (def.house && !HOUSES[def.house]) fail(`roamer ${id}: unknown house "${def.house}"`);
+  // Build one at each end of the scale, in every look it comes in, and check
+  // the numbers and the name both come out sane.
   for (const level of [1, 50]) {
-    const built = makeRoamer(id, level, (list) => list[0]);
-    for (const key of ['vigour', 'might', 'guard', 'swiftness', 'wind']) {
-      if (!(built[key] > 0)) fail(`roamer ${id}: ${key} is ${built[key]} at level ${level}`);
+    for (let i = 0; i < def.sprites.length; i++) {
+      const built = makeRoamer(id, level, (list) => list[i % list.length]);
+      for (const key of ['vigour', 'might', 'guard', 'swiftness', 'wind']) {
+        if (!(built[key] > 0)) fail(`roamer ${id}: ${key} is ${built[key]} at level ${level}`);
+      }
+      if (!built.name || built.name.includes('undefined')) {
+        fail(`roamer ${id}: bad name "${built.name}" for sprite "${def.sprites[i % def.sprites.length]}"`);
+      }
+      if (built.house && !HOUSES[built.house]) fail(`roamer ${id}: built with unknown house`);
     }
   }
 }

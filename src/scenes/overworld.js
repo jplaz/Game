@@ -11,7 +11,7 @@ import { TRACKS } from '../data/music.js';
 import { rng } from '../engine/rng.js';
 import { makeRoamer, ROAMERS } from '../data/duellists.js';
 import { challengeFor } from '../game/challenge.js';
-import { creatureSpecies, displayName } from '../game/creature.js';
+import { creatureSpecies, displayName, wildCreature } from '../game/creature.js';
 import { walkEggs, hatch, deepenBond, willCarry } from '../game/eggs.js';
 import { activeCompanion, hasFallen, kill as killCompanion } from '../game/company.js';
 import { creatureSprite, SPRITE_SIZE } from '../art/creatures.js';
@@ -32,6 +32,8 @@ const RIDE_TIME = 0.075;
 const ENCOUNTER_CHANCE = 0.11;
 // Mounted you cover ground faster and trouble is likelier to let you pass.
 const MOUNTED_ENCOUNTER_SCALE = 0.35;
+// How often a roadside encounter turns out to be a whole company.
+const WARBAND_CHANCE = 0.12;
 const MOUNT_SIZE = 30;
 const RIDER_LIFT = 13;
 
@@ -54,6 +56,9 @@ export class Overworld {
     this.pendingHatch = null;
     // Where whoever rides with you is standing, a step behind.
     this.follower = null;
+    // A dragon crossing the sky, and its shadow on the ground under it.
+    this.skyDragon = null;
+    this.skyTimer = rng.int(14, 40);
     this.alert = null;      // '!' bubble over a trainer who has spotted you
     this.approach = null;   // trainer walking toward the player
     this.onLoadScript = null;
@@ -374,6 +379,7 @@ export class Overworld {
 
   updateMovement(dt) {
     this.updateFollower(dt);
+    this.updateSky(dt);
     if (this.bumpCooldown > 0) this.bumpCooldown = Math.max(0, this.bumpCooldown - dt);
     if (this.turnDelay > 0) this.turnDelay = Math.max(0, this.turnDelay - dt);
 
@@ -458,6 +464,16 @@ export class Overworld {
 
     const entry = rng.weighted(this.map.encounters);
     const level = rng.int(entry.min, entry.max);
+
+    // Cover hides both kinds of trouble: somebody waiting for you, or something
+    // that simply lives there.
+    if (entry.beast) {
+      if (!game.state.party.some((c) => c.hp > 0)) return;
+      audio.sfx('encounter');
+      this.startBattle({ kind: 'wild', foe: wildCreature(entry.beast, entry.min, entry.max) });
+      return;
+    }
+
     const foe = makeRoamer(entry.roamer, level, (list) => rng.pick(list));
 
     // Some of them travel with an animal, which is the only time you meet a
@@ -465,6 +481,26 @@ export class Overworld {
     const companion = ROAMERS[entry.roamer].beast;
     if (companion && rng.chance(companion.chance)) {
       foe.beast = { species: companion.species, level: Math.max(2, level - 1) };
+    }
+
+    // Now and again it is not one of them. A warband is a proper fight: their
+    // captain, better armed, with the rest at his back and no walking away.
+    if (rng.chance(WARBAND_CHANCE)) {
+      foe.name = `${foe.name}, Captain`;
+      foe.level = Math.min(50, foe.level + 3);
+      foe.vigour = Math.round(foe.vigour * 1.45);
+      foe.might = Math.round(foe.might * 1.2);
+      foe.guard = Math.round(foe.guard * 1.2);
+      foe.wind = Math.round(foe.wind * 1.2);
+      foe.reward = Math.round(foe.reward * 2.2);
+      foe.exp = Math.round(foe.exp * 2);
+      foe.boss = true;
+      foe.canYield = false;
+      foe.intro = `${foe.name}: We are a company, not a beggar on a road. `
+        + 'Put it down or be put down.';
+      if (!foe.beast && companion) {
+        foe.beast = { species: companion.species, level: Math.max(2, level) };
+      }
     }
 
     // Whose colours they are wearing decides whether this is a fight at all.
@@ -579,6 +615,70 @@ export class Overworld {
         state.steps--;
       }
     }
+  }
+
+  /**
+   * Something crosses the sky now and again. Outdoors only, and it does not
+   * interrupt anything — it is there to be looked at, and to make the world
+   * feel like one with dragons in it.
+   */
+  updateSky(dt) {
+    if (this.map?.indoor) { this.skyDragon = null; return; }
+
+    if (this.skyDragon) {
+      const d = this.skyDragon;
+      d.x += d.vx * dt;
+      d.t += dt;
+      if (d.x < -80 || d.x > 320) this.skyDragon = null;
+      return;
+    }
+
+    this.skyTimer -= dt;
+    if (this.skyTimer > 0) return;
+    this.skyTimer = rng.int(25, 70);
+
+    // A dragon of your own flies over more often, because it is looking for you.
+    const yours = game.state.party.find((c) => creatureSpecies(c).mount === 'fly');
+    const rightToLeft = rng.chance(0.5);
+    this.skyDragon = {
+      x: rightToLeft ? 300 : -60,
+      y: rng.int(8, 46),
+      vx: (rightToLeft ? -1 : 1) * rng.int(26, 46),
+      t: 0,
+      size: yours ? 26 : rng.int(14, 22),
+      mine: Boolean(yours),
+    };
+  }
+
+  /** The dragon itself, and the shadow it drags across the ground. */
+  drawSky(ctx) {
+    const d = this.skyDragon;
+    if (!d) return;
+    const flap = Math.sin(d.t * 6);
+    const x = Math.round(d.x);
+    const y = Math.round(d.y + Math.sin(d.t * 1.4) * 2);
+    const s = d.size;
+    const body = d.mine ? '#4a1a1e' : '#2c2a34';
+    const wing = d.mine ? '#6b2228' : '#3d3a48';
+
+    // The shadow first, on the ground, offset and flattened.
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = '#000000';
+    const sy = y + 70;
+    ctx.fillRect(x - Math.round(s * 0.6), sy, Math.round(s * 1.2), 3);
+    ctx.fillRect(x - Math.round(s * 0.25), sy - 1, Math.round(s * 0.5), 5);
+    ctx.restore();
+
+    // Wings, which is nearly all of a dragon at this distance.
+    const span = Math.round(s * (0.7 + flap * 0.25));
+    ctx.fillStyle = wing;
+    ctx.fillRect(x - s, y - Math.round(flap * 3), span, 2);
+    ctx.fillRect(x + s - span, y - Math.round(flap * 3), span, 2);
+    ctx.fillStyle = body;
+    ctx.fillRect(x - 2, y - 1, 5, 4);
+    ctx.fillRect(x + (d.vx > 0 ? 3 : -4), y, 2, 2);          // head
+    ctx.fillRect(x - (d.vx > 0 ? 8 : -6), y + 1, 6, 1);      // tail
   }
 
   facingFrom(npc) {
@@ -843,6 +943,7 @@ export class Overworld {
     this.drawItems(ctx, camX, camY);
     this.drawEntities(ctx, camX, camY);
     this.drawGrassOverlay(ctx, camX, camY);
+    this.drawSky(ctx);
     this.drawAlert(ctx, camX, camY);
     this.drawLocationBanner(ctx);
     dialog.draw(ctx);

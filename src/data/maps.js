@@ -207,6 +207,8 @@ export const MAPS = {
       { roamer: 'bandit', min: 2, max: 4, weight: 30 },
       { roamer: 'poacher', min: 2, max: 5, weight: 30 },
       { roamer: 'manAtArms', min: 3, max: 5, weight: 40 },
+          { beast: 'snowpup', min: 2, max: 4, weight: 16 },
+      { beast: 'ravenling', min: 2, max: 4, weight: 14 },
     ],
     warps: [
       { x: 17, y: 12, to: 'heroHouse', tx: 4, ty: 5, dir: 'up' },
@@ -335,6 +337,9 @@ export const MAPS = {
       { roamer: 'bandit', min: 12, max: 18, weight: 26 },
       { roamer: 'poacher', min: 13, max: 17, weight: 22 },
       { roamer: 'manAtArms', min: 14, max: 19, weight: 22 },
+          { beast: 'snowpup', min: 12, max: 17, weight: 14 },
+      { beast: 'wightling', min: 14, max: 18, weight: 12 },
+      { beast: 'falconet', min: 13, max: 17, weight: 12 },
     ],
     warps: [
       { x: 10, y: 0, to: 'castleBlack', tx: 11, ty: 18, dir: 'up' },
@@ -431,6 +436,9 @@ export const MAPS = {
       { roamer: 'wildlingRaider', min: 26, max: 34, weight: 38 },
       { roamer: 'spearwife', min: 27, max: 35, weight: 34 },
       { roamer: 'gravedigger', min: 30, max: 39, weight: 28 },
+          { beast: 'wightling', min: 28, max: 34, weight: 18 },
+      { beast: 'direwolf', min: 28, max: 33, weight: 12 },
+      { beast: 'palewalker', min: 34, max: 39, weight: 6 },
     ],
     warps: [
       { x: 10, y: 23, to: 'castleBlack', tx: 11, ty: 1, dir: 'down' },
@@ -473,6 +481,9 @@ export const MAPS = {
       { roamer: 'clansman', min: 21, max: 27, weight: 36 },
       { roamer: 'hedgeKnight', min: 23, max: 30, weight: 32 },
       { roamer: 'manAtArms', min: 22, max: 28, weight: 32 },
+          { beast: 'falconet', min: 22, max: 27, weight: 16 },
+      { beast: 'skytalon', min: 26, max: 30, weight: 8 },
+      { beast: 'crabcrag', min: 23, max: 27, weight: 10 },
     ],
     warps: [
       { x: 10, y: 23, to: 'riverlands', tx: 18, ty: 12, dir: 'down' },
@@ -570,6 +581,9 @@ export const MAPS = {
       { roamer: 'hedgeKnight', min: 26, max: 33, weight: 34 },
       { roamer: 'manAtArms', min: 26, max: 34, weight: 34 },
       { roamer: 'poacher', min: 27, max: 36, weight: 32 },
+          { beast: 'fawnhart', min: 26, max: 31, weight: 16 },
+      { beast: 'cubmane', min: 27, max: 31, weight: 12 },
+      { beast: 'emberwisp', min: 28, max: 32, weight: 10 },
     ],
     warps: [
       { x: 10, y: 0, to: 'lannisport', tx: 18, ty: 17, dir: 'down' },
@@ -667,6 +681,9 @@ export const MAPS = {
       { roamer: 'dornishOutrider', min: 30, max: 36, weight: 40 },
       { roamer: 'sellsword', min: 30, max: 35, weight: 30 },
       { roamer: 'bandit', min: 31, max: 38, weight: 30 },
+          { beast: 'sandviper', min: 30, max: 35, weight: 18 },
+      { beast: 'dornspine', min: 34, max: 38, weight: 8 },
+      { beast: 'crabcrag', min: 31, max: 35, weight: 12 },
     ],
     warps: [
       { x: 10, y: 0, to: 'highgarden', tx: 11, ty: 18, dir: 'up' },
@@ -762,6 +779,9 @@ export const MAPS = {
       { roamer: 'manAtArms', min: 28, max: 34, weight: 34 },
       { roamer: 'hedgeKnight', min: 29, max: 35, weight: 33 },
       { roamer: 'ironbornReaver', min: 30, max: 37, weight: 33 },
+          { beast: 'crownstag', min: 33, max: 37, weight: 10 },
+      { beast: 'krakenling', min: 29, max: 33, weight: 14 },
+      { beast: 'riverfry', min: 28, max: 32, weight: 12 },
     ],
     warps: [
       { x: 10, y: 0, to: 'kingsroad', tx: 18, ty: 14, dir: 'down' },
@@ -893,6 +913,9 @@ export const MAPS = {
       { roamer: 'redPriestess', min: 34, max: 42, weight: 36 },
       { roamer: 'ironbornReaver', min: 35, max: 44, weight: 32 },
       { roamer: 'sellsword', min: 36, max: 48, weight: 32 },
+          { beast: 'emberwisp', min: 34, max: 40, weight: 18 },
+      { beast: 'pyremaw', min: 40, max: 45, weight: 10 },
+      { beast: 'scaleflight', min: 36, max: 42, weight: 12 },
     ],
     warps: [
       { x: 8, y: 15, to: 'dragonstone', tx: 7, ty: 15, dir: 'down' },
@@ -944,6 +967,9 @@ export const MAPS = {
       { roamer: 'bandit', min: 3, max: 6, weight: 34 },
       { roamer: 'poacher', min: 3, max: 7, weight: 34 },
       { roamer: 'deserter', min: 4, max: 7, weight: 32 },
+          { beast: 'snowpup', min: 3, max: 6, weight: 18 },
+      { beast: 'bearcub', min: 4, max: 7, weight: 14 },
+      { beast: 'sapling', min: 3, max: 6, weight: 12 },
     ],
     warps: [
       { x: 10, y: 0, to: 'winterfell', tx: 12, ty: 18, dir: 'up' },
@@ -1001,6 +1027,8 @@ export const MAPS = {
       { roamer: 'bandit', min: 6, max: 9, weight: 34 },
       { roamer: 'clansman', min: 7, max: 10, weight: 33 },
       { roamer: 'poacher', min: 6, max: 9, weight: 33 },
+          { beast: 'riverfry', min: 6, max: 9, weight: 16 },
+      { beast: 'sapling', min: 6, max: 9, weight: 14 },
     ],
     warps: [
       { x: 9, y: 1, to: 'wolfswood', tx: 10, ty: 24, dir: 'up' },
@@ -1070,6 +1098,9 @@ export const MAPS = {
       { roamer: 'brotherhoodBowman', min: 9, max: 13, weight: 24 },
       { roamer: 'sellsword', min: 9, max: 12, weight: 24 },
       { roamer: 'manAtArms', min: 8, max: 12, weight: 24 },
+          { beast: 'riverfry', min: 8, max: 12, weight: 16 },
+      { beast: 'ravenling', min: 8, max: 12, weight: 12 },
+      { beast: 'boartusk', min: 9, max: 13, weight: 12 },
     ],
     warps: [
       { x: 10, y: 0, to: 'moatCailin', tx: 11, ty: 18, dir: 'up' },
@@ -1127,6 +1158,8 @@ export const MAPS = {
       { roamer: 'manAtArms', min: 12, max: 15, weight: 40 },
       { roamer: 'sellsword', min: 12, max: 15, weight: 30 },
       { roamer: 'bandit', min: 12, max: 14, weight: 30 },
+          { beast: 'silverfin', min: 12, max: 15, weight: 18 },
+      { beast: 'riverfry', min: 11, max: 14, weight: 14 },
     ],
     warps: [
       { x: 12, y: 0, to: 'riverlands', tx: 10, ty: 23, dir: 'up' },
@@ -1252,6 +1285,8 @@ export const MAPS = {
       { roamer: 'manAtArms', min: 15, max: 19, weight: 28 },
       { roamer: 'bandit', min: 14, max: 18, weight: 24 },
       { roamer: 'gravedigger', min: 16, max: 19, weight: 18 },
+          { beast: 'cubmane', min: 14, max: 18, weight: 16 },
+      { beast: 'boartusk', min: 15, max: 19, weight: 14 },
     ],
     warps: [
       { x: 10, y: 0, to: 'riverrun', tx: 11, ty: 18, dir: 'up' },
@@ -1304,6 +1339,8 @@ export const MAPS = {
       { roamer: 'gravedigger', min: 18, max: 26, weight: 40 },
       { roamer: 'bandit', min: 18, max: 24, weight: 30 },
       { roamer: 'sellsword', min: 22, max: 30, weight: 30 },
+          { beast: 'wightling', min: 18, max: 26, weight: 20 },
+      { beast: 'barrowlord', min: 22, max: 30, weight: 10 },
     ],
     warps: [
       { x: 8, y: 15, to: 'goldRoad', tx: 5, ty: 20, dir: 'down' },
@@ -1475,6 +1512,9 @@ export const MAPS = {
       { roamer: 'sellsword', min: 20, max: 26, weight: 26 },
       { roamer: 'bandit', min: 20, max: 24, weight: 24 },
       { roamer: 'brotherhoodBowman', min: 21, max: 26, weight: 22 },
+          { beast: 'fawnhart', min: 20, max: 25, weight: 14 },
+      { beast: 'falconet', min: 21, max: 26, weight: 12 },
+      { beast: 'boartusk', min: 20, max: 24, weight: 12 },
     ],
     warps: [
       { x: 10, y: 0, to: 'lannisport', tx: 9, ty: 18, dir: 'up' },

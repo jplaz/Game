@@ -204,15 +204,22 @@ for (const [mapId, map] of Object.entries(MAPS)) {
   // Encounters are people on the road, so each entry names a roaming archetype
   // and the levels the region builds it at.
   for (const entry of map.encounters ?? []) {
-    if (!ROAMERS[entry.roamer]) {
+    // An entry is either somebody on the road or something living in the cover.
+    if (entry.beast) {
+      if (!SPECIES[entry.beast]) {
+        fail(`map ${mapId}: encounter table names unknown beast "${entry.beast}"`);
+        continue;
+      }
+    } else if (!ROAMERS[entry.roamer]) {
       fail(`map ${mapId}: encounter table names unknown roamer "${entry.roamer}"`);
       continue;
     }
-    if (entry.min > entry.max) fail(`map ${mapId}: encounter ${entry.roamer} has min > max`);
+    const what = entry.beast ?? entry.roamer;
+    if (entry.min > entry.max) fail(`map ${mapId}: encounter ${what} has min > max`);
     if (!(entry.min >= 1 && entry.max <= 100)) {
-      fail(`map ${mapId}: encounter ${entry.roamer} levels ${entry.min}-${entry.max} out of range`);
+      fail(`map ${mapId}: encounter ${what} levels ${entry.min}-${entry.max} out of range`);
     }
-    if (!(entry.weight > 0)) fail(`map ${mapId}: encounter ${entry.roamer} has no weight`);
+    if (!(entry.weight > 0)) fail(`map ${mapId}: encounter ${what} has no weight`);
   }
   const hasGrass = map.grid.some((row) => [...row].some((c) => TILE_DEFS[c]?.kind === 'encounter'));
   if (hasGrass && !(map.encounters ?? []).length) {

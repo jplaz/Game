@@ -4,12 +4,24 @@ A Game-of-Thrones-flavoured, Pokémon-Emerald-style monster-collecting RPG that 
 entirely in a browser. No engine, no build step, no assets to download — every sprite,
 tile, note and glyph in the game is generated from source at load time.
 
+## Playing it
+
+**In a browser, with nothing installed.** Push this branch and GitHub Pages serves
+it. In the repository: **Settings → Pages → Source: GitHub Actions**. The workflow in
+`.github/workflows/pages.yml` deploys on every push and the game appears at
+`https://<your-username>.github.io/<repository>/`. Nothing to build — it is plain ES
+modules and the art is drawn at load time.
+
+**On your own machine**, if you have Node:
+
 ```bash
+git clone https://github.com/<your-username>/<repository>.git
+cd <repository>
 npm start          # serves on http://localhost:8080
 ```
 
 ES modules need `http://`, so open it through the server rather than double-clicking
-`index.html`. Any static host works too (GitHub Pages included).
+`index.html`. Any static host works.
 
 ## Controls
 
@@ -18,6 +30,8 @@ ES modules need `http://`, so open it through the server rather than double-clic
 | Arrows / WASD | Walk (hold **X** to run) |
 | **Z** / Space | Confirm, talk, advance text |
 | **X** | Cancel, back |
+| **R** | Mount or dismount your beast |
+| **C** | Call out whoever you are facing |
 | **Enter** | Pause menu |
 | **M** | Mute |
 

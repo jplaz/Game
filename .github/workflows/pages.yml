@@ -1,0 +1,47 @@
+# Publishes the game to GitHub Pages.
+#
+# There is no build step — the whole thing is plain ES modules and hand-drawn
+# art generated at load time — so this uploads the repository as it stands and
+# Pages serves it over https, which is all the game needs (ES modules will not
+# load from file://).
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, claude/pokemon-got-emerald-game-jfypcy]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push supersedes an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the world data is intact
+        run: node tools/validate.mjs
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

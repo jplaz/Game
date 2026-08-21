@@ -1,14 +1,16 @@
 #!/usr/bin/env node
-// Exports the browser game's own art and data into C, so the cartridge is drawn
-// from the same source of truth rather than a hand-copied approximation that
-// drifts. The tiles and the people are rendered by the real painters, in a real
-// browser, and read back pixel for pixel — the ROM shows what the browser shows.
+// Exports the browser game into C, so the cartridge is drawn from the same
+// source of truth rather than a hand-copied approximation that drifts.
+//
+// The tiles and the people are rendered by the real painters, in a real browser,
+// and read back pixel for pixel. The maps, the collision, the warps, the signs,
+// the writing, the houses, the techniques and the duellists' stats all come out
+// of src/data. Change the browser game and the cartridge changes with it.
 //
 //   node gba/export.mjs   ->  gba/data.h
 
-import { writeFile } from 'node:fs/promises';
+import { writeFile, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
@@ -17,11 +19,21 @@ const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 
 const ROOT = resolve(process.cwd());
 
-// Which of the fifty-five maps fit on a cartridge. They warp into each other,
-// so this is a corner of the world you can actually walk around rather than a
-// single screen.
-const MAP_IDS = ['winterfell', 'heroHouse', 'greatKeep', 'wolfswood', 'winterfellForge'];
-const PLAYER_SPRITE = 'hero';
+// The North, and as far south as Riverrun: everything reachable on foot from
+// the yard you start in.
+const MAP_IDS = [
+  'winterfell', 'heroHouse', 'maesterHallWinterfell', 'greatKeep', 'winterfellForge',
+  'wolfswood', 'kingsroadNorth', 'castleBlack', 'maesterHallCastleBlack',
+  'castleBlackArmoury', 'beyondTheWall', 'moatCailin', 'maesterHallMoat',
+  'riverlands', 'riverrun', 'maesterHallRiverrun', 'riverrunInn', 'riverrunKeep',
+  'bloodyGate',
+];
+
+// What the cartridge's hardware will hold.
+const BG_TILE_LIMIT = 512;      // charblocks 0-1, 8bpp
+const NPC_ACTOR_LIMIT = 12;     // object VRAM, 4bpp, after the player's frames
+const PLAYER_FRAMES = 16;       // four facings, four steps
+const NPC_FRAMES = 8;           // four facings, two steps
 
 // ------------------------------------------------------------ the server ---
 
@@ -46,18 +58,21 @@ const browser = await chromium.launch({
   args: ['--no-sandbox'],
 });
 const page = await browser.newPage();
+page.on('pageerror', (e) => { console.error('page error:', e.message); });
 await page.goto(`http://127.0.0.1:${PORT}/gba/blank.html`);
 
-const harvest = await page.evaluate(async ({ mapIds, playerSprite }) => {
+const harvest = await page.evaluate(async ({ mapIds }) => {
   const tiles = await import('/src/art/tiles.js');
   const actors = await import('/src/art/actors.js');
   const pixels = await import('/src/art/pixels.js');
   const { MAPS } = await import('/src/data/maps.js');
-  const { DUELLISTS } = await import('/src/data/duellists.js');
+  const { DUELLISTS, ROAMERS, makeRoamer } = await import('/src/data/duellists.js');
+  const { HOUSES, SWEARABLE } = await import('/src/data/houses.js');
+  const { TECHNIQUES } = await import('/src/data/gear.js');
+  const { baseStats } = await import('/src/game/player.js');
 
-  const { TILE, tileCanvas, tileDef, isSolid, TILE_GROUP, N, E, S, W } = tiles;
+  const { tileCanvas, isSolid, TILE_GROUP, N, E, S, W } = tiles;
 
-  /** Reads a canvas back as a flat RGBA array. */
   function read(canvas) {
     const c = document.createElement('canvas');
     c.width = canvas.width; c.height = canvas.height;
@@ -80,67 +95,211 @@ const harvest = await page.evaluate(async ({ mapIds, playerSprite }) => {
          | (same(x, y + 1) ? S : 0) | (same(x - 1, y) ? W : 0);
   }
 
-  const out = { maps: [], sprites: [], tile: TILE };
-  const spriteIndex = new Map();
+  // --- people ---------------------------------------------------------------
+  // Every appearance is exported as sixteen frames: four facings by four walk
+  // steps, in the order the cartridge indexes them.
 
-  function spriteSlot(who, dir) {
-    const key = `${who}:${dir}`;
-    if (spriteIndex.has(key)) return spriteIndex.get(key);
-    const slot = out.sprites.length;
-    spriteIndex.set(key, slot);
-    out.sprites.push({ who, dir, w: actors.ACTOR_W, h: actors.ACTOR_H,
-      rgba: read(actors.paintActorFrame(who, dir, 0)) });
-    return slot;
-  }
+  const actorList = [];
+  const actorIndex = new Map();
 
-  // The player animates, so all four facings and all four walk steps.
-  const playerFrames = [];
-  for (const dir of actors.DIRECTIONS) {
-    for (let step = 0; step < 4; step++) {
-      playerFrames.push(out.sprites.length);
-      out.sprites.push({ who: playerSprite, dir, step, w: actors.ACTOR_W, h: actors.ACTOR_H,
-        rgba: read(actors.paintActorFrame(playerSprite, dir, step)) });
+  function actorFor(who, id) {
+    if (actorIndex.has(id)) return actorIndex.get(id);
+    const at = actorList.length;
+    actorIndex.set(id, at);
+    const frames = [];
+    for (const dir of actors.DIRECTIONS) {
+      for (let step = 0; step < 4; step++) {
+        frames.push(read(actors.paintActorFrame(who, dir, step)));
+      }
     }
+    actorList.push({ id, w: actors.ACTOR_W, h: actors.ACTOR_H, frames });
+    return at;
   }
-  out.playerFrames = playerFrames;
+
+  // A darker and a lighter shade of a house colour, for the cloak's fold and
+  // its lit edge, so the player reads as that house without a new drawing.
+  function shade(hex, by) {
+    const n = parseInt(hex.slice(1), 16);
+    const mix = (c) => Math.max(0, Math.min(255, Math.round(c + by)));
+    return '#' + [mix(n >> 16), mix((n >> 8) & 255), mix(n & 255)]
+      .map((c) => c.toString(16).padStart(2, '0')).join('');
+  }
+
+  const houses = SWEARABLE.map((id) => {
+    const h = HOUSES[id];
+    const who = {
+      build: 'man', outfit: 'cloak', hair: 'short',
+      weapon: 'blade', shield: 'oakShield',
+      palette: {
+        hair: '#5a3a20', hairLight: '#7a5230',
+        skin: '#e8b88c', skinDark: '#c08f66',
+        cloak: h.colour, cloakDark: shade(h.colour, -34),
+        trim: h.accent, legs: '#3d3a44', boots: '#2a2730',
+      },
+    };
+    return {
+      id, name: h.name, full: h.full, words: h.words, sworn: h.sworn,
+      seat: h.seat, colour: h.colour, accent: h.accent,
+      actor: actorFor(who, `hero:${id}`),
+    };
+  });
+
+  // --- techniques and duellists --------------------------------------------
+
+  const techniques = Object.keys(TECHNIQUES)
+    .map((id) => ({
+      id, name: TECHNIQUES[id].name,
+      power: TECHNIQUES[id].power, accuracy: TECHNIQUES[id].accuracy,
+      defend: TECHNIQUES[id].effect?.defend ? 1 : 0,
+      highCrit: TECHNIQUES[id].highCrit ? 1 : 0,
+    }));
+  const techSlot = new Map(techniques.map((t, i) => [t.id, i]));
+  const guardSlot = techSlot.get('guard');
+
+  const duellists = [];
+  const duellistIndex = new Map();
+
+  /* The writing puts the speaker inside the line. The cartridge has a plate for
+     that, so lift it out rather than saying it twice. */
+  function unprefix(line, name) {
+    const m = String(line ?? '').match(/^([A-Z][A-Za-z'\- ]{1,22}):\s+([\s\S]+)$/);
+    return m && (name.indexOf(m[1]) >= 0 || m[1].indexOf(name) >= 0 || true) ? m[2] : line;
+  }
+
+  function pushDuellist(record) {
+    record.intro = unprefix(record.intro, record.name);
+    record.defeat = unprefix(record.defeat, record.name);
+    const key = record.name + '|' + record.level;
+    if (duellistIndex.has(key)) return duellistIndex.get(key);
+    const at = duellists.length;
+    duellistIndex.set(key, at);
+    duellists.push(record);
+    return at;
+  }
+
+  function techSlots(ids) {
+    const picked = (ids ?? []).map((id) => techSlot.get(id)).filter((n) => n !== undefined);
+    while (picked.length < 3) picked.push(techSlot.get('slash'));
+    return [...picked.slice(0, 3), guardSlot];
+  }
+
+  /* What somebody on the road is worth in a fight. Named duellists carry their
+     own numbers; everyone else is built from how they are dressed, the same way
+     the browser builds a roamer. */
+  const ROAD = {
+    guard:   { v: 1.15, m: 1.0,  g: 1.3,  s: 0.9,  techs: ['slash', 'shieldBash', 'thrust'] },
+    stark:   { v: 1.1,  m: 1.05, g: 1.1,  s: 1.0,  techs: ['slash', 'thrust', 'riposte'] },
+    nightswatch: { v: 1.1, m: 1.05, g: 1.15, s: 0.95, techs: ['slash', 'thrust', 'riposte'] },
+    ironborn:{ v: 1.0,  m: 1.2,  g: 0.85, s: 1.1,  techs: ['cleave', 'hook', 'quickCut'] },
+    wildling:{ v: 1.15, m: 1.2,  g: 0.8,  s: 1.0,  techs: ['cleave', 'sweep', 'crush'] },
+    wildlingWoman: { v: 1.0, m: 1.05, g: 0.8, s: 1.2, techs: ['quickCut', 'lunge', 'slash'] },
+    sellsword: { v: 1.0, m: 1.1, g: 0.95, s: 1.1, techs: ['slash', 'quickCut', 'thrust'] },
+    noble:   { v: 0.9,  m: 0.9,  g: 1.0,  s: 1.0,  techs: ['thrust', 'riposte', 'slash'] },
+    maester: { v: 0.7,  m: 0.55, g: 0.7,  s: 0.85, techs: ['quickCut', 'slash', 'slash'] },
+    septa:   { v: 0.65, m: 0.5,  g: 0.7,  s: 0.85, techs: ['quickCut', 'slash', 'slash'] },
+    smallfolk: { v: 0.8, m: 0.7, g: 0.75, s: 0.95, techs: ['quickCut', 'slash', 'slash'] },
+  };
+
+  function roadFighter(name, sprite, level) {
+    const b = ROAD[sprite] ?? ROAD.smallfolk;
+    const s = baseStats(level);
+    return {
+      name, level,
+      vigour: Math.round(s.vigour * b.v),
+      might: Math.round(s.might * b.m),
+      guard: Math.round(s.guard * b.g),
+      swiftness: Math.round(s.swiftness * b.s),
+      techs: techSlots(b.techs),
+      reward: 20 + level * 14,
+      exp: 18 + level * 9,
+      mortal: 1,
+      intro: `${name} squares up.`,
+      defeat: `${name} goes down and does not get up.`,
+    };
+  }
+
+  const out = { maps: [], houses, techniques, duellists, actors: null };
 
   for (const id of mapIds) {
     const map = MAPS[id];
-    const width = map.width ?? map.tiles[0].length;
-    const height = map.height ?? map.tiles.length;
-    const grid = map.grid ?? map.tiles;
+    const width = map.width ?? map.grid[0].length;
+    const height = map.height ?? map.grid.length;
     const cells = [];
     const solid = [];
     for (let y = 0; y < height; y++) {
-      const solidRow = [];
       for (let x = 0; x < width; x++) {
-        const char = grid[y][x] ?? '.';
-        const canvas = tileCanvas(char, 0, maskFor({ grid, width, height }, char, x, y),
+        const char = map.grid[y][x] ?? '.';
+        const canvas = tileCanvas(char, 0, maskFor(map, char, x, y),
           map.ground ?? 'grass', pixels.variantFor(x, y, 4));
         cells.push(read(canvas));
-        solidRow.push(isSolid(char) ? 1 : 0);
+        solid.push(isSolid(char) ? 1 : 0);
       }
-      solid.push(solidRow);
+    }
+
+    const npcs = (map.npcs ?? []).map((n) => {
+      const sprite = n.sprite ?? 'smallfolk';
+      const named = n.data?.duel ? DUELLISTS[n.data.duel] : null;
+      const level = named?.level ?? Math.max(2, Math.min(30, 3 + mapIds.indexOf(id) * 2));
+      const fighter = named
+        ? {
+            name: named.name, level: named.level,
+            vigour: named.vigour, might: named.might,
+            guard: named.guard, swiftness: named.swiftness,
+            techs: techSlots(named.techniques),
+            reward: named.reward, exp: named.exp,
+            mortal: named.canYield === false ? 0 : 1,
+            intro: named.intro, defeat: named.defeat,
+          }
+        : roadFighter(n.name ?? 'Stranger', sprite, level);
+      return {
+        x: n.x, y: n.y, dir: actors.DIRECTIONS.indexOf(n.dir ?? 'down'),
+        name: n.name ?? '', script: n.script ?? '',
+        actor: actorFor(sprite, sprite),
+        duellist: pushDuellist(fighter),
+        // A town is not a waxwork. Everybody has somewhere to be except the
+        // people whose whole job is to stand behind something.
+        roams: /healer|merchant|shop|smith|innkeep|steward|harbour|ship|court|stable/i
+          .test(n.script ?? '') ? 0 : 1,
+        // A maester will put you back together. A maester will not fight you,
+        // and neither will a child or a septa.
+        heals: /healer|maester/i.test(n.script ?? '') || /Maester/.test(n.name ?? '') ? 1 : 0,
+        fights: ['child', 'girl', 'septa', 'maester', 'whitewalker'].includes(sprite) ? 0 : 1,
+      };
+    });
+
+    /* Who is out on this road. The browser rolls these as you walk; the
+       cartridge picks from the same table, with the same numbers. */
+    const ambushes = [];
+    for (const row of map.encounters ?? []) {
+      if (!row.roamer || !ROAMERS[row.roamer]) continue;
+      const level = Math.max(2, Math.round((row.min + row.max) / 2));
+      const made = makeRoamer(row.roamer, level, (list) => list[0]);
+      ambushes.push({
+        actor: actorFor(made.sprite, made.sprite),
+        duellist: pushDuellist({
+          name: made.name, level: made.level, vigour: made.vigour,
+          might: made.might, guard: made.guard, swiftness: made.swiftness,
+          techs: techSlots(made.techniques),
+          reward: made.reward, exp: made.exp, mortal: 1,
+          intro: made.intro, defeat: made.defeat,
+        }),
+      });
+      if (ambushes.length >= 4) break;
     }
 
     out.maps.push({
-      id, name: map.name, width, height, cells, solid,
+      id, name: map.name, width, height, cells, solid, npcs, ambushes,
       warps: (map.warps ?? []).map((w) => ({ ...w })),
       signs: (map.signs ?? []).map((s) => ({ x: s.x, y: s.y, text: s.text })),
-      npcs: (map.npcs ?? []).map((n) => ({
-        x: n.x, y: n.y, name: n.name ?? '', script: n.script ?? '',
-        // A duel's opening line is authored on the duellist, not in the script,
-        // so take it from there rather than guessing at the script's branches.
-        said: n.script === 'duel' && DUELLISTS[n.data?.duel]
-          ? DUELLISTS[n.data.duel].intro : null,
-        slot: spriteSlot(n.sprite ?? 'smallfolk', n.dir ?? 'down'),
-      })),
     });
   }
+
+  out.actors = actorList;
   return out;
-}, { mapIds: MAP_IDS, playerSprite: PLAYER_SPRITE });
+}, { mapIds: MAP_IDS });
 
 // The font is compiled inside font.js; re-read it through the same module.
+const FONT_CHARS = [...' !\'",-./0123456789:;?()ABCDEFGHIJKLMNOPQRSTUVWXYZ[]abcdefghijklmnopqrstuvwxyz'];
 const fontData = await page.evaluate(async (chars) => {
   const font = await import('/src/engine/font.js');
   return chars.map((char) => {
@@ -150,19 +309,21 @@ const fontData = await page.evaluate(async (chars) => {
     for (const [x, y] of hits) if (y >= 0 && y < 10 && x >= 0 && x < 16) rows[y] |= 1 << x;
     return { rows, advance: font.charWidth(char) };
   });
-}, [...' !\'",-.0123456789:;?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]abcdefghijklmnopqrstuvwxyz']);
+}, FONT_CHARS);
 
 await browser.close();
 server.close();
 
 // ------------------------------------------------------------- packing -----
-// Everything below turns RGBA into the shapes GBA hardware actually reads:
-// BGR555 palettes, 8bpp 8x8 character tiles, and a screen map of indices.
 
 const bgr555 = (r, g, b) => ((b >> 3) << 10) | ((g >> 3) << 5) | (r >> 3);
+const hexColour = (h) => {
+  const n = parseInt(h.slice(1), 16);
+  return bgr555(n >> 16, (n >> 8) & 255, n & 255);
+};
 
-/** Builds a <=255 colour palette (index 0 reserved for transparent). */
-function buildPalette(sources) {
+/** Builds a palette of at most `room` colours; index 0 is transparent. */
+function buildPalette(sources, room) {
   const counts = new Map();
   for (const rgba of sources) {
     for (let i = 0; i < rgba.length; i += 4) {
@@ -172,12 +333,10 @@ function buildPalette(sources) {
     }
   }
   const ordered = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c);
-  const palette = ordered.slice(0, 255);
+  const palette = ordered.slice(0, room);
   const lookup = new Map(palette.map((c, i) => [c, i + 1]));
-  // Anything that did not make the cut snaps to its nearest neighbour, which on
-  // art this flat is visually the same colour.
-  for (const c of ordered.slice(255)) {
-    let best = 0, bestD = Infinity;
+  for (const c of ordered.slice(room)) {
+    let best = 1, bestD = Infinity;
     const r = c & 31, g = (c >> 5) & 31, b = (c >> 10) & 31;
     for (let i = 0; i < palette.length; i++) {
       const p = palette[i];
@@ -186,10 +345,9 @@ function buildPalette(sources) {
     }
     lookup.set(c, best);
   }
-  return { palette, lookup };
+  return { palette, lookup, dropped: Math.max(0, ordered.length - room) };
 }
 
-/** RGBA image -> palette indices, one byte per pixel. */
 function indexify(rgba, lookup) {
   const out = new Uint8Array(rgba.length / 4);
   for (let i = 0, p = 0; i < rgba.length; i += 4, p++) {
@@ -214,63 +372,110 @@ function cut8(indexed, w, h) {
   return tiles;
 }
 
+/** 64 index bytes -> 16 words, 8bpp. */
+const words8 = (tile) => {
+  const out = [];
+  for (let i = 0; i < 64; i += 4) {
+    out.push((tile[i] | (tile[i + 1] << 8) | (tile[i + 2] << 16) | (tile[i + 3] << 24)) >>> 0);
+  }
+  return out;
+};
+
+/** 64 index bytes -> 8 words, 4bpp, low nibble first. */
+const words4 = (tile) => {
+  const out = [];
+  for (let i = 0; i < 64; i += 8) {
+    let w = 0;
+    for (let n = 0; n < 8; n++) w |= (tile[i + n] & 15) << (n * 4);
+    out.push(w >>> 0);
+  }
+  return out;
+};
+
 // --- backgrounds ------------------------------------------------------------
+// One palette for the whole world, so a warp never has to repaint it, but each
+// map carries its own character tiles: video memory holds the map you are on.
 
 const allCells = harvest.maps.flatMap((m) => m.cells);
-const bg = buildPalette(allCells);
-
-const bank = [];                       // unique 8x8 tiles
-const bankIndex = new Map();
-bank.push(new Uint8Array(64));         // tile 0 is blank, for anything off-map
-bankIndex.set(bank[0].join(','), 0);
-
-function intern(tile) {
-  const key = tile.join(',');
-  let at = bankIndex.get(key);
-  if (at === undefined) { at = bank.length; bank.push(tile); bankIndex.set(key, at); }
-  return at;
-}
+const bg = buildPalette(allCells, 239);     /* bank 15 is kept for the text layer */
 
 for (const map of harvest.maps) {
-  map.entries = [];                    // [ty][tx] -> bank index, in 8x8 tiles
-  for (let y = 0; y < map.height * 2; y++) map.entries.push(new Array(map.width * 2).fill(0));
+  const bank = [new Uint8Array(64)];
+  const seen = new Map([[bank[0].join(','), 0]]);
+  const entries = [];
+  for (let y = 0; y < map.height * 2; y++) entries.push(new Array(map.width * 2).fill(0));
+
   for (let y = 0; y < map.height; y++) {
     for (let x = 0; x < map.width; x++) {
       const quad = cut8(indexify(map.cells[y * map.width + x], bg.lookup), 16, 16);
-      map.entries[y * 2][x * 2] = intern(quad[0]);
-      map.entries[y * 2][x * 2 + 1] = intern(quad[1]);
-      map.entries[y * 2 + 1][x * 2] = intern(quad[2]);
-      map.entries[y * 2 + 1][x * 2 + 1] = intern(quad[3]);
+      quad.forEach((tile, q) => {
+        const key = tile.join(',');
+        let at = seen.get(key);
+        if (at === undefined) { at = bank.length; bank.push(tile); seen.set(key, at); }
+        entries[y * 2 + (q >> 1)][x * 2 + (q & 1)] = at;
+      });
     }
   }
+  if (bank.length > BG_TILE_LIMIT) {
+    throw new Error(`${map.id} needs ${bank.length} tiles; video memory holds ${BG_TILE_LIMIT}`);
+  }
+  map.bank = bank;
+  map.entries = entries;
   delete map.cells;
 }
 
-if (bank.length > 512) throw new Error(`${bank.length} background tiles; the cartridge holds 512`);
-
 // --- people -----------------------------------------------------------------
+// Four bits a pixel with a palette apiece, which is what lets a town's worth of
+// different people be resident at once.
 
-const obj = buildPalette(harvest.sprites.map((s) => s.rgba));
-const objTiles = [];                   // 8bpp, 1D mapped: 2 wide x 4 tall per frame
-for (const sprite of harvest.sprites) {
-  const quad = cut8(indexify(sprite.rgba, obj.lookup), sprite.w, sprite.h);
-  objTiles.push(...quad);              // already row-major, which is 1D order
+for (const actor of harvest.actors) {
+  const pal = buildPalette(actor.frames, 15);
+  actor.colours = pal.palette;
+  actor.tiles = actor.frames.flatMap((rgba) => cut8(indexify(rgba, pal.lookup), actor.w, actor.h));
+  actor.crushed = pal.dropped;
+  delete actor.frames;
 }
 
-// --- writing it out ---------------------------------------------------------
+// Which appearances each map has to have resident, and where each sits.
+for (const map of harvest.maps) {
+  const used = [];
+  const bankOf = (actor) => {
+    let at = used.indexOf(actor);
+    if (at < 0) { at = used.length; used.push(actor); }
+    return at;
+  };
+  for (const npc of map.npcs) npc.bank = bankOf(npc.actor);
+  for (const a of map.ambushes) a.bank = bankOf(a.actor);
+  if (used.length > NPC_ACTOR_LIMIT) {
+    throw new Error(`${map.id} needs ${used.length} appearances resident; there is room for ${NPC_ACTOR_LIMIT}`);
+  }
+  map.residents = used;
+}
+
+// --- writing ----------------------------------------------------------------
+
+const scriptSource = await readFile(join(ROOT, 'src/data/scripts.js'), 'utf8');
+function scriptLine(script) {
+  if (!script) return null;
+  const at = scriptSource.indexOf(`\n  async ${script}(`);
+  if (at < 0) return null;
+  const rest = scriptSource.slice(at + 1);
+  const end = rest.indexOf('\n  async ');
+  const body = end < 0 ? rest : rest.slice(0, end);
+  const run = /say\(\s*((?:(['"])(?:\\.|(?!\2)[^\\])*\2\s*\+?\s*)+)/g;
+  const piece = /(['"])((?:\\.|(?!\1)[^\\])*)\1/g;
+  const lines = [...body.matchAll(run)]
+    .map((m) => [...m[1].matchAll(piece)].map((p) => p[2]).join(''))
+    .map((t) => t.replace(/\\n/g, '\n').replace(/\\'/g, "'").replace(/\\"/g, '"'))
+    .sort((a, b) => b.length - a.length);
+  return lines[0] ?? null;
+}
+
+// ------------------------------------------------------------- writing out --
 
 const hex = (n) => `0x${(n >>> 0).toString(16)}`;
+const cstr = (s) => JSON.stringify(String(s ?? '')).replace(/\\n/g, '\\n');
 
-/** 64 index bytes -> 16 little-endian words, which is how VRAM wants them. */
-function tileWords(tile) {
-  const words = [];
-  for (let i = 0; i < 64; i += 4) {
-    words.push((tile[i] | (tile[i + 1] << 8) | (tile[i + 2] << 16) | (tile[i + 3] << 24)) >>> 0);
-  }
-  return words;
-}
-
-/** Wraps a long list of numbers so the header stays readable. */
 function block(values, perLine = 12) {
   const lines = [];
   for (let i = 0; i < values.length; i += perLine) {
@@ -290,7 +495,6 @@ L.push('typedef unsigned int   u32;');
 L.push('');
 
 // Font.
-const FONT_CHARS = [...' !\'",-.0123456789:;?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]abcdefghijklmnopqrstuvwxyz'];
 L.push(`#define FONT_COUNT ${FONT_CHARS.length}`);
 L.push('#define FONT_ROWS 10');
 L.push('static const char font_chars[FONT_COUNT + 1] = ' + JSON.stringify(FONT_CHARS.join('')) + ';');
@@ -302,108 +506,142 @@ L.push(block(fontData.map((g) => g.advance), 24));
 L.push('};');
 L.push('');
 
-// Background graphics.
-L.push(`#define BG_TILE_COUNT ${bank.length}`);
-L.push(`static const u16 bg_pal[256] = {`);
-L.push(block([0, ...bg.palette, ...new Array(255 - bg.palette.length).fill(0)].map(hex), 12));
-L.push('};');
-L.push('static const u32 bg_tiles[BG_TILE_COUNT * 16] = {');
-L.push(block(bank.flatMap(tileWords).map(hex), 8));
+// Background palette.
+L.push('static const u16 bg_pal[240] = {');
+L.push(block([0, ...bg.palette, ...new Array(239 - bg.palette.length).fill(0)].map(hex), 12));
 L.push('};');
 L.push('');
 
-// Sprite graphics.
-L.push(`#define OBJ_TILE_COUNT ${objTiles.length}`);
-L.push(`#define FRAME_TILES 8            /* a 16x32 body is 2 x 4 character tiles */`);
-L.push('static const u16 obj_pal[256] = {');
-L.push(block([0, ...obj.palette, ...new Array(255 - obj.palette.length).fill(0)].map(hex), 12));
+// People.
+L.push('#define ACTOR_FRAME_TILES 8      /* a 16x32 body is 2 x 4 character tiles */');
+L.push('#define PLAYER_FRAMES 16         /* four facings, four walk steps */');
+L.push(`#define NPC_FRAMES ${NPC_FRAMES}`);
+L.push(`#define ACTOR_COUNT ${harvest.actors.length}`);
+L.push('typedef struct { const u16 *pal; const u32 *tiles; } Actor;');
+harvest.actors.forEach((actor, i) => {
+  L.push(`static const u16 actorpal_${i}[16] = {`);
+  L.push(block([0, ...actor.colours, ...new Array(15 - actor.colours.length).fill(0)].map(hex), 8));
+  L.push('};');
+  L.push(`static const u32 actortiles_${i}[${actor.tiles.length * 8}] = {`);
+  L.push(block(actor.tiles.flatMap(words4).map(hex), 8));
+  L.push('};');
+});
+L.push('static const Actor actors[ACTOR_COUNT] = {');
+harvest.actors.forEach((a, i) => L.push(`  { actorpal_${i}, actortiles_${i} },  /* ${a.id} */`));
 L.push('};');
-L.push('static const u32 obj_tiles[OBJ_TILE_COUNT * 16] = {');
-L.push(block(objTiles.flatMap(tileWords).map(hex), 8));
-L.push('};');
-L.push('');
-L.push(`#define PLAYER_FRAME_BASE ${harvest.playerFrames[0]}`);
 L.push('');
 
-// Dialogue, lifted out of the scripts the browser game runs.
-const scriptSource = await readFile(join(ROOT, 'src/data/scripts.js'), 'utf8');
-function firstLine(script) {
-  if (!script) return null;
-  const at = scriptSource.indexOf(`\n  async ${script}(`);
-  if (at < 0) return null;
-  // Stop at the next script, or a run-on match would quote the wrong person.
-  const rest = scriptSource.slice(at + 1);
-  const end = rest.indexOf('\n  async ');
-  const body = end < 0 ? rest : rest.slice(0, end);
-  // A script branches on flags, so there is no single "first" line. The longest
-  // one is reliably the substantive one rather than a one-clause follow-up.
-  // A line is often written as several string literals joined with +, so take
-  // the whole run rather than the first piece of it.
-  const run = /say\(\s*((?:(['"])(?:\\.|(?!\2)[^\\])*\2\s*\+?\s*)+)/g;
-  const piece = /(['"])((?:\\.|(?!\1)[^\\])*)\1/g;
-  const lines = [...body.matchAll(run)]
-    .map((m) => [...m[1].matchAll(piece)].map((p) => p[2]).join(''))
-    .map((t) => t.replace(/\\n/g, '\n').replace(/\\'/g, "'").replace(/\\"/g, '"'))
-    .sort((a, b) => b.length - a.length);
-  return lines[0] ?? null;
+// Houses.
+L.push(`#define HOUSE_COUNT ${harvest.houses.length}`);
+L.push('typedef struct { const char *name, *full, *words, *sworn, *seat; u16 colour, accent; u16 actor; } House;');
+L.push('static const House houses[HOUSE_COUNT] = {');
+for (const h of harvest.houses) {
+  L.push(`  { ${cstr(h.name)}, ${cstr(h.full)}, ${cstr(h.words)},`);
+  L.push(`    ${cstr(h.sworn)}, ${cstr(h.seat)}, ${hex(hexColour(h.colour))}, ${hex(hexColour(h.accent))}, ${h.actor} },`);
 }
+L.push('};');
+L.push('');
 
-const cstr = (s) => JSON.stringify(String(s ?? '')).replace(/\\n/g, '\\n');
+// Techniques.
+L.push(`#define TECH_COUNT ${harvest.techniques.length}`);
+L.push('typedef struct { const char *name; u8 power, accuracy, defend, highCrit; } Tech;');
+L.push('static const Tech techniques[TECH_COUNT] = {');
+for (const t of harvest.techniques) {
+  L.push(`  { ${cstr(t.name)}, ${t.power}, ${t.accuracy}, ${t.defend}, ${t.highCrit} },`);
+}
+L.push('};');
+L.push('');
+const playerTechs = ['slash', 'thrust', 'riposte', 'guard']
+  .map((id) => harvest.techniques.findIndex((t) => t.id === id));
+L.push('static const u8 player_techs[4] = { ' + playerTechs.join(', ') + ' };');
+L.push('');
+
+// Duellists.
+L.push(`#define DUELLIST_COUNT ${harvest.duellists.length}`);
+L.push('typedef struct {');
+L.push('  const char *name;');
+L.push('  u16 vigour; u8 level, might, guard, swiftness, mortal;');
+L.push('  u8 tech[4];');
+L.push('  u16 reward, exp;');
+L.push('  const char *intro, *defeat;');
+L.push('} Duellist;');
+L.push('static const Duellist duellists[DUELLIST_COUNT] = {');
+for (const d of harvest.duellists) {
+  L.push(`  { ${cstr(d.name)}, ${d.vigour}, ${d.level}, ${d.might}, ${d.guard}, ${d.swiftness}, ${d.mortal},`);
+  L.push(`    { ${d.techs.join(', ')} }, ${d.reward}, ${d.exp},`);
+  L.push(`    ${cstr(d.intro)}, ${cstr(d.defeat)} },`);
+}
+L.push('};');
+L.push('');
 
 // Maps.
-L.push('typedef struct { u8 x, y; u8 to; u8 tx, ty; } Warp;');
+L.push('typedef struct { u8 x, y, to, tx, ty; } Warp;');
 L.push('typedef struct { u8 x, y; const char *text; } Sign;');
-L.push('typedef struct { u8 x, y; u16 slot; const char *name; const char *line; } Npc;');
+L.push('typedef struct { u16 duellist; u8 bank; } Ambush;');
+L.push('typedef struct {');
+L.push('  u8 x, y, dir, bank, roams, heals, fights;');
+L.push('  u16 duellist;');
+L.push('  const char *name, *line;');
+L.push('} Npc;');
 L.push('typedef struct {');
 L.push('  const char *name;');
 L.push('  u8 w, h;');
-L.push('  const u16 *entries;   /* (h*2) rows of (w*2) background tile indices */');
-L.push('  const u8  *solid;     /* h rows of w flags */');
+L.push('  u16 tileCount;');
+L.push('  const u32 *tiles;');
+L.push('  const u16 *entries;');
+L.push('  const u8  *solid;');
+L.push('  const u16 *residents; u8 residentCount;');
 L.push('  const Warp *warps; u8 warpCount;');
 L.push('  const Sign *signs; u8 signCount;');
 L.push('  const Npc  *npcs;  u8 npcCount;');
+L.push('  const Ambush *ambushes; u8 ambushCount;');
 L.push('} Map;');
 L.push('');
 
 const mapSlot = new Map(harvest.maps.map((m, i) => [m.id, i]));
 harvest.maps.forEach((map, i) => {
   L.push(`/* ---- ${map.name} ---- */`);
+  L.push(`static const u32 tiles_${i}[${map.bank.length} * 16] = {`);
+  L.push(block(map.bank.flatMap(words8).map(hex), 8));
+  L.push('};');
   L.push(`static const u16 entries_${i}[${map.height * 2} * ${map.width * 2}] = {`);
   L.push(block(map.entries.flat(), 24));
   L.push('};');
   L.push(`static const u8 solid_${i}[${map.height} * ${map.width}] = {`);
-  L.push(block(map.solid.flat(), 24));
+  L.push(block(map.solid, 24));
   L.push('};');
+  L.push(`static const u16 residents_${i}[${Math.max(1, map.residents.length)}] = { ${map.residents.join(', ') || '0'} };`);
 
   const warps = map.warps.filter((w) => mapSlot.has(w.to));
   L.push(`static const Warp warps_${i}[${Math.max(1, warps.length)}] = {`);
   for (const w of warps) L.push(`  { ${w.x}, ${w.y}, ${mapSlot.get(w.to)}, ${w.tx}, ${w.ty} },`);
   if (!warps.length) L.push('  { 255, 255, 0, 0, 0 },');
   L.push('};');
+  map.liveWarps = warps.length;
 
   L.push(`static const Sign signs_${i}[${Math.max(1, map.signs.length)}] = {`);
   for (const s of map.signs) L.push(`  { ${s.x}, ${s.y}, ${cstr(s.text)} },`);
   if (!map.signs.length) L.push('  { 255, 255, "" },');
   L.push('};');
 
+  L.push(`static const Ambush ambushes_${i}[${Math.max(1, map.ambushes.length)}] = {`);
+  for (const a of map.ambushes) L.push(`  { ${a.duellist}, ${a.bank} },`);
+  if (!map.ambushes.length) L.push('  { 0, 0 },');
+  L.push('};');
+
   L.push(`static const Npc npcs_${i}[${Math.max(1, map.npcs.length)}] = {`);
   for (const n of map.npcs) {
-    const said = n.said ?? firstLine(n.script);
-    let line = said ?? `${n.name} has nothing to say to you today.`;
+    let line = scriptLine(n.script) ?? `${n.name} has nothing to say to you today.`;
     let name = n.name;
-    // The writing puts the speaker inside the line. The cartridge shows the
-    // speaker on its own plate, so lift it out rather than saying it twice —
-    // and trust what the line calls them over what the map does.
     const spoken = line.match(/^([A-Z][A-Za-z'\- ]{1,22}):\s+([\s\S]+)$/);
     if (spoken) {
-      // Keep the fuller of the two names: the map's, when the line is only
-      // using a shorter form of it.
       name = n.name.startsWith(spoken[1]) ? n.name : spoken[1];
       line = spoken[2];
     }
-    L.push(`  { ${n.x}, ${n.y}, ${n.slot}, ${cstr(name)}, ${cstr(line.trim())} },`);
+    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.duellist},`);
+    L.push(`    ${cstr(name)}, ${cstr(line.trim())} },`);
   }
-  if (!map.npcs.length) L.push('  { 255, 255, 0, "", "" },');
+  if (!map.npcs.length) L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, "", "" },');
   L.push('};');
   L.push('');
 });
@@ -411,9 +649,10 @@ harvest.maps.forEach((map, i) => {
 L.push(`#define MAP_COUNT ${harvest.maps.length}`);
 L.push('static const Map maps[MAP_COUNT] = {');
 harvest.maps.forEach((map, i) => {
-  L.push(`  { ${cstr(map.name)}, ${map.width}, ${map.height}, entries_${i}, solid_${i},`);
-  L.push(`    warps_${i}, ${map.warps.filter((w) => mapSlot.has(w.to)).length},`);
-  L.push(`    signs_${i}, ${map.signs.length}, npcs_${i}, ${map.npcs.length} },`);
+  L.push(`  { ${cstr(map.name)}, ${map.width}, ${map.height}, ${map.bank.length}, tiles_${i},`);
+  L.push(`    entries_${i}, solid_${i}, residents_${i}, ${map.residents.length},`);
+  L.push(`    warps_${i}, ${map.liveWarps}, signs_${i}, ${map.signs.length},`);
+  L.push(`    npcs_${i}, ${map.npcs.length}, ambushes_${i}, ${map.ambushes.length} },`);
 });
 L.push('};');
 L.push('');
@@ -421,7 +660,15 @@ L.push('#endif');
 
 await writeFile(new URL('./data.h', import.meta.url), L.join('\n') + '\n', 'utf8');
 
-const bytes = bank.length * 64 + objTiles.length * 64;
-console.log(`data.h — ${harvest.maps.length} maps, ${bank.length}/512 background tiles, `
-  + `${harvest.sprites.length} actor frames (${objTiles.length} tiles), `
-  + `${bg.palette.length}+${obj.palette.length} colours, ${(bytes / 1024).toFixed(1)} KB of graphics`);
+const bgTiles = harvest.maps.reduce((n, m) => n + m.bank.length, 0);
+const objTiles = harvest.actors.reduce((n, a) => n + a.tiles.length, 0);
+const worst = harvest.maps.reduce((a, b) => (a.bank.length > b.bank.length ? a : b));
+const crushed = harvest.actors.filter((a) => a.crushed).length;
+console.log(`data.h`);
+console.log(`  ${harvest.maps.length} maps, worst fit ${worst.bank.length}/${BG_TILE_LIMIT} tiles (${worst.id})`);
+console.log(`  ${bgTiles} background tiles, ${bg.palette.length}/239 colours`
+  + (bg.dropped ? `, ${bg.dropped} merged to their nearest` : ''));
+console.log(`  ${harvest.actors.length} appearances, ${objTiles} tiles`
+  + (crushed ? `, ${crushed} needed more than 15 colours` : ''));
+console.log(`  ${harvest.duellists.length} people you can fight, ${harvest.techniques.length} techniques`);
+console.log(`  ${((bgTiles * 64 + objTiles * 32) / 1024).toFixed(0)} KB of graphics`);

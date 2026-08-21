@@ -30,54 +30,103 @@ static const char *outDir;
 /* --------------------------------------------------------- the script ---- */
 /* What is being held, frame by frame. Each entry is (frames, keys). */
 
-typedef struct { int frames; unsigned keys; const char *shot; } Beat;
+/* A beat is either a set of buttons held for so many frames, or a tile to walk
+   to — greedy, one axis at a time, which is enough for the corridors here and
+   keeps a route from breaking every time somebody wanders across it. */
+typedef struct { int frames; unsigned keys; const char *shot; int gx, gy; } Beat;
+#define WALK_TO(f, x, y, shot) { f, 0, shot, x, y }
 
 static const Beat script[] = {
-  { 6,  0,          "00-title" },
-  { 2,  KEY_START,  0 },
-  { 6,  0,          "01-winterfell" },
-  { 24, KEY_DOWN,   "02-at-the-maester" },
-  { 2,  0,          0 },
-  { 2,  KEY_A,      0 },
-  { 6,  0,          "03-luwin-speaks" },
-  { 2,  KEY_A,      0 },
-  { 6,  0,          "04-luwin-continues" },
-  { 2,  KEY_A,      0 },
-  { 6,  0,          "05-window-closed" },
-  { 56, KEY_UP,     "06-stopped-by-jory" },
-  { 2,  0,          0 },
-  { 2,  KEY_A,      0 },
-  { 6,  0,          "07-jory-speaks" },
-  { 2,  KEY_A,      0 },
-  { 6,  0,          0 },
-  { 2,  KEY_A,      0 },
-  { 6,  0,          "08-window-closed" },
-  { 24, KEY_LEFT,   0 },
-  { 4,  KEY_UP,     "09-facing-the-sign" },
-  { 2,  KEY_A,      0 },
-  { 6,  0,          "10-reading-the-sign" },
-  { 2,  KEY_A,      0 },
-  { 6,  0,          "11-sign-closed" },
-  { 8,  KEY_RIGHT,  0 },
-  { 16, KEY_UP,     "12-through-the-door" },
-  { 24, 0,          "13-the-forge" },
-  { 16, KEY_DOWN,   0 },
-  { 2,  KEY_A,      0 },
-  { 8,  0,          "14-the-smith" },
-  { 2,  KEY_A,      0 },
-  { 8,  0,          0 },
-  { 2,  KEY_A,      0 },
-  { 8,  0,          0 },
-  { 40, KEY_DOWN,   "15-back-outside" },
-  { 6,  0,          0 },
-  { 16, KEY_RIGHT,  0 },
-  { 4,  0,          0 },
-  { 24, KEY_DOWN,   0 },
-  { 8,  KEY_LEFT,   0 },
-  { 24, KEY_DOWN,   0 },
-  { 8,  KEY_RIGHT,  0 },
-  { 16, KEY_DOWN,   "16-the-wolfswood" },
-  { 48, KEY_DOWN,   "17-under-the-trees" },
+  { 6, 0, "01-title", 0, 0 },
+  { 2, KEY_START, 0, 0, 0 },
+  { 6, 0, "02-swear-stark", 0, 0 },
+  { 2, KEY_RIGHT, 0, 0, 0 },
+  { 4, 0, 0, 0, 0 },
+  { 2, KEY_RIGHT, 0, 0, 0 },
+  { 6, 0, "03-swear-tully", 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 8, 0, "04-winterfell", 0, 0 },
+  { 48, KEY_DOWN, "05-walking", 0, 0 },
+  { 4, 0, 0, 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 8, 0, "06-luwin-speaks", 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 8, 0, 0, 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 8, 0, 0, 0, 0 },
+  { 2, KEY_SELECT, 0, 0, 0 },
+  { 8, 0, "07-maester-will-not-fight", 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 8, 0, 0, 0, 0 },
+  { 118, KEY_UP, "08-at-jory", 0, 0 },
+  { 4, 0, 0, 0, 0 },
+  { 2, KEY_SELECT, 0, 0, 0 },
+  { 8, 0, "09-duel-begins", 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 8, 0, "10-choose-a-technique", 0, 0 },
+  { 2, KEY_DOWN, 0, 0, 0 },
+  { 6, 0, "11-menu-moves", 0, 0 },
+  { 2, KEY_UP, 0, 0, 0 },
+  { 4, 0, 0, 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 8, 0, "12-you-swing", 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 8, 0, "13-they-swing", 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 8, 0, "14-back-to-the-menu", 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 6, 0, 0, 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 6, 0, 0, 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 6, 0, 0, 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 6, 0, 0, 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 6, 0, 0, 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 6, 0, 0, 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 6, 0, 0, 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 8, 0, "15-blows-traded", 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 8, 0, "16-jory-is-gone", 0, 0 },
+  { 2, KEY_START, 0, 0, 0 },
+  { 8, 0, "17-status", 0, 0 },
+  { 2, KEY_START, 0, 0, 0 },
+  { 8, 0, 0, 0, 0 },
+  /* Indoors, which is a different map and a different set of tiles. */
+  WALK_TO(200, 12, 6, 0),
+  { 30, 0, "17b-the-great-keep", 0, 0 },
+  WALK_TO(140, 8, 13, 0),
+  { 30, 0, "17c-back-outside", 0, 0 },
+  /* Draw on somebody, then think better of it. */
+  WALK_TO(240, 15, 15, 0),
+  { 6, 0, 0, 0, 0 },
+  { 2, KEY_DOWN, 0, 0, 0 },
+  { 20, 0, 0, 0, 0 },
+  { 2, KEY_SELECT, 0, 0, 0 },
+  { 8, 0, "17d-drawn-on-theon", 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 8, 0, 0, 0, 0 },
+  { 2, KEY_B, 0, 0, 0 },
+  { 10, 0, "17e-broke-off", 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },
+  { 8, 0, 0, 0, 0 },
+  { 8, KEY_LEFT, "18a-step", 0, 0 },
+  { 8, KEY_LEFT, "18b-step", 0, 0 },
+  { 8, KEY_LEFT, "18c-step", 0, 0 },
+  { 8, KEY_LEFT, "18d-step", 0, 0 },
+  { 8, KEY_DOWN, "19a-down", 0, 0 },
+  { 8, KEY_DOWN, "19b-down", 0, 0 },
+  { 200, 0, "20-the-town-moves", 0, 0 },
+  { 200, 0, "21-the-town-moves-again", 0, 0 },
+  /* Out of the yard and south, to prove the roads actually join up. */
+  WALK_TO(240, 12, 18, 0),
+  WALK_TO(60,  12, 19, "22-through-the-gate"),
+  WALK_TO(700, 10, 24, "23-the-wolfswood"),
+  WALK_TO(300, 10, 25, "24-further-south"),
 };
 
 static int beatAt, beatLeft;
@@ -91,16 +140,33 @@ static void toRgb(unsigned short c, unsigned char *out) {
   out[2] = (unsigned char)((b << 3) | (b >> 2));
 }
 
-static const unsigned char *charTile(unsigned base, int tile, int x, int y) {
-  return (const unsigned char *)HW(0x06000000u + base * 0x4000u) + tile * 64 + y * 8 + x;
+/* Mode 0 as this cartridge configures it: BG0 eight bits a pixel from
+   charblock 0, BG1 four bits a pixel from charblock 2, objects four bits a pixel
+   one-dimensionally mapped, some of them scaled through affine set 0. */
+
+static unsigned char bg8(unsigned chr, int tile, int x, int y) {
+  return *((const unsigned char *)HW(0x06000000u + chr * 0x4000u) + tile * 64 + y * 8 + x);
 }
 
-/* Mode 0, both backgrounds 8bpp, objects one-dimensionally mapped: exactly the
-   configuration the cartridge sets up, and nothing else. */
+static unsigned char bg4(unsigned chr, int tile, int x, int y) {
+  unsigned char byte = *((const unsigned char *)HW(0x06000000u + chr * 0x4000u)
+                         + tile * 32 + y * 4 + (x >> 1));
+  return (x & 1) ? (byte >> 4) : (byte & 15);
+}
+
+static unsigned char obj4(int tile, int x, int y) {
+  /* 16x32, one-dimensional: two character tiles across, four down. */
+  int tx = x >> 3, ty = y >> 3;
+  unsigned char byte = *((const unsigned char *)HW(0x06010000) + tile * 32
+                         + (ty * 2 + tx) * 32 + (y & 7) * 4 + ((x & 7) >> 1));
+  return (x & 1) ? (byte >> 4) : (byte & 15);
+}
+
 static void snapshot(const char *name) {
   static unsigned char rgb[160][240][3];
   const unsigned short *palBg = (const unsigned short *)HW(0x05000000);
   const unsigned short *palObj = (const unsigned short *)HW(0x05000200);
+  const unsigned short *oamHw = (const unsigned short *)HW(0x07000000);
   unsigned short dispcnt = REG_DISPCNT;
   int x, y, i;
 
@@ -108,49 +174,54 @@ static void snapshot(const char *name) {
     for (x = 0; x < 240; x++) {
       unsigned short colour = palBg[0];
 
-      if (!(dispcnt & 0x0080)) {
-        /* BG0: the world. 64x64 tiles, four screenblocks, hardware-scrolled. */
-        if (dispcnt & 0x0100) {
-          unsigned cnt = REG_BG0CNT;
-          unsigned chr = (cnt >> 2) & 3, scr = (cnt >> 8) & 31;
-          int sx = (x + REG_BG0HOFS) & 511, sy = (y + REG_BG0VOFS) & 511;
-          int tx = sx >> 3, ty = sy >> 3;
-          const unsigned short *map = (const unsigned short *)HW(0x06000000u + scr * 0x800u);
-          unsigned short e = map[((ty >> 5) << 11) + ((tx >> 5) << 10) + ((ty & 31) << 5) + (tx & 31)];
-          unsigned char idx = *charTile(chr, e & 0x3FF, sx & 7, sy & 7);
-          if (idx) colour = palBg[idx];
-        }
-        /* Objects: everybody standing on it. */
-        if (dispcnt & 0x1000) {
-          for (i = 127; i >= 0; i--) {
-            const unsigned short *a = (const unsigned short *)HW(0x07000000) + i * 4;
-            int oy, ox, tile, px, py, tx2, ty2, idx;
-            if (a[0] & 0x0200) continue;                      /* hidden */
-            oy = a[0] & 0xFF; if (oy > 191) oy -= 256;
-            ox = a[1] & 0x1FF; if (ox > 271) ox -= 512;
-            if (x < ox || x >= ox + 16 || y < oy || y >= oy + 32) continue;
-            tile = a[2] & 0x3FF;
-            px = x - ox; py = y - oy;
-            tx2 = px >> 3; ty2 = py >> 3;
-            /* 8bpp, one-dimensional: 2 character tiles across, 4 down. */
-            idx = *((const unsigned char *)HW(0x06010000) + tile * 32
-                    + (ty2 * 2 + tx2) * 64 + (py & 7) * 8 + (px & 7));
-            if (idx) colour = palObj[idx];
-          }
-        }
-        /* BG1: the words, in front of everything. */
-        if (dispcnt & 0x0200) {
-          unsigned cnt = REG_BG1CNT;
-          unsigned chr = (cnt >> 2) & 3, scr = (cnt >> 8) & 31;
-          int tx = x >> 3, ty = y >> 3;
-          const unsigned short *map = (const unsigned short *)HW(0x06000000u + scr * 0x800u);
-          unsigned short e = map[ty * 32 + tx];
-          unsigned char idx = *charTile(chr, e & 0x3FF, x & 7, y & 7);
-          if (idx) colour = palBg[idx];
-        }
-      } else {
-        colour = 0x7FFF;
+      if (dispcnt & 0x0080) { colour = 0x7FFF; toRgb(colour, rgb[y][x]); continue; }
+
+      if (dispcnt & 0x0100) {                       /* BG0: the world */
+        unsigned cnt = REG_BG0CNT;
+        unsigned chr = (cnt >> 2) & 3, scr = (cnt >> 8) & 31;
+        int sx = (x + REG_BG0HOFS) & 511, sy = (y + REG_BG0VOFS) & 511;
+        int tx = sx >> 3, ty = sy >> 3;
+        const unsigned short *map = (const unsigned short *)HW(0x06000000u + scr * 0x800u);
+        unsigned short e = map[((ty >> 5) << 11) + ((tx >> 5) << 10) + ((ty & 31) << 5) + (tx & 31)];
+        unsigned char idx = bg8(chr, e & 0x3FF, sx & 7, sy & 7);
+        if (idx) colour = palBg[idx];
       }
+
+      if (dispcnt & 0x1000) {                       /* objects: everybody */
+        for (i = 127; i >= 0; i--) {
+          const unsigned short *a = oamHw + i * 4;
+          int oy, ox, tile, bank, px, py, idx, boxW = 16, boxH = 32;
+          if (!(a[0] & 0x0100) && (a[0] & 0x0200)) continue;      /* hidden */
+          if ((a[0] & 0x0300) == 0x0300) { boxW = 32; boxH = 64; }
+          oy = a[0] & 0xFF; if (oy > 191) oy -= 256;
+          ox = a[1] & 0x1FF; if (ox > 271) ox -= 512;
+          if (x < ox || x >= ox + boxW || y < oy || y >= oy + boxH) continue;
+          tile = a[2] & 0x3FF;
+          bank = (a[2] >> 12) & 15;
+          px = x - ox; py = y - oy;
+          if (a[0] & 0x0100) {
+            /* Affine set 0, which is all this cartridge uses. */
+            int pa = (short)oamHw[3], pd = (short)oamHw[15];
+            int sx = px - boxW / 2, sy = py - boxH / 2;
+            px = ((pa * sx) >> 8) + 8;
+            py = ((pd * sy) >> 8) + 16;
+            if (px < 0 || px >= 16 || py < 0 || py >= 32) continue;
+          }
+          idx = obj4(tile, px, py);
+          if (idx) colour = palObj[bank * 16 + idx];
+        }
+      }
+
+      if (dispcnt & 0x0200) {                       /* BG1: the words, in front */
+        unsigned cnt = REG_BG1CNT;
+        unsigned chr = (cnt >> 2) & 3, scr = (cnt >> 8) & 31;
+        int tx = x >> 3, ty = y >> 3;
+        const unsigned short *map = (const unsigned short *)HW(0x06000000u + scr * 0x800u);
+        unsigned short e = map[ty * 32 + tx];
+        unsigned char idx = bg4(chr, e & 0x3FF, x & 7, y & 7);
+        if (idx) colour = palBg[((e >> 12) & 15) * 16 + idx];
+      }
+
       toRgb(colour, rgb[y][x]);
     }
   }
@@ -164,9 +235,9 @@ static void snapshot(const char *name) {
     fprintf(f, "P6\n240 160\n255\n");
     fwrite(rgb, 1, sizeof rgb, f);
     fclose(f);
-    printf("  %-20s frame %4d  %-16s hero %2d,%2d dir %d walk %d  window %d (line %d/%d)\n",
-      name, frameNo, world ? world->name : "(title)", hero.px >> 4, hero.py >> 4, hero.dir, hero.walk,
-      windowOpen, lineAt, lineCount);
+    printf("  %-26s f%-4d scene %d  %-14s hero %2d,%2d  win %d  duel %d  hp %d/%d\n",
+      name, frameNo, scene, world ? world->name : "(none)", hero.px >> 4, hero.py >> 4,
+      windowOpen, duelPhase, mine.hp, theirs.hp);
   }
 }
 
@@ -179,7 +250,44 @@ void hostFrame(void) {
   }
   {
     const Beat *beat = &script[beatAt - 1];
-    REG_KEYINPUT = (unsigned short)(~beat->keys & 0x03FF);
+    unsigned keys = beat->keys;
+    if (beat->gx || beat->gy) {
+      static const unsigned KEYS[4] = { KEY_DOWN, KEY_UP, KEY_LEFT, KEY_RIGHT };
+      int hx = hero.px >> 4, hy = hero.py >> 4;
+      int wantV = beat->gy > hy ? 0 : (beat->gy < hy ? 1 : -1);
+      int wantH = beat->gx < hx ? 2 : (beat->gx > hx ? 3 : -1);
+      int want[8], n = 0, i;   /* two preferred directions, then all four */
+      /* The longer leg first, then the other, then anywhere that is open —
+         somebody wandering across the road should not end the journey. */
+      if ((beat->gy > hy ? beat->gy - hy : hy - beat->gy)
+        > (beat->gx > hx ? beat->gx - hx : hx - beat->gx)) {
+        if (wantV >= 0) want[n++] = wantV;
+        if (wantH >= 0) want[n++] = wantH;
+      } else {
+        if (wantH >= 0) want[n++] = wantH;
+        if (wantV >= 0) want[n++] = wantV;
+      }
+      for (i = 0; i < 4; i++) want[n + i] = i;
+      keys = 0;
+      /* A road you are walking has people on it. Fight whatever steps out, so
+         the journey is a journey and not a single duel, and read whatever it
+         leaves on the screen afterwards. */
+      if (scene == 3 || windowOpen) {
+        REG_KEYINPUT = (unsigned short)(~((frameNo & 3) ? 0u : KEY_A) & 0x03FF);
+        beatLeft--;
+        if (!beatLeft && beat->shot) snapshot(beat->shot);
+        frameNo++;
+        return;
+      }
+      for (i = 0; i < n + 4; i++) {
+        int d = want[i];
+        int nx = hx + DIR_X[d], ny = hy + DIR_Y[d];
+        if (solidAt(nx, ny) || occupied(nx, ny, -1)) continue;
+        keys = KEYS[d];
+        break;
+      }
+    }
+    REG_KEYINPUT = (unsigned short)(~keys & 0x03FF);
     beatLeft--;
     if (!beatLeft && beat->shot) snapshot(beat->shot);
   }

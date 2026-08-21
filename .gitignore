@@ -7,4 +7,3 @@ gba/*.o
 gba/*.elf
 gba/hosttest
 gba/shots/*.ppm
-gba/blank.html

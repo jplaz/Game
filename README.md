@@ -24,12 +24,13 @@ ES modules need `http://`, so open it through the server rather than double-clic
 `index.html`. Any static host works.
 
 **On a Game Boy Advance, or an emulator like Delta.** `gba/thronebound.gba` is a real
-cartridge image: it boots, and a corner of the North — Winterfell, the Great Keep, the
-forge, your chamber, the Wolfswood — can be walked around, with the same tiles, the
-same people and the same lines as the browser game. It is only the walking-around
-layer: no duels, no beasts, no houses, no sound. See [`gba/README.md`](gba/README.md)
-for how it is built out of the browser game's own art, and how far it has and has not
-been checked.
+cartridge image. Swear to one of five houses, walk nineteen maps of the North from
+Winterfell to Riverrun, talk to a crowd that wanders about its business, and draw on
+anyone who will draw back — duels use the browser game's own damage formula, techniques
+and stats, and the loser dies. No beasts, no standing, no court, no ships and no sound:
+the browser game is still where the game is. See [`gba/README.md`](gba/README.md) for
+how it is built out of the browser game's own art and data, and how far it has and has
+not been checked.
 
 ## Controls
 

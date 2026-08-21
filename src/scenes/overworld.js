@@ -16,6 +16,7 @@ import { duellist as getDuellist } from '../data/duellists.js';
 import { creatureSpecies, displayName, wildCreature } from '../game/creature.js';
 import { walkEggs, hatch, deepenBond, willCarry } from '../game/eggs.js';
 import { activeCompanion, hasFallen, kill as killCompanion } from '../game/company.js';
+import { ownsHoldfast, gather, INGREDIENTS } from '../game/holdfast.js';
 import { creatureSprite, SPRITE_SIZE } from '../art/creatures.js';
 import { dialog } from '../ui/textbox.js';
 import { drawPanel } from '../ui/panel.js';
@@ -36,6 +37,22 @@ const ENCOUNTER_CHANCE = 0.11;
 const MOUNTED_ENCOUNTER_SCALE = 0.35;
 // How often a roadside encounter turns out to be a whole company.
 const WARBAND_CHANCE = 0.12;
+// How often walking through cover turns up something for the larder instead.
+const FORAGE_CHANCE = 0.07;
+const FORAGE_BY_REGION = {
+  'The North': ['venison', 'grain'],
+  'The Neck': ['fish', 'venison'],
+  'The Wall': ['venison'],
+  'Beyond the Wall': ['venison'],
+  'The Riverlands': ['fish', 'grain'],
+  'The Vale': ['venison', 'honey'],
+  'The Westerlands': ['grain', 'honey'],
+  'The Reach': ['grain', 'honey', 'wine'],
+  'Dorne': ['spice', 'wine'],
+  'The Stormlands': ['venison', 'fish'],
+  'The Crownlands': ['grain', 'wine'],
+  'Dragonstone': ['fish'],
+};
 const MOUNT_SIZE = 30;
 const RIDER_LIFT = 13;
 
@@ -613,6 +630,16 @@ export class Overworld {
     if (def.kind !== 'encounter') return;
     if (!(this.map.encounters?.length)) return;
     if (game.state.player.wounded) return;
+    // Cover is also where things grow and graze. If you hold a hall, some of
+    // what you walk through ends up in its larder.
+    if (ownsHoldfast() && rng.chance(FORAGE_CHANCE)) {
+      const found = rng.pick(FORAGE_BY_REGION[this.region] ?? ['grain']);
+      gather(found, 1);
+      audio.sfx('confirm');
+      dialog.say(`You gather ${INGREDIENTS[found].name} and send it back to the hall.`);
+      return;
+    }
+
     const chance = ENCOUNTER_CHANCE * (this.mount ? MOUNTED_ENCOUNTER_SCALE : 1);
     if (!rng.chance(chance)) return;
 
@@ -992,6 +1019,16 @@ export class Overworld {
         const { Duel } = await import('./duel.js');
         this.manager.push(new Duel({ duellistId, onEnd }));
       }, { color: '#1a1016' });
+    });
+  }
+
+  /** Naming your own hall, on the same keyboard you named yourself with. */
+  renameHall() {
+    return new Promise((resolve) => {
+      this.manager.transition(async () => {
+        const { HallName } = await import('./hallname.js');
+        this.manager.push(new HallName({ onEnd: resolve }));
+      });
     });
   }
 

@@ -223,6 +223,8 @@ export const MAPS = {
       { x: 6, y: 17, text: 'THE GODSWOOD\nA heart tree has watched this ground for ten thousand years.\nIt is still watching.' },
     ],
     npcs: [
+      { x: 7, y: 16, dir: 'down', name: 'Landless Knight', sprite: 'noble',
+        script: 'claimHoldfast', data: {} },
       { x: 12, y: 7, dir: 'down', name: 'Jory Cassel', sprite: 'stark',
         script: 'recruit', data: { companion: 'jory' } },
       { x: 12, y: 16, dir: 'down', sprite: 'maester', name: 'Maester Luwin', script: 'starter' },
@@ -1544,6 +1546,36 @@ export const MAPS = {
   },
 
   // ======================================================== KING'S LANDING ==
+  /**
+   * Your own hall. Empty when you take it; what is in it afterwards is whatever
+   * you paid to put there.
+   */
+  holdfast: {
+    name: 'Your Hall', music: 'town', ground: 'stone', indoor: true, holdfast: true,
+    tiles: [
+      'IIIIIIIIIIIIIIII',
+      'I==============I',
+      'I==cccccccccc==I',
+      'I==c========c==I',
+      'I==c========c==I',
+      'I==c========c==I',
+      'I==c========c==I',
+      'I==c========c==I',
+      'I==cccccccccc==I',
+      'I==============I',
+      'I==============I',
+      'IIIIIIID IIIIIII'.replace(' ', '='),
+    ],
+    npcs: [
+      { x: 4, y: 3, dir: 'down', name: 'Steward', sprite: 'oldman',
+        script: 'steward', data: {} },
+      { x: 11, y: 3, dir: 'down', name: 'Cook', sprite: 'goodwife',
+        script: 'cook', data: {} },
+    ],
+    signs: [],
+    warps: [{ x: 7, y: 11, to: 'winterfell', tx: 7, ty: 15, dir: 'down' }],
+  },
+
   // ======================================================= the Free Cities ==
   //
   // Across the Narrow Sea, reached by ship from King's Landing. Different
@@ -1858,6 +1890,7 @@ export function tileAt(map, x, y) {
  * just which gate you walked through.
  */
 export const REGIONS = {
+  holdfast: 'The North',
   braavos: 'Braavos', houseOfBlackAndWhite: 'Braavos',
   pentos: 'Pentos', volantis: 'Volantis', meereen: 'Meereen',
   narrowSea: 'The Narrow Sea',

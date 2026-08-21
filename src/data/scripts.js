@@ -14,6 +14,12 @@ import { giveEgg } from '../game/eggs.js';
 import { beginReign, reigning } from '../game/realm.js';
 import { QUESTS } from './quests.js';
 import { PORTS } from './ports.js';
+import {
+  holdfast, ownsHoldfast, FURNISHINGS, installed, install, seats, canCook,
+  larder, INGREDIENTS, DISHES, canCookDish, cook as cookDish, dishCount,
+  holdFeast, feastCount, grantHoldfast, gather,
+} from '../game/holdfast.js';
+import { HOUSE_IDS } from './houses.js';
 import { openQuest, closeQuest, isOpen, isClosed } from '../game/questlog.js';
 import { COMPANIONS } from './companions.js';
 import {
@@ -348,6 +354,179 @@ export const SCRIPTS = {
       return;
     }
     overworld.sailTo({ map: 'narrowSea', x: 11, y: 5, dir: 'down' });
+  },
+
+  /**
+   * The deed to a ruined holdfast. Somebody is squatting in it, which is the
+   * usual condition of anywhere worth having.
+   */
+  async claimHoldfast({ say, choose, overworld, npc, setFlag, flag }) {
+    if (ownsHoldfast()) {
+      const h = holdfast();
+      const go = await choose(`Landless Knight: ${h.name} is half a day north. Ride out?`,
+        ['Take me there', 'Not now']);
+      if (go === 0) overworld.sailTo({ map: 'holdfast', x: 7, y: 10, dir: 'up' });
+      return;
+    }
+    if (!flag('claim_offered')) {
+      setFlag('claim_offered');
+      await say('Landless Knight: There is a holdfast half a day north. Roof mostly on. '
+        + 'Nobody has held it since the winter before last.');
+      await say('Landless Knight: I would take it myself, but the man sitting in it '
+        + 'objects, and he objects with an axe.');
+      return;
+    }
+
+    const answer = await choose('Take the holdfast?', ['Go and take it', 'Not yet']);
+    if (answer !== 0) {
+      await say('Landless Knight: It will still be there. So will he.');
+      return;
+    }
+
+    const squatter = makeRoamer('wildlingRaider', Math.max(8, game.state.player.level + 2),
+      (list) => list[0]);
+    squatter.name = 'The Squatter';
+    squatter.canYield = false;
+    squatter.mortal = true;
+    squatter.intro = 'The Squatter: My roof. My walls. My axe. Which part is unclear?';
+    squatter.defeat = 'The Squatter: Fine. Fine! It leaks anyway.';
+
+    const outcome = await overworld.startAmbush(squatter);
+    if (outcome !== 'won') return;
+
+    grantHoldfast('holdfast', 'the Holdfast');
+    recordChoice('tookHoldfast', true);
+    audio.sfx('levelup');
+    await say('The hall is yours. It is cold, it is empty, and it is yours.', { theme: 'royal' });
+    await say('Landless Knight: I will send you a steward. He is dull and he is honest, '
+      + 'which is the correct order to want those in.');
+    await say('Landless Knight: Come to me when you want carrying up there.');
+  },
+
+  /**
+   * Your steward. Everything about the hall that is not food goes through him:
+   * naming it, furnishing it, and sitting people down at it.
+   */
+  async steward({ say, choose, overworld }) {
+    if (!ownsHoldfast()) {
+      await say('Steward: This hall has no lord. If you mean to change that, take it up '
+        + 'with whoever holds the deed.');
+      return;
+    }
+    const h = holdfast();
+    await say(`Steward: ${h.name}. ${seats()} seats, ${h.furnishings.length} improvements, `
+      + `${feastCount()} feasts held.`);
+
+    while (true) {
+      const pick = await choose('Steward: What needs doing?',
+        ['Furnish the hall', 'Hold a feast', 'Rename the hall', 'Nothing today']);
+      if (pick === 0) await SCRIPTS.furnishHall({ say, choose });
+      else if (pick === 1) await SCRIPTS.feastHall({ say, choose });
+      else if (pick === 2) { await overworld.renameHall(); return; }
+      else return;
+    }
+  },
+
+  /** Buying things to put in the hall. */
+  async furnishHall({ say, choose }) {
+    const available = Object.keys(FURNISHINGS).filter((id) => !installed(id));
+    if (!available.length) {
+      await say('Steward: There is nothing left to add that would not be showing off.');
+      return;
+    }
+    const labels = available.map((id) => `${FURNISHINGS[id].name} (${FURNISHINGS[id].cost}g)`);
+    const pick = await choose('What shall we put in?', [...labels, 'Never mind']);
+    if (pick < 0 || pick >= available.length) return;
+
+    const id = available[pick];
+    const def = FURNISHINGS[id];
+    await say(def.desc);
+    const confirm = await choose(`${def.cost} gold. Do it?`, ['Do it', 'Not yet']);
+    if (confirm !== 0) return;
+    if (!install(id)) {
+      await say('Steward: We cannot afford that. I have checked twice.');
+      return;
+    }
+    audio.sfx('confirm');
+    await say(`Steward: ${def.name}. The hall is the better for it.`);
+  },
+
+  /** Sitting houses down at your table and feeding them. */
+  async feastHall({ say, choose }) {
+    const cooked = Object.keys(DISHES).filter((id) => dishCount(id) > 0);
+    if (!cooked.length) {
+      await say('Steward: You cannot feast people on an empty table. See the cook.');
+      return;
+    }
+
+    // Who you can plausibly invite: anybody not actively hostile.
+    const invitable = HOUSE_IDS.filter((id) => standing(id) > -60);
+    if (!invitable.length) {
+      await say('Steward: Nobody in the realm would sit at your table. That is a sentence '
+        + 'I did not expect to have to say.');
+      return;
+    }
+
+    const room = seats();
+    const guests = [];
+    while (guests.length < room) {
+      const left = invitable.filter((id) => !guests.includes(id));
+      if (!left.length) break;
+      const labels = left.slice(0, 4).map((id) => HOUSES[id].full);
+      const pick = await choose(`Seat ${guests.length + 1} of ${room}. Who?`,
+        [...labels, guests.length ? 'That will do' : 'Never mind']);
+      if (pick < 0 || pick >= labels.length) break;
+      guests.push(left[pick]);
+    }
+    if (!guests.length) return;
+
+    const dishLabels = cooked.map((id) => `${DISHES[id].name} x${dishCount(id)}`);
+    const dishPick = await choose('What goes on the table?', [...dishLabels, 'Never mind']);
+    if (dishPick < 0 || dishPick >= cooked.length) return;
+
+    const result = holdFeast(guests, [cooked[dishPick]]);
+    audio.sfx('levelup');
+    await say('The hall fills. There is more shouting than you expected and less blood '
+      + 'than there might have been.');
+    for (const r of result.results) {
+      const house = HOUSES[r.house].full;
+      if (r.rivalsPresent > 0) {
+        await say(`${house} sat opposite people they hate. They noticed. `
+          + `Their regard for you moves by ${r.gain}.`);
+      } else {
+        await say(`${house} ate well and said so. Their regard for you rises by ${r.gain}.`);
+      }
+    }
+  },
+
+  /** The cook. Everything you gathered on the road turns into food here. */
+  async cook({ say, choose }) {
+    if (!canCook()) {
+      await say('Cook: There is no hearth in this hall. I can chop things and glare at them, '
+        + 'and that is all.');
+      return;
+    }
+    const stock = Object.entries(larder()).filter(([, n]) => n > 0);
+    if (!stock.length) {
+      await say('Cook: The larder is empty. Bring me something and I will make it worth eating.');
+      return;
+    }
+    await say(`Cook: ${stock.map(([id, n]) => `${INGREDIENTS[id].name} x${n}`).join(', ')}.`);
+
+    const makeable = Object.keys(DISHES).filter((id) => canCookDish(id));
+    if (!makeable.length) {
+      await say('Cook: Not enough of anything to make anything. Such is cooking.');
+      return;
+    }
+    const labels = makeable.map((id) => DISHES[id].name);
+    const pick = await choose('What shall I make?', [...labels, 'Nothing now']);
+    if (pick < 0 || pick >= makeable.length) return;
+
+    const id = makeable[pick];
+    cookDish(id);
+    audio.sfx('heal');
+    await say(DISHES[id].desc);
+    await say(`Cook: ${DISHES[id].name}, done. It will keep until you need it.`);
   },
 
   /** Somebody standing in a Free City with something to say about it. */

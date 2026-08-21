@@ -12,6 +12,7 @@ const KEY_MAP = {
   Enter: 'start', Escape: 'start',
   ShiftLeft: 'select', ShiftRight: 'select',
   KeyR: 'ride',
+  KeyC: 'challenge',
 };
 
 // Menus feel wrong without key repeat: hold a direction and it should scroll.

@@ -8,6 +8,7 @@ export const TRAINERS = {
     intro: 'No one walks into the Great Keep unchallenged. Not even you.',
     defeat: 'You have the North in you. Go on up.',
     after: "Lord Rickard is waiting. He doesn't like to be kept.",
+    house: 'stark',
     party: [{ species: 'snowpup', level: 9 }, { species: 'bearcub', level: 10 }],
   },
   starkGuard2: {
@@ -15,6 +16,7 @@ export const TRAINERS = {
     intro: 'Cold morning for a challenge. Good. It sharpens things.',
     defeat: 'Sharp enough, then.',
     after: 'Keep your creatures fed and they will keep you standing.',
+    house: 'stark',
     party: [{ species: 'ravenling', level: 10 }, { species: 'boartusk', level: 11 }],
   },
   gymStark: {
@@ -22,6 +24,7 @@ export const TRAINERS = {
     intro: 'Lord Eddard Stark: Winter is coming, and it does not care how ready you are. Show me you are anyway.',
     defeat: 'Lord Eddard Stark: The wolf yields. You have earned the Wolf Sigil, and the road south with it.',
     after: 'Lord Eddard Stark: Ride to Riverrun. Catelyn holds the Trout Sigil, and she is a harder judge than I am.',
+    house: 'stark',
     party: [
       { species: 'bearcub', level: 12 },
       { species: 'boartusk', level: 12 },
@@ -42,6 +45,7 @@ export const TRAINERS = {
     intro: 'The Watch takes all sorts. Let me see what sort you are.',
     defeat: 'A good sort. Better than most who come through here.',
     after: 'North of the Wall there are things that make a direwolf look friendly.',
+    house: 'nightswatch',
     party: [{ species: 'ravenling', level: 8 }, { species: 'snowpup', level: 9 }],
   },
   wildling1: {
@@ -49,6 +53,7 @@ export const TRAINERS = {
     intro: 'You kneelers all fight the same. Prove me wrong.',
     defeat: 'Huh. You know something after all.',
     after: 'Free folk take what they need and nothing more. Remember it.',
+    house: 'freefolk',
     party: [{ species: 'boartusk', level: 8 }, { species: 'bearcub', level: 9 }],
   },
 
@@ -58,6 +63,7 @@ export const TRAINERS = {
     intro: 'The Neck has drowned three armies. It can spare a moment for you.',
     defeat: 'Pass, then. Mind the sink-holes.',
     after: 'The causeway is the only safe road. Everything else is water pretending to be ground.',
+    house: 'stark',
     party: [{ species: 'riverfry', level: 11 }, { species: 'krakenling', level: 12 }],
   },
 
@@ -90,6 +96,7 @@ export const TRAINERS = {
     intro: 'My sister set me to guard this hall. I intend to do it well, for once.',
     defeat: 'Well enough is not well. I see that now.',
     after: 'Family, duty, honour. In that order, and the order matters.',
+    house: 'tully',
     party: [{ species: 'riverfry', level: 17 }, { species: 'silverfin', level: 18 }],
   },
   tullyKnight2: {
@@ -97,6 +104,7 @@ export const TRAINERS = {
     intro: 'They call me the Blackfish. Nothing swims past me.',
     defeat: 'Something swims past me. Go on.',
     after: 'Water wears down stone. Patience is a weapon, not a virtue.',
+    house: 'tully',
     party: [{ species: 'crabcrag', level: 18 }, { species: 'silverfin', level: 19 }],
   },
   gymTully: {
@@ -104,6 +112,7 @@ export const TRAINERS = {
     intro: 'You come from Winterfell with a wolf on your banner. Show me it means something.',
     defeat: 'It means something. The Trout Sigil is yours, and my blessing with it.',
     after: 'Lannisport is south along the Gold Road. Ser Jaime holds the Lion Sigil. He will not be gentle.',
+    house: 'tully',
     party: [
       { species: 'crabcrag', level: 20 },
       { species: 'krakenling', level: 20 },
@@ -124,6 +133,7 @@ export const TRAINERS = {
     intro: 'The Gold Road is Lannister road. Toll or trial. Pick.',
     defeat: 'Trial it was. Go on through.',
     after: 'Everything west of here belongs to the Rock, including the weather.',
+    house: 'lannister',
     party: [{ species: 'cubmane', level: 21 }, { species: 'sandviper', level: 21 }],
   },
   hedgeKnight: {
@@ -154,6 +164,7 @@ export const TRAINERS = {
     intro: 'My nephew holds this hall. I hold the stair. Neither is negotiable.',
     defeat: 'The stair is yours. The hall is still his.',
     after: 'A Lannister always pays his debts. This one is paid.',
+    house: 'lannister',
     party: [{ species: 'cubmane', level: 26 }, { species: 'goldmane', level: 27 }],
   },
   lionKnight2: {
@@ -161,6 +172,7 @@ export const TRAINERS = {
     intro: 'You have come a long way to lose indoors.',
     defeat: 'Or to win indoors. My mistake.',
     after: 'The Rock has never been taken. Not once, in all the years.',
+    house: 'lannister',
     party: [{ species: 'sandviper', level: 27 }, { species: 'goldmane', level: 28 }],
   },
   gymLannister: {
@@ -168,6 +180,7 @@ export const TRAINERS = {
     intro: 'Two sigils and a northern accent. Let us see whether you can back either of them.',
     defeat: 'You can. Take the Lion Sigil — I have never enjoyed giving one away more.',
     after: "King's Landing is south. What sits on that throne is not a lord any more. Be careful.",
+    house: 'lannister',
     party: [
       { species: 'sandviper', level: 29 },
       { species: 'tuskrend', level: 30 },
@@ -181,6 +194,7 @@ export const TRAINERS = {
     intro: 'Ours is the fury. Mostly mine, at present.',
     defeat: 'Fury spent. Ride on.',
     after: 'Storm knights train in the rain because the rain never asks if you are ready.',
+    house: 'baratheon',
     party: [{ species: 'fawnhart', level: 30 }, { species: 'crownstag', level: 31 }],
   },
   stormKnight2: {
@@ -188,6 +202,7 @@ export const TRAINERS = {
     intro: 'The last one who passed me is still walking it off.',
     defeat: 'You will not need to walk anything off. Well fought.',
     after: 'Storm bolts strike the tall things first. Keep something small in reserve.',
+    house: 'baratheon',
     party: [{ species: 'falconet', level: 31 }, { species: 'skytalon', level: 32 }],
   },
   deserter: {
@@ -195,6 +210,7 @@ export const TRAINERS = {
     intro: 'I left the Wall. You would have too, if you had seen it.',
     defeat: 'Turn me in if you like. The rope is quicker than the cold.',
     after: 'They are coming. Everyone laughs until the night the horn goes three times.',
+    house: 'nightswatch',
     party: [{ species: 'wightling', level: 31 }, { species: 'barrowlord', level: 33 }],
   },
 
@@ -204,6 +220,7 @@ export const TRAINERS = {
     intro: 'The white cloak has to be earned. Every day, apparently.',
     defeat: 'Earned it tomorrow, then.',
     after: 'Seven swear the white. Only one of us is any good, and it is not me.',
+    house: 'lannister',
     party: [{ species: 'falconet', level: 32 }, { species: 'goldmane', level: 33 }],
   },
   kingsguard1: {
@@ -211,6 +228,7 @@ export const TRAINERS = {
     intro: 'The throne room is closed to northern errand-riders.',
     defeat: 'It appears to be open.',
     after: 'I only ever guarded the door. Nobody asked me to guard anything worth guarding.',
+    house: 'lannister',
     party: [{ species: 'tuskrend', level: 35 }, { species: 'goldmane', level: 36 }],
   },
   kingsguard2: {
@@ -218,6 +236,7 @@ export const TRAINERS = {
     intro: 'Two sigils? Three? It makes no difference up here.',
     defeat: 'It made a difference.',
     after: 'The stair goes up. So does everything else in this city, until it comes down.',
+    house: 'lannister',
     party: [{ species: 'crownstag', level: 36 }, { species: 'dornspine', level: 37 }],
   },
   kingsguard3: {
@@ -225,6 +244,7 @@ export const TRAINERS = {
     intro: 'Last door before the throne. I take it seriously.',
     defeat: 'So do you. Go up.',
     after: 'Whatever is on that throne, it was a boy once. Not any more.',
+    house: 'lannister',
     party: [{ species: 'skytalon', level: 37 }, { species: 'deepmaw', level: 38 }],
   },
   gymThrone: {
@@ -232,6 +252,7 @@ export const TRAINERS = {
     intro: 'Cersei Lannister: Everyone who climbs this stair wants the chair. Nobody who has sat in it does.',
     defeat: 'Cersei Lannister: My beasts are finished. I am not. Draw your steel.',
     after: 'Cersei Lannister: The realm is yours to hold. Holding is the hard part. Nobody warned me either.',
+    house: 'lannister',
     party: [
       { species: 'tuskrend', level: 40 },
       { species: 'deepmaw', level: 40 },
@@ -247,6 +268,7 @@ export const TRAINERS = {
     intro: "You? Riding the Kingsroad on Winterfell's business? They must be desperate.",
     defeat: 'That proves nothing. Nothing!',
     after: 'Enjoy it. It will not happen twice.',
+    house: 'lannister',
     party: [{ species: 'cubmane', level: 12 }, { species: 'sandviper', level: 13 }],
   },
   rival2: {
@@ -254,6 +276,7 @@ export const TRAINERS = {
     intro: 'Two sigils. How quaint. I have men who collect things for me.',
     defeat: 'You cheated. Somehow. I will work out how.',
     after: 'Go south, then. See how far a wolf gets in a lion city.',
+    house: 'lannister',
     party: [
       { species: 'sandviper', level: 26 },
       { species: 'falconet', level: 26 },
@@ -265,6 +288,7 @@ export const TRAINERS = {
     intro: 'The throne is MINE. It was always going to be mine. Everyone says so.',
     defeat: 'They all said it was mine...',
     after: "I never wanted the chair. I wanted them to stop looking at me like that.",
+    house: 'lannister',
     party: [
       { species: 'dornspine', level: 38 },
       { species: 'skytalon', level: 38 },
@@ -279,6 +303,7 @@ export const TRAINERS = {
     intro: 'Ranger Qhorin: Nobody rides north for a good reason. Show me yours.',
     defeat: 'Ranger Qhorin: Good enough. The gate will open for you.',
     after: 'Ranger Qhorin: Past the Wall, the cold is the least of it.',
+    house: 'nightswatch',
     party: [{ species: 'snowpup', level: 16 }, { species: 'direwolf', level: 18 }],
   },
   freeFolk: {
@@ -286,6 +311,7 @@ export const TRAINERS = {
     intro: 'Raider: You are a long way from a fire, kneeler.',
     defeat: 'Raider: Aye. All right. Go where you like.',
     after: 'Raider: The dead do not care whose banner you carry. Remember it.',
+    house: 'freefolk',
     party: [{ species: 'bearhold', level: 32 }, { species: 'barrowlord', level: 34 }],
   },
 
@@ -295,6 +321,7 @@ export const TRAINERS = {
     intro: 'Ser Vardis: The Bloody Gate has turned back armies. It can turn back one rider.',
     defeat: 'Ser Vardis: Pass, then. The climb will finish what I started.',
     after: 'Ser Vardis: As high as honour. And as cold.',
+    house: 'arryn',
     party: [{ species: 'falconet', level: 24 }, { species: 'skytalon', level: 26 }],
   },
 
@@ -304,6 +331,7 @@ export const TRAINERS = {
     intro: 'Ser Loras: The Knight of Flowers. I would apologise for the name, but I did win it.',
     defeat: 'Ser Loras: Beautifully done. I shall be insufferable about having fought you.',
     after: 'Ser Loras: Growing strong. It sounds gentler than it is.',
+    house: 'tyrell',
     party: [{ species: 'sapling', level: 29 }, { species: 'heartwarden', level: 31 }],
   },
 
@@ -313,6 +341,7 @@ export const TRAINERS = {
     intro: 'Rider: Dorne was never conquered. People forget why. I will remind you.',
     defeat: 'Rider: Unbowed. Unbent. Somewhat broken. Go on.',
     after: 'Rider: Water is worth more than gold out here. Carry both.',
+    house: 'martell',
     party: [{ species: 'sandviper', level: 32 }, { species: 'dornspine', level: 34 }],
   },
 
@@ -322,6 +351,7 @@ export const TRAINERS = {
     intro: "Ser Cortnay: Storm's End has never fallen. Neither have I, yet.",
     defeat: 'Ser Cortnay: First time for everything, then.',
     after: 'Ser Cortnay: The storm always passes. That is the whole trick of it.',
+    house: 'baratheon',
     party: [{ species: 'fawnhart', level: 31 }, { species: 'crownstag', level: 34 }],
   },
 };
@@ -330,4 +360,107 @@ export function trainer(id) {
   const found = TRAINERS[id];
   if (!found) throw new Error(`Unknown trainer: ${id}`);
   return { id, ...found };
+}
+
+// ---------------------------------------------------------------------------
+// Turning a trainer into a duellist.
+//
+// These people used to set creatures on you while standing behind them, which
+// was always at odds with how everyone else in this game fights. They fight
+// with steel now, and whichever of their creatures was strongest stands at
+// their side instead of in their place.
+//
+// It is done by derivation rather than by hand so that every trainer's writing,
+// placement and reward survive the change unaltered.
+
+import { SPRITE_HOUSE } from './houses.js';
+
+/** What a person of this sort fights with, read from how they are dressed. */
+const SPRITE_TECHNIQUES = {
+  guard: ['thrust', 'shieldBash', 'guard'],
+  stark: ['slash', 'riposte', 'guard'],
+  starkLady: ['quickCut', 'riposte', 'guard'],
+  lannister: ['slash', 'thrust', 'guard'],
+  cersei: ['quickCut', 'backstab', 'guard'],
+  kingsguard: ['thrust', 'riposte', 'shieldBash'],
+  nightswatch: ['slash', 'cleave', 'guard'],
+  wildling: ['cleave', 'hook', 'guard'],
+  wildlingWoman: ['lunge', 'skewer', 'guard'],
+  sellsword: ['quickCut', 'backstab', 'guard'],
+  brotherhood: ['loose', 'volley', 'guard'],
+  smallfolk: ['crush', 'quickCut', 'guard'],
+  merchant: ['quickCut', 'guard'],
+  tully: ['slash', 'shieldBash', 'guard'],
+  tullyLady: ['quickCut', 'riposte', 'guard'],
+  martell: ['lunge', 'quickCut', 'guard'],
+  tyrell: ['slash', 'thrust', 'guard'],
+  arryn: ['thrust', 'shieldBash', 'guard'],
+  baratheon: ['crush', 'sweep', 'guard'],
+  ironborn: ['cleave', 'crush', 'guard'],
+  bolton: ['quickCut', 'backstab', 'guard'],
+  braavosi: ['quickCut', 'riposte', 'guard'],
+  mountain: ['cleave', 'crush', 'guard'],
+  hound: ['cleave', 'slash', 'guard'],
+  rival: ['quickCut', 'thrust', 'guard'],
+  noble: ['slash', 'thrust', 'guard'],
+  maester: ['quickCut', 'guard'],
+  oldman: ['crush', 'guard'],
+  unsullied: ['skewer', 'lunge', 'shieldBash'],
+  targaryen: ['slash', 'riposte', 'guard'],
+  brienne: ['slash', 'shieldBash', 'guard'],
+  redPriest: ['quickCut', 'backstab', 'guard'],
+  whitewalker: ['cleave', 'crush', 'guard'],
+  goodwife: ['crush', 'guard'],
+  septa: ['quickCut', 'guard'],
+  child: ['quickCut', 'guard'],
+  girl: ['quickCut', 'guard'],
+  heroine: ['slash', 'riposte', 'guard'],
+  hero: ['slash', 'riposte', 'guard'],
+};
+
+/** Leaders are simply harder in every direction. */
+const LEADER_BUILD = { vigour: 1.35, might: 1.2, guard: 1.25, swiftness: 1.1, wind: 1.2 };
+const COMMON_BUILD = { vigour: 1, might: 1, guard: 1, swiftness: 1, wind: 1 };
+
+/**
+ * A trainer, described as somebody who will fight you themselves. The beast is
+ * the best of what they used to send at you.
+ */
+export function trainerAsDuellist(id) {
+  const def = TRAINERS[id];
+  if (!def) throw new Error(`Unknown trainer: ${id}`);
+
+  const party = [...def.party].sort((a, b) => b.level - a.level);
+  const best = party[0];
+  const level = best.level;
+  const build = def.leader ? LEADER_BUILD : COMMON_BUILD;
+
+  return {
+    id: `trainer_${id}`,
+    trainerId: id,
+    name: def.name,
+    sprite: def.sprite,
+    // A trainer's allegiance is written down where it is known, since the
+    // generic guard and ranger sprites serve half the houses in Westeros.
+    house: def.house ?? SPRITE_HOUSE[def.sprite] ?? null,
+    level,
+    vigour: Math.round((30 + level * 6.5) * build.vigour),
+    might: Math.round((8 + level * 2.6) * build.might),
+    guard: Math.round((5 + level * 1.8) * build.guard),
+    swiftness: Math.round((8 + level * 1.9) * build.swiftness),
+    wind: Math.round((12 + level * 1.2) * build.wind),
+    techniques: SPRITE_TECHNIQUES[def.sprite] ?? ['slash', 'thrust', 'guard'],
+    beast: { species: best.species, level: best.level },
+    reward: def.reward,
+    exp: Math.round(level * 20 + (def.leader ? 400 : 0)),
+    boss: Boolean(def.leader),
+    canYield: !def.leader,
+    // A named person can be killed once beaten, so the game needs to know
+    // whether they are somebody the story still needs.
+    mortal: !def.leader,
+    intro: def.intro,
+    defeat: def.defeat,
+    after: def.after,
+    sigil: def.sigil,
+  };
 }

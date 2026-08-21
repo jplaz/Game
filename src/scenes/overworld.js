@@ -10,14 +10,17 @@ import { audio } from '../engine/audio.js';
 import { TRACKS } from '../data/music.js';
 import { rng } from '../engine/rng.js';
 import { makeRoamer, ROAMERS } from '../data/duellists.js';
+import { challengeFor } from '../game/challenge.js';
 import { creatureSpecies, displayName } from '../game/creature.js';
 import { walkEggs, hatch, deepenBond, willCarry } from '../game/eggs.js';
-import { activeCompanion } from '../game/company.js';
+import { activeCompanion, hasFallen, kill as killCompanion } from '../game/company.js';
 import { creatureSprite, SPRITE_SIZE } from '../art/creatures.js';
 import { dialog } from '../ui/textbox.js';
 import { drawPanel } from '../ui/panel.js';
 import { drawText, measure } from '../engine/font.js';
-import { game, flag, setFlag, standingWord, setLocalRegion } from '../game/state.js';
+import {
+  game, flag, setFlag, standingWord, setLocalRegion, isDead,
+} from '../game/state.js';
 import { SCRIPTS } from '../data/scripts.js';
 import { TRAINERS } from '../data/trainers.js';
 
@@ -92,7 +95,12 @@ export class Overworld {
       startDir: def.dir,
       step: 0,
       moving: null,
-      hidden: def.hideIfFlag ? flag(def.hideIfFlag) : false,
+      // Anyone you killed is gone from the world for good, on every map and
+      // every reload.
+      hidden: (def.hideIfFlag ? flag(def.hideIfFlag) : false)
+        || (def.data?.trainer ? isDead(`trainer_${def.data.trainer}`) : false)
+        || (def.data?.duel ? isDead(`duel_${def.data.duel}`) : false)
+        || (def.data?.companion ? hasFallen(def.data.companion) : false),
     }));
 
     this.updateCamera(true);
@@ -177,6 +185,10 @@ export class Overworld {
     }
     if (input.pressed('ride')) {
       this.toggleRide();
+      return;
+    }
+    if (input.pressed('challenge')) {
+      this.callSomeoneOut();
       return;
     }
     if (this.player.moving || this.turnDelay > 0) return;
@@ -266,6 +278,42 @@ export class Overworld {
       duration,
       hop,
     };
+  }
+
+  /**
+   * Calling out whoever you are facing. Anyone in the world can be fought at
+   * any time — but they have to accept, and who they are and what they think of
+   * you decides whether they do.
+   */
+  async callSomeoneOut() {
+    const [dx, dy] = Overworld.delta(this.player.dir);
+    const npc = this.npcAt(this.player.x + dx, this.player.y + dy);
+    if (!npc || npc.hidden) {
+      await dialog.say('There is nobody in front of you to call out.');
+      return;
+    }
+
+    const def = challengeFor(npc);
+    if (!def) {
+      await dialog.say(`${npc.name}: I am not fighting you. Find somebody who wants to.`);
+      return;
+    }
+    if (def.alreadyBeaten) {
+      await dialog.say(`${npc.name}: We have done this. It went badly for me and I remember it.`);
+      return;
+    }
+
+    const answer = await dialog.choose(`Call out ${npc.name}?`, ['Draw steel', 'Leave it']);
+    if (answer !== 0) return;
+
+    // Whether they take it. People who like you mostly will not.
+    const word = def.house ? standingWord(def.house) : 'neutral';
+    if (word === 'sworn' && !def.eager) {
+      await dialog.say(`${npc.name}: You carry our banner. I will not draw on you and `
+        + 'you should not have asked.');
+      return;
+    }
+    await this.startAmbush(def.duellist);
   }
 
   // ----------------------------------------------------------------- riding --
@@ -718,15 +766,39 @@ export class Overworld {
   }
 
   /** Defeat: you wake up back at the last Maester's Hall, whole but poorer. */
+  /**
+   * Losing. Going down in a fight in this world is meant to cost something you
+   * feel: gold, a wound that follows you, and sometimes the person who was
+   * standing beside you when it happened.
+   */
   async whiteout(personal = false) {
     const { healParty, game: g, addMoney } = await import('../game/state.js');
-    const lost = Math.floor(g.state.player.money * 0.2);
+    const lost = Math.floor(g.state.player.money * (personal ? 0.35 : 0.2));
     addMoney(-lost);
     healParty();
+
+    g.state.player.deaths = (g.state.player.deaths ?? 0) + 1;
+
     const wound = personal
-      ? 'You wake on a cot in a Maester\'s Hall, stitched and aching'
+      ? "You wake on a cot in a Maester's Hall, stitched and aching"
       : "You woke in a Maester's Hall with your creatures tended";
     await dialog.say(lost > 0 ? `${wound}... and ${lost} fewer gold dragons.` : `${wound}.`);
+
+    // Somebody has to have carried you off the field, and it is not always
+    // someone who survives doing it.
+    const ally = activeCompanion();
+    if (personal && ally && rng.chance(0.35)) {
+      const name = ally.name;
+      killCompanion();
+      audio.sfx('faint');
+      await dialog.say(`${name} carried you out. ${name} did not come back for the second trip.`,
+        { theme: 'royal' });
+      if (ally.house) {
+        const { changeStanding } = await import('../game/state.js');
+        changeStanding(ally.house, -12);
+      }
+    }
+
     const spot = g.state.respawn;
     this.manager.transition(() => {
       this.loadMap(spot.map, { x: spot.x, y: spot.y, dir: spot.dir ?? 'down' });

@@ -47,6 +47,8 @@ export function newGame(playerName = 'Snow') {
     reputation: {},
     // Decisions worth remembering. Scenes later read these back.
     choices: {},
+    // Everyone you killed rather than spared.
+    dead: [],
     position: { map: 'heroHouse', x: 4, y: 5, dir: 'down' },
     // Where the player wakes after a whiteout.
     respawn: { map: 'winterfell', x: 15, y: 20, dir: 'down' },
@@ -205,6 +207,25 @@ export function priceFactor() {
   const id = localHouse();
   if (!id) return 1;
   return PRICE_FACTOR[standingBand(standing(id))] ?? 1;
+}
+
+// ------------------------------------------------------------------ dead ---
+
+/**
+ * Everyone you have killed. Death here is final: they are gone from the world,
+ * their scenes do not run, and nothing anywhere brings them back.
+ */
+export function markDead(id) {
+  game.state.dead = game.state.dead ?? [];
+  if (!game.state.dead.includes(id)) game.state.dead.push(id);
+}
+
+export function isDead(id) {
+  return (game.state.dead ?? []).includes(id);
+}
+
+export function theDead() {
+  return game.state.dead ?? [];
 }
 
 // --------------------------------------------------------------- choices ---

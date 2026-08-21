@@ -7,7 +7,7 @@
 import {
   game, party, addCreature, giveItem, hasItem, addMoney, canAfford,
   sigilCount, hasSigil, dexCounts, swearTo, allegiance, standing, standingWord,
-  changeStanding, recordChoice, choice,
+  changeStanding, recordChoice, choice, markDead, isDead,
 } from '../game/state.js';
 import { HOUSES, SWEARABLE } from './houses.js';
 import { giveEgg } from '../game/eggs.js';
@@ -19,7 +19,7 @@ import {
   willJoin, recruit as doRecruit, dismiss, activeCompanion, restCompanion,
 } from '../game/company.js';
 import { createCreature, displayName } from '../game/creature.js';
-import { TRAINERS } from './trainers.js';
+import { TRAINERS, trainerAsDuellist } from './trainers.js';
 import { DUELLISTS, makeRoamer } from './duellists.js';
 import { item as getItem } from './items.js';
 import { audio } from '../engine/audio.js';
@@ -29,6 +29,29 @@ const STARTERS = [
   { id: 'emberling', blurb: 'A dragon the size of a cat. It has already burnt two tapestries.' },
   { id: 'riverfry', blurb: 'A Trident trout. Placid until it is not.' },
 ];
+
+/**
+ * What you do with somebody you have beaten. Sparing them is free and they
+ * remember it; killing them is permanent — they are gone from the world, and
+ * whoever they answered to holds it against you for good.
+ */
+export async function settleFate({ say, choose, id, def }) {
+  if (!def.mortal) return 'spared';
+  const answer = await choose(`${def.name} is beaten and at your mercy.`,
+    ['Spare them', 'Finish it']);
+  if (answer !== 0) {
+    markDead(id);
+    audio.sfx('faint');
+    await say(`You finish it. ${def.name} does not get up.`, { theme: 'royal' });
+    if (def.house) changeStanding(def.house, -22);
+    recordChoice(`killed_${id}`, true);
+    return 'killed';
+  }
+  await say(`You let them live. ${def.name} will remember which of you decided that.`);
+  if (def.house) changeStanding(def.house, 8);
+  recordChoice(`spared_${id}`, true);
+  return 'spared';
+}
 
 export const SCRIPTS = {
   // ------------------------------------------------------------- defaults --
@@ -80,7 +103,7 @@ export const SCRIPTS = {
    * Duels. People fight you as themselves — steel against steel — rather than
    * setting a creature on you. Beasts still use the creature battle system.
    */
-  async duel({ say, npc, duel, setFlag, flag }) {
+  async duel({ say, choose, npc, duel, setFlag, flag }) {
     const id = npc.data.duel;
     const def = DUELLISTS[id];
     if (flag(`duel_${id}`)) {
@@ -91,6 +114,12 @@ export const SCRIPTS = {
     if (outcome === 'won') {
       setFlag(`duel_${id}`);
       await say(def.after);
+      // Anyone the story does not still need can be finished here.
+      const fate = await settleFate({
+        say, choose, id: `duel_${id}`,
+        def: { ...def, mortal: def.mortal ?? !def.boss },
+      });
+      if (fate === 'killed') npc.hidden = true;
     }
   },
 
@@ -100,19 +129,23 @@ export const SCRIPTS = {
     await openSmithy(npc.data?.stock ?? {});
   },
 
-  /** Every trainer battle funnels through here. */
-  async trainer({ say, npc, battle, setFlag, flag }) {
+  /**
+   * Every trainer fight funnels through here. They fight you themselves, with
+   * whichever of their creatures was strongest standing beside them.
+   */
+  async trainer({ say, choose, npc, overworld, setFlag, flag }) {
     const id = npc.data.trainer;
     const def = TRAINERS[id];
     if (flag(`trainer_${id}`)) {
-      await say(def.after);
+      await say(isDead(`trainer_${id}`) ? 'Nobody stands here now.' : def.after);
       return;
     }
-    await say(def.intro);
-    const outcome = await battle({ kind: 'trainer', trainerId: id });
+    const outcome = await overworld.startAmbush(trainerAsDuellist(id));
     if (outcome === 'won') {
       setFlag(`trainer_${id}`);
       await say(def.after);
+      const fate = await settleFate({ say, choose, id: `trainer_${id}`, def: trainerAsDuellist(id) });
+      if (fate === 'killed') npc.hidden = true;
     }
   },
 
@@ -377,7 +410,7 @@ export const SCRIPTS = {
       return;
     }
     await say(def.intro);
-    const outcome = await battle({ kind: 'trainer', trainerId: 'gymStark' });
+    const outcome = await overworld.startAmbush(trainerAsDuellist('gymStark'));
     if (outcome === 'won') {
       setFlag('trainer_gymStark');
       await say(def.after);
@@ -402,7 +435,7 @@ export const SCRIPTS = {
       return;
     }
     await say(def.intro);
-    const outcome = await battle({ kind: 'trainer', trainerId: 'rival1' });
+    const outcome = await overworld.startAmbush(trainerAsDuellist('rival1'));
     if (outcome === 'won') {
       setFlag('trainer_rival1');
       await say(def.after);
@@ -476,7 +509,7 @@ export const SCRIPTS = {
       return;
     }
     await say(def.intro);
-    const outcome = await battle({ kind: 'trainer', trainerId: 'gymTully' });
+    const outcome = await overworld.startAmbush(trainerAsDuellist('gymTully'));
     if (outcome === 'won') {
       setFlag('trainer_gymTully');
       await say(def.after);
@@ -528,7 +561,7 @@ export const SCRIPTS = {
       return;
     }
     await say(def.intro);
-    const outcome = await battle({ kind: 'trainer', trainerId: 'rival2' });
+    const outcome = await overworld.startAmbush(trainerAsDuellist('rival2'));
     if (outcome === 'won') {
       setFlag('trainer_rival2');
       await say(def.after);
@@ -551,7 +584,7 @@ export const SCRIPTS = {
       return;
     }
     await say(def.intro);
-    const outcome = await battle({ kind: 'trainer', trainerId: 'gymLannister' });
+    const outcome = await overworld.startAmbush(trainerAsDuellist('gymLannister'));
     if (outcome === 'won') {
       setFlag('trainer_gymLannister');
       await say(def.after);
@@ -597,7 +630,7 @@ export const SCRIPTS = {
       return;
     }
     await say(def.intro);
-    const outcome = await battle({ kind: 'trainer', trainerId: 'rival3' });
+    const outcome = await overworld.startAmbush(trainerAsDuellist('rival3'));
     if (outcome === 'won') {
       setFlag('trainer_rival3');
       await say(def.after);
@@ -782,7 +815,7 @@ export const SCRIPTS = {
       return;
     }
     await say(def.intro, { theme: 'royal' });
-    const outcome = await battle({ kind: 'trainer', trainerId: 'gymThrone' });
+    const outcome = await overworld.startAmbush(trainerAsDuellist('gymThrone'));
     if (outcome !== 'won') return;
 
     setFlag('trainer_gymThrone');

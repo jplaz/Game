@@ -10,7 +10,7 @@ import { MAPS } from '../src/data/maps.js';
 import { SPECIES, SPECIES_IDS } from '../src/data/species.js';
 import { MOVES } from '../src/data/moves.js';
 import { ITEMS } from '../src/data/items.js';
-import { TRAINERS } from '../src/data/trainers.js';
+import { TRAINERS, trainerAsDuellist } from '../src/data/trainers.js';
 import { DUELLISTS, ROAMERS, ROAMER_TABLES, makeRoamer } from '../src/data/duellists.js';
 import { HOUSES, HOUSE_IDS, SWEARABLE, SPRITE_HOUSE } from '../src/data/houses.js';
 import { COMPANIONS, AID_DESCRIPTION } from '../src/data/companions.js';
@@ -89,6 +89,22 @@ for (const [id, def] of Object.entries(TRAINERS)) {
     if (!def[field]) fail(`trainer ${id}: missing "${field}" line`);
   }
   if (typeof def.reward !== 'number') fail(`trainer ${id}: missing reward`);
+  if (def.house && !HOUSES[def.house]) fail(`trainer ${id}: unknown house "${def.house}"`);
+}
+
+// Every trainer has to convert cleanly into somebody who fights you themselves.
+for (const id of Object.keys(TRAINERS)) {
+  const built = trainerAsDuellist(id);
+  for (const key of ['vigour', 'might', 'guard', 'swiftness', 'wind', 'level']) {
+    if (!(built[key] > 0)) fail(`trainer ${id}: converts to ${key} of ${built[key]}`);
+  }
+  for (const t of built.techniques) {
+    if (!TECHNIQUES[t]) fail(`trainer ${id}: converts to unknown technique "${t}"`);
+  }
+  if (!SPECIES[built.beast.species]) fail(`trainer ${id}: converts to unknown beast`);
+  for (const field of ['intro', 'defeat', 'after']) {
+    if (!built[field]) fail(`trainer ${id}: converts without "${field}"`);
+  }
 }
 
 // ------------------------------------------------------------------ items --

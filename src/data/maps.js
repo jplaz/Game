@@ -365,6 +365,8 @@ export const MAPS = {
       { x: 9, y: 10, text: 'CASTLE BLACK\nSeat of the Night\u2019s Watch.\nNorth of here the maps stop.' },
     ],
     npcs: [
+      { x: 9, y: 2, dir: 'down', name: 'A Deserter', sprite: 'nightswatch',
+        script: 'quest', data: { quest: 'deserterAtTheGate' } },
       { x: 8, y: 9, dir: 'down', sprite: 'nightswatch', name: 'Jon Snow', script: 'duel',
         data: { duel: 'jonSnow' } },
       { x: 14, y: 10, dir: 'left', sprite: 'wildling', name: 'Tormund', script: 'duel',
@@ -577,6 +579,8 @@ export const MAPS = {
       { x: 8, y: 2, text: 'THE ROSEROAD\nSouth to Highgarden, and on to Dorne.\nGrowing strong.' },
     ],
     npcs: [
+      { x: 8, y: 16, dir: 'down', name: 'Maester Wyllis', sprite: 'maester',
+        script: 'quest', data: { quest: 'maestersDebt' } },
       { x: 6, y: 9, dir: 'right', sprite: 'tyrell', name: 'Ser Loras', script: 'trainer',
         data: { trainer: 'reachKnight' } },
       { x: 14, y: 16, dir: 'left', sprite: 'sellsword', name: 'Bronn', script: 'duel',
@@ -950,6 +954,8 @@ export const MAPS = {
       { x: 8, y: 17, text: 'A drop, not a climb. You can jump down, but not back up.' },
     ],
     npcs: [
+      { x: 8, y: 6, dir: 'down', name: 'Villager', sprite: 'smallfolk',
+        script: 'quest', data: { quest: 'brokenTower' } },
       { x: 6, y: 6, dir: 'right', sprite: 'smallfolk', name: 'Forager', script: 'trainer',
         data: { trainer: 'forager' } },
       { x: 14, y: 12, dir: 'left', sprite: 'nightswatch', name: 'Ranger Jon', script: 'trainer',
@@ -1133,6 +1139,8 @@ export const MAPS = {
       { x: 18, y: 9, text: 'RIVERRUN\nSeat of House Tully.\nSigil-holder: LADY CATELYN.' },
     ],
     npcs: [
+      { x: 12, y: 6, dir: 'down', name: 'Smallfolk Woman', sprite: 'goodwife',
+        script: 'quest', data: { quest: 'hangingTree' } },
       { x: 8, y: 10, dir: 'down', sprite: 'child', name: 'Squire', script: 'riverrunSquire' },
       { x: 17, y: 13, dir: 'left', sprite: 'oldman', name: 'Boatwright', script: 'riverrunHint' },
       { x: 4, y: 17, dir: 'right', sprite: 'goodwife', name: 'Fishwife', script: 'riverrunFishwife' },

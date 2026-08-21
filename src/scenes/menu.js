@@ -22,6 +22,7 @@ import {
 } from '../game/state.js';
 import { saveGame } from '../game/save.js';
 import { eggs, eggProgress, bondOf, bondWord, RIDING_BOND } from '../game/eggs.js';
+import { questEntries, questCounts } from '../game/questlog.js';
 import { gear, gearTable, GEAR_SLOTS } from '../data/gear.js';
 import {
   playerStats, equipped, equip, playerTechniques, playerTitle,
@@ -29,7 +30,8 @@ import {
 } from '../game/player.js';
 import { drawActor, ACTOR_W, ACTOR_H } from '../art/actors.js';
 
-const ROOT_ITEMS = ['PARTY', 'GEAR', 'BAG', 'HOUSES', 'BESTIARY', 'SIGILS', 'CARD', 'SAVE', 'CLOSE'];
+const ROOT_ITEMS = ['PARTY', 'GEAR', 'BAG', 'LOG', 'HOUSES', 'BESTIARY', 'SIGILS', 'CARD',
+  'SAVE', 'CLOSE'];
 
 const STAT_LABELS = { hp: 'HP', atk: 'ATTACK', def: 'DEFENCE', spa: 'SP.ATK', spd: 'SP.DEF', spe: 'SPEED' };
 
@@ -116,6 +118,8 @@ export class MainMenu {
     } else if (choice === 'BESTIARY') {
       this.dexIndex = 0;
       this.view = 'dex';
+    } else if (choice === 'LOG') {
+      this.view = 'log';
     } else if (choice === 'HOUSES') {
       this.view = 'houses';
     } else if (choice === 'SIGILS') {
@@ -365,6 +369,7 @@ export class MainMenu {
       case 'bag': this.drawBag(ctx); break;
       case 'dex': this.drawDex(ctx); break;
       case 'dexEntry': this.drawDexEntry(ctx); break;
+      case 'log': this.drawLog(ctx); break;
       case 'houses': this.drawHouses(ctx); break;
       case 'sigils': this.drawSigils(ctx); break;
       case 'card': this.drawCard(ctx); break;
@@ -685,6 +690,43 @@ export class MainMenu {
     lines.slice(0, 4).forEach((line, i) => {
       drawText(ctx, line.trim(), 14, 92 + i * LINE_HEIGHT, { color: '#f2f4ff', shadow: '#151a2c' });
     });
+  }
+
+  /** What you have been asked to do, and what you decided. */
+  drawLog(ctx) {
+    drawPanel(ctx, 4, 4, 232, 152, 'night');
+    const counts = questCounts();
+    drawText(ctx, 'THE LOG', 12, 9, { color: '#f0dca0', shadow: '#151a2c' });
+    const tally = `${counts.open} open   ${counts.done} settled`;
+    drawText(ctx, tally, 228 - measure(tally), 9, { color: '#8fa4c8', shadow: '#151a2c' });
+
+    const entries = questEntries();
+    if (!entries.length) {
+      drawText(ctx, 'Nobody has asked anything of you yet.', 12, 30,
+        { color: '#98a0bc', shadow: '#151a2c' });
+      drawText(ctx, 'They will. Ride south and talk to people.', 12, 42,
+        { color: '#6a7088', shadow: '#151a2c' });
+      return;
+    }
+
+    entries.slice(0, 5).forEach((entry, i) => {
+      const y = 24 + i * 26;
+      drawPanel(ctx, 10, y, 220, 24, entry.done ? 'night' : 'royal');
+      const theme = entry.done
+        ? { color: '#8fa4c8', shadow: '#151a2c' }
+        : { color: '#ffeec8', shadow: '#3a1218' };
+      drawText(ctx, fitText(entry.name, 130), 16, y + 3, theme);
+      drawText(ctx, entry.region, 224 - measure(entry.region), y + 3,
+        { color: entry.done ? '#6a7088' : '#e8c878', shadow: theme.shadow });
+      const note = entry.done ? `Settled: ${entry.text}` : entry.text;
+      drawText(ctx, fitText(note, 206), 16, y + 13,
+        { color: entry.done ? '#6a7088' : '#f2d8b0', shadow: theme.shadow });
+    });
+
+    if (entries.length > 5) {
+      const more = `+${entries.length - 5} more`;
+      drawText(ctx, more, 228 - measure(more), 146, { color: '#6a7088', shadow: '#151a2c' });
+    }
   }
 
   /** Where every house in the realm stands with you, and why it matters. */

@@ -12,13 +12,15 @@ import {
 import { HOUSES, SWEARABLE } from './houses.js';
 import { giveEgg } from '../game/eggs.js';
 import { beginReign, reigning } from '../game/realm.js';
+import { QUESTS } from './quests.js';
+import { openQuest, closeQuest, isOpen, isClosed } from '../game/questlog.js';
 import { COMPANIONS } from './companions.js';
 import {
   willJoin, recruit as doRecruit, dismiss, activeCompanion, restCompanion,
 } from '../game/company.js';
 import { createCreature, displayName } from '../game/creature.js';
 import { TRAINERS } from './trainers.js';
-import { DUELLISTS } from './duellists.js';
+import { DUELLISTS, makeRoamer } from './duellists.js';
 import { item as getItem } from './items.js';
 import { audio } from '../engine/audio.js';
 
@@ -247,6 +249,56 @@ export const SCRIPTS = {
     recordChoice(`recruited_${id}`, true);
     audio.sfx('confirm');
     await say(`${def.name} rides with you.`);
+  },
+
+  /**
+   * A side quest. The first time you speak to them they put the situation to
+   * you; after that you answer it, and every answer costs somebody something.
+   */
+  async quest({ say, choose, npc, overworld }) {
+    const id = npc.data.quest;
+    const def = QUESTS[id];
+
+    if (isClosed(id)) {
+      await say(`They have nothing more to ask of you about ${def.name.toLowerCase()}.`);
+      return;
+    }
+    if (!isOpen(id)) {
+      await say(def.giver);
+      openQuest(id);
+      audio.sfx('confirm');
+      await say('(Added to your log.)');
+      return;
+    }
+
+    await say(def.summary);
+    const labels = def.resolve.map((o) => o.label);
+    const pick = await choose('What will you do?', [...labels, 'Not yet']);
+    if (pick < 0 || pick >= def.resolve.length) {
+      await say('You leave it as it stands. It will not stay that way forever.');
+      return;
+    }
+    const option = def.resolve[pick];
+
+    // Some answers have to be argued with steel first.
+    if (option.roamer) {
+      const foe = makeRoamer(option.roamer.id, option.roamer.level, (list) => list[0]);
+      foe.canYield = false;
+      const outcome = await overworld.startAmbush(foe);
+      if (outcome !== 'won') {
+        await say('It goes badly. Whatever you meant to settle here is still unsettled.');
+        return;
+      }
+    }
+
+    if (option.gold) addMoney(option.gold);
+    for (const [house, delta] of Object.entries(option.standing ?? {})) {
+      changeStanding(house, delta);
+    }
+    if (option.choice) recordChoice(option.choice[0], option.choice[1]);
+    closeQuest(id, option.label);
+    audio.sfx('confirm');
+    await say(option.result);
   },
 
   // ---------------------------------------------------------- Winterfell ----

@@ -14,6 +14,8 @@ import { TRAINERS } from '../src/data/trainers.js';
 import { DUELLISTS, ROAMERS, ROAMER_TABLES, makeRoamer } from '../src/data/duellists.js';
 import { HOUSES, HOUSE_IDS, SWEARABLE, SPRITE_HOUSE } from '../src/data/houses.js';
 import { COMPANIONS, AID_DESCRIPTION } from '../src/data/companions.js';
+import { QUESTS } from '../src/data/quests.js';
+import { ROAMERS as ROAMER_TABLE } from '../src/data/duellists.js';
 import { WEAPONS, ARMOUR, SHIELDS, TECHNIQUES } from '../src/data/gear.js';
 import { SCRIPTS } from '../src/data/scripts.js';
 import { TILE_DEFS } from '../src/art/tiles.js';
@@ -286,6 +288,37 @@ for (const id of SWEARABLE) {
 for (const [sprite, houseId] of Object.entries(SPRITE_HOUSE)) {
   if (!ACTOR_PALETTES[sprite]) fail(`SPRITE_HOUSE: unknown sprite "${sprite}"`);
   if (!HOUSES[houseId]) fail(`SPRITE_HOUSE: sprite "${sprite}" names unknown house "${houseId}"`);
+}
+
+// ---------------------------------------------------------------- quests --
+for (const [id, def] of Object.entries(QUESTS)) {
+  for (const field of ['name', 'region', 'summary', 'giver', 'open']) {
+    if (!def[field]) fail(`quest ${id}: missing "${field}"`);
+  }
+  if (!def.resolve?.length) fail(`quest ${id}: no way to resolve it`);
+  for (const option of def.resolve ?? []) {
+    if (!option.label) fail(`quest ${id}: an option has no label`);
+    if (!option.result) fail(`quest ${id}: option "${option.label}" has no outcome text`);
+    for (const house of Object.keys(option.standing ?? {})) {
+      if (!HOUSES[house]) fail(`quest ${id}: option "${option.label}" names unknown house "${house}"`);
+    }
+    if (option.roamer && !ROAMER_TABLE[option.roamer.id]) {
+      fail(`quest ${id}: option "${option.label}" names unknown roamer "${option.roamer.id}"`);
+    }
+  }
+}
+
+const placedQuests = new Set();
+for (const map of Object.values(MAPS)) {
+  for (const npc of map.npcs ?? []) {
+    if (npc.data?.quest) placedQuests.add(npc.data.quest);
+  }
+}
+for (const id of Object.keys(QUESTS)) {
+  if (!placedQuests.has(id)) warn(`quest ${id}: defined but nobody gives it`);
+}
+for (const id of placedQuests) {
+  if (!QUESTS[id]) fail(`a map gives unknown quest "${id}"`);
 }
 
 // ------------------------------------------------------------ companions --

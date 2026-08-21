@@ -24,13 +24,13 @@ function rect(ctx, x, y, w, h, color) {
 // proportionally larger head; heavy builds are wider in the shoulder and
 // shorter in the leg.
 const BUILDS = {
-  man:   { headY: 3, headH: 14, headW: 12, torsoY: 16, torsoH: 11, torsoW: 10,
+  man:   { headY: 5, headH: 11, headW: 11, torsoY: 16, torsoH: 11, torsoW: 10,
            legY: 25, legH: 6, legW: 3, legGap: 5, armW: 3, shoulder: 0 },
-  woman: { headY: 3, headH: 13, headW: 11, torsoY: 16, torsoH: 11, torsoW: 9,
+  woman: { headY: 6, headH: 10, headW: 10, torsoY: 16, torsoH: 11, torsoW: 9,
            legY: 25, legH: 6, legW: 3, legGap: 4, armW: 2, shoulder: -1 },
-  child: { headY: 8, headH: 12, headW: 11, torsoY: 19, torsoH: 8, torsoW: 8,
+  child: { headY: 9, headH: 10, headW: 10, torsoY: 19, torsoH: 8, torsoW: 8,
            legY: 26, legH: 5, legW: 2, legGap: 4, armW: 2, shoulder: -1 },
-  heavy: { headY: 2, headH: 15, headW: 13, torsoY: 15, torsoH: 13, torsoW: 13,
+  heavy: { headY: 4, headH: 11, headW: 12, torsoY: 15, torsoH: 13, torsoW: 13,
            legY: 27, legH: 4, legW: 4, legGap: 6, armW: 4, shoulder: 1 },
 };
 
@@ -99,6 +99,9 @@ function paintTorso(ctx, m, p, outfit, dir) {
   rect(ctx, x - 1, top, w + 2, bottom - top, OUTLINE);
   rect(ctx, x, top, w, bottom - top - 1, p.cloakDark);
   rect(ctx, x, top, w, Math.max(2, (bottom - top) * 0.7), p.cloak);
+  // Lit down the left, shadowed down the right.
+  rect(ctx, x, top + 1, 1, bottom - top - 2, p.trim);
+  rect(ctx, x + w - 1, top + 1, 1, bottom - top - 2, p.cloakDark);
 
   // A gown or robe widens toward the floor.
   if (outfit.skirt) {
@@ -189,8 +192,12 @@ function paintHead(ctx, m, p, hair, dir) {
   rect(ctx, x - 1, y + 2, w + 2, h - 4, OUTLINE);
 
   const faceColor = dir === 'up' && hair.cap ? p.hair : p.skin;
+  const shadeColor = dir === 'up' && hair.cap ? p.hair : p.skinDark;
   rect(ctx, x + 1, y + 1, w - 2, h - 2, faceColor);
   rect(ctx, x, y + 3, w, h - 6, faceColor);
+  // The turned-away side and under the jaw.
+  rect(ctx, x + w - 2, y + 3, 2, h - 6, shadeColor);
+  rect(ctx, x + 2, y + h - 3, w - 4, 1, shadeColor);
 
   if (hair.hood) {
     // A hood swallows the whole head and leaves a shadowed face.

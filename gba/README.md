@@ -83,19 +83,40 @@ and the export fails rather than the cartridge.
 
 ## How it is checked
 
-`verify.mjs` checks what a console checks before it will run a cartridge: the
+Three ways, all of which run on every `sh build.sh`.
+
+**`verify.mjs` — what a console checks before it will run a cartridge.** The
 entry branch, the boot logo byte for byte, the fixed 0x96, the header complement
 and the image size.
 
-That only proves it boots. `hosttest.c` compiles **the cartridge's own C** for
-this machine, with the hardware addresses pointed at a stand-in for the GBA's
-address space, drives it with a scripted run — swear to Tully, walk to the
-maester, try to draw on him, kill Jory Cassel, read the status card, go into the
-keep and out again, break off a duel with Theon, watch the town move, then walk
-south to the Riverlands fighting whatever the road produces — and applies the
-mode 0 compositing rules to whatever the code leaves in video memory. The frames
-in `shots/` are that output: not screenshots of an emulator, but a drawing of
-what the picture processor would have drawn.
+**`audit.c` — what the game is made of.** It reads the cartridge's own tables and
+looks for the things a playthrough cannot see: a map nothing leads to, a door
+that lands you inside a wall or on another door, a door with no door back,
+somebody standing where nobody can stand next to them, two people on one tile, a
+person with no name or no line, a line the window cannot page, a name too wide
+for its plate, a duellist with impossible numbers, and — the one that actually
+caught something — a letter the font has no glyph for.
 
-It is not an emulator and it does not model timing, DMA, or the BIOS. Run it in
-Delta or mGBA before believing it.
+**`playtest.c` — the game, played.** It is the cartridge's own C compiled for
+this machine, driven by nobody: it swears to a house, then breadth-first paths
+to every person on every map it can reach, talks to each of them, reads every
+sign, draws on whoever will draw back, uses all four techniques, breaks off from
+some duels and loses others, opens the status card, and takes every door. On
+every single frame it checks the game has not put itself somewhere impossible —
+the player inside a wall or off the map, somebody in the crowd inside a wall, a
+window paged past its own end, a duel with more health than it started with.
+
+A full run is about 35,000 frames, ten minutes of real play, and covers all 19
+maps, all 64 people, all 12 signs and about 90 duels. The build runs one per
+house; sixty runs across five houses and sixty different rolls of the dice
+currently come back clean.
+
+Between them these found: a fifth of Westeros mute, an NPC able to park in a
+one-tile gateway and seal a map until they wandered off, and curly quotes and
+em dashes in the writing that the font had no glyph for and would have drawn as
+holes in the middle of words.
+
+None of it is an emulator. It does not model timing, DMA, or the BIOS, so it
+cannot tell you the ROM runs on hardware — only that the game is reachable,
+finishable and internally consistent. **Nobody has played this on a handset.**
+Run it in Delta or mGBA before believing it.

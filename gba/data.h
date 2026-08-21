@@ -4400,7 +4400,7 @@ static const Duellist duellists[DUELLIST_COUNT] = {
     "Steward squares up.", "Steward goes down and does not get up." },
   { "Robb Stark", 145, 12, 33, 22, 24, 1,
     { 2, 3, 1, 0 }, 700, 260,
-    "My father says a lord should never ask a man to do what he will not. So — me first.", "Gods. You will do. Ride south and do it there." },
+    "My father says a lord should never ask a man to do what he will not. So - me first.", "Gods. You will do. Ride south and do it there." },
   { "Lord Eddard", 90, 9, 39, 26, 28, 1,
     { 2, 3, 4, 0 }, 146, 99,
     "Lord Eddard squares up.", "Lord Eddard goes down and does not get up." },
@@ -4517,7 +4517,7 @@ static const Duellist duellists[DUELLIST_COUNT] = {
     "Crannogwoman squares up.", "Crannogwoman goes down and does not get up." },
   { "Ramsay Bolton", 265, 29, 60, 32, 32, 0,
     { 12, 11, 6, 0 }, 2800, 860,
-    "I do so love it when they still have some fight in them at the start.", "No. No, this is not how the story goes—" },
+    "I do so love it when they still have some fight in them at the start.", "No. No, this is not how the story goes-" },
   { "Joffrey", 142, 25, 59, 42, 57, 1,
     { 11, 2, 2, 0 }, 370, 243,
     "Joffrey squares up.", "Joffrey goes down and does not get up." },
@@ -4548,9 +4548,9 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Freerider Mors", 128, 15, 47, 32, 37, 1,
     { 3, 1, 0, 0 }, 560, 300,
     "I ride for whoever pays. Today nobody has, so this one is free.", "Should have waited for a paying fight." },
-  { "Traveller’s Daughter", 162, 29, 68, 48, 65, 1,
+  { "Traveller's Daughter", 162, 29, 68, 48, 65, 1,
     { 11, 2, 2, 0 }, 426, 279,
-    "Traveller’s Daughter squares up.", "Traveller’s Daughter goes down and does not get up." },
+    "Traveller's Daughter squares up.", "Traveller's Daughter goes down and does not get up." },
   { "Bandit", 90, 10, 34, 21, 28, 1,
     { 11, 2, 0, 0 }, 290, 164,
     "Purse or throat. Choose quickly, it is cold.", "Enough! Take the road, it is not worth my life." },
@@ -5195,7 +5195,7 @@ static const Npc npcs_2[3] = {
   { 8, 1, 0, 1, 0, 0, 1, 12,
     "Steward", "Everything here has come a long way. So has the price." },
   { 5, 5, 0, 2, 1, 0, 1, 13,
-    "Robb Stark", "My father says a lord should never ask a man to do what he will not. So — me first." },
+    "Robb Stark", "My father says a lord should never ask a man to do what he will not. So - me first." },
 };
 
 /* ---- The Great Keep ---- */
@@ -6533,7 +6533,7 @@ static const Warp warps_7[4] = {
   { 17, 6, 9, 5, 6 },
 };
 static const Sign signs_7[1] = {
-  { 9, 10, "CASTLE BLACK\nSeat of the Night’s Watch.\nNorth of here the maps stop." },
+  { 9, 10, "CASTLE BLACK\nSeat of the Night's Watch.\nNorth of here the maps stop." },
 };
 static const Ambush ambushes_7[1] = {
   { 0, 0 },
@@ -8063,7 +8063,7 @@ static const Npc npcs_13[5] = {
   { 6, 20, 1, 3, 1, 0, 1, 62,
     "Freerider", "I ride for whoever pays. Today nobody has, so this one is free." },
   { 14, 4, 0, 4, 1, 0, 0, 63,
-    "Traveller’s Daughter", "A creature that is asleep or frozen is far easier to win over. Weaken it, then raise your banner." },
+    "Traveller's Daughter", "A creature that is asleep or frozen is far easier to win over. Weaken it, then raise your banner." },
 };
 
 /* ---- Riverrun ---- */

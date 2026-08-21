@@ -7,3 +7,6 @@ gba/*.o
 gba/*.elf
 gba/hosttest
 gba/shots/*.ppm
+gba/playtest
+gba/audit
+gba/w

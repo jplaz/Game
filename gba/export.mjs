@@ -537,7 +537,32 @@ function roleLine(npc) {
 // ------------------------------------------------------------- writing out --
 
 const hex = (n) => `0x${(n >>> 0).toString(16)}`;
-const cstr = (s) => JSON.stringify(String(s ?? '')).replace(/\\n/g, '\\n');
+/* The cartridge draws bytes, one glyph each. The writing uses real typography —
+   curly quotes, em dashes — which is three bytes a character and a hole in the
+   middle of a word on a Game Boy. Everything bound for the ROM is folded down
+   to what the font has a glyph for, and anything left over is reported rather
+   than shipped as a hole. */
+const FOLD = {
+  '\u2018': "'", '\u2019': "'", '\u201A': "'", '\u201B': "'",
+  '\u201C': '"', '\u201D': '"', '\u201E': '"',
+  '\u2013': '-', '\u2014': '-', '\u2015': '-', '\u2212': '-',
+  '\u2026': '...', '\u00A0': ' ', '\u00AD': '', '\u2022': '*',
+  '\u00E9': 'e', '\u00E8': 'e', '\u00EF': 'i', '\u00F6': 'o', '\u00FC': 'u',
+};
+const strange = new Map();
+
+function plain(text) {
+  let out = '';
+  for (const ch of String(text ?? '')) {
+    if (FOLD[ch] !== undefined) { out += FOLD[ch]; continue; }
+    if (ch === '\n' || (ch >= ' ' && ch <= '~')) { out += ch; continue; }
+    strange.set(ch, (strange.get(ch) ?? 0) + 1);
+    out += '?';
+  }
+  return out;
+}
+
+const cstr = (s) => JSON.stringify(plain(s)).replace(/\\n/g, '\\n');
 
 function block(values, perLine = 12) {
   const lines = [];
@@ -735,3 +760,7 @@ console.log(`  ${harvest.actors.length} appearances, ${objTiles} tiles`
   + (crushed ? `, ${crushed} needed more than 15 colours` : ''));
 console.log(`  ${harvest.duellists.length} people you can fight, ${harvest.techniques.length} techniques`);
 console.log(`  ${((bgTiles * 64 + objTiles * 32) / 1024).toFixed(0)} KB of graphics`);
+if (strange.size) {
+  console.log(`  ${strange.size} character${strange.size === 1 ? '' : 's'} the font has no glyph for, `
+    + `replaced with a question mark: ${[...strange].map(([c, n]) => `${JSON.stringify(c)} x${n}`).join(', ')}`);
+}

@@ -576,6 +576,20 @@ static const Warp *warpAt(int x, int y) {
   return 0;
 }
 
+/* A doorway is often the only tile a gate is reachable through. Somebody
+   wandering into it seals the map until they wander out again, so the crowd
+   keeps clear of doors and of the ground in front of them. */
+static int nearWarp(int x, int y) {
+  int i;
+  for (i = 0; i < world->warpCount; i++) {
+    int dx = world->warps[i].x - x, dy = world->warps[i].y - y;
+    if (dx < 0) dx = -dx;
+    if (dy < 0) dy = -dy;
+    if (dx + dy <= 1) return 1;
+  }
+  return 0;
+}
+
 static int crowdAt(int x, int y) {
   int i;
   for (i = 0; i < crowdCount; i++) {
@@ -1137,7 +1151,7 @@ static void moveCrowd(void) {
       if (nx > world->npcs[i].x + 3 || nx < world->npcs[i].x - 3) continue;
       if (ny > world->npcs[i].y + 3 || ny < world->npcs[i].y - 3) continue;
       if (solidAt(nx, ny) || occupied(nx, ny, i)) continue;
-      if (warpAt(nx, ny)) continue;
+      if (nearWarp(nx, ny)) continue;
       stepBody(&crowd[i], dir);
     }
   }

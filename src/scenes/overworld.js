@@ -11,6 +11,8 @@ import { TRACKS } from '../data/music.js';
 import { rng } from '../engine/rng.js';
 import { makeRoamer, ROAMERS } from '../data/duellists.js';
 import { challengeFor } from '../game/challenge.js';
+import { cutscenesOn } from '../data/cutscenes.js';
+import { duellist as getDuellist } from '../data/duellists.js';
 import { creatureSpecies, displayName, wildCreature } from '../game/creature.js';
 import { walkEggs, hatch, deepenBond, willCarry } from '../game/eggs.js';
 import { activeCompanion, hasFallen, kill as killCompanion } from '../game/company.js';
@@ -19,7 +21,7 @@ import { dialog } from '../ui/textbox.js';
 import { drawPanel } from '../ui/panel.js';
 import { drawText, measure } from '../engine/font.js';
 import {
-  game, flag, setFlag, standingWord, setLocalRegion, isDead,
+  game, flag, setFlag, standingWord, setLocalRegion, isDead, recordChoice,
 } from '../game/state.js';
 import { SCRIPTS } from '../data/scripts.js';
 import { TRAINERS } from '../data/trainers.js';
@@ -59,6 +61,10 @@ export class Overworld {
     // A dragon crossing the sky, and its shadow on the ground under it.
     this.skyDragon = null;
     this.skyTimer = rng.int(14, 40);
+    this.cutscene = null;      // a scene playing out in the world around you
+    this.cutsceneTimer = null;
+    this.shake = 0;
+    this.flash = null;
     this.alert = null;      // '!' bubble over a trainer who has spotted you
     this.approach = null;   // trainer walking toward the player
     this.onLoadScript = null;
@@ -155,7 +161,8 @@ export class Overworld {
   }
 
   get busy() {
-    return Boolean(this.script) || dialog.busy || Boolean(this.approach) || this.manager.busy;
+    return Boolean(this.script) || dialog.busy || Boolean(this.approach)
+      || Boolean(this.cutscene) || this.manager.busy;
   }
 
   // -------------------------------------------------------------- update --
@@ -380,6 +387,20 @@ export class Overworld {
   updateMovement(dt) {
     this.updateFollower(dt);
     this.updateSky(dt);
+
+    if (this.shake > 0) this.shake = Math.max(0, this.shake - dt);
+    if (this.flash) {
+      this.flash.time -= dt;
+      if (this.flash.time <= 0) this.flash = null;
+    }
+    if (this.cutsceneTimer) {
+      this.cutsceneTimer.left -= dt;
+      if (this.cutsceneTimer.left <= 0) {
+        const { resolve } = this.cutsceneTimer;
+        this.cutsceneTimer = null;
+        resolve();
+      }
+    }
     if (this.bumpCooldown > 0) this.bumpCooldown = Math.max(0, this.bumpCooldown - dt);
     if (this.turnDelay > 0) this.turnDelay = Math.max(0, this.turnDelay - dt);
 
@@ -425,8 +446,141 @@ export class Overworld {
       this.doHatch();
       return;
     }
+    if (this.checkCutscene()) return;
     if (this.checkTrainers()) return;
     this.checkEncounter();
+  }
+
+  /** Whether standing here starts something. Each scene fires once, ever. */
+  checkCutscene() {
+    for (const scene of cutscenesOn(this.map.id)) {
+      if (scene.x !== this.player.x || scene.y !== this.player.y) continue;
+      if (flag(scene.flag)) continue;
+      setFlag(scene.flag);
+      this.playCutscene(scene);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Plays a scene's beats in order. The overworld keeps drawing throughout, so
+   * these happen in the world rather than cutting away from it.
+   */
+  async playCutscene(scene) {
+    this.cutscene = { cast: new Map() };
+    audio.sfx('cursor');
+
+    try {
+      for (const beat of scene.beats) {
+        const [kind, ...args] = beat;
+        await this.playBeat(kind, args, scene);
+        if (!this.cutscene) return;   // a fight or a warp ended it early
+      }
+    } finally {
+      // Anyone the scene brought on goes away with it.
+      for (const actor of this.cutscene?.cast.values() ?? []) {
+        const index = this.npcs.indexOf(actor);
+        if (index >= 0) this.npcs.splice(index, 1);
+      }
+      this.cutscene = null;
+    }
+  }
+
+  async playBeat(kind, args, scene) {
+    const cast = this.cutscene.cast;
+    const actorFor = (id) => (id === 'player' ? this.player : cast.get(id));
+
+    switch (kind) {
+      case 'say':
+        await dialog.say(args[0], args[1]);
+        break;
+      case 'wait':
+        await this.pause(args[0]);
+        break;
+      case 'shake':
+        this.shake = args[0];
+        await this.pause(args[0]);
+        break;
+      case 'flash':
+        this.flash = { time: args[0], max: args[0], color: args[1] ?? '#ffffff' };
+        await this.pause(args[0]);
+        break;
+      case 'sky':
+        this.skyDragon = null;
+        this.skyTimer = 0;
+        this.updateSky(0.016);
+        break;
+      case 'flag':
+        setFlag(args[0]);
+        break;
+      case 'spawn': {
+        const [id, def] = args;
+        const actor = {
+          ...def, id: `cutscene:${id}`, step: 0, moving: null, hidden: false,
+          script: 'generic', data: {},
+        };
+        cast.set(id, actor);
+        this.npcs.push(actor);
+        break;
+      }
+      case 'despawn': {
+        const actor = cast.get(args[0]);
+        if (actor) {
+          const index = this.npcs.indexOf(actor);
+          if (index >= 0) this.npcs.splice(index, 1);
+          cast.delete(args[0]);
+        }
+        break;
+      }
+      case 'face': {
+        const actor = actorFor(args[0]);
+        if (actor) actor.dir = args[1];
+        break;
+      }
+      case 'walk': {
+        const [id, dir, steps] = args;
+        const actor = actorFor(id);
+        if (actor) await this.walkActor(actor, dir, steps);
+        break;
+      }
+      case 'choose': {
+        const [text, options, opts] = args;
+        const picked = await dialog.choose(text, options);
+        if (opts?.record) recordChoice(opts.record, options[picked] ?? options[0]);
+        break;
+      }
+      case 'fight': {
+        const foe = args[0];
+        this.cutscene = null;
+        await this.startAmbush(typeof foe === 'string' ? getDuellist(foe) : foe);
+        break;
+      }
+      default:
+        console.warn(`Cutscene "${scene.id}" has an unknown beat "${kind}"`);
+    }
+  }
+
+  /** Walks an actor a number of tiles, waiting for each step to land. */
+  walkActor(actor, dir, steps) {
+    return new Promise((resolve) => {
+      const [dx, dy] = Overworld.delta(dir);
+      let left = steps;
+      const step = () => {
+        if (left <= 0) { actor.step = 0; resolve(); return; }
+        actor.dir = dir;
+        actor.moving = {
+          fromX: actor.x, fromY: actor.y,
+          toX: actor.x + dx, toY: actor.y + dy,
+          t: 0, duration: 0.18, onDone: () => { left--; step(); },
+        };
+      };
+      step();
+    });
+  }
+
+  pause(seconds) {
+    return new Promise((resolve) => { this.cutsceneTimer = { left: seconds, resolve }; });
   }
 
   doHatch() {
@@ -704,7 +858,9 @@ export class Overworld {
       if (npc.moving.t >= 1) {
         npc.x = npc.moving.toX;
         npc.y = npc.moving.toY;
+        const done = npc.moving.onDone;
         npc.moving = null;
+        done?.();
       }
     }
     if (this.alert) {
@@ -924,7 +1080,10 @@ export class Overworld {
     ctx.fillStyle = '#0a0c12';
     ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
 
-    const camX = Math.round(this.camera.x);
+    // A scene can rattle the whole view, which is the cheapest way to make
+    // something feel like it is happening to you rather than near you.
+    const jolt = this.shake > 0 ? Math.round(Math.sin(this.shake * 60) * 2) : 0;
+    const camX = Math.round(this.camera.x) + jolt;
     const camY = Math.round(this.camera.y);
     const startX = Math.max(0, Math.floor(camX / TILE));
     const startY = Math.max(0, Math.floor(camY / TILE));
@@ -944,6 +1103,13 @@ export class Overworld {
     this.drawEntities(ctx, camX, camY);
     this.drawGrassOverlay(ctx, camX, camY);
     this.drawSky(ctx);
+    if (this.flash) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, this.flash.time / this.flash.max));
+      ctx.fillStyle = this.flash.color;
+      ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+      ctx.restore();
+    }
     this.drawAlert(ctx, camX, camY);
     this.drawLocationBanner(ctx);
     dialog.draw(ctx);

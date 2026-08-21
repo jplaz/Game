@@ -15,6 +15,7 @@ import { DUELLISTS, ROAMERS, ROAMER_TABLES, makeRoamer } from '../src/data/duell
 import { HOUSES, HOUSE_IDS, SWEARABLE, SPRITE_HOUSE } from '../src/data/houses.js';
 import { COMPANIONS, AID_DESCRIPTION } from '../src/data/companions.js';
 import { QUESTS } from '../src/data/quests.js';
+import { CUTSCENES } from '../src/data/cutscenes.js';
 import { ROAMERS as ROAMER_TABLE } from '../src/data/duellists.js';
 import { WEAPONS, ARMOUR, SHIELDS, TECHNIQUES } from '../src/data/gear.js';
 import { SCRIPTS } from '../src/data/scripts.js';
@@ -311,6 +312,47 @@ for (const id of SWEARABLE) {
 for (const [sprite, houseId] of Object.entries(SPRITE_HOUSE)) {
   if (!ACTOR_PALETTES[sprite]) fail(`SPRITE_HOUSE: unknown sprite "${sprite}"`);
   if (!HOUSES[houseId]) fail(`SPRITE_HOUSE: sprite "${sprite}" names unknown house "${houseId}"`);
+}
+
+// ------------------------------------------------------------- cutscenes --
+const BEATS = new Set(['say', 'wait', 'shake', 'flash', 'spawn', 'walk', 'face',
+  'despawn', 'sky', 'flag', 'choose', 'fight']);
+
+for (const [id, def] of Object.entries(CUTSCENES)) {
+  const map = MAPS[def.map];
+  if (!map) {
+    fail(`cutscene ${id}: unknown map "${def.map}"`);
+    continue;
+  }
+  if (!def.flag) fail(`cutscene ${id}: no flag, so it would fire every time`);
+  // The trigger tile has to be somewhere the player can actually stand.
+  if (!walkable(map, def.x, def.y)) {
+    fail(`cutscene ${id}: trigger at ${def.x},${def.y} on ${def.map} is not walkable `
+       + `("${tileAt(map, def.x, def.y)}")`);
+  }
+  if ((map.warps ?? []).some((w) => w.x === def.x && w.y === def.y)) {
+    fail(`cutscene ${id}: trigger sits on a warp, so it would never fire`);
+  }
+  if (!def.beats?.length) fail(`cutscene ${id}: no beats`);
+
+  const spawned = new Set(['player']);
+  for (const beat of def.beats ?? []) {
+    const [kind, ...args] = beat;
+    if (!BEATS.has(kind)) fail(`cutscene ${id}: unknown beat "${kind}"`);
+    if (kind === 'spawn') {
+      spawned.add(args[0]);
+      if (!ACTOR_PALETTES[args[1]?.sprite]) {
+        fail(`cutscene ${id}: spawns unknown sprite "${args[1]?.sprite}"`);
+      }
+    }
+    if ((kind === 'walk' || kind === 'face' || kind === 'despawn') && !spawned.has(args[0])) {
+      fail(`cutscene ${id}: "${kind}" refers to "${args[0]}" before it is spawned`);
+    }
+    if (kind === 'say' && !args[0]) fail(`cutscene ${id}: an empty line`);
+    if (kind === 'choose' && !(args[1]?.length >= 2)) {
+      fail(`cutscene ${id}: a choice with fewer than two options`);
+    }
+  }
 }
 
 // ---------------------------------------------------------------- quests --

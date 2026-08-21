@@ -221,6 +221,8 @@ export const MAPS = {
       { x: 6, y: 17, text: 'THE GODSWOOD\nA heart tree has watched this ground for ten thousand years.\nIt is still watching.' },
     ],
     npcs: [
+      { x: 12, y: 7, dir: 'down', name: 'Jory Cassel', sprite: 'stark',
+        script: 'recruit', data: { companion: 'jory' } },
       { x: 12, y: 16, dir: 'down', sprite: 'maester', name: 'Maester Luwin', script: 'starter' },
       { x: 9, y: 9, dir: 'down', sprite: 'stark', name: 'Jory Cassel', script: 'joryGate' },
       { x: 15, y: 16, dir: 'left', sprite: 'ironborn', name: 'Theon Greyjoy', script: 'duel',
@@ -435,6 +437,8 @@ export const MAPS = {
       { x: 8, y: 21, text: 'Somebody has driven a spear into the ice here.\nThere is no message. The message is the spear.' },
     ],
     npcs: [
+      { x: 8, y: 10, dir: 'down', name: 'Ygritte', sprite: 'wildling',
+        script: 'recruit', data: { companion: 'ygritte' } },
       { x: 10, y: 4, dir: 'down', sprite: 'whitewalker', name: '?', script: 'ghostfang',
         hideIfFlag: 'ghostfang_done' },
       { x: 6, y: 14, dir: 'right', sprite: 'wildling', name: 'Free Folk', script: 'trainer',
@@ -763,6 +767,8 @@ export const MAPS = {
       { x: 8, y: 2, text: 'THE STORMLANDS\nSouth to Storm\u2019s End.\nThe weather here has opinions.' },
     ],
     npcs: [
+      { x: 8, y: 8, dir: 'down', name: 'Brienne of Tarth', sprite: 'brienne',
+        script: 'recruit', data: { companion: 'brienne' } },
       { x: 6, y: 11, dir: 'right', sprite: 'brotherhood', name: 'Beric Dondarrion', script: 'duel',
         data: { duel: 'beric' } },
       { x: 14, y: 17, dir: 'left', sprite: 'baratheon', name: 'Storm Knight', script: 'trainer',
@@ -999,6 +1005,8 @@ export const MAPS = {
       { x: 15, y: 13, text: 'MOAT CAILIN\nThree towers still standing out of twenty.\nThe Neck swallowed the rest.' },
     ],
     npcs: [
+      { x: 12, y: 10, dir: 'down', name: 'Meera Reed', sprite: 'wildlingWoman',
+        script: 'recruit', data: { companion: 'meera' } },
       { x: 13, y: 10, dir: 'down', sprite: 'guard', name: 'Bog Guard', script: 'trainer',
         data: { trainer: 'bogGuard' } },
       { x: 4, y: 15, dir: 'right', sprite: 'goodwife', name: 'Crannogwoman', script: 'moatHint' },
@@ -1066,6 +1074,8 @@ export const MAPS = {
       { x: 9, y: 1, text: 'THE RIVERLANDS\nSouth to Riverrun.\nMind the fords.' },
     ],
     npcs: [
+      { x: 12, y: 10, dir: 'down', name: 'Bronn', sprite: 'sellsword',
+        script: 'recruit', data: { companion: 'bronn' } },
       { x: 5, y: 10, dir: 'right', sprite: 'tully', name: 'Fisher Edd', script: 'trainer',
         data: { trainer: 'fisher' } },
       { x: 15, y: 15, dir: 'left', sprite: 'merchant', name: 'Pedlar', script: 'trainer',
@@ -1467,6 +1477,8 @@ export const MAPS = {
       { x: 9, y: 1, text: "THE KINGSROAD\nSouth to King's Landing.\nThe end of the road, one way or another." },
     ],
     npcs: [
+      { x: 8, y: 14, dir: 'down', name: 'Samwell Tarly', sprite: 'nightswatch',
+        script: 'recruit', data: { companion: 'sam' } },
       { x: 5, y: 6, dir: 'right', sprite: 'baratheon', name: 'Ser Lyle', script: 'trainer',
         data: { trainer: 'stormKnight1' } },
       { x: 15, y: 12, dir: 'left', sprite: 'baratheon', name: 'Ser Rolland', script: 'trainer',

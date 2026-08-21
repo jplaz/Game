@@ -13,6 +13,7 @@ import { ITEMS } from '../src/data/items.js';
 import { TRAINERS } from '../src/data/trainers.js';
 import { DUELLISTS, ROAMERS, ROAMER_TABLES, makeRoamer } from '../src/data/duellists.js';
 import { HOUSES, HOUSE_IDS, SWEARABLE, SPRITE_HOUSE } from '../src/data/houses.js';
+import { COMPANIONS, AID_DESCRIPTION } from '../src/data/companions.js';
 import { WEAPONS, ARMOUR, SHIELDS, TECHNIQUES } from '../src/data/gear.js';
 import { SCRIPTS } from '../src/data/scripts.js';
 import { TILE_DEFS } from '../src/art/tiles.js';
@@ -285,6 +286,37 @@ for (const id of SWEARABLE) {
 for (const [sprite, houseId] of Object.entries(SPRITE_HOUSE)) {
   if (!ACTOR_PALETTES[sprite]) fail(`SPRITE_HOUSE: unknown sprite "${sprite}"`);
   if (!HOUSES[houseId]) fail(`SPRITE_HOUSE: sprite "${sprite}" names unknown house "${houseId}"`);
+}
+
+// ------------------------------------------------------------ companions --
+for (const [id, def] of Object.entries(COMPANIONS)) {
+  if (!ACTOR_PALETTES[def.sprite]) fail(`companion ${id}: unknown sprite "${def.sprite}"`);
+  if (def.house && !HOUSES[def.house]) fail(`companion ${id}: unknown house "${def.house}"`);
+  if (!AID_DESCRIPTION[def.aid]) fail(`companion ${id}: unknown aid "${def.aid}"`);
+  for (const field of ['name', 'recruit', 'refuse', 'death']) {
+    if (!def[field]) fail(`companion ${id}: missing "${field}"`);
+  }
+  if (!def.lines?.length) fail(`companion ${id}: no road lines`);
+  for (const key of ['level', 'vigour', 'might', 'guard']) {
+    if (!(def[key] > 0)) fail(`companion ${id}: ${key} is ${def[key]}`);
+  }
+  if (def.requires && !HOUSES[def.requires.house]) {
+    fail(`companion ${id}: requires unknown house "${def.requires.house}"`);
+  }
+}
+
+// Everyone who can be recruited has to be standing somewhere.
+const placedCompanions = new Set();
+for (const map of Object.values(MAPS)) {
+  for (const npc of map.npcs ?? []) {
+    if (npc.data?.companion) placedCompanions.add(npc.data.companion);
+  }
+}
+for (const id of Object.keys(COMPANIONS)) {
+  if (!placedCompanions.has(id)) warn(`companion ${id}: defined but never placed on a map`);
+}
+for (const id of placedCompanions) {
+  if (!COMPANIONS[id]) fail(`a map places unknown companion "${id}"`);
 }
 
 // --------------------------------------------------------------- roamers --

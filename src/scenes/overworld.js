@@ -12,6 +12,7 @@ import { rng } from '../engine/rng.js';
 import { makeRoamer, ROAMERS } from '../data/duellists.js';
 import { creatureSpecies, displayName } from '../game/creature.js';
 import { walkEggs, hatch, deepenBond, willCarry } from '../game/eggs.js';
+import { activeCompanion } from '../game/company.js';
 import { creatureSprite, SPRITE_SIZE } from '../art/creatures.js';
 import { dialog } from '../ui/textbox.js';
 import { drawPanel } from '../ui/panel.js';
@@ -48,6 +49,8 @@ export class Overworld {
     this.pendingEncounter = null;
     this.mount = null;      // { creature, kind } while you are riding
     this.pendingHatch = null;
+    // Where whoever rides with you is standing, a step behind.
+    this.follower = null;
     this.alert = null;      // '!' bubble over a trainer who has spotted you
     this.approach = null;   // trainer walking toward the player
     this.onLoadScript = null;
@@ -71,6 +74,8 @@ export class Overworld {
     // Nor does a mount that has been taken out of your party or knocked down.
     if (this.mount && !game.state.party.includes(this.mount.creature)) this.mount = null;
     if (this.mount && this.mount.creature.hp <= 0) this.mount = null;
+    // The companion arrives with you rather than walking the whole way.
+    this.follower = activeCompanion() ? { x, y, dir, moving: null, step: 0 } : null;
     this.player.x = x;
     this.player.y = y;
     this.player.dir = dir ?? 'down';
@@ -217,6 +222,39 @@ export class Overworld {
     this.startMove(nx, ny, false);
   }
 
+  /** The companion steps into the tile you are leaving. */
+  moveFollower(fromX, fromY, duration) {
+    if (!activeCompanion()) return;
+    if (!this.follower) {
+      this.follower = { x: fromX, y: fromY, dir: this.player.dir, moving: null, step: 0 };
+      return;
+    }
+    if (this.follower.x === fromX && this.follower.y === fromY) return;
+    const dx = fromX - this.follower.x;
+    const dy = fromY - this.follower.y;
+    this.follower.dir = Math.abs(dx) > Math.abs(dy)
+      ? (dx > 0 ? 'right' : 'left')
+      : (dy > 0 ? 'down' : 'up');
+    this.follower.moving = {
+      fromX: this.follower.x, fromY: this.follower.y,
+      toX: fromX, toY: fromY, t: 0, duration,
+    };
+  }
+
+  updateFollower(dt) {
+    const f = this.follower;
+    if (!f) return;
+    if (!activeCompanion()) { this.follower = null; return; }
+    if (!f.moving) { f.step = 0; return; }
+    f.moving.t += dt / f.moving.duration;
+    f.step = 1 + (Math.floor(f.moving.t * 4) % 4);
+    if (f.moving.t >= 1) {
+      f.x = f.moving.toX;
+      f.y = f.moving.toY;
+      f.moving = null;
+    }
+  }
+
   startMove(x, y, hop) {
     const running = input.held('b') && !hop;
     let duration = hop ? 0.3 : (running ? RUN_TIME : WALK_TIME);
@@ -287,6 +325,7 @@ export class Overworld {
   }
 
   updateMovement(dt) {
+    this.updateFollower(dt);
     if (this.bumpCooldown > 0) this.bumpCooldown = Math.max(0, this.bumpCooldown - dt);
     if (this.turnDelay > 0) this.turnDelay = Math.max(0, this.turnDelay - dt);
 
@@ -300,6 +339,7 @@ export class Overworld {
       return;
     }
 
+    this.moveFollower(move.fromX, move.fromY, move.duration);
     this.player.x = move.toX;
     this.player.y = move.toY;
     this.player.moving = null;
@@ -769,6 +809,23 @@ export class Overworld {
       }
       drawables.push({ y, draw: () => drawActor(ctx, npc.sprite, npc.dir, npc.moving ? npc.step : 0,
         x - camX, y - camY - (ACTOR_H - TILE)) });
+    }
+
+    const ally = activeCompanion();
+    if (ally && this.follower) {
+      const f = this.follower;
+      let fx = f.x * TILE;
+      let fy = f.y * TILE;
+      if (f.moving) {
+        const t = Math.min(1, f.moving.t);
+        fx = (f.moving.fromX + (f.moving.toX - f.moving.fromX) * t) * TILE;
+        fy = (f.moving.fromY + (f.moving.toY - f.moving.fromY) * t) * TILE;
+      }
+      drawables.push({
+        y: fy,
+        draw: () => drawActor(ctx, ally.sprite, f.dir, f.moving ? f.step : 0,
+          fx - camX, fy - camY - (ACTOR_H - TILE)),
+      });
     }
 
     const px = this.playerPixel();

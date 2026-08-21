@@ -37,6 +37,8 @@ import {
   game, addMoney, setFlag, takeItem, itemCount, markCaught, changeStanding, standingWord,
 } from '../game/state.js';
 import { HOUSES } from '../data/houses.js';
+import { COMPANIONS } from '../data/companions.js';
+import { activeCompanion, hurtCompanion, kill as killCompanion } from '../game/company.js';
 import { deepenBond, bondWord } from '../game/eggs.js';
 
 const PLAYER_POS = { x: 26, y: 44, scale: 2 };
@@ -47,6 +49,8 @@ const PLAYER_HUD = { x: 124, y: 52, w: 106, h: 52 };
 const PLAYER_HUD_BEAST = { x: 124, y: 42, w: 106, h: 62 };
 // A beast's health is a row inside its owner's plate rather than a plate of its
 // own: four floating windows on a 240x160 screen leaves nowhere to stand.
+const ALLY_HUD = { x: 4, y: 84, w: 92, h: 19 };
+const ALLY_POS = { x: 4, y: 34 };
 const FOE_BEAST_POS = { x: 124, y: 6, size: 34 };
 const YOUR_BEAST_POS = { x: 66, y: 62, size: 36 };
 
@@ -152,6 +156,11 @@ export class Duel {
       ? beastSide(createCreature(d.beast.species, d.beast.level), false)
       : null;
     this.beastRounds = 0;
+
+    // Whoever rides with you fights too, but on their own initiative — you do
+    // not command them, and they take the consequences of that.
+    this.ally = activeCompanion();
+    this.allyActed = false;
 
     this.hpShown = new Map([[this.you, this.you.hp], [this.foe, this.foe.hp]]);
     if (this.yourBeast) this.hpShown.set(this.yourBeast, this.yourBeast.hp);
@@ -445,6 +454,9 @@ export class Duel {
     }
     await this.reportDownedBeasts();
     this.syncBeasts();
+    if (this.checkDown()) return;
+    await this.allyAct();
+    this.syncBeasts();
     this.checkDown();
   }
 
@@ -460,6 +472,67 @@ export class Duel {
   /** Beast wounds are real: they are written back onto the creature itself. */
   syncBeasts() {
     if (this.yourBeast) this.yourBeast.creature.hp = Math.max(0, Math.round(this.yourBeast.hp));
+  }
+
+  /**
+   * What your companion does with their round. A shield takes a blow that was
+   * coming to you; a healer binds you up; anyone else puts steel in the enemy.
+   * They are hurt for it either way, which is how they end up dead.
+   */
+  async allyAct() {
+    const ally = this.ally;
+    if (!ally || ally.hp <= 0 || this.outcome !== 'ongoing') return;
+    if (!rng.chance(0.55)) return;
+
+    if (ally.aid === 'mend' && this.you.hp < this.you.maxHp * 0.5) {
+      const healed = Math.round(this.you.maxHp * 0.18);
+      this.you.hp = Math.min(this.you.maxHp, this.you.hp + healed);
+      await this.animateHp(this.you);
+      await this.say(`${ally.name} binds your wounds. You recover ${healed}.`);
+      return;
+    }
+
+    if (ally.aid === 'shield' && this.you.hp < this.you.maxHp * 0.6) {
+      ally.saves++;
+      const taken = Math.round(this.foe.might * 0.5);
+      hurtCompanion(taken);
+      await this.say(`${ally.name} steps in front of you and takes the blow.`);
+      audio.sfx('hit');
+      await this.checkAllyDown();
+      return;
+    }
+
+    // A plain attack. The enemy answers it, which is the risk they run.
+    const target = this.foeBeast?.hp > 0 ? this.foeBeast : this.foe;
+    const damage = Math.max(1, Math.round(
+      ally.might * (1 - target.guard / (target.guard + 55)) * 0.8 * rng.int(85, 110) / 100,
+    ));
+    target.hp = Math.max(0, target.hp - damage);
+    audio.sfx('hit');
+    await this.animateHit(target);
+    await this.say(`${ally.name} strikes for ${damage}.`);
+
+    if (this.foe.hp > 0 && rng.chance(0.4)) {
+      const back = Math.round(this.foe.might * 0.45);
+      hurtCompanion(back);
+      await this.say(`${this.foe.name} turns on ${ally.name}!`);
+      audio.sfx('hit');
+      await this.checkAllyDown();
+    }
+  }
+
+  /** A companion at zero is dead. There is no reviving them anywhere. */
+  async checkAllyDown() {
+    const ally = this.ally;
+    if (!ally || ally.hp > 0) return;
+    audio.sfx('faint');
+    const def = COMPANIONS[ally.id];
+    await this.say(def?.death ?? `${ally.name} falls.`, { theme: 'royal' });
+    await this.say(`${ally.name} is dead.`, { theme: 'royal' });
+    killCompanion();
+    this.ally = null;
+    // Their house does not forget who they were riding with.
+    if (ally.house) changeStanding(ally.house, -12);
   }
 
   checkDown() {
@@ -719,9 +792,13 @@ export class Duel {
     this.drawBeast(ctx, this.foeBeast, FOE_BEAST_POS);
     this.drawFighter(ctx, this.foe, FOE_POS, 'left');
     this.drawBeast(ctx, this.yourBeast, YOUR_BEAST_POS);
+    if (this.ally && this.ally.hp > 0) {
+      drawActor(ctx, this.ally.sprite, 'right', 0, ALLY_POS.x, ALLY_POS.y, { combat: true });
+    }
     this.drawFighter(ctx, this.you, PLAYER_POS, 'right');
     this.drawHud(ctx, this.foe, this.foeBeast ? FOE_HUD_BEAST : FOE_HUD, false);
     this.drawHud(ctx, this.you, this.yourBeast ? PLAYER_HUD_BEAST : PLAYER_HUD, true);
+    this.drawAllyHud(ctx);
     dialog.draw(ctx);
     if (this.menu) this.drawMenu(ctx);
   }
@@ -836,6 +913,31 @@ export class Duel {
       ctx.drawImage(sprite, 0, 0, SPRITE_SIZE, SPRITE_SIZE, 0, 0, pos.size, pos.size);
     }
     ctx.restore();
+  }
+
+  /** Whoever rides with you, and how much of them is left. */
+  drawAllyHud(ctx) {
+    const ally = this.ally;
+    if (!ally || ally.hp <= 0) return;
+    const box = ALLY_HUD;
+    const t = drawStatusBox(ctx, box.x, box.y, box.w, box.h, { notchLeft: true });
+    drawText(ctx, fitText(ally.name.toUpperCase(), box.w - 16), box.x + 7, box.y + 2,
+      { color: t.text, shadow: t.textShadow });
+    const ratio = Math.max(0, ally.hp / ally.maxHp);
+    const barX = box.x + 7;
+    const barW = box.w - 15;
+    ctx.fillStyle = '#2b3f2c';
+    ctx.fillRect(barX - 1, box.y + 12, barW + 2, 6);
+    ctx.fillStyle = '#6d7a63';
+    ctx.fillRect(barX, box.y + 13, barW, 4);
+    const filled = Math.max(0, Math.min(barW, Math.round(barW * ratio)));
+    if (filled > 0) {
+      const c = HP_COLORS(ratio);
+      ctx.fillStyle = c.dark;
+      ctx.fillRect(barX, box.y + 13, filled, 4);
+      ctx.fillStyle = c.light;
+      ctx.fillRect(barX, box.y + 13, filled, 2);
+    }
   }
 
   drawHud(ctx, side, box, isPlayer) {

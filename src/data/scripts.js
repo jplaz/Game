@@ -11,6 +11,10 @@ import {
 } from '../game/state.js';
 import { HOUSES, SWEARABLE } from './houses.js';
 import { giveEgg } from '../game/eggs.js';
+import { COMPANIONS } from './companions.js';
+import {
+  willJoin, recruit as doRecruit, dismiss, activeCompanion, restCompanion,
+} from '../game/company.js';
 import { createCreature, displayName } from '../game/creature.js';
 import { TRAINERS } from './trainers.js';
 import { DUELLISTS } from './duellists.js';
@@ -51,6 +55,13 @@ export const SCRIPTS = {
     }
     await say('Rest them here a moment...');
     healParty();
+    // Whoever rides with you gets seen to as well — while they are still alive
+    // to be seen to.
+    const ally = activeCompanion();
+    if (ally && ally.hp < ally.maxHp) {
+      restCompanion();
+      await say(`${ally.name} is patched up too, and complains about it throughout.`);
+    }
     await say('There. Fed, watered, and rather better tempered than you are.');
     game.state.respawn = { ...game.state.position, dir: 'down' };
   },
@@ -174,6 +185,67 @@ export const SCRIPTS = {
     // Luwin steps out of the road.
     npc.x = 11;
     npc.dir = 'right';
+  },
+
+  /**
+   * Asking someone to ride with you. Most of them want their house to think
+   * well of you first, one wants paying, and none of them come back from the
+   * dead — so this is also where the game tells you plainly that they can die.
+   */
+  async recruit({ say, choose, npc }) {
+    const id = npc.data.companion;
+    const def = COMPANIONS[id];
+    const verdict = willJoin(id);
+
+    if (verdict.reason === 'dead') {
+      await say(`Nobody has seen ${def.name} since. Nobody expects to.`);
+      return;
+    }
+    if (verdict.reason === 'already') {
+      const line = def.lines[Math.floor(Math.random() * def.lines.length)];
+      await say(line);
+      const part = await choose('Send them on their way?', ['No', 'Yes, we part here']);
+      if (part === 1) {
+        dismiss();
+        await say(`${def.name} takes their leave. No hard words about it.`);
+      }
+      return;
+    }
+    if (verdict.reason === 'occupied') {
+      await say(`${def.name}: You already ride with ${verdict.current}. `
+        + 'Two is a party. Three is an argument on horseback.');
+      return;
+    }
+    if (verdict.reason === 'standing') {
+      await say(def.refuse);
+      return;
+    }
+
+    if (def.cost) {
+      if (!canAfford(def.cost)) {
+        await say(`${def.name}: ${def.cost} gold dragons. You do not have it.`);
+        return;
+      }
+      const pay = await choose(`${def.name} wants ${def.cost} gold. Pay?`, ['Pay', 'Not today']);
+      if (pay !== 0) {
+        await say(def.refuse);
+        return;
+      }
+      addMoney(-def.cost);
+    }
+
+    await say(def.recruit);
+    await say('They can die out there, and if they do that is the end of them. '
+      + 'No maester brings a person back.');
+    const confirm = await choose(`Take ${def.name} with you?`, ['Yes', 'No']);
+    if (confirm !== 0) {
+      await say(`${def.name}: Wiser than you look. Find me when you change your mind.`);
+      return;
+    }
+    doRecruit(id);
+    recordChoice(`recruited_${id}`, true);
+    audio.sfx('confirm');
+    await say(`${def.name} rides with you.`);
   },
 
   // ---------------------------------------------------------- Winterfell ----

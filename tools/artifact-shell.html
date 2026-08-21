@@ -1,0 +1,324 @@
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Karla:wght@400;600&display=swap">
+
+<style>
+/* ---------------------------------------------------------------------------
+   The page is a dark hall with one lit thing in it. The game's own pixel art is
+   the whole visual statement, so the chrome around it stays quiet: carved
+   Roman capitals for the name, a grotesque for the small print, and a single
+   gold that is lifted straight out of the window frames inside the game.
+
+   Deliberately one theme. This is a screen in a dark room, and it commits to
+   that on any host background, so every colour here is painted explicitly.
+--------------------------------------------------------------------------- */
+
+:root {
+  --night:  #0a0d14;   /* the ground: a blue-black, not a grey */
+  --hall:   #121826;   /* the panel the screen sits on */
+  --edge:   #202a3d;   /* hairlines */
+  --frost:  #c3d0e0;   /* body text */
+  --ash:    #6b7789;   /* labels, secondary */
+  --gold:   #c8a24a;   /* the one accent — the game's own frame gold */
+  --gold-d: #8a6a28;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--night);
+  background-image:
+    radial-gradient(ellipse 120% 70% at 50% -10%, #1b2438 0%, transparent 60%),
+    radial-gradient(ellipse 90% 50% at 50% 110%, #150f14 0%, transparent 55%);
+  color: var(--frost);
+  font-family: Karla, ui-sans-serif, system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 28px 18px 34px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ------------------------------------------------------------- the name -- */
+
+.titling {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.titling h1 {
+  margin: 0;
+  font-family: Cinzel, "Trajan Pro", Georgia, serif;
+  font-weight: 600;
+  font-size: clamp(19px, 3.4vw, 30px);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-wrap: balance;
+  color: var(--frost);
+}
+
+.titling h1 em {
+  font-style: normal;
+  color: var(--gold);
+}
+
+/* A rule with a diamond in it, the way a sigil plate is ruled off. */
+.rule {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: min(360px, 80vw);
+  color: var(--gold-d);
+}
+
+.rule::before,
+.rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--edge) 20%, var(--gold-d));
+}
+
+.rule::after { background: linear-gradient(270deg, transparent, var(--edge) 20%, var(--gold-d)); }
+
+.rule span {
+  width: 5px;
+  height: 5px;
+  background: var(--gold);
+  transform: rotate(45deg);
+}
+
+.words {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ash);
+}
+
+/* ----------------------------------------------------------- the screen -- */
+
+#shell {
+  position: relative;
+  line-height: 0;
+  padding: 11px;
+  border-radius: 13px;
+  background: linear-gradient(#232c40, #121826);
+  box-shadow:
+    0 22px 48px #0009,
+    0 0 0 1px #ffffff10 inset,
+    0 1px 0 #ffffff18 inset;
+}
+
+#screen {
+  display: block;
+  width: min(720px, 92vw);
+  height: auto;
+  aspect-ratio: 3 / 2;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #000;
+  border-radius: 3px;
+  box-shadow: 0 0 0 3px #080b12, 0 0 30px #4d7fff1f;
+}
+
+/* Focus has to be visible — the whole thing is operated by keyboard. */
+#shell:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 4px;
+}
+
+/* Shown until the frame has keyboard focus, because otherwise the keys do
+   nothing and there is no way to know why. */
+#focusnote {
+  position: absolute;
+  inset: 11px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  background: #05070ccc;
+  color: var(--frost);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: opacity .25s ease;
+}
+
+#focusnote[hidden] { display: none; }
+
+/* --------------------------------------------------------- the controls -- */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px 14px;
+  max-width: 640px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--ash);
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+kbd {
+  font-family: Karla, ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--frost);
+  background: #1a2233;
+  border: 1px solid var(--edge);
+  border-bottom-color: #0c111b;
+  border-radius: 4px;
+  padding: 4px 6px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.footnote {
+  margin: 0;
+  font-size: 12px;
+  color: #55607292;
+  text-align: center;
+  max-width: 52ch;
+  line-height: 1.5;
+}
+
+/* The touch pad only exists on touch devices; the game unhides it itself. */
+#touch {
+  position: fixed;
+  inset: auto 0 0 0;
+  height: 190px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px 14px;
+  pointer-events: none;
+}
+
+#touch[hidden] { display: none; }
+
+#touch .pad, #touch .face {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  pointer-events: auto;
+}
+
+.btn {
+  position: absolute;
+  border: 0;
+  color: #e7ecff;
+  font: inherit;
+  font-size: 15px;
+  border-radius: 50%;
+  background: #2b3450cc;
+  box-shadow: 0 3px 0 #10141fcc;
+  touch-action: none;
+}
+
+.btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #10141fcc; }
+
+.pad .btn { width: 50px; height: 50px; border-radius: 10px; }
+.pad .up    { left: 50px; top: 0; }
+.pad .down  { left: 50px; top: 100px; }
+.pad .left  { left: 0; top: 50px; }
+.pad .right { left: 100px; top: 50px; }
+
+.face .a { right: 6px;  bottom: 56px; width: 64px; height: 64px; background: #8f2f3acc; }
+.face .b { right: 74px; bottom: 12px; width: 64px; height: 64px; background: #3a4a8fcc; }
+.face .start {
+  right: 10px; top: 6px;
+  width: 84px; height: 28px;
+  border-radius: 14px;
+  font-size: 11px;
+}
+
+/* The original page's own hint line is replaced by the legend below. */
+#hint { display: none; }
+
+@media (pointer: coarse) {
+  body { justify-content: flex-start; gap: 14px; padding-bottom: 200px; }
+  .legend, .footnote { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #focusnote { transition: none; }
+}
+</style>
+
+<div class="titling">
+  <h1>A Song of <em>Ice and Monsters</em></h1>
+  <div class="rule"><span></span></div>
+  <p class="words">Westeros &middot; 55 maps &middot; twelve houses &middot; one chair</p>
+</div>
+
+<!--GAME-->
+
+<ul class="legend">
+  <li><kbd>&larr;</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&rarr;</kbd> walk</li>
+  <li><kbd>Z</kbd> confirm</li>
+  <li><kbd>X</kbd> cancel / run</li>
+  <li><kbd>R</kbd> ride</li>
+  <li><kbd>C</kbd> challenge</li>
+  <li><kbd>Enter</kbd> menu</li>
+  <li><kbd>M</kbd> mute</li>
+</ul>
+
+<p class="footnote">
+  Swear to a house, raise a beast, and take the chair if you can hold it.
+  Your game saves into this browser, so come back to it.
+</p>
+
+<!--IMPORTMAP-->
+<!--ENTRY-->
+
+<script>
+// The game listens on the window, so nothing happens until this frame has
+// keyboard focus. Say so plainly rather than letting the keys quietly fail.
+(function () {
+  const shell = document.getElementById('shell');
+  const note = document.createElement('div');
+  note.id = 'focusnote';
+  note.textContent = 'Click to play';
+  shell.appendChild(note);
+
+  let playing = false;
+  function begin() {
+    if (playing) return;
+    playing = true;
+    note.hidden = true;
+    window.focus();
+    shell.focus({ preventScroll: true });
+  }
+
+  shell.tabIndex = 0;
+  shell.addEventListener('pointerdown', begin);
+  note.addEventListener('pointerdown', begin);
+  window.addEventListener('keydown', begin, { once: true });
+
+  // If this page already has focus — opened directly rather than in a frame —
+  // there is nothing to click for.
+  if (document.hasFocus()) begin();
+  window.addEventListener('blur', () => {
+    playing = false;
+    note.hidden = false;
+  });
+})();
+</script>

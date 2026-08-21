@@ -1,3 +1,10 @@
 .DS_Store
 dist/
 node_modules/
+
+# the cartridge build
+gba/*.o
+gba/*.elf
+gba/hosttest
+gba/shots/*.ppm
+gba/blank.html

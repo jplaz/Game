@@ -23,6 +23,14 @@ npm start          # serves on http://localhost:8080
 ES modules need `http://`, so open it through the server rather than double-clicking
 `index.html`. Any static host works.
 
+**On a Game Boy Advance, or an emulator like Delta.** `gba/thronebound.gba` is a real
+cartridge image: it boots, and a corner of the North — Winterfell, the Great Keep, the
+forge, your chamber, the Wolfswood — can be walked around, with the same tiles, the
+same people and the same lines as the browser game. It is only the walking-around
+layer: no duels, no beasts, no houses, no sound. See [`gba/README.md`](gba/README.md)
+for how it is built out of the browser game's own art, and how far it has and has not
+been checked.
+
 ## Controls
 
 | Key | Action |
@@ -118,6 +126,12 @@ src/
   scenes/    title, overworld, battle, duel, menu, shop, smithy, credits
 tools/
   validate.mjs   world-data integrity check
+gba/
+  export.mjs     runs the browser game's painters and writes data.h
+  main.c         the cartridge: mode 0 backgrounds, objects, a dialogue window
+  crt0.s         cartridge header, boot logo, .data copy, .bss clear
+  hosttest.c     runs main.c on this machine and draws what the PPU would draw
+  verify.mjs     the checks a console makes before it will run a cartridge
 ```
 
 ### How the art works

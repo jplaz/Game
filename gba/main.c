@@ -80,6 +80,7 @@ extern unsigned char *gbaMem;             /* covers 0x04000000 .. 0x07000400 */
 #define C_BACK  12
 #define C_DIM   13
 #define C_NIGHT 14
+#define C_EARTH 15
 
 #define RGB15(r, g, b) ((u16)((r) | ((g) << 5) | ((b) << 10)))
 
@@ -228,14 +229,18 @@ static void centreText(int y, const char *s, u8 ink) {
   drawText((TXT_W - textWidth(s)) >> 1, y, s, ink);
 }
 
-/* A window in the game's own manner: a dark field, a gold rule inside a dark
-   border, and the corners knocked off so it does not read as a rectangle. */
+/* A window built the way the handhelds build one: a dark keyline, a coloured
+   band, a second keyline, then the panel — and the corners knocked off so it
+   does not read as a rectangle drawn over the world. */
 static void drawFrame(int x, int y, int w, int h) {
   fillRect(x, y, w, h, C_DEEP);
   fillRect(x + 1, y + 1, w - 2, h - 2, C_EDGE);
-  fillRect(x + 2, y + 2, w - 4, h - 4, C_FILL);
+  fillRect(x + 3, y + 3, w - 6, h - 6, C_DEEP);
+  fillRect(x + 4, y + 4, w - 8, h - 8, C_FILL);
   plot(x, y, C_CLEAR); plot(x + w - 1, y, C_CLEAR);
   plot(x, y + h - 1, C_CLEAR); plot(x + w - 1, y + h - 1, C_CLEAR);
+  plot(x + 1, y + 1, C_DEEP); plot(x + w - 2, y + 1, C_DEEP);
+  plot(x + 1, y + h - 2, C_DEEP); plot(x + w - 2, y + h - 2, C_DEEP);
 }
 
 /* Which screen rows the fourteen page rows are shown on. */
@@ -321,14 +326,14 @@ static int bodyRows(void) { return speaker ? 2 : 3; }
 static void paintWindow(void) {
   int i, y;
   clearRows(windowTop, windowRows * 8);
-  drawFrame(3, windowTop + 1, TXT_W - 6, windowRows * 8 - 2);
+  drawFrame(2, windowTop, TXT_W - 4, windowRows * 8 - 1);
 
-  y = windowTop + 5;
-  if (speaker) { drawText(10, y, speaker, C_GOLD); y += 12; }
+  y = windowTop + 7;
+  if (speaker) { drawText(12, y, speaker, C_GOLD); y += 12; }
   for (i = 0; i < bodyRows(); i++) {
     int at = lineAt + i;
     if (at >= lineCount) break;
-    drawText(10, y, lines[at], C_INK);
+    drawText(12, y, lines[at], C_INK);
     y += 12;
   }
   if (lineAt + bodyRows() < lineCount) {
@@ -367,11 +372,21 @@ static int advanceWindow(void) {
 
 static int plateTimer;
 
+/* The name of wherever you have just walked into. It only has two rows of the
+   page to live in, so it carries a thinner frame than a window does. */
+static void drawPlate(int x, int y, int w, int h) {
+  fillRect(x, y, w, h, C_DEEP);
+  fillRect(x + 1, y + 1, w - 2, h - 2, C_EDGE);
+  fillRect(x + 2, y + 2, w - 4, h - 4, C_FILL);
+  plot(x, y, C_CLEAR); plot(x + w - 1, y, C_CLEAR);
+  plot(x, y + h - 1, C_CLEAR); plot(x + w - 1, y + h - 1, C_CLEAR);
+}
+
 static void showPlate(const char *name) {
-  int w = textWidth(name) + 20;
+  int w = textWidth(name) + 18;
   clearRows(0, 16);
-  drawFrame(4, 1, w, 14);
-  drawText(14, 4, name, C_GOLD);
+  drawPlate(3, 0, w, 16);
+  drawText(12, 3, name, C_INK);
   plateTimer = 110;
 }
 
@@ -665,19 +680,21 @@ static void paintDuelPlates(void) {
   clearRows(0, 32);
   clearRows(32, 24);
 
-  drawFrame(4, 1, 150, 28);
+  drawPlate(4, 0, 152, 30);
   drawText(12, 4, theirs.name, C_INK);
   copyString(scratch, "Lv ", sizeof scratch);
   appendNumber(scratch, theirs.level, sizeof scratch);
-  drawText(122, 4, scratch, C_DIM);
-  drawBar(12, 20, 130, theirs.hp, theirs.maxHp);
+  drawText(124, 4, scratch, C_DIM);
+  drawBar(12, 19, 132, theirs.hp, theirs.maxHp);
 
-  drawFrame(TXT_W - 154, 32, 150, 22);
-  drawText(TXT_W - 146, 34, mine.name, C_HOUSE);
+  /* Wholly inside the lower block of the page: a plate that starts one row
+     higher would have its top edge drawn at the top of the screen instead. */
+  drawPlate(TXT_W - 156, 32, 152, 23);
+  drawText(TXT_W - 148, 35, mine.name, C_INK);
   copyString(scratch, "Lv ", sizeof scratch);
   appendNumber(scratch, mine.level, sizeof scratch);
-  drawText(TXT_W - 36, 34, scratch, C_DIM);
-  drawBar(TXT_W - 146, 47, 130, mine.hp, mine.maxHp);
+  drawText(TXT_W - 36, 35, scratch, C_DIM);
+  drawBar(TXT_W - 148, 47, 132, mine.hp, mine.maxHp);
 }
 
 #define DUEL_WINDOW_TOP 56
@@ -774,24 +791,28 @@ static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
 
 /* --------------------------------------------------------------- start-up -- */
 
+/* The interface is built the way a Game Boy Advance role-playing game builds
+   one: a pale panel with a dark keyline round it, dark text with a pale shadow
+   under it, and the frame itself in whatever colour the wearer's house flies. */
 static void copyPalettes(void) {
   int i;
   for (i = 0; i < 240; i++) PAL_BG[i] = bg_pal[i];
   PAL_BG[TXT_BANK * 16 + C_CLEAR] = 0;
-  PAL_BG[TXT_BANK * 16 + C_FILL]  = RGB15(3, 5, 10);
-  PAL_BG[TXT_BANK * 16 + C_DEEP]  = RGB15(2, 3, 6);
-  PAL_BG[TXT_BANK * 16 + C_EDGE]  = RGB15(17, 13, 6);
-  PAL_BG[TXT_BANK * 16 + C_INK]   = RGB15(30, 31, 31);
-  PAL_BG[TXT_BANK * 16 + C_SHADE] = RGB15(4, 5, 9);
-  PAL_BG[TXT_BANK * 16 + C_GOLD]  = RGB15(29, 25, 13);
+  PAL_BG[TXT_BANK * 16 + C_FILL]  = RGB15(29, 28, 24);   /* parchment          */
+  PAL_BG[TXT_BANK * 16 + C_DEEP]  = RGB15(5, 4, 3);      /* the keyline        */
+  PAL_BG[TXT_BANK * 16 + C_EDGE]  = RGB15(17, 13, 6);    /* the frame, per house */
+  PAL_BG[TXT_BANK * 16 + C_INK]   = RGB15(7, 5, 4);      /* the writing        */
+  PAL_BG[TXT_BANK * 16 + C_SHADE] = RGB15(24, 22, 18);   /* its shadow         */
+  PAL_BG[TXT_BANK * 16 + C_GOLD]  = RGB15(17, 5, 4);     /* whoever is speaking */
   PAL_BG[TXT_BANK * 16 + C_HOUSE] = RGB15(24, 24, 26);
   PAL_BG[TXT_BANK * 16 + C_TRIM]  = RGB15(28, 28, 30);
-  PAL_BG[TXT_BANK * 16 + C_WELL]  = RGB15(11, 26, 9);
-  PAL_BG[TXT_BANK * 16 + C_HURT]  = RGB15(30, 25, 8);
-  PAL_BG[TXT_BANK * 16 + C_DYING] = RGB15(30, 10, 8);
-  PAL_BG[TXT_BANK * 16 + C_BACK]  = RGB15(6, 7, 10);
-  PAL_BG[TXT_BANK * 16 + C_DIM]   = RGB15(17, 19, 23);
-  PAL_BG[TXT_BANK * 16 + C_NIGHT] = RGB15(2, 3, 5);
+  PAL_BG[TXT_BANK * 16 + C_WELL]  = RGB15(9, 24, 8);
+  PAL_BG[TXT_BANK * 16 + C_HURT]  = RGB15(29, 22, 5);
+  PAL_BG[TXT_BANK * 16 + C_DYING] = RGB15(28, 7, 5);
+  PAL_BG[TXT_BANK * 16 + C_BACK]  = RGB15(14, 12, 9);    /* an empty bar       */
+  PAL_BG[TXT_BANK * 16 + C_DIM]   = RGB15(13, 10, 7);    /* the small print    */
+  PAL_BG[TXT_BANK * 16 + C_NIGHT] = RGB15(5, 6, 10);     /* the air above a duel */
+  PAL_BG[TXT_BANK * 16 + C_EARTH] = RGB15(10, 9, 7);     /* the ground under it  */
 }
 
 static void setUpVideo(void) {
@@ -854,6 +875,7 @@ static void paintHousePicker(void) {
   /* The house's own colours, hung as its banner. */
   PAL_BG[TXT_BANK * 16 + C_HOUSE] = h->colour;
   PAL_BG[TXT_BANK * 16 + C_TRIM] = h->accent;
+  PAL_BG[TXT_BANK * 16 + C_EDGE] = h->colour;
   fillRect(mid - 14, 21, 28, 18, C_DEEP);
   fillRect(mid - 13, 22, 26, 16, C_HOUSE);
   fillRect(mid - 5, 27, 10, 6, C_TRIM);
@@ -1024,6 +1046,29 @@ static void duelTurn(void) {
   }
 }
 
+/* A duel is fought somewhere, not in front of a black rectangle. Two flat
+   tiles and a horizon are enough to say "a yard, at dusk" — and they cost two
+   tiles at the top of the map's own character memory, which no map reaches. */
+#define DUEL_SKY_TILE 508
+#define DUEL_EARTH_TILE 509
+
+static void paintDuelGround(void) {
+  int i, ty, tx;
+  for (i = 0; i < 16; i++) {
+    VRAM_BG_CHR[DUEL_SKY_TILE * 16 + i] = 0x01010101u * (TXT_BANK * 16 + C_NIGHT);
+    VRAM_BG_CHR[DUEL_EARTH_TILE * 16 + i] = 0x01010101u * (TXT_BANK * 16 + C_EARTH);
+  }
+  for (ty = 0; ty < 64; ty++) {
+    volatile u16 *rowBase = VRAM_BG_MAP + ((ty >> 5) << 11) + ((ty & 31) << 5);
+    for (tx = 0; tx < 64; tx++) {
+      volatile u16 *cell = rowBase + ((tx >> 5) << 10) + (tx & 31);
+      *cell = (u16)(ty < 9 ? DUEL_SKY_TILE : DUEL_EARTH_TILE);
+    }
+  }
+  REG_BG0HOFS = 0;
+  REG_BG0VOFS = 0;
+}
+
 static void tryTalk(void) {
   int fx = (hero.px >> 4) + DIR_X[hero.dir];
   int fy = (hero.py >> 4) + DIR_Y[hero.dir];
@@ -1059,8 +1104,8 @@ static void tryChallenge(void) {
   }
   scene = SCENE_DUEL;
   duelPhase = DUEL_INTRO;
-  REG_DISPCNT = (u16)(0x0040 | 0x0200 | 0x1000);   /* the words and the two of you */
-  PAL_BG[0] = RGB15(3, 4, 8);
+  paintDuelGround();
+  REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
   beginDuel(world->npcs[who].duellist, world->npcs[who].bank, who);
 }
 
@@ -1069,8 +1114,8 @@ static void ambush(void) {
   const Ambush *a = &world->ambushes[roll(world->ambushCount)];
   scene = SCENE_DUEL;
   duelPhase = DUEL_INTRO;
-  REG_DISPCNT = (u16)(0x0040 | 0x0200 | 0x1000);
-  PAL_BG[0] = RGB15(3, 4, 8);
+  paintDuelGround();
+  REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
   beginDuel(a->duellist, a->bank, -1);
 }
 
@@ -1181,6 +1226,7 @@ int main(void) {
         you.house = houseChoice;
         PAL_BG[TXT_BANK * 16 + C_HOUSE] = houses[you.house].colour;
         PAL_BG[TXT_BANK * 16 + C_TRIM] = houses[you.house].accent;
+        PAL_BG[TXT_BANK * 16 + C_EDGE] = houses[you.house].colour;
         enterWorld();
         REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
       }

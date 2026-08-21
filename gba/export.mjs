@@ -67,6 +67,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const pixels = await import('/src/art/pixels.js');
   const { MAPS } = await import('/src/data/maps.js');
   const { DUELLISTS, ROAMERS, makeRoamer } = await import('/src/data/duellists.js');
+  const { TRAINERS, trainerAsDuellist } = await import('/src/data/trainers.js');
   const { HOUSES, SWEARABLE } = await import('/src/data/houses.js');
   const { TECHNIQUES } = await import('/src/data/gear.js');
   const { baseStats } = await import('/src/game/player.js');
@@ -238,7 +239,12 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
 
     const npcs = (map.npcs ?? []).map((n) => {
       const sprite = n.sprite ?? 'smallfolk';
-      const named = n.data?.duel ? DUELLISTS[n.data.duel] : null;
+      // Anyone the browser game already has numbers for fights with those
+      // numbers: a named duellist directly, a trainer through the same
+      // conversion the browser uses when they draw on you in person.
+      const named = n.data?.duel ? DUELLISTS[n.data.duel]
+        : (n.data?.trainer && TRAINERS[n.data.trainer] ? trainerAsDuellist(n.data.trainer)
+        : null);
       const level = named?.level ?? Math.max(2, Math.min(30, 3 + mapIds.indexOf(id) * 2));
       const fighter = named
         ? {
@@ -251,9 +257,16 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
             intro: named.intro, defeat: named.defeat,
           }
         : roadFighter(n.name ?? 'Stranger', sprite, level);
+      // What this person actually says. Most of it is authored on the duellist
+      // or the trainer rather than in the script, and some scripts hold their
+      // lines in an array, so ask in that order before falling back.
+      const said = (n.data?.duel && DUELLISTS[n.data.duel]?.intro)
+        || (n.data?.trainer && TRAINERS[n.data.trainer]?.intro)
+        || n.data?.line
+        || null;
       return {
-        x: n.x, y: n.y, dir: actors.DIRECTIONS.indexOf(n.dir ?? 'down'),
-        name: n.name ?? '', script: n.script ?? '',
+        x: n.x, y: n.y, dir: actors.DIRECTIONS.indexOf(n.dir ?? 'down'), said,
+        name: n.name ?? '', script: n.script ?? '', sprite,
         actor: actorFor(sprite, sprite),
         duellist: pushDuellist(fighter),
         // A town is not a waxwork. Everybody has somewhere to be except the
@@ -462,13 +475,63 @@ function scriptLine(script) {
   const rest = scriptSource.slice(at + 1);
   const end = rest.indexOf('\n  async ');
   const body = end < 0 ? rest : rest.slice(0, end);
-  const run = /say\(\s*((?:(['"])(?:\\.|(?!\2)[^\\])*\2\s*\+?\s*)+)/g;
+  // Dialogue is not always passed straight to say(): plenty of scripts hold it
+  // in an array and loop, or build it up with +. So take every string literal in
+  // the function that is shaped like a sentence, and keep the longest.
+  const run = /((?:(['"])(?:\\.|(?!\2)[^\\])*\2\s*\+\s*)*(['"])(?:\\.|(?!\3)[^\\])*\3)/g;
   const piece = /(['"])((?:\\.|(?!\1)[^\\])*)\1/g;
   const lines = [...body.matchAll(run)]
-    .map((m) => [...m[1].matchAll(piece)].map((p) => p[2]).join(''))
+    .map((m) => [...m[0].matchAll(piece)].map((p) => p[2]).join(''))
     .map((t) => t.replace(/\\n/g, '\n').replace(/\\'/g, "'").replace(/\\"/g, '"'))
+    .filter((t) => t.length > 24 && / /.test(t) && /[.!?]/.test(t) && !/^[a-z_]+$/.test(t))
     .sort((a, b) => b.length - a.length);
   return lines[0] ?? null;
+}
+
+/* Nobody in Westeros has nothing to say. When neither the script nor the data
+   yields a line, the person says something their trade would say. */
+const ROLE_LINES = {
+  guard: ['Move along. Nothing up there for you.',
+          'Cold watch. Colder if you make trouble.'],
+  stark: ['The North remembers. So does Lord Rickard, and he has a longer memory.',
+          'Winter is coming. It always is, up here.'],
+  nightswatch: ['Night gathers. Some of us have been gathering with it for years.',
+                'The Wall does not care who your father was.'],
+  wildling: ['Kneelers. Every one of you, born on your knees.',
+             'South of the Wall you all smell of smoke and rules.'],
+  wildlingWoman: ['You know nothing, and you walk like it too.',
+                  'We took what we needed. You buy it. Which of us is the thief?'],
+  merchant: ['Good steel, fair prices, and no questions about either.',
+             'Everything here has come a long way. So has the price.'],
+  smallfolk: ['Lords fight, and we bury what falls.',
+              'Long as the harvest holds, the rest is somebody else\'s trouble.'],
+  goodwife: ['Mind the mud, and mind your manners.',
+             'There is broth if you have coin, and broth if you have not.'],
+  oldman: ['I have seen three winters. I do not recommend the third.',
+           'Roads were safer once. So was everything.'],
+  noble: ['You have the look of somebody about to be useful.',
+          'Titles are cheap this season. Loyalty is not.'],
+  maester: ['Every chain has a link for something. Mine is mostly patience.',
+            'Read more. It costs less than being wrong.'],
+  septa: ['The Seven watch, even out here where nobody builds them a sept.',
+          'Say your words and mean them, or do not say them.'],
+  child: ['Are you a knight? You do not look like a knight.',
+          'I am not supposed to talk to strangers. Hello.'],
+  sellsword: ['Coin first. Then we discuss whose side I am on.',
+              'I have fought for four houses. Two of them still exist.'],
+  ironborn: ['We do not sow. Somebody has to not sow.',
+             'Salt and iron. Everything else is decoration.'],
+  tully: ['Family, duty, honour. In that order, whatever the singers say.',
+          'The rivers keep the Riverlands fed and the Riverlands fought over.'],
+  lannister: ['A Lannister pays his debts. Try not to become one.',
+              'Gold buys the sword. The sword buys the rest.'],
+};
+const DEFAULT_LINES = ['Keep to the road and keep your hood up.',
+                       'Nothing happens here, which is how we like it.'];
+
+function roleLine(npc) {
+  const set = ROLE_LINES[npc.sprite] ?? DEFAULT_LINES;
+  return set[(npc.x + npc.y) % set.length];
 }
 
 // ------------------------------------------------------------- writing out --
@@ -631,7 +694,7 @@ harvest.maps.forEach((map, i) => {
 
   L.push(`static const Npc npcs_${i}[${Math.max(1, map.npcs.length)}] = {`);
   for (const n of map.npcs) {
-    let line = scriptLine(n.script) ?? `${n.name} has nothing to say to you today.`;
+    let line = n.said ?? scriptLine(n.script) ?? roleLine(n);
     let name = n.name;
     const spoken = line.match(/^([A-Z][A-Za-z'\- ]{1,22}):\s+([\s\S]+)$/);
     if (spoken) {

@@ -394,60 +394,63 @@ export const CLUMP_KEY = {
 // Cover you can be ambushed from. Drawn with an uneven top edge and open
 // corners so a patch of it reads as undergrowth rather than as a row of
 // identical stamped rectangles, which is what a filled block gives you.
+// Cover you can be jumped in. The top edge is cut into blades rather than ruled
+// flat, each blade carries a lit stroke down the middle of it, and the foot is
+// ragged so the clump sits in the field instead of on top of it.
 export const TALL_GRASS = [
   [
-    '................',
-    '.....h....h.....',
-    '..h..l..h.l...h.',
-    '..l.blb.lblb..l.',
-    '.blbbbbblbbbb.lb',
-    'bbbbbbbbbbbbbbbb',
-    'bbbllbbbbbllbbbb',
-    'bbbbbbbbbbbbbbbb',
-    'bblbbbbllbbbbbbb',
-    'bbbbbbbbbbbbbbbb',
-    'bbbbbbbbbbbllbbb',
-    'bbllbbbbbbbbbbbb',
-    'bbbbbbbbbbbbbbbb',
-    'dbbbbbbbbbbbbbbd',
-    'ddbdddbddddbdddd',
-    '.dd..dd...dd..d.',
+    '..h....h....h...',
+    '.hhh...h...hhh..',
+    '.lhl..hhh..lhl..',
+    'hlllh.lll.hlllh.',
+    'lblblhlllhlblblh',
+    'lblbllblbllblbll',
+    'bblbblblblbblbbl',
+    'bblbbbblbbbblbbb',
+    'bblbbbblbbbblbbb',
+    'bblbbbblbbbblbbb',
+    'bblbbbblbbbblbbb',
+    'bblbbbblbbbblbbb',
+    'bblbbbblbbbblbbb',
+    'bblbbbblbbbblbbb',
+    'dbddbddbddbddbdd',
+    '.dd.dd.dd.dd.dd.',
   ],
   [
-    '................',
-    '...h.....h......',
-    '.h.l..h..l..h...',
-    '.blb.lb.blb.lb..',
-    'bbbbblbbbbbblbb.',
-    'bbbbbbbbbbbbbbbb',
-    'bbbbbllbbbbbbllb',
-    'bbbbbbbbbbbbbbbb',
-    'bllbbbbbbbllbbbb',
-    'bbbbbbbbbbbbbbbb',
-    'bbbbbbllbbbbbbbb',
-    'bbbbbbbbbbbbbbbb',
-    'bbbllbbbbbbbbllb',
-    'dbbbbbbbbbbbbbbd',
-    'dddbddddbdddbddd',
-    '..d...dd...d..dd',
+    'h....h....h....h',
+    'h...hh...hh...hh',
+    'hh..lhh..lhh..lh',
+    'll.hlll.hlll.hll',
+    'llhlbllhlbllhlbl',
+    'lbllblbllblbllbl',
+    'lblbblblbblblbbl',
+    'lbbbblbbbblbbbbl',
+    'lbbbblbbbblbbbbl',
+    'lbbbblbbbblbbbbl',
+    'lbbbblbbbblbbbbl',
+    'lbbbblbbbblbbbbl',
+    'lbbbblbbbblbbbbl',
+    'lbbbblbbbblbbbbl',
+    'dbddbddbddbddbdd',
+    '.dd.dd.dd.dd.dd.',
   ],
   [
-    '................',
-    '......h...h...h.',
-    '...h..l.h.l.h.l.',
-    '.b.lb.lbblblblb.',
-    'blbbbbbbbbbbbbbb',
-    'bbbbbbbbbbbbbbbb',
-    'bbllbbbbbbbbllbb',
-    'bbbbbbbbbbbbbbbb',
-    'bbbbbllbbbbbbbbb',
-    'bbbbbbbbbbbbbbbb',
-    'bllbbbbbbbllbbbb',
-    'bbbbbbbbbbbbbbbb',
-    'bbbbbbbllbbbbbbb',
-    'dbbbbbbbbbbbbbbd',
-    'ddbdddbdddbddddb',
-    '.dd...d..dd...d.',
+    '..h...h....h....',
+    '..h..hhh...h...h',
+    '.hhh.lhl..hhh..h',
+    '.lllhlllh.lll.hh',
+    'hllllblblhlllhll',
+    'lblblblbllblblll',
+    'lblbbblbblblblbl',
+    'bblbbblbbbblbbbl',
+    'bblbbblbbbblbbbl',
+    'bblbbblbbbblbbbl',
+    'bblbbblbbbblbbbl',
+    'bblbbblbbbblbbbl',
+    'bblbbblbbbblbbbl',
+    'bblbbblbbbblbbbl',
+    'dbddbddbddbddbdd',
+    '.dd.dd.dd.dd.dd.',
   ],
 ];
 
@@ -618,6 +621,226 @@ export const CLIFF_TOP = [
   'kkkkkkkkkkkkkkkk',
   'llllllllllllllll',
   'mmmmmmmdmmmmmmdm',
+];
+
+// --------------------------------------------------------------- flowers --
+// Blossom, drawn the way the Game Boy games draw it: four petals around a
+// lighter eye, with a stem, rather than a coloured square. Two or three to a
+// tile — a meadow reads as a meadow because the flowers are sparse in it.
+
+export const FLOWER_KEY = {
+  '.': null,
+  s: '#3f7c2c',  // stem
+  y: '#e0c23c',  // gorse
+  Y: '#f6e88a',  // its eye
+  p: '#d06a92',  // heather
+  P: '#f3c2d4',  // its eye
+  w: '#dcdce8',  // winter rose
+  W: '#f6f6ff',
+  k: '#2c5a20',  // the shadow a bloom drops on the grass
+};
+
+export const FLOWERS = [
+  [
+    '................',
+    '..............y.',
+    '...y.........yYy',
+    '..yYy.........y.',
+    '...y..........s.',
+    '...s............',
+    '................',
+    '.........p......',
+    '........pPp.....',
+    '.........p......',
+    '.........s......',
+    '....y...........',
+    '...yYy..........',
+    '....y...........',
+    '....s...........',
+    '................',
+  ],
+  [
+    '................',
+    '.....p..........',
+    '....pPp.......w.',
+    '.....p.......wWw',
+    '.....s........w.',
+    '..............s.',
+    '................',
+    '..........y.....',
+    '.........yYy....',
+    '..........y.....',
+    '..........s.....',
+    '..p.............',
+    '.pPp............',
+    '..p.............',
+    '..s.............',
+    '................',
+  ],
+];
+
+// ------------------------------------------------------------------ wood --
+// A block of woodland is one canopy, not a grid of stamps. The crowns are laid
+// out on a brick lattice and wrapped at the tile edge, so a forest tiles in
+// every direction without the eye finding the eight-pixel repeat. Edge tiles
+// get a lit rim on the open side and trunks where the mass ends.
+
+export const FOREST_KEY = {
+  '.': null,
+  k: '#16351f',  // the crease between crowns, and the keyline
+  d: '#24512f',  // a crown's shaded underside
+  m: '#35723e',  // the mass of the leaves
+  l: '#4a9450',  // the lit side, up and to the left
+  h: '#62b463',  // the highlight itself
+  t: '#33230f',  // trunk in shadow
+  T: '#553c1e',  // trunk in light
+};
+
+export const FOREST_MASS = [
+  'hhhhhlmdhhhhhlmh',
+  'hhhhhlmdhhhhhlmh',
+  'hhhhhlmdhhhhhlml',
+  'lhhhllmdlhhhllml',
+  'lllllmdklllllmdl',
+  'mmmmmdkkmmmmmdkm',
+  'ldddkkllldddkkll',
+  'llmhhhhhllmdhhhh',
+  'hlmhhhhhhlmdhhhh',
+  'hlmhhhhhhlmdhhhh',
+  'hlmlhhhhhlmdhhhh',
+  'llmllhhhllmdlhhh',
+  'lmdllllllmdkllll',
+  'mdkmmmmmmdkkmmmm',
+  'kllllmddkllllmdd',
+  'hhhhllmdhhhhllmh',
+];
+
+// Laid over the mass where the sky is open above: a keyline, then the crowns
+// catching the light along the top of the wood.
+export const FOREST_CROWN = [
+  'kkkkkkkkkkkkkkkk',
+  'khhhhhhkkhhhhhhk',
+  '.hhhhhlk.hhhhhlk',
+];
+
+// Laid over the bottom five rows where the wood ends: the dark underside of
+// the canopy, then trunks with the ground showing between them.
+export const FOREST_FOOT = [
+  'dddddddddddddddd',
+  'kkkkkkkkkkkkkkkk',
+  '...ktTk....ktTk.',
+  '...ktTk....ktTk.',
+  '...kttk....kttk.',
+];
+
+// ------------------------------------------------------------------ pine --
+// The same idea in the North, where the trees are firs and everything has snow
+// on top of it.
+
+export const PINE_KEY = {
+  '.': null,
+  k: '#0e2a1e',
+  d: '#173f2c',
+  m: '#215539',
+  l: '#2f7047',
+  h: '#3f8c58',
+  s: '#eef6ff',  // snow on the branch
+  S: '#c3d8ea',  // and its shaded side
+  t: '#2a1c10',
+  T: '#48331c',
+};
+
+// A fir standing on its own, filling its tile. Three skirts, each with snow
+// along its upper edge, on a trunk you can actually see.
+export const LONE_PINE = [
+  '.......kk.......',
+  '......ksSk......',
+  '.....kslmdk.....',
+  '....kslmmmdk....',
+  '.....kssmdk.....',
+  '....ksslmmdk....',
+  '...ksslmmmmdk...',
+  '....ksslmmdk....',
+  '...ksslmmmmdk...',
+  '..ksslmmmmmmdk..',
+  '...ksslmmmmdk...',
+  '..ksslmmmmmmdk..',
+  '.kssslmmmmmmmdk.',
+  'ksssllmmmmmmmmdk',
+  '......ktTk......',
+  '......ktTk......',
+];
+
+// Seen from above, a stand of firs is crowns in a brick pattern with deep
+// shadow between them and snow lying on every branch that faces the sky.
+export const PINE_MASS = [
+  'kkkskkkkkkkskkkk',
+  'kkssSkkkkkssSkkk',
+  'klssSdkkklssSdkk',
+  'klmmmdkkklmmmdkk',
+  'llmmmddkllmmmddk',
+  'lsmmmSdklsmmmSdk',
+  'lmmmmddklmmmmddk',
+  'kddddkkkkddddkkk',
+  'kkkkkkkskkkkkkks',
+  'SkkkkkssSkkkkkss',
+  'SdkkklssSdkkklss',
+  'mdkkklmmmdkkklmm',
+  'mddkllmmmddkllmm',
+  'mSdklsmmmSdklsmm',
+  'mddklmmmmddklmmm',
+  'dkkkkddddkkkkddd',
+];
+
+// Where the sky is open above, the exposed tips take the full weight of it.
+export const PINE_CROWN = [
+  'kkkskkkkkkkskkkk',
+  'kkssskkkkkssskkk',
+]
+
+export const PINE_FOOT = [
+  'dddddddddddddddd',
+  'kkkkkkkkkkkkkkkk',
+  '...ktTk....ktTk.',
+  '...ktTk....ktTk.',
+  '...kttk....kttk.',
+];
+
+// -------------------------------------------------------------- weirwood --
+// The heart tree: bone-white bark, a face cut into it, and leaves the colour of
+// old blood. It has to carry a keyline or it disappears against snow.
+
+export const WEIRWOOD_KEY = {
+  '.': null,
+  k: '#4a0f14',  // the keyline through the leaves
+  d: '#7d1a20',  // leaves in shade
+  m: '#a8262c',  // the mass of them
+  l: '#c8383e',  // catching the light
+  h: '#e05a5e',  // the highlight
+  b: '#6a5a52',  // the keyline around the bark
+  w: '#e8e4da',  // bark
+  W: '#ffffff',  // bark in the sun
+  s: '#cfc9be',  // bark in shade
+  e: '#6b1c1c',  // the carved face, and the sap in it
+};
+
+export const WEIRWOOD = [
+  '..kkkkkkkkkkkk..',
+  '.khhllmmmmllddk.',
+  'khhlllmmmmlldddk',
+  'khlllmmmmmmldddk',
+  'kllmmmmmmmmmdddk',
+  'kdmmmmmmmmmmmddk',
+  '.kddmmmmmmmmddk.',
+  '..kkddmmmmddkk..',
+  '....bwWwwsb.....',
+  '....bwWwwsb.....',
+  '...bwWweewsb....',
+  '..bwWwweewwsb...',
+  '.bwWwwwwwwwwsb..',
+  'bwWww.bwwb.wwsb.',
+  'bwWw..bwwb..wsb.',
+  'bwWb..bwsb..bsb.',
 ];
 
 // ------------------------------------------------------------------ water --

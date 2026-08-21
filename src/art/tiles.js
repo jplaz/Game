@@ -6,7 +6,11 @@ import { makeCanvas } from '../engine/sprites.js';
 import { paintArt } from './pixels.js';
 import {
   GROUND_ART, TALL_GRASS, CLUMP_KEY, SNOW_GRASS_KEY, LONE_TREE, TREE_KEY,
+  FLOWERS, FLOWER_KEY,
+  FOREST_KEY, FOREST_MASS, FOREST_CROWN, FOREST_FOOT,
+  PINE_KEY, LONE_PINE, PINE_MASS, PINE_CROWN, PINE_FOOT,
   ROOF, ROOF_RIDGE, ROOF_EAVE, ROOF_KEY,
+  WEIRWOOD, WEIRWOOD_KEY,
   CLIFF, CLIFF_TOP, CLIFF_KEY, WATER, WATER_KEY,
 } from './tilesets.js';
 
@@ -92,6 +96,20 @@ function fringeEdges(ctx, mask, shade, deep) {
   }
 }
 
+/**
+ * A block of woodland. The mass is one seamless drawing; where the block ends,
+ * the crown catches the light along the top, trunks show along the bottom, and
+ * the open sides get a keyline so the wood has an edge rather than fading out.
+ */
+function canopy(ctx, mask, massArt, crownArt, footArt, key) {
+  paintArt(ctx, massArt, key);
+  if (!(mask & N)) paintArt(ctx, crownArt, key);
+  if (!(mask & S)) paintArt(ctx, footArt, key, 0, TILE - footArt.length);
+  const line = key.k;
+  if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, line);
+  if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, line);
+}
+
 /** How many drawings a ground has, so the map knows how far to vary it. */
 export function groundVariants(name) {
   return (GROUND_ART[name] ?? GROUND_ART.grass).rows.length;
@@ -164,7 +182,6 @@ const painters = {
   // the open side and a trunk where the mass ends at the bottom.
   tree(ctx, _frame, mask, ground = painters.grass) {
     ground(ctx);
-    const dark = '#1f5230', mid = '#2f7340', lit = '#419a4c', rim = '#5cb85e';
 
     // A tile with open sky above and below is a single tree, not a slice of
     // canopy — drawing it as canopy is what makes scattered woodland read as
@@ -173,39 +190,7 @@ const painters = {
       painters.loneTree(ctx);
       return;
     }
-
-    rect(ctx, 0, 0, TILE, TILE, mid);
-    for (let y = 0; y < TILE; y++) {
-      for (let x = 0; x < TILE; x++) {
-        const n = hash(x, y, 17);
-        if (n < 0.16) rect(ctx, x, y, 1, 1, lit);
-        else if (n < 0.28) rect(ctx, x, y, 1, 1, dark);
-      }
-    }
-    // Four crowns per tile, each a small dome with a lit cap and a shadowed
-    // gutter beneath, so the mass breaks up into individual trees.
-    for (let cy = 0; cy < 2; cy++) {
-      for (let cx = 0; cx < 2; cx++) {
-        const ox = cx * 8;
-        const oy = cy * 8;
-        rect(ctx, ox, oy + 6, 8, 2, dark);        // gutter between crowns
-        rect(ctx, ox + 1, oy, 6, 6, mid);
-        rect(ctx, ox + 2, oy, 4, 2, lit);
-        rect(ctx, ox + 1, oy + 1, 2, 2, lit);
-        rect(ctx, ox + 3, oy + 4, 3, 2, dark);
-        rect(ctx, ox, oy, 1, 6, dark);            // trunk shadow at the join
-      }
-    }
-
-    if (!(mask & N)) { rect(ctx, 0, 0, TILE, 2, rim); rect(ctx, 0, 2, TILE, 1, lit); }
-    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, dark);
-    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, dark);
-    if (!(mask & S)) {
-      rect(ctx, 0, TILE - 4, TILE, 4, dark);
-      rect(ctx, 6, TILE - 5, 4, 5, '#5b4023');   // trunk
-      rect(ctx, 7, TILE - 5, 1, 5, '#7a5a32');
-      rect(ctx, 0, TILE - 1, TILE, 1, '#1a3f26');
-    }
+    canopy(ctx, mask, FOREST_MASS, FOREST_CROWN, FOREST_FOOT, FOREST_KEY);
   },
 
   // A single round tree: canopy, highlight and trunk.
@@ -214,85 +199,19 @@ const painters = {
     paintArt(ctx, LONE_TREE, TREE_KEY);
   },
 
-  pine(ctx, _frame, mask) {
-    painters.snow(ctx);
-    const dark = '#173d2c', mid = '#245139', lit = '#356b48', snow = '#e8f2f8';
-
+  pine(ctx, _frame, mask, ground = painters.snow) {
+    ground(ctx);
     if (!(mask & N) && !(mask & S)) {
-      // A lone conifer: stacked skirts under a snow cap.
-      rect(ctx, 7, 12, 2, 4, '#452f1c');
-      for (let i = 0; i < 3; i++) {
-        const w = 5 + i * 3;
-        const y = 2 + i * 4;
-        const x = 8 - Math.floor(w / 2);
-        rect(ctx, x, y, w, 4, dark);
-        rect(ctx, x + 1, y + 1, w - 2, 3, mid);
-        rect(ctx, x + 1, y, w - 2, 1, snow);
-      }
-      rect(ctx, 7, 0, 2, 3, dark);
-      rect(ctx, 7, 0, 2, 1, snow);
+      paintArt(ctx, LONE_PINE, PINE_KEY);
       return;
     }
-
-    rect(ctx, 0, 0, TILE, TILE, dark);
-    for (let y = 0; y < TILE; y++) {
-      for (let x = 0; x < TILE; x++) {
-        const n = hash(x, y, 29);
-        if (n < 0.14) rect(ctx, x, y, 1, 1, lit);
-      }
-    }
-    // Two conifer tops per tile, stepped like a fir and dusted with snow.
-    for (let cy = 0; cy < 2; cy++) {
-      for (let cx = 0; cx < 2; cx++) {
-        const ox = cx * 8;
-        const oy = cy * 8;
-        for (let tier = 0; tier < 3; tier++) {
-          const w = 2 + tier * 2;
-          const x = ox + 4 - Math.floor(w / 2);
-          const y = oy + tier * 2 + 1;
-          rect(ctx, x, y, w, 2, mid);
-          rect(ctx, x, y, w, 1, snow);
-          rect(ctx, x, y + 1, 1, 1, dark);
-        }
-        rect(ctx, ox, oy + 7, 8, 1, dark);
-      }
-    }
-    if (!(mask & N)) { rect(ctx, 0, 0, TILE, 3, snow); rect(ctx, 0, 3, TILE, 1, '#b9cddc'); }
-    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, dark);
-    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, dark);
-    if (!(mask & S)) {
-      rect(ctx, 0, TILE - 4, TILE, 4, dark);
-      rect(ctx, 7, TILE - 5, 2, 5, '#452f1c');
-      rect(ctx, 0, TILE - 1, TILE, 1, '#0f2a1d');
-    }
+    canopy(ctx, mask, PINE_MASS, PINE_CROWN, PINE_FOOT, PINE_KEY);
   },
 
   // The heart tree of the North: bone-white bark, blood-red leaves.
   weirwood(ctx, _frame, _mask, ground = painters.grass) {
     ground(ctx);
-    // A dark keyline first: the bark is bone-white, and without an outline the
-    // whole tree disappears against snow.
-    const line = '#5a4a44';
-    rect(ctx, 5, 8, 6, 8, line);
-    rect(ctx, 6, 9, 4, 7, '#efece4');
-    rect(ctx, 7, 9, 1, 7, '#ffffff');
-    rect(ctx, 4, 12, 2, 4, line);
-    rect(ctx, 10, 12, 2, 4, line);
-    rect(ctx, 4, 13, 1, 3, '#d8d4cc');
-    rect(ctx, 11, 13, 1, 3, '#d8d4cc');
-
-    const blobs = [[2, 0, 12, 9], [1, 2, 14, 6]];
-    for (const [x, y, w, h] of blobs) rect(ctx, x, y, w, h, '#5e1218');
-    rect(ctx, 2, 1, 12, 7, '#8e1f26');
-    rect(ctx, 3, 2, 10, 5, '#b62b31');
-    rect(ctx, 5, 2, 5, 2, '#d4444a');
-    rect(ctx, 1, 8, 14, 1, '#4a0e14');
-
-    // The carved face, weeping sap.
-    rect(ctx, 6, 10, 1, 2, '#6b2020');
-    rect(ctx, 9, 10, 1, 2, '#6b2020');
-    rect(ctx, 7, 13, 2, 1, '#6b2020');
-    rect(ctx, 6, 12, 1, 2, '#a83038');
+    paintArt(ctx, WEIRWOOD, WEIRWOOD_KEY);
   },
 
   cliff(ctx, _frame, mask) {
@@ -474,14 +393,9 @@ const painters = {
     rect(ctx, 4, 7, 6, 1, '#7a5228');
   },
 
-  flowers(ctx, _frame, _mask, ground = painters.grass) {
-    ground(ctx);
-    const spots = [[3, 4], [10, 3], [6, 10], [12, 11]];
-    const colors = ['#e8d24a', '#e07a9a', '#e8d24a', '#c9a2e0'];
-    spots.forEach(([x, y], i) => {
-      rect(ctx, x, y, 3, 3, colors[i]);
-      rect(ctx, x + 1, y + 1, 1, 1, '#fdf3c0');
-    });
+  flowers(ctx, _frame, _mask, ground = painters.grass, variant = 0) {
+    ground(ctx, variant);
+    paintArt(ctx, FLOWERS[variant % FLOWERS.length], FLOWER_KEY);
   },
 
   // Walk-off-only edge; the player hops south and cannot climb back up.
@@ -660,7 +574,7 @@ export const TILE_DEFS = {
   '~': { paint: painters.water, kind: 'water', frames: 2, autotile: true },
   'i': { paint: painters.ice, kind: 'floor', frames: 2 },
   '#': { paint: painters.tree, kind: 'solid', autotile: true, grounded: true },
-  'P': { paint: painters.pine, kind: 'solid', autotile: true },
+  'P': { paint: painters.pine, kind: 'solid', autotile: true, grounded: true },
   'W': { paint: painters.weirwood, kind: 'solid', grounded: true },
   'C': { paint: painters.cliff, kind: 'solid', autotile: true },
   'H': { paint: painters.wall, kind: 'solid', autotile: true },
@@ -673,7 +587,7 @@ export const TILE_DEFS = {
   'D': { paint: painters.door, kind: 'floor' },
   'w': { paint: painters.window, kind: 'solid' },
   '!': { paint: painters.sign, kind: 'solid', grounded: true },
-  '*': { paint: painters.flowers, kind: 'floor', grounded: true },
+  '*': { paint: painters.flowers, kind: 'floor', grounded: true, varies: true },
   'L': { paint: painters.ledge, kind: 'ledge', grounded: true },
   'f': { paint: painters.fence, kind: 'solid', grounded: true },
   '_': { paint: painters.floorWood, kind: 'floor' },

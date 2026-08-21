@@ -11,7 +11,7 @@ export const ACTOR_W = 16;
 export const ACTOR_H = 32;
 export const DIRECTIONS = ['down', 'up', 'left', 'right'];
 
-const OUTLINE = '#20202c';
+const OUTLINE = '#181420';
 
 function rect(ctx, x, y, w, h, color) {
   if (w <= 0 || h <= 0) return;
@@ -389,6 +389,35 @@ function normalise(who) {
   };
 }
 
+/**
+ * Traces a hard keyline around whatever has been drawn.
+ *
+ * This is the single thing that most separates a Game Boy Advance overworld
+ * sprite from a drawing that happens to be small: every character is ringed in
+ * one near-black line, so a person reads as a person against grass, against
+ * snow and against a stone floor without being redrawn for any of them. Doing
+ * it from the silhouette rather than by hand means it is never missed on a
+ * sleeve or the hem of a cloak.
+ */
+function keyline(ctx, w, h, colour) {
+  const src = ctx.getImageData(0, 0, w, h);
+  const solid = new Uint8Array(w * h);
+  for (let i = 0, p = 0; i < src.data.length; i += 4, p++) {
+    solid[p] = src.data[i + 3] >= 128 ? 1 : 0;
+  }
+  ctx.fillStyle = colour;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (solid[y * w + x]) continue;
+      const near = (x > 0 && solid[y * w + x - 1])
+        || (x < w - 1 && solid[y * w + x + 1])
+        || (y > 0 && solid[(y - 1) * w + x])
+        || (y < h - 1 && solid[(y + 1) * w + x]);
+      if (near) ctx.fillRect(x, y, 1, 1);
+    }
+  }
+}
+
 export function paintActorFrame(who, dir, step, combat = false) {
   const a = normalise(who);
   const m = BUILDS[a.build] ?? BUILDS.man;
@@ -397,11 +426,6 @@ export function paintActorFrame(who, dir, step, combat = false) {
   const p = a.palette;
 
   const { canvas, ctx } = makeCanvas(ACTOR_W, ACTOR_H);
-
-  // Contact shadow keeps the sprite planted on its tile.
-  ctx.fillStyle = 'rgba(0,0,0,0.20)';
-  ctx.fillRect(4, 30, 8, 2);
-  ctx.fillRect(3, 31, 10, 1);
 
   if (dir === 'up') paintShield(ctx, m, a.shield, p, dir);
   if (dir === 'up') paintWeapon(ctx, m, a.weapon, dir, combat);
@@ -415,6 +439,16 @@ export function paintActorFrame(who, dir, step, combat = false) {
     paintShield(ctx, m, a.shield, p, dir);
     paintWeapon(ctx, m, a.weapon, dir, combat);
   }
+
+  keyline(ctx, ACTOR_W, ACTOR_H, OUTLINE);
+
+  // The contact shadow goes on last but underneath, so the keyline traces the
+  // body and not the shadow it casts.
+  ctx.globalCompositeOperation = 'destination-over';
+  ctx.fillStyle = 'rgba(20,16,28,0.26)';
+  ctx.fillRect(4, 30, 8, 2);
+  ctx.fillRect(3, 31, 10, 1);
+  ctx.globalCompositeOperation = 'source-over';
 
   // The profile is drawn facing right, so the left-facing frame is mirrored.
   if (dir === 'left') {
@@ -490,17 +524,17 @@ export const ACTOR_PALETTES = {
 
   // --- smallfolk, in some variety ------------------------------------------
   smallfolk: { build: 'man', outfit: 'tunic', hair: 'short',
-    palette: P('#6a4a2a', '#8a6438', '#dcae86', '#b4855e', '#7a6a52', '#5a4c3a', '#a89878', '#4a4034', '#2f2820') },
+    palette: P('#6a4a2a', '#8a6438', '#dcae86', '#b4855e', '#a85a32', '#7a3e20', '#e0c088', '#4a4034', '#2f2820') },
   goodwife: { build: 'woman', outfit: 'gown', hair: 'bun',
-    palette: P('#4a3a28', '#66503a', '#e0b48c', '#b88a62', '#8a7a5c', '#645842', '#c0b08c', '#4a4034', '#2f2820') },
+    palette: P('#4a3a28', '#66503a', '#e0b48c', '#b88a62', '#4a6ea8', '#33507e', '#dfe3ea', '#4a4034', '#2f2820') },
   child: { build: 'child', outfit: 'tunic', hair: 'crop',
-    palette: P('#c8a050', '#e0bc74', '#f0c8a0', '#c49a74', '#9a8a6a', '#74684e', '#c8bc98', '#5a4c3c', '#382e24') },
+    palette: P('#c8a050', '#e0bc74', '#f0c8a0', '#c49a74', '#d8a838', '#a87c22', '#f4e0a8', '#5a4c3c', '#382e24') },
   girl: { build: 'child', outfit: 'gown', hair: 'long',
     palette: P('#6a4028', '#8a5a38', '#f0c8a0', '#c49a74', '#a06a80', '#744a5c', '#e0c0c8', '#5a4c3c', '#382e24') },
   oldman: { build: 'man', outfit: 'robe', hair: 'bald',
     palette: P('#d0d0c8', '#eaeae2', '#d4ae8c', '#a88266', '#6a6258', '#4a443c', '#9a9084', '#4a4438', '#2e2a22') },
   merchant: { build: 'man', outfit: 'cloak', hair: 'short',
-    palette: P('#4a3a2a', '#665040', '#dcae86', '#b4855e', '#3f7a5a', '#2b5640', '#d8c060', '#38443c', '#242c26') },
+    palette: P('#4a3a2a', '#665040', '#dcae86', '#b4855e', '#3f9a68', '#2b7048', '#e8d070', '#38443c', '#242c26') },
 
   // --- the great houses -----------------------------------------------------
   lannister: { build: 'man', outfit: 'plate', hair: 'short',
@@ -548,7 +582,7 @@ export const ACTOR_PALETTES = {
   redPriest: { build: 'woman', outfit: 'robe', hair: 'long',
     palette: P('#a83a30', '#c85a48', '#e0b494', '#b4886a', '#a02020', '#6a1212', '#f0a840', '#5a1818', '#360e0e') },
   noble: { build: 'man', outfit: 'cloak', hair: 'short',
-    palette: P('#3a2c20', '#554134', '#e0b48c', '#b88a62', '#4a3c6a', '#312848', '#c8b070', '#3a3050', '#221c30') },
+    palette: P('#3a2c20', '#554134', '#e0b48c', '#b88a62', '#6a4ea8', '#4a3478', '#e0c880', '#3a3050', '#221c30') },
   whitewalker: { build: 'man', outfit: 'robe', hair: 'hood',
     palette: { ...P('#cfe8f4', '#ffffff', '#b8d8e8', '#8ab4cc', '#3a4a5c', '#26323f', '#9fd8f0', '#2c3844', '#1c242c'),
       eyeGlow: '#4fd8ff' } },

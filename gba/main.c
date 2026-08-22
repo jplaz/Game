@@ -502,8 +502,13 @@ static void layoutTextRows(int mode) {
       if (mode == TEXT_MIDDLE) { if (ty >= 3 && ty < 17) buf = ty - 3; }
       else if (mode == TEXT_TOP) { if (ty < 14) buf = ty; }
       else if (mode == TEXT_DUEL) {
+        /* Four rows of foe plate at the top, then the yard, then your own plate
+           and what is being said. The yard used to get forty-eight pixels and
+           the text box eighty, so a duel was a caption with two small figures
+           over it. The yard gets sixty-four now, which is exactly the height of
+           the two of you at full size. */
         if (ty < 4) buf = ty;
-        else if (ty >= 10) buf = ty - 6;
+        else if (ty >= 12 && ty < 20) buf = ty - 8;
       } else {
         if (ty < 2) buf = ty;
         else if (ty >= 14 && ty < 20) buf = ty - 12;
@@ -800,6 +805,31 @@ static void buildSpark(void) {
   PAL_OBJ[SPOT_BANK * 16 + 3] = RGB15(31, 27, 12);
 }
 
+/* Weather. One eight by eight tile with a two by two dot in the middle of it,
+   in white for snow and in the star's gold for leaves and embers - which is the
+   whole of it, because a mote of anything is two pixels at this size and what
+   makes it read is that it moves. Nothing at all happened in the overworld
+   before this: people stood about and the sky was a flat colour. */
+#define MOTE_TILE 976
+#define MOTE_SNOW 0
+#define MOTE_LEAF 1
+
+static void buildMotes(void) {
+  int f, y, x;
+  volatile u8 *out = (volatile u8 *)(VRAM_OBJ) + MOTE_TILE * 32;
+  for (y = 0; y < 32 * 2; y++) out[y] = 0;
+  for (f = 0; f < 2; f++) {
+    int ink = f ? 3 : 2;                       /* gold for leaves, white for snow */
+    for (y = 3; y < 5; y++) {
+      for (x = 3; x < 5; x++) {
+        int at = f * 32 + y * 4 + (x >> 1);
+        if (x & 1) out[at] = (u8)((out[at] & 0x0F) | (ink << 4));
+        else out[at] = (u8)((out[at] & 0xF0) | ink);
+      }
+    }
+  }
+}
+
 /* Grass closing over your boots. Two frames, drawn over the player whenever
    they are standing in cover, which is what makes tall grass feel like tall
    grass rather than a differently coloured floor. */
@@ -882,6 +912,14 @@ static void placeGrass(int slot, int x, int y, int frame, int bank) {
   oam[slot * 4 + 3] = 0;
 }
 
+static void placeMote(int slot, int x, int y, int kind) {
+  if (x < -8 || x > SCREEN_W || y < -8 || y > SCREEN_H) { oam[slot * 4] = 0x0200; return; }
+  oam[slot * 4 + 0] = (u16)(y & 0xFF);                       /* square, size 0 */
+  oam[slot * 4 + 1] = (u16)(x & 0x1FF);
+  oam[slot * 4 + 2] = (u16)((MOTE_TILE + kind) | (SPOT_BANK << 12));
+  oam[slot * 4 + 3] = 0;
+}
+
 static void placeSpark(int slot, int x, int y, int frame) {
   if (x < -32 || x > SCREEN_W || y < -32 || y > SCREEN_H) { oam[slot * 4] = 0x0200; return; }
   oam[slot * 4 + 0] = (u16)(y & 0xFF);                      /* square */
@@ -901,8 +939,11 @@ static void placeBubble(int slot, int x, int y) {
 static void pushObjects(void) {
   int i;
   for (i = 0; i < 128 * 4; i++) OAM[i] = oam[i];
-  /* Affine set 0: two thirds in 8.8, which draws through it at half again size. */
-  OAM[3] = 0x00AB; OAM[7] = 0; OAM[11] = 0; OAM[15] = 0x00AB;
+  /* Affine set 0: a half in 8.8, which draws through it at twice size. A
+     sixteen by thirty-two body becomes thirty-two by sixty-four, which is
+     exactly the double-size box the hardware gives it - no clipping, and the
+     two of you actually fill the yard you are fighting in. */
+  OAM[3] = 0x0080; OAM[7] = 0; OAM[11] = 0; OAM[15] = 0x0080;
 }
 
 /* --------------------------------------------------------------- the cast -- */
@@ -1237,6 +1278,66 @@ static void loadWorldTiles(void) {
   for (i = 0; i < world->tileCount * 16; i++) VRAM_BG_CHR[i] = world->tiles[i];
 }
 
+/* ---------------------------------------------------------------- weather -- */
+/* Sixteen motes blowing across the screen, wrapped rather than spawned, so it
+   costs sixteen object slots and no book-keeping at all. Snow comes down and
+   drifts west in the North; leaves come down and east under the trees; embers
+   go up off Dragonstone. Everywhere else the air is still. */
+
+#define MOTES 16
+#define WEATHER_NONE 0
+#define WEATHER_SNOW 1
+#define WEATHER_LEAF 2
+#define WEATHER_EMBER 3
+
+static s16 moteX[MOTES], moteY[MOTES];
+static u8 moteRate[MOTES];
+
+static int weatherHere(void) {
+  if (!world) return WEATHER_NONE;
+  if (world->scene == 1) return WEATHER_SNOW;
+  if (world->scene == 2) return WEATHER_LEAF;
+  if (world->scene == 4) return WEATHER_EMBER;
+  return WEATHER_NONE;
+}
+
+static void seedWeather(void) {
+  int i;
+  for (i = 0; i < MOTES; i++) {
+    moteX[i] = (s16)roll(SCREEN_W);
+    moteY[i] = (s16)roll(SCREEN_H);
+    moteRate[i] = (u8)(1 + roll(3));
+  }
+}
+
+static void tickWeather(void) {
+  int kind = weatherHere(), i;
+  if (kind == WEATHER_NONE) return;
+  for (i = 0; i < MOTES; i++) {
+    int fall = moteRate[i];
+    if (kind == WEATHER_EMBER) {
+      moteY[i] = (s16)(moteY[i] - fall);
+      /* An ember wanders as it rises rather than falling in a line. */
+      moteX[i] = (s16)(moteX[i] + (((frameClock >> 4) + i) & 1 ? 1 : -1));
+      if (moteY[i] < -8) { moteY[i] = (s16)(SCREEN_H + 8); moteX[i] = (s16)roll(SCREEN_W); }
+    } else {
+      moteY[i] = (s16)(moteY[i] + fall);
+      moteX[i] = (s16)(moteX[i] + (kind == WEATHER_SNOW ? -1 : 1));
+      if (moteY[i] > SCREEN_H + 8) { moteY[i] = -8; moteX[i] = (s16)roll(SCREEN_W); }
+    }
+    if (moteX[i] < -8) moteX[i] = (s16)(SCREEN_W + 4);
+    if (moteX[i] > SCREEN_W + 8) moteX[i] = -4;
+  }
+}
+
+static void placeWeather(void) {
+  int kind = weatherHere(), i;
+  if (kind == WEATHER_NONE) return;
+  for (i = 0; i < MOTES; i++) {
+    placeMote(112 + i, moteX[i], moteY[i], kind == WEATHER_SNOW ? MOTE_SNOW : MOTE_LEAF);
+  }
+}
+
 static void enterMap(int id, int tx, int ty, int dir) {
   int i;
   u16 was = REG_DISPCNT;
@@ -1249,6 +1350,7 @@ static void enterMap(int id, int tx, int ty, int dir) {
   hero.walk = 0;
 
   spotted = -1;
+  seedWeather();
   crowdCount = world->npcCount > MAX_CROWD ? MAX_CROWD : world->npcCount;
   for (i = 0; i < crowdCount; i++) {
     crowd[i].px = (s16)(world->npcs[i].x * 16);
@@ -1442,7 +1544,7 @@ static void paintDuelPlates(void) {
 }
 
 #define DUEL_WINDOW_TOP 56
-#define DUEL_WINDOW_ROWS 7
+#define DUEL_WINDOW_ROWS 5
 
 /* Two menus, one inside the other, the way the handhelds do it: what kind of
    thing you are about to do, and then which one. */
@@ -1475,17 +1577,22 @@ static void paintDuelMenu(void) {
     drawText(x, y, techniques[mine.tech[i]].name, i == duelMenu ? C_GOLD : C_INK);
   }
   {
+    /* What the highlighted technique does, in the strip of yard to the left of
+       your own plate. It used to sit at the foot of the window, and the window
+       is a good deal shorter than it was now that the fight has the room. */
     const Tech *t = &techniques[mine.tech[duelMenu]];
-    copyString(scratch, "", sizeof scratch);
+    fillRect(0, 32, 80, 24, C_CLEAR);
     if (t->power) {
-      appendString(scratch, "Power ", sizeof scratch);
+      copyString(scratch, "Power ", sizeof scratch);
       appendNumber(scratch, t->power, sizeof scratch);
-      appendString(scratch, "   ", sizeof scratch);
+    } else {
+      copyString(scratch, "No blow", sizeof scratch);
     }
-    appendString(scratch, "Lands ", sizeof scratch);
+    drawText(8, 34, scratch, C_DIM);
+    copyString(scratch, "Lands ", sizeof scratch);
     appendNumber(scratch, t->accuracy, sizeof scratch);
-    appendString(scratch, " in a hundred", sizeof scratch);
-    drawText(24, DUEL_WINDOW_TOP + 42, scratch, C_DIM);
+    appendString(scratch, "/100", sizeof scratch);
+    drawText(8, 45, scratch, C_DIM);
   }
 }
 
@@ -1716,6 +1823,7 @@ static void setUpVideo(void) {
   for (i = 0; i < 8; i++) VRAM_TXT_CHR[i] = 0;       /* the blank text tile */
   buildBubble();
   buildSpark();
+  buildMotes();
   buildGrass();
   layoutTextRows(TEXT_MIDDLE);
   REG_BG0CNT = (u16)(1 | 0x0080 | (28 << 8) | (3 << 14));   /* 8bpp, 64x64, behind */
@@ -3148,7 +3256,9 @@ int main(void) {
 
       camX = clampCamera(hero.px + 8 - (SCREEN_W >> 1), world->w * 16, SCREEN_W);
       camY = clampCamera(hero.py + 8 - (SCREEN_H >> 1), world->h * 16, SCREEN_H);
+      tickWeather();
       placeEveryone();
+      placeWeather();          /* after, since placeEveryone clears every slot */
     }
 
     tickWindow(held(KEY_A) || held(KEY_B));
@@ -3173,14 +3283,14 @@ int main(void) {
          the viewer, and a blow that lands behind somebody is no blow at all. */
       if (star) {
         placeSpark(0, (fxOnMe ? myX : foeX) + 16 - (SPARK_SIDE / 2),
-                      (fxOnMe ? 22 : 20) + 30 - (SPARK_SIDE / 2), star - 1);
+                      32 + 26 - (SPARK_SIDE / 2), star - 1);
       }
       if (!fxHidden(0) && sinkTheirs < 70) {
-        placeBigObject(1, foeX, 20 + sinkTheirs,
+        placeBigObject(1, foeX, 32 + sinkTheirs,
           NPC_TILE_BASE + bank * NPC_TILE_STRIDE + 0 * ACTOR_FRAME_TILES, bank + 1);
       }
       if (!fxHidden(1) && sinkMine < 70) {
-        placeBigObject(2, myX, 22 + sinkMine,
+        placeBigObject(2, myX, 32 + sinkMine,
           PLAYER_TILE_BASE + (1 * 4) * ACTOR_FRAME_TILES, 0);
       }
     }

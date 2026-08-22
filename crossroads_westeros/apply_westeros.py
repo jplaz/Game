@@ -28,7 +28,7 @@ def replace_block(rel, start_label, next_label, body):
     text = read(rel)
     pattern = rf"(?ms)^{re.escape(start_label)}:\n.*?(?=^{re.escape(next_label)}:)"
     replacement = f"{start_label}:\n{body.rstrip()}\n\n"
-    text2, count = re.subn(pattern, replacement, text, count=1)
+    text2, count = re.subn(pattern, lambda _m: replacement, text, count=1)
     if count != 1:
         raise SystemExit(f"Could not replace block {start_label} in {rel}; matches={count}")
     write(rel, text2)
@@ -168,7 +168,7 @@ replacement = r'''LittlerootTown_Text_BirchSomethingToShowYouAtLab:
 	.string "That is no small matter. Come to\n"
 	.string "my chamber. We must speak.$"
 '''
-text2, count = re.subn(pattern, replacement, text, count=1)
+text2, count = re.subn(pattern, lambda _m: replacement, text, count=1)
 if count != 1:
     raise SystemExit(f"Could not replace final quest block; matches={count}")
 write(scripts, text2)

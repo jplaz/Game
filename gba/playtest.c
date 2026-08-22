@@ -204,6 +204,7 @@ static int wantHouse, runAway, statusChecks, sinceStatus, wantTech, techUsed[4];
 static int menusSeen, bagsSeen, shopsSeen, bought, records, menuWant = -1;
 static int spottings, spottedBy, shooting, titleWant;
 static const char *startedAt = "nowhere";
+static int storyEvery, storyFor;
 static int startedLevel;
 static unsigned lastKeys;
 
@@ -595,6 +596,14 @@ void hostFrame(void) {
   lastKeys = keys;
   REG_KEYINPUT = (unsigned short)(~keys & 0x03FF);
   frameNo++;
+  /* STORY=n snapshots every n frames, so the opening of the game can be looked
+     at as a strip in the order a player meets it rather than as a handful of
+     screens caught whenever the tester happened to reach them. */
+  if (shooting && storyEvery && (frameNo % storyEvery) == 0 && frameNo <= storyFor) {
+    char name[64];
+    snprintf(name, sizeof name, "story-%03d", frameNo / storyEvery);
+    snapshot(name);
+  }
   if (getenv("TRACE") && (frameNo % 25000) == 0) {
     fprintf(stderr, "f%7d %-18s scene %d phase %d win %d typed %d line %d/%d shift %d spot %d at %2d,%2d\n",
       frameNo, world ? world->name : "-", scene, duelPhase, windowOpen,
@@ -632,6 +641,7 @@ int main(int argc, char **argv) {
   hostFramesLeft = FRAME_CAP + 8;
   wantHouse = house;
   if (getenv("SEED")) seed = (unsigned)atoi(getenv("SEED"));
+  if (getenv("STORY")) { storyEvery = atoi(getenv("STORY")); storyFor = storyEvery * 40; }
   if (getenv("GRIND")) { grindMode = 1; hostFramesLeft = atoi(getenv("GRIND")); }
   if (argc > 2) { shooting = 1; outDir = argv[2]; }
 

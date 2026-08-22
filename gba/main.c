@@ -1508,6 +1508,7 @@ static void duelSay(const char *who, const char *what) {
 #define FX_GUARD 3
 
 static int fxLeft, fxOnMe, fxKind;
+static int readHold;   /* frames a workaday duel line has been left up */
 
 /* How far a beaten body has sunk out of the yard. Nobody stands there hale
    while the purse is being counted over them. */
@@ -2497,17 +2498,42 @@ static void duelTurn(void) {
 /* Dusk over a yard, banded from a deep blue overhead down to a low sun, then
    two courses of trodden earth. Eleven flat tiles and eleven palette entries —
    which is how a handheld draws a gradient, since it has no such thing. */
-static const u16 DUSK[11] = {
-  RGB15(3, 4, 11), RGB15(4, 5, 12), RGB15(6, 6, 13), RGB15(8, 7, 13),
-  RGB15(11, 8, 12), RGB15(14, 9, 11), RGB15(18, 10, 10), RGB15(22, 12, 9),
-  RGB15(26, 15, 9),
-  RGB15(12, 10, 7), RGB15(9, 8, 6),
+/* Nine bands of sky and two courses of ground apiece. Every duel in the game
+   was fought under the same dusk, which made the screen a player sees more than
+   any other the one screen that never changed. Where you are standing when you
+   draw decides which of these you fight under. */
+static const u16 SKIES[6][11] = {
+  /* dusk over a yard, which is what the rest of the world still gets */
+  { RGB15(3,4,11), RGB15(4,5,12), RGB15(6,6,13), RGB15(8,7,13), RGB15(11,8,12),
+    RGB15(14,9,11), RGB15(18,10,10), RGB15(22,12,9), RGB15(26,15,9),
+    RGB15(12,10,7), RGB15(9,8,6) },
+  /* the North and the Wall: a cold white sky coming down onto snow */
+  { RGB15(6,9,15), RGB15(8,11,17), RGB15(10,13,19), RGB15(13,16,21), RGB15(16,19,23),
+    RGB15(19,22,25), RGB15(22,24,27), RGB15(25,27,29), RGB15(27,29,31),
+    RGB15(24,26,29), RGB15(21,23,27) },
+  /* under the trees: light through a canopy, onto leaf mould */
+  { RGB15(4,7,6), RGB15(5,9,7), RGB15(6,11,8), RGB15(8,13,8), RGB15(10,15,9),
+    RGB15(12,17,10), RGB15(14,19,11), RGB15(16,21,12), RGB15(18,23,13),
+    RGB15(10,9,6), RGB15(8,7,5) },
+  /* the Riverlands and the Vale: open blue over a green bank */
+  { RGB15(6,12,22), RGB15(8,14,24), RGB15(10,16,25), RGB15(12,18,26), RGB15(15,20,27),
+    RGB15(18,22,28), RGB15(21,24,29), RGB15(24,26,30), RGB15(27,28,31),
+    RGB15(12,17,9), RGB15(10,14,7) },
+  /* Dragonstone: an old fire under a black sky, and ash to stand on */
+  { RGB15(2,1,2), RGB15(4,2,3), RGB15(6,2,3), RGB15(9,3,3), RGB15(12,4,4),
+    RGB15(15,5,4), RGB15(19,6,4), RGB15(23,8,5), RGB15(27,11,6),
+    RGB15(8,7,7), RGB15(6,5,5) },
+  /* indoors: no sky at all, torchlight down a stone wall onto flagstone */
+  { RGB15(3,3,4), RGB15(4,4,5), RGB15(5,5,6), RGB15(6,6,7), RGB15(8,7,8),
+    RGB15(9,8,9), RGB15(11,10,10), RGB15(13,11,11), RGB15(15,13,12),
+    RGB15(13,12,10), RGB15(10,9,8) },
 };
 
 static void paintDuelGround(void) {
   int i, w, ty, tx;
+  const u16 *sky = SKIES[world->scene < 6 ? world->scene : 0];
   for (i = 0; i < 11; i++) {
-    PAL_BG[DUEL_PAL + i] = DUSK[i];
+    PAL_BG[DUEL_PAL + i] = sky[i];
     for (w = 0; w < 16; w++) {
       VRAM_BG_CHR[(DUEL_BAND + i) * 16 + w] = 0x01010101u * (u32)(DUEL_PAL + i);
     }
@@ -2969,8 +2995,23 @@ int main(void) {
          still filling: you see the blow land and the bar climb before the game
          will let you skip past them. */
       int busy = fxLeft || (duelPhase == DUEL_SPOILS && !spoilsDone());
+      /* A swing reads itself out. Every blow used to need a button press of its
+         own, so a duel of ten exchanges was twenty presses of A on twenty
+         near-identical screens, which is most of what made fighting a chore.
+         The workaday half-turns now carry on by themselves once the line has
+         finished typing and been left up long enough to read; A still skips
+         ahead at once for anybody faster than that. Everything that actually
+         matters - who you are facing, somebody going down, what you took off
+         them - still waits to be dismissed. */
+      if (windowOpen && !busy && typeDone
+          && (duelPhase == DUEL_MINE || duelPhase == DUEL_THEIRS)) {
+        if (++readHold > 70) keysNow |= KEY_A;
+      } else if (!windowOpen) {
+        readHold = 0;
+      }
       if (windowOpen) {
         if (!busy && (hit(KEY_A) || hit(KEY_B))) {
+          readHold = 0;
           if (!advanceWindow()) {
             if (duelPhase == DUEL_INTRO) {
               firstMover = mine.swiftness >= theirs.swiftness;

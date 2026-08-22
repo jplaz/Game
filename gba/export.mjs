@@ -72,7 +72,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const tiles = await import('/src/art/tiles.js');
   const actors = await import('/src/art/actors.js');
   const pixels = await import('/src/art/pixels.js');
-  const { MAPS } = await import('/src/data/maps.js');
+  const { MAPS, REGIONS } = await import('/src/data/maps.js');
   const { DUELLISTS, ROAMERS, makeRoamer } = await import('/src/data/duellists.js');
   const { TRAINERS, trainerAsDuellist } = await import('/src/data/trainers.js');
   const { ITEMS } = await import('/src/data/items.js');
@@ -385,8 +385,20 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       if (ambushes.length >= 4) break;
     }
 
+    // Which sky a duel fought here is fought under. Every fight in the game
+    // used the same dusk, which made the most repeated screen in the whole
+    // cartridge the one screen that never changed.
+    const region = REGIONS[id] ?? '';
+    const scene = map.indoor ? 5
+      : id === 'dragonstone' || id === 'dragonmont' ? 4
+      : (map.ground ?? 'grass') === 'snow' ? 1
+      : /Wolfswood|Neck/.test(region) || /wolfswood|kingsroad/i.test(id) ? 2
+      : /Riverlands|Vale/.test(region) ? 3
+      : 0;
+
     out.maps.push({
       id, name: map.name, width, height, cells, solid, cover, ledge, npcs, ambushes,
+      scene,
       frost: (map.ground ?? 'grass') === 'snow' ? 1 : 0,
       warps: (map.warps ?? []).map((w) => ({ ...w })),
       signs: (map.signs ?? []).map((s) => ({ x: s.x, y: s.y, text: s.text })),
@@ -834,6 +846,7 @@ L.push('  const u8  *solid;');
 L.push('  const u8  *cover;     /* where something can be hiding */');
 L.push('  const u8  *ledge;     /* a drop you can take but not climb */');
 L.push('  u8 frost;             /* whether the cover here is under snow */');
+L.push('  u8 scene;             /* which sky a duel fought here is fought under */');
 L.push('  const u16 *residents; u8 residentCount;');
 L.push('  const Warp *warps; u8 warpCount;');
 L.push('  const Sign *signs; u8 signCount;');
@@ -900,7 +913,7 @@ L.push(`#define MAP_COUNT ${harvest.maps.length}`);
 L.push('static const Map maps[MAP_COUNT] = {');
 harvest.maps.forEach((map, i) => {
   L.push(`  { ${cstr(map.name)}, ${map.width}, ${map.height}, ${map.bank.length}, tiles_${i},`);
-  L.push(`    entries_${i}, solid_${i}, cover_${i}, ledge_${i}, ${map.frost}, residents_${i}, ${map.residents.length},`);
+  L.push(`    entries_${i}, solid_${i}, cover_${i}, ledge_${i}, ${map.frost}, ${map.scene}, residents_${i}, ${map.residents.length},`);
   L.push(`    warps_${i}, ${map.liveWarps}, signs_${i}, ${map.signs.length},`);
   L.push(`    npcs_${i}, ${map.npcs.length}, ambushes_${i}, ${map.ambushes.length} },`);
 });

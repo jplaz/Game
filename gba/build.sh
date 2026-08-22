@@ -53,7 +53,17 @@ done
 mkdir -p shots
 rm -f shots/*.ppm shots/*.png
 SEED=31337 ./playtest 2 shots > /dev/null
+# One more switch-on with a record already on the cartridge, which is the only
+# way to reach the title's other two entries.
+SAVED=1 SEED=5 ./playtest 0 shots > /dev/null
 node topng.mjs shots 3
+
+# All three of the title's entries, played out: take the record up, step past it
+# and swear a new sword, and throw it away and swear a new sword. The complaint
+# that started this was the game walking into the world without being asked.
+for t in 1 2 3; do
+  SAVED=$t SEED=5 ./playtest 3 | sed -n '/swore to/p;/nothing went wrong/p'
+done
 
 # hosttest still walks one fixed route, as a second opinion.
 clang $HOSTFLAGS -o hosttest hosttest.c

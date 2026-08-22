@@ -202,7 +202,7 @@ static int npcDuelled[MAP_COUNT][MAX_CROWD];
 static int interacting, duelTries, blocked;
 static int wantHouse, runAway, statusChecks, sinceStatus, wantTech, techUsed[4];
 static int menusSeen, bagsSeen, shopsSeen, bought, records, menuWant = -1;
-static int spottings, spottedBy, shooting;
+static int spottings, spottedBy, shooting, titleWant;
 static unsigned lastKeys;
 
 /* A tap, not a hold: the game only acts on the frame a button goes down. */
@@ -333,7 +333,7 @@ void hostFrame(void) {
   checkFrame();
 
   if (shooting) {
-    if (scene == SCENE_TITLE) catchOnce(0, "01-title");
+    if (scene == SCENE_TITLE) catchOnce(0, getenv("SAVED") ? "01-title-with-a-record" : "01-title");
     else if (scene == SCENE_HOUSE) catchOnce(1, "02-swear-your-sword");
     else if (scene == SCENE_MENU) catchOnce(2, "05-the-menu");
     else if (scene == SCENE_STATUS) catchOnce(3, "06-your-sigil");
@@ -341,7 +341,12 @@ void hostFrame(void) {
     else if (scene == SCENE_SHOP) catchOnce(shopStall ? 5 : 6,
       shopStall ? "12-arms-and-armour" : "11-remedies");
     else if (scene == SCENE_DUEL) {
-      if (duelPhase == DUEL_TOP) catchOnce(7, "09-what-to-do");
+      /* The star is up for twelve frames of a swing; catch it in the middle. */
+      if (fxStar() == 2 && !fxOnMe) catchOnce(18, "18-the-blow-lands");
+      else if (fxLean(1) > 8) catchOnce(19, "19-the-lunge");
+      else if (duelPhase == DUEL_SPOILS && !spoilsDone() && shownExp > you.exp - 20)
+        catchOnce(20, "20-the-rail-fills");
+      else if (duelPhase == DUEL_TOP) catchOnce(7, "09-what-to-do");
       else if (duelPhase == DUEL_MENU) catchOnce(8, "10-which-blow");
       else if (windowOpen && !typeDone) catchOnce(9, "08-the-duel-opens");
     } else if (scene == SCENE_WORLD) {
@@ -357,7 +362,11 @@ void hostFrame(void) {
   }
 
   if (scene == SCENE_TITLE) {
-    keys = tap(KEY_START);
+    /* Walk the cursor onto the entry this run is meant to take, then choose it,
+       so a run can prove the record is taken up and a run can prove it is
+       stepped past into swearing a new sword. */
+    keys = (titlePick < titleWant && titlePick < TITLE_ENTRIES - 1)
+      ? tap(KEY_DOWN) : tap(KEY_START);
   } else if (scene == SCENE_HOUSE) {
     /* The game resets the picker when it opens, so the house has to be walked
        to rather than set — which is also what a player does. */
@@ -369,7 +378,10 @@ void hostFrame(void) {
     /* Look in the pouch about half the time, write the record now and then,
        and otherwise leave. */
     if (menuWant < 0) menuWant = (int)roll(4);
-    if (menuWant == 3) keys = tap(KEY_B);
+    /* Leaving has to clear what it wanted too. Without this the first roll of
+       "leave" sticks, and every menu after it is opened and shut again without
+       the tester ever looking in the pouch. */
+    if (menuWant == 3) { keys = tap(KEY_B); if (keys) menuWant = -1; }
     else if (menuPick != menuWant) keys = tap(menuPick < menuWant ? KEY_DOWN : KEY_UP);
     else { keys = tap(KEY_A); if (keys) { if (menuWant == 2) records++; menuWant = -1; } }
   } else if (scene == SCENE_BAG) {
@@ -557,6 +569,21 @@ int main(int argc, char **argv) {
   gbaMem = calloc(MEM_SPAN, 1);
   if (!gbaMem) return 1;
   REG_KEYINPUT = 0x03FF;
+  /* With SAVED set, the cartridge is switched on with a record already on it,
+     which is the only way to see the title's other two entries. */
+  if (getenv("SAVED")) {
+    Record r;
+    titleWant = atoi(getenv("SAVED")) - 1;      /* 1 continue, 2 new, 3 forget */
+    unsigned k;
+    for (k = 0; k < sizeof r; k++) ((unsigned char *)&r)[k] = 0;
+    r.magic = RECORD_MAGIC;
+    r.house = 2; r.level = 14; r.worldId = 6; r.dir = 0;
+    r.x = 10; r.y = 8; r.weapon = 3; r.armour = 2; r.shield = 1;
+    r.exp = (unsigned)expForLevel(14) + 40;
+    r.gold = 1180; r.hp = 140; r.kills = 9;
+    r.sum = tally(&r);
+    for (k = 0; k < sizeof r; k++) hostSram[k] = ((unsigned char *)&r)[k];
+  }
   hostFramesLeft = FRAME_CAP + 8;
   wantHouse = house;
   if (getenv("SEED")) seed = (unsigned)atoi(getenv("SEED"));

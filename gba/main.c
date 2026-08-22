@@ -761,6 +761,44 @@ static void buildBubble(void) {
   PAL_OBJ[SPOT_BANK * 16 + 2] = RGB15(31, 31, 31);
 }
 
+/* The star that breaks over somebody the moment a blow lands. Four frames,
+   built rather than drawn out: a diamond core that grows and then blows open,
+   with four rays off it, in the bubble's own white and a gold added beside it. */
+#define SPARK_TILE 912
+#define SPARK_FRAMES 4
+#define SPARK_SIDE 32            /* four frames of sixteen tiles apiece */
+
+static void buildSpark(void) {
+  static const u8 CORE[SPARK_FRAMES]  = { 4,  8, 12,  8 };
+  static const u8 ARM[SPARK_FRAMES]   = { 11, 15, 15, 15 };
+  static const u8 THICK[SPARK_FRAMES] = { 1,  2,  3,  1 };
+  const int half = SPARK_SIDE / 2, wide = SPARK_SIDE / 8;
+  int f, y, x;
+  volatile u8 *out = (volatile u8 *)(VRAM_OBJ) + SPARK_TILE * 32;
+  for (y = 0; y < 32 * wide * wide * SPARK_FRAMES; y++) out[y] = 0;
+  for (f = 0; f < SPARK_FRAMES; f++) {
+    for (y = 0; y < SPARK_SIDE; y++) {
+      for (x = 0; x < SPARK_SIDE; x++) {
+        int dx = x - half, dy = y - half;
+        int ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy;
+        int d = ax + ay, v = 0, tile, at;
+        if (d <= CORE[f]) v = 2;
+        else if (d <= CORE[f] + 3) v = 3;
+        else if ((ax <= THICK[f] && ay <= ARM[f]) ||
+                 (ay <= THICK[f] && ax <= ARM[f])) v = 3;
+        /* The last frame is the one before it blown open: a ring, not a star. */
+        if (f == SPARK_FRAMES - 1 && d <= CORE[f] - 4) v = 0;
+        if (!v) continue;
+        tile = f * wide * wide + (y >> 3) * wide + (x >> 3);
+        at = tile * 32 + (y & 7) * 4 + ((x & 7) >> 1);
+        if (x & 1) out[at] = (u8)((out[at] & 0x0F) | (v << 4));
+        else out[at] = (u8)((out[at] & 0xF0) | v);
+      }
+    }
+  }
+  PAL_OBJ[SPOT_BANK * 16 + 3] = RGB15(31, 27, 12);
+}
+
 /* Grass closing over your boots. Two frames, drawn over the player whenever
    they are standing in cover, which is what makes tall grass feel like tall
    grass rather than a differently coloured floor. */
@@ -840,6 +878,14 @@ static void placeGrass(int slot, int x, int y, int frame, int bank) {
   oam[slot * 4 + 0] = (u16)(y & 0xFF);
   oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0x4000);
   oam[slot * 4 + 2] = (u16)((GRASS_TILE + frame * 4) | (bank << 12));
+  oam[slot * 4 + 3] = 0;
+}
+
+static void placeSpark(int slot, int x, int y, int frame) {
+  if (x < -32 || x > SCREEN_W || y < -32 || y > SCREEN_H) { oam[slot * 4] = 0x0200; return; }
+  oam[slot * 4 + 0] = (u16)(y & 0xFF);                      /* square */
+  oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0x8000);          /* size 2 => 32x32 */
+  oam[slot * 4 + 2] = (u16)((SPARK_TILE + frame * 16) | (SPOT_BANK << 12));
   oam[slot * 4 + 3] = 0;
 }
 
@@ -946,27 +992,21 @@ static int expForLevel(int level) { return level <= 1 ? 0 : 5 * level * level * 
 
 static int expFrom(int level) { return 24 + level * level * 2; }
 
-/* How far along the current rung you are, in hundredths. */
-static int expShare(void) {
+/* How far along the current rung a given tally is, in hundredths. The rail is
+   drawn from a figure that walks up to the real one rather than from the real
+   one, so a win visibly fills it instead of snapping it along. */
+static int shareOf(int exp) {
   int floorAt = expForLevel(you.level), next = expForLevel(you.level + 1);
   if (you.level >= 50 || next <= floorAt) return 100;
   {
-    int into = you.exp - floorAt;
+    int into = exp - floorAt, rung = next - floorAt;
     if (into < 0) into = 0;
-    return (int)udiv((u32)(into * 100), (u32)(next - floorAt));
+    if (into > rung) into = rung;
+    return (int)udiv((u32)(into * 100), (u32)rung);
   }
 }
 
-static int levelUp(void) {
-  int gained = 0;
-  while (you.level < 50 && you.exp >= expForLevel(you.level + 1)) {
-    you.level++;
-    you.hp = vigourFor(you.level);
-    gained = 1;
-  }
-  if (gained) sfxRank();
-  return gained;
-}
+static int expShare(void) { return shareOf(you.exp); }
 
 /* ----------------------------------------------------------------- world --- */
 
@@ -1232,6 +1272,17 @@ static void drawBar(int x, int y, int w, int hp, int max) {
 
 /* Both fighters' plates. The foe's is at the top of the page, yours below the
    middle, which is where the duel layout puts them on the screen. */
+/* What the two bars and the rail are showing this frame. Each walks toward the
+   figure it stands for rather than jumping to it, which is the whole difference
+   between a number changing and a blow landing. */
+static int shownMine, shownTheirs, shownExp;
+
+static void paintDuelBars(void) {
+  drawBar(12, 19, 132, shownTheirs, theirs.maxHp);
+  drawBar(TXT_W - 148, 43, 132, shownMine, mine.maxHp);
+  drawRail(TXT_W - 148, 51, 132, shareOf(shownExp));
+}
+
 static void paintDuelPlates(void) {
   clearRows(0, 32);
   clearRows(32, 24);
@@ -1241,8 +1292,6 @@ static void paintDuelPlates(void) {
   copyString(scratch, "Lv ", sizeof scratch);
   appendNumber(scratch, theirs.level, sizeof scratch);
   drawText(124, 4, scratch, C_DIM);
-  drawBar(12, 19, 132, theirs.hp, theirs.maxHp);
-
   /* Wholly inside the lower block of the page: a plate that starts one row
      higher would have its top edge drawn at the top of the screen instead. */
   drawPlate(TXT_W - 156, 32, 152, 24);
@@ -1250,8 +1299,7 @@ static void paintDuelPlates(void) {
   copyString(scratch, "Lv ", sizeof scratch);
   appendNumber(scratch, mine.level, sizeof scratch);
   drawText(TXT_W - 36, 34, scratch, C_DIM);
-  drawBar(TXT_W - 148, 43, 132, mine.hp, mine.maxHp);
-  drawRail(TXT_W - 148, 51, 132, expShare());
+  paintDuelBars();
 }
 
 #define DUEL_WINDOW_TOP 56
@@ -1306,6 +1354,70 @@ static void duelSay(const char *who, const char *what) {
   openWindowAt(who, what, DUEL_WINDOW_TOP, DUEL_WINDOW_ROWS);
 }
 
+/* -------------------------------------------------------------- the blow -- */
+/* A swing you can watch rather than read about. The one swinging leans in and
+   comes back; the one struck is shaken about and flickers; a star breaks over
+   them; and their health walks down behind it. Thirty-four frames, a bit over
+   half a second, and the game will not take a button until it has played.
+
+   FX_MISS is the same lean with nothing at the end of it, FX_GUARD is a step
+   back rather than forward. */
+#define FX_FRAMES 34
+#define FX_MISS 0
+#define FX_HIT 1
+#define FX_CLEAN 2
+#define FX_GUARD 3
+
+static int fxLeft, fxOnMe, fxKind;
+
+/* How far a beaten body has sunk out of the yard. Nobody stands there hale
+   while the purse is being counted over them. */
+static int sinkMine, sinkTheirs;
+
+static void startFx(int onMe, int kind) {
+  fxLeft = FX_FRAMES;
+  fxOnMe = onMe;
+  fxKind = kind;
+}
+
+/* How far forward this fighter is leaning, in pixels. Positive is toward the
+   other one; a guard comes out negative, which is a step away. */
+static int fxLean(int forMe) {
+  int gone = FX_FRAMES - fxLeft;
+  if (!fxLeft || fxOnMe == forMe || gone > 12) return 0;
+  {
+    int arc = (gone < 6 ? gone : 12 - gone) * 4;
+    return fxKind == FX_GUARD ? -(arc >> 1) : arc;
+  }
+}
+
+/* The shake on whoever was struck: eight frames of being thrown about, twice as
+   far if it went clean through. */
+static int fxShake(int forMe) {
+  int gone = FX_FRAMES - fxLeft - 12;
+  if (!fxLeft || fxOnMe != forMe || fxKind == FX_MISS || fxKind == FX_GUARD) return 0;
+  if (gone < 0 || gone > 9) return 0;
+  return ((gone & 1) ? -3 : 3) * (fxKind == FX_CLEAN ? 2 : 1);
+}
+
+/* Struck bodies flicker, two frames on and two off. It starts a few frames after
+   the star does, so the star is seen breaking over somebody rather than over an
+   empty patch of yard. */
+static int fxHidden(int forMe) {
+  int gone = FX_FRAMES - fxLeft - 17;
+  if (!fxLeft || fxOnMe != forMe || fxKind == FX_MISS || fxKind == FX_GUARD) return 0;
+  if (gone < 0 || gone > 13) return 0;
+  return (gone >> 1) & 1;
+}
+
+/* Which frame of the star, or 0 for none. */
+static int fxStar(void) {
+  int gone = FX_FRAMES - fxLeft - 11;
+  if (!fxLeft || fxKind == FX_MISS || fxKind == FX_GUARD) return 0;
+  if (gone < 0 || gone >= SPARK_FRAMES * 3) return 0;
+  return 1 + gone / 3;
+}
+
 static void beginDuel(int duellist, int bank, int slot) {
   foeSlot = slot;
   foeBank = bank;
@@ -1335,6 +1447,11 @@ static void beginDuel(int duellist, int bank, int slot) {
   duelMenu = 0;
   topPick = 0;
   duelPhase = 0;
+  fxLeft = 0;
+  sinkMine = sinkTheirs = 0;
+  shownMine = mine.hp;
+  shownTheirs = theirs.hp;
+  shownExp = you.exp;
   clearPage();
   layoutTextRows(TEXT_DUEL);
   paintDuelPlates();
@@ -1351,6 +1468,7 @@ static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
 
   if (t->defend) {
     sfxHit(0);
+    startFx(isYou ? 0 : 1, FX_GUARD);
     actor->defending = 1;
     appendString(scratch, isYou ? " raise your guard and catch a breath."
                                 : " raises a guard.", sizeof scratch);
@@ -1359,6 +1477,7 @@ static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
   }
   if ((int)roll(100) >= t->accuracy) {
     sfxHit(0);
+    startFx(isYou ? 0 : 1, FX_MISS);
     appendString(scratch, isYou ? " swing " : " swings ", sizeof scratch);
     appendString(scratch, t->name, sizeof scratch);
     appendString(scratch, " and it goes wide.", sizeof scratch);
@@ -1367,6 +1486,7 @@ static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
   }
   dmg = computeDamage(actor, target, t, &crit);
   sfxHit(crit ? 1 : 0);
+  startFx(target == &mine, crit ? FX_CLEAN : FX_HIT);
   target->hp -= dmg;
   if (target->hp < 0) target->hp = 0;
   appendString(scratch, isYou ? " land " : " lands ", sizeof scratch);
@@ -1375,7 +1495,7 @@ static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
   appendNumber(scratch, dmg, sizeof scratch);
   appendString(scratch, " damage.", sizeof scratch);
   duelSay(0, scratch);
-  paintDuelPlates();
+  paintDuelPlates();          /* the bars in it still show the old figures */
   return target->hp <= 0;
 }
 
@@ -1411,6 +1531,7 @@ static void setUpVideo(void) {
   copyPalettes();
   for (i = 0; i < 8; i++) VRAM_TXT_CHR[i] = 0;       /* the blank text tile */
   buildBubble();
+  buildSpark();
   buildGrass();
   layoutTextRows(TEXT_MIDDLE);
   REG_BG0CNT = (u16)(1 | 0x0080 | (28 << 8) | (3 << 14));   /* 8bpp, 64x64, behind */
@@ -1625,6 +1746,12 @@ static int findRecord(void) {
     && record.level >= 1 && record.level <= 50;
 }
 
+/* Wipes the magic, so the next boot finds nothing and asks who you are. */
+static void forgetRecord(void) {
+  u32 i;
+  for (i = 0; i < 8; i++) SRAM[i] = 0;
+}
+
 static void takeUpRecord(void) {
   u32 i;
   int m, k;
@@ -1796,32 +1923,40 @@ static void paintMenu(void) {
 
 static int hasRecord, titlePick;
 
+/* What the title offers. With no record on the cartridge there is one thing to
+   do and the cursor sits on it; with one there are three, and none of them
+   happens on its own. Nothing takes you into the world that you did not pick. */
+#define TITLE_ENTRIES (hasRecord ? 3 : 1)
+
 static void paintTitle(void) {
+  static const char *const PICK[3] = {
+    "Take up the road", "Swear a new sword", "Forget that record",
+  };
+  int first = hasRecord ? 0 : 1, i, n = 0;
+
   clearPage();
   drawFrame(16, 4, TXT_W - 32, TXT_H - 16);
-  centreText(12, "A SONG OF", C_INK);
-  centreText(26, "ICE AND MONSTERS", C_GOLD);
-  fillRect(70, 42, TXT_W - 140, 1, C_EDGE);
-  centreText(48, "The North remembers.", C_DIM);
+  centreText(10, "A SONG OF", C_INK);
+  centreText(24, "ICE AND MONSTERS", C_GOLD);
+  fillRect(70, 40, TXT_W - 140, 1, C_EDGE);
 
-  if (!hasRecord) {
-    centreText(74, "PRESS START", C_GOLD);
-    return;
+  /* Three entries with a record on the cartridge, one without, and the last
+     line of the panel says which record it is. It all has to sit inside a
+     frame ninety-six rows tall, which is what fixes these numbers. */
+  for (i = first; i < 3; i++, n++) {
+    int y = (hasRecord ? 46 : 56) + n * 13;
+    int w = textWidth(PICK[i]);
+    int here = (n == titlePick);
+    if (here) drawCursor(((TXT_W - w) >> 1) - 12, y + 1, C_GOLD);
+    centreText(y, PICK[i], here ? C_GOLD : C_INK);
   }
-  {
-    /* There is a record on the cartridge, so the road can be taken up again. */
-    static const char *const PICK[2] = { "Take up the road", "Begin again" };
-    int i;
-    for (i = 0; i < 2; i++) {
-      int y = 66 + i * 14;
-      int w = textWidth(PICK[i]);
-      if (i == titlePick) drawCursor(((TXT_W - w) >> 1) - 12, y + 1, C_GOLD);
-      centreText(y, PICK[i], i == titlePick ? C_GOLD : C_INK);
-    }
+  if (hasRecord) {
     copyString(scratch, houses[record.house].full, sizeof scratch);
     appendString(scratch, ", level ", sizeof scratch);
     appendNumber(scratch, record.level, sizeof scratch);
-    centreText(TXT_H - 20, scratch, C_DIM);
+    centreText(86, scratch, C_DIM);
+  } else {
+    centreText(80, "The North remembers.", C_DIM);
   }
 }
 
@@ -1847,6 +1982,7 @@ static int scene;
 #define DUEL_THEIRS 3
 #define DUEL_END 4
 #define DUEL_TOP 5
+#define DUEL_SPOILS 6            /* won, and the rail filling up for it */
 
 static int firstMover;
 
@@ -1882,6 +2018,10 @@ static void youFell(void) {
                 "a third of your purse gone, and a good deal of road to walk again.");
 }
 
+/* A win is not over the moment they go down. You stay in the yard, the purse
+   and the experience are read out, the rail fills up for it, and every rung it
+   passes stops it long enough to say what that rung bought. Only then do you
+   walk away. */
 static void theyFell(void) {
   int won = expFrom(foeDef->level);
   sfxWon();
@@ -1892,27 +2032,69 @@ static void theyFell(void) {
     if (foeSlot >= 0) { slain[worldId][foeSlot] = 1; crowdAlive[foeSlot] = 0; }
     you.kills++;
   }
-  /* You get your wind back after a win — not all of it, but enough to keep
-     walking, since there is no maester between here and the next town. */
+  /* You get your wind back after a win: not all of it, but enough to keep
+     walking, since there is no maester between here and the next town. The
+     bar rises to it in front of you rather than being different afterwards. */
   you.hp = mine.hp + (vigourFor(you.level) >> 2);
   if (you.hp > vigourFor(you.level)) you.hp = vigourFor(you.level);
+  mine.hp = you.hp;
+
+  duelPhase = DUEL_SPOILS;
   copyString(scratch, foeDef->defeat, sizeof scratch);
   appendString(scratch, "  You take ", sizeof scratch);
   appendNumber(scratch, foeDef->reward, sizeof scratch);
   appendString(scratch, " gold and ", sizeof scratch);
   appendNumber(scratch, won, sizeof scratch);
   appendString(scratch, " experience.", sizeof scratch);
-  endDuel();
-  if (levelUp()) {
-    appendString(scratch, "  You are level ", sizeof scratch);
+  duelSay(0, scratch);
+}
+
+/* One frame of the rail filling. It waits for the line above it to finish
+   typing, then climbs; each time it reaches the end of a rung it takes the
+   level, empties, and says what the level was worth. */
+static int spoilsDone(void) { return shownExp >= you.exp; }
+
+static void tickSpoils(void) {
+  int next;
+  if (spoilsDone()) return;
+  if (windowOpen && !typeDone) return;
+  next = expForLevel(you.level + 1);
+  shownExp += 1 + (you.exp - shownExp) / 20;
+  if (shownExp > you.exp) shownExp = you.exp;
+  if (you.level < 50 && shownExp >= next) {
+    you.level++;
+    mine.maxHp = vigourFor(you.level);
+    mine.might = mightFor(you.level);
+    mine.guard = guardFor(you.level);
+    mine.swiftness = swiftFor(you.level);
+    you.hp = mine.maxHp;
+    mine.hp = you.hp;
+    sfxRank();
+    copyString(scratch, "You are level ", sizeof scratch);
     appendNumber(scratch, you.level, sizeof scratch);
-    appendString(scratch, " - might ", sizeof scratch);
-    appendNumber(scratch, mightFor(you.level), sizeof scratch);
+    appendString(scratch, ".  Might ", sizeof scratch);
+    appendNumber(scratch, mine.might, sizeof scratch);
     appendString(scratch, ", guard ", sizeof scratch);
-    appendNumber(scratch, guardFor(you.level), sizeof scratch);
+    appendNumber(scratch, mine.guard, sizeof scratch);
+    appendString(scratch, ", swiftness ", sizeof scratch);
+    appendNumber(scratch, mine.swiftness, sizeof scratch);
     appendString(scratch, ", and whole again.", sizeof scratch);
+    duelSay(0, scratch);
+    paintDuelPlates();
   }
-  openWindow(0, scratch);
+  paintDuelBars();
+}
+
+/* The bars and the rail catching up with what the numbers already say. */
+static void tickDuelBars(void) {
+  int step, moved = 0;
+  step = 1 + mine.maxHp / 48;
+  if (shownMine < mine.hp) { shownMine += step; if (shownMine > mine.hp) shownMine = mine.hp; moved = 1; }
+  else if (shownMine > mine.hp) { shownMine -= step; if (shownMine < mine.hp) shownMine = mine.hp; moved = 1; }
+  step = 1 + theirs.maxHp / 48;
+  if (shownTheirs < theirs.hp) { shownTheirs += step; if (shownTheirs > theirs.hp) shownTheirs = theirs.hp; moved = 1; }
+  else if (shownTheirs > theirs.hp) { shownTheirs -= step; if (shownTheirs < theirs.hp) shownTheirs = theirs.hp; moved = 1; }
+  if (moved) paintDuelBars();
 }
 
 static void duelTurn(void) {
@@ -2224,6 +2406,9 @@ int main(void) {
   you.hp = vigourFor(you.level);
   you.exp = expForLevel(you.level);
   hasRecord = findRecord();
+  /* The belt and braces: hold SELECT while it switches on and the record is
+     ignored, whatever an emulator has kept in its save file. */
+  if ((~REG_KEYINPUT & KEY_SELECT) != 0) hasRecord = 0;
   paintTitle();
   flushPage();
   pushObjects();
@@ -2251,24 +2436,32 @@ int main(void) {
     }
 
     if (scene == SCENE_TITLE) {
-      if (hasRecord) {
-        int was = titlePick;
-        if (hit(KEY_UP) && titlePick) titlePick--;
-        if (hit(KEY_DOWN) && !titlePick) titlePick++;
-        if (titlePick != was) { sfxPick(); paintTitle(); }
-      }
+      int was = titlePick;
+      if (hit(KEY_UP) && titlePick) titlePick--;
+      if (hit(KEY_DOWN) && titlePick < TITLE_ENTRIES - 1) titlePick++;
+      if (titlePick != was) { sfxPick(); paintTitle(); }
       if (hit(KEY_START) || hit(KEY_A)) {
-        if (hasRecord && titlePick == 0) {
+        /* With no record the one entry is "swear a new sword", so the cursor
+           position means the same thing either way once it is offset. */
+        int chose = hasRecord ? titlePick : 1;
+        if (chose == 0) {
           takeUpRecord();
           PAL_BG[TXT_BANK * 16 + C_HOUSE] = houses[you.house].colour;
           PAL_BG[TXT_BANK * 16 + C_TRIM] = houses[you.house].accent;
           PAL_BG[TXT_BANK * 16 + C_EDGE] = houses[you.house].colour;
           enterWorld(record.worldId, record.x, record.y, record.dir);
           REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
-        } else {
+        } else if (chose == 1) {
           scene = SCENE_HOUSE;
           houseChoice = 0;
           paintHousePicker();
+        } else {
+          /* Somebody who wants the old save gone should be able to be rid of
+             it without going looking for a file on a telephone. */
+          forgetRecord();
+          hasRecord = 0;
+          titlePick = 0;
+          paintTitle();
         }
       }
     } else if (scene == SCENE_HOUSE) {
@@ -2386,14 +2579,21 @@ int main(void) {
         afterWindow = shopStall + 1;
       }
     } else if (scene == SCENE_DUEL) {
+      /* No button is taken while a swing is still playing or while the rail is
+         still filling: you see the blow land and the bar climb before the game
+         will let you skip past them. */
+      int busy = fxLeft || (duelPhase == DUEL_SPOILS && !spoilsDone());
       if (windowOpen) {
-        if (hit(KEY_A) || hit(KEY_B)) {
+        if (!busy && (hit(KEY_A) || hit(KEY_B))) {
           if (!advanceWindow()) {
             if (duelPhase == DUEL_INTRO) {
               firstMover = mine.swiftness >= theirs.swiftness;
               duelPhase = DUEL_TOP;
             } else if (duelPhase == DUEL_END) {
               if (duelOver == 2) youFell(); else theyFell();
+            } else if (duelPhase == DUEL_SPOILS) {
+              /* The purse is counted, the rail is full: away you go. */
+              endDuel();
             } else if (duelPhase == DUEL_MINE || duelPhase == DUEL_THEIRS) {
               /* Only a half-turn that is actually owed gets swung. Falling
                  through to here on the menu phase would hand out a free hit. */
@@ -2528,13 +2728,33 @@ int main(void) {
     if (scene == SCENE_DUEL) {
       /* The two of you, half again life size, facing each other across the yard.
          They face you; you are seen from behind, which is the facing the walk
-         sheet already has. */
+         sheet already has. Where they stand this frame is where the swing that
+         is playing has put them. */
       int bank = foeBank;
+      int star = fxStar();
+      int foeX = 150 - fxLean(0) + fxShake(0);
+      int myX = 26 + fxLean(1) + fxShake(1);
+      if (fxLeft) fxLeft--;
+      if (theirs.hp <= 0 && shownTheirs <= 0 && sinkTheirs < 70) sinkTheirs += 3;
+      if (mine.hp <= 0 && shownMine <= 0 && sinkMine < 70) sinkMine += 3;
+      if (duelPhase == DUEL_SPOILS) tickSpoils();
+      tickDuelBars();
+
       hideAllObjects();
-      placeBigObject(0, 150, 20,
-        NPC_TILE_BASE + bank * NPC_TILE_STRIDE + 0 * ACTOR_FRAME_TILES, bank + 1);
-      placeBigObject(1, 26, 22,
-        PLAYER_TILE_BASE + (1 * 4) * ACTOR_FRAME_TILES, 0);
+      /* The star takes the front slot: a lower object number is drawn nearer
+         the viewer, and a blow that lands behind somebody is no blow at all. */
+      if (star) {
+        placeSpark(0, (fxOnMe ? myX : foeX) + 16 - (SPARK_SIDE / 2),
+                      (fxOnMe ? 22 : 20) + 30 - (SPARK_SIDE / 2), star - 1);
+      }
+      if (!fxHidden(0) && sinkTheirs < 70) {
+        placeBigObject(1, foeX, 20 + sinkTheirs,
+          NPC_TILE_BASE + bank * NPC_TILE_STRIDE + 0 * ACTOR_FRAME_TILES, bank + 1);
+      }
+      if (!fxHidden(1) && sinkMine < 70) {
+        placeBigObject(2, myX, 22 + sinkMine,
+          PLAYER_TILE_BASE + (1 * 4) * ACTOR_FRAME_TILES, 0);
+      }
     }
 
     waitVBlank();

@@ -6,7 +6,12 @@ and on any emulator — Delta, mGBA, VBA — from `thronebound.gba`.
 ## What is on it
 
 **Swear to a house.** Stark, Lannister, Tully, Targaryen or Greyjoy. The one you
-kneel to is the cloak you wear and the colour the interface is framed in.
+kneel to is the cloak you wear and the colour the interface is framed in. The
+title asks before it does anything: with a record on the cartridge it offers to
+take up the road, to swear a new sword instead, or to throw that record away, and
+none of the three happens on its own. If an emulator's save file ever leaves you
+starting in Winterfell without being asked, holding SELECT while it switches on
+ignores the record entirely.
 
 **Nineteen maps of the North**, joined by their real doors: Winterfell and its
 keep, forge, maester's hall and your own chamber; the Wolfswood; the Kingsroad;
@@ -31,16 +36,22 @@ that way, so you can turn on the spot to speak to somebody beside you. Hold B an
 you run. Ledges are one-way: press down at one and you drop two tiles south in a
 single arc, and you cannot climb back up.
 
-**A ladder to climb.** Experience for every duel won, a curve that gets steeper
-as you go, a thin rail under your health showing how far along the rung you are,
-and a level-up that names your new might and guard and puts you whole again. A
-beeline through the North ends around level 17-23; an hour in the grass will take
-you further.
+**A ladder to climb.** Experience for every duel won, on a curve that gets steeper
+as you go. A win does not end the moment they go down: you stay in the yard, the
+purse and the experience are read out, and the thin green rail under your health
+fills up in front of you. Each rung it passes stops it long enough to say what
+that rung bought - might, guard, swiftness, and whole again. A beeline through the
+North ends around level 16-26; an hour in the grass will take you further.
 
 **A yard at dusk.** A duel is fought against a banded sky: eleven flat tiles and
 eleven palette entries running deep blue down to a low sun and then two courses of
 trodden earth, which is how a handheld draws a gradient when it has no room for a
 picture.
+
+**A swing you can watch.** The one swinging leans in and comes back; the one
+struck is shaken about, flickers, and has a star break over them; the health bar
+walks down behind it instead of jumping; and a beaten body sinks out of the yard.
+The game will not take a button until the swing has played.
 
 **Duels** are the browser game's own numbers — its damage formula, its
 techniques, its duellists' stats — over Fight / Pouch / Guard / Flee and then
@@ -138,7 +149,9 @@ every single frame it checks the game has not put itself somewhere impossible �
 the player inside a wall or off the map, somebody in the crowd inside a wall, a
 window paged past its own end, a duel with more health than it started with,
 somebody at rest between two tiles, the player standing on top of somebody else,
-and the sound hardware switched off or silent for ten seconds together.
+and the sound hardware switched off or silent for ten seconds together. Three more
+runs switch the cartridge on with a record already written, and play out each of
+the title's three entries in turn.
 
 A full run is about 35,000 frames, ten minutes of real play, and covers all 19
 maps, all 64 people, all 12 signs and about 90 duels. The build runs one per
@@ -151,7 +164,11 @@ dashes in the writing that the font had no glyph for and would have drawn as hol
 in the middle of words, a door at Winterfell that put you down on top of Jory
 Cassel, a technique swung for free after a window closed, and — the newest — a
 ledge that the tester walked north into for a quarter of a million frames because
-its pathfinder did not know ledges only go one way.
+its pathfinder did not know ledges only go one way, and a model of the picture
+processor that drew every object as sixteen by thirty-two whatever its size bits
+said, so a small sprite showed the tiles of whatever was stored after it. That
+last one was a lie in the screenshots rather than a bug in the cartridge, which
+is worse.
 
 None of it is an emulator. It does not model timing, DMA, or the BIOS, so it
 cannot tell you the ROM runs on hardware — only that the game is reachable,

@@ -33,13 +33,20 @@ static unsigned char bg4(unsigned chr, int tile, int x, int y) {
   return (x & 1) ? (byte >> 4) : (byte & 15);
 }
 
-static unsigned char obj4(int tile, int x, int y) {
-  /* 16x32, one-dimensional: two character tiles across, four down. */
+/* One-dimensional mapping: the character tiles of an object run left to right
+   and then down, so where a pixel is depends on how wide the object is. Reading
+   this wrong makes a small sprite show the tiles of whatever was stored after
+   it, which is exactly the kind of lie a picture is not allowed to tell. */
+static unsigned char obj4(int tile, int wide, int x, int y) {
   int tx = x >> 3, ty = y >> 3;
   unsigned char byte = *((const unsigned char *)HW(0x06010000) + tile * 32
-                         + (ty * 2 + tx) * 32 + (y & 7) * 4 + ((x & 7) >> 1));
+                         + (ty * wide + tx) * 32 + (y & 7) * 4 + ((x & 7) >> 1));
   return (x & 1) ? (byte >> 4) : (byte & 15);
 }
+
+/* Shape in attribute nought, size in attribute one, as the hardware reads them. */
+static const unsigned char OBJ_W[3][4] = { { 8, 16, 32, 64 }, { 16, 32, 32, 64 }, { 8, 8, 16, 32 } };
+static const unsigned char OBJ_H[3][4] = { { 8, 16, 32, 64 }, { 8, 8, 16, 32 }, { 16, 32, 32, 64 } };
 
 static void snapshot(const char *name) {
   static unsigned char rgb[160][240][3];
@@ -69,9 +76,16 @@ static void snapshot(const char *name) {
       if (dispcnt & 0x1000) {                       /* objects: everybody */
         for (i = 127; i >= 0; i--) {
           const unsigned short *a = oamHw + i * 4;
-          int oy, ox, tile, bank, px, py, idx, boxW = 16, boxH = 32;
+          int oy, ox, tile, bank, px, py, idx;
+          int shape = (a[0] >> 14) & 3, size = (a[1] >> 14) & 3;
+          int sprW, sprH, boxW, boxH;
           if (!(a[0] & 0x0100) && (a[0] & 0x0200)) continue;      /* hidden */
-          if ((a[0] & 0x0300) == 0x0300) { boxW = 32; boxH = 64; }
+          if (shape > 2) continue;                                 /* not a shape */
+          sprW = OBJ_W[shape][size]; sprH = OBJ_H[shape][size];
+          boxW = sprW; boxH = sprH;
+          /* Affine and double-size together give the object twice the room to
+             be drawn in, which is what stops a scaled-up body being clipped. */
+          if ((a[0] & 0x0300) == 0x0300) { boxW = sprW * 2; boxH = sprH * 2; }
           oy = a[0] & 0xFF; if (oy > 191) oy -= 256;
           ox = a[1] & 0x1FF; if (ox > 271) ox -= 512;
           if (x < ox || x >= ox + boxW || y < oy || y >= oy + boxH) continue;
@@ -82,11 +96,11 @@ static void snapshot(const char *name) {
             /* Affine set 0, which is all this cartridge uses. */
             int pa = (short)oamHw[3], pd = (short)oamHw[15];
             int sx = px - boxW / 2, sy = py - boxH / 2;
-            px = ((pa * sx) >> 8) + 8;
-            py = ((pd * sy) >> 8) + 16;
-            if (px < 0 || px >= 16 || py < 0 || py >= 32) continue;
+            px = ((pa * sx) >> 8) + sprW / 2;
+            py = ((pd * sy) >> 8) + sprH / 2;
+            if (px < 0 || px >= sprW || py < 0 || py >= sprH) continue;
           }
-          idx = obj4(tile, px, py);
+          idx = obj4(tile, sprW >> 3, px, py);
           if (idx) colour = palObj[bank * 16 + idx];
         }
       }

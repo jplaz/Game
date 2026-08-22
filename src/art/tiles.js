@@ -48,6 +48,34 @@ function rect(ctx, x, y, w, h, color) {
 }
 
 /**
+ * Darkens what has already been painted, rather than covering it. A cast
+ * shadow has to keep the material it falls across visible underneath it - daub
+ * in shadow is still daub - so this multiplies instead of filling.
+ */
+/**
+ * The shadow a roof's overhang throws down the wall beneath it. A wall tile
+ * with no wall of its own above it has a roof above it, which is when this
+ * falls. Nothing else does as much to stop a house reading as a rectangle of
+ * roof stuck on a rectangle of wall: the roof has to be in front of the wall,
+ * and a cast shadow is what says so.
+ */
+function eaveShadow(ctx, mask) {
+  if (mask & N) return;
+  shade(ctx, 0, 3, TILE, 2, 0.5);
+  shade(ctx, 0, 5, TILE, 1, 0.34);
+  shade(ctx, 0, 6, TILE, 1, 0.2);
+  shade(ctx, 0, 7, TILE, 1, 0.09);
+}
+
+function shade(ctx, x, y, w, h, amount) {
+  ctx.save();
+  ctx.globalAlpha = amount;
+  ctx.fillStyle = '#1a1208';
+  ctx.fillRect(x, y, w, h);
+  ctx.restore();
+}
+
+/**
  * Paints one of a ground's hand-drawn variants. Everything that used to fill a
  * rectangle and speckle it goes through here instead.
  */
@@ -251,6 +279,8 @@ const painters = {
     rect(ctx, 0, 0, TILE, 1, beamDark);
     rect(ctx, 0, 2, TILE, 1, beamLit);
 
+
+
     // Stone footing along the ground.
     if (!(mask & S)) {
       rect(ctx, 0, TILE - 4, TILE, 4, '#938a78');
@@ -262,6 +292,7 @@ const painters = {
       rect(ctx, 0, TILE - 3, TILE, 3, beam);
       rect(ctx, 0, TILE - 3, TILE, 1, beamDark);
     }
+    eaveShadow(ctx, mask);
   },
 
   /** Dressed castle stone: big coursed ashlar blocks, cool and heavy. */
@@ -361,21 +392,47 @@ const painters = {
   roofThatchCap(ctx, _frame, mask) { roofCap(ctx, mask, painters.roofThatch, THATCH_KEY); },
 
   door(ctx) {
-    painters.wall(ctx);
-    rect(ctx, 3, 3, 10, 13, '#3a2b1c');
-    rect(ctx, 4, 4, 8, 12, '#6b4a2a');
-    rect(ctx, 5, 5, 3, 10, '#7d5a34');
-    rect(ctx, 8, 5, 1, 10, '#4d3620');
-    rect(ctx, 10, 9, 2, 2, '#e0c060');
+    painters.wall(ctx, 0, 0);
+    // The frame: dressed stone jambs and a lintel, standing a little proud of
+    // the daub, so the doorway is a hole in a wall rather than a brown patch
+    // painted on one.
+    rect(ctx, 1, 2, 14, 14, '#7d7466');
+    rect(ctx, 1, 2, 14, 1, '#9d9484');
+    rect(ctx, 1, 3, 1, 13, '#9d9484');
+    rect(ctx, 14, 3, 1, 13, '#5d564b');
+    // The reveal: the inside face of the frame, in shadow on the left.
+    rect(ctx, 3, 4, 10, 12, '#241a10');
+    // The door itself, set back into it.
+    rect(ctx, 4, 5, 8, 11, '#6b4a2a');
+    rect(ctx, 4, 5, 4, 11, '#7d5a34');
+    rect(ctx, 4, 5, 8, 1, '#8a6740');
+    rect(ctx, 8, 5, 1, 11, '#4d3620');
+    rect(ctx, 11, 5, 1, 11, '#3d2a18');
+    // Iron bands and a ring handle.
+    rect(ctx, 4, 8, 8, 1, '#4a4038');
+    rect(ctx, 4, 13, 8, 1, '#4a4038');
+    rect(ctx, 10, 10, 2, 2, '#e0c060');
+    // A worn step, so the door meets the ground instead of stopping at it.
+    rect(ctx, 2, 15, 12, 1, '#8d8474');
+    eaveShadow(ctx, 0);
   },
 
   window(ctx) {
-    painters.wall(ctx);
-    rect(ctx, 3, 4, 10, 8, '#2c3446');
-    rect(ctx, 4, 5, 8, 6, '#79b6d8');
-    rect(ctx, 4, 5, 3, 3, '#a9dcf0');
-    rect(ctx, 7, 4, 1, 8, '#2c3446');
-    rect(ctx, 3, 7, 10, 1, '#2c3446');
+    painters.wall(ctx, 0, 0);
+    // Lintel above, sill below, and the glass set back behind both.
+    rect(ctx, 2, 4, 12, 1, '#8d8474');
+    rect(ctx, 3, 5, 10, 8, '#2c3446');
+    rect(ctx, 4, 6, 8, 6, '#5f8fae');
+    // Light comes from up and to the left, so that corner of the pane is sky
+    // and the rest of it is the dark of a room.
+    rect(ctx, 4, 6, 4, 3, '#8fbcd6');
+    rect(ctx, 4, 6, 2, 2, '#b3d8ea');
+    rect(ctx, 7, 5, 1, 8, '#2c3446');
+    rect(ctx, 3, 8, 10, 1, '#2c3446');
+    rect(ctx, 2, 13, 12, 2, '#9d9484');
+    rect(ctx, 2, 14, 12, 1, '#6a6255');
+    shade(ctx, 3, 15, 10, 1, 0.3);
+    eaveShadow(ctx, 0);
   },
 
   sign(ctx, _frame, _mask, ground = painters.grass) {

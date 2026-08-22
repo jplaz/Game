@@ -16,10 +16,13 @@
 // ------------------------------------------------------------------ grass --
 
 const GRASS_KEY = {
-  g: '#5f9c42',  // the field
-  l: '#74b455',  // catching the light
-  d: '#4a7c34',  // a tuft in shade
-  D: '#3d6629',  // the deepest crease
+  // A field is the quietest thing on the screen, not the loudest. These four
+  // are deliberately close together: the speckle pattern is still there, it
+  // simply stops competing with the people standing on it.
+  g: '#6b9450',  // the field
+  l: '#749c58',  // catching the light
+  d: '#628a49',  // a tuft in shade
+  D: '#587f42',  // the deepest crease
 };
 
 const GRASS = [
@@ -100,10 +103,10 @@ const GRASS = [
 // ------------------------------------------------------------------- snow --
 
 const SNOW_KEY = {
-  s: '#d4e0ee',  // settled snow
-  h: '#e8f0fa',  // the sun on it
-  d: '#bccadd',  // a dip
-  D: '#a6b6cc',  // a footprint's shadow
+  s: '#dae3ef',  // settled snow
+  h: '#e4ebf5',  // the sun on it
+  d: '#cfd9e8',  // a dip
+  D: '#c3cede',  // a footprint's shadow
 };
 
 const SNOW = [
@@ -166,10 +169,10 @@ const SNOW = [
 // ------------------------------------------------------------------- dirt --
 
 const DIRT_KEY = {
-  e: '#a8895e',  // packed earth
-  l: '#bd9f74',  // a dry patch
-  d: '#8d7049',  // a rut
-  D: '#6f573a',  // a stone pressed in
+  e: '#a08359',  // packed earth
+  l: '#ab8f65',  // a dry patch
+  d: '#95784f',  // a rut
+  D: '#876c45',  // a stone pressed in
 };
 
 const DIRT = [
@@ -214,10 +217,10 @@ const DIRT = [
 // ------------------------------------------------------------------- sand --
 
 const SAND_KEY = {
-  n: '#dcc48c',
-  l: '#eedaa4',
-  d: '#c2a870',
-  D: '#a68d58',
+  n: '#d8c28d',
+  l: '#e2cd9a',
+  d: '#cbb680',
+  D: '#bda873',
 };
 
 const SAND = [
@@ -262,10 +265,12 @@ const SAND = [
 // ------------------------------------------------------------ cobblestone --
 
 const COBBLE_KEY = {
-  m: '#5b5346',  // mortar between the stones
+  // A road keeps a little more contrast than a field, because the stones have
+  // to read as stones, but the mortar comes up out of near-black.
+  m: '#7d7461',  // mortar between the stones
   s: '#9d937c',
-  h: '#b6ab92',  // the lit top of a stone
-  d: '#82795f',  // the shaded foot of one
+  h: '#aca287',  // the lit top of a stone
+  d: '#8c8369',  // the shaded foot of one
 };
 
 // Stones of uneven size with mortar between them, drawn so the pattern runs on
@@ -312,10 +317,10 @@ const COBBLE = [
 // --------------------------------------------------------- keep flagstone --
 
 const FLAG_KEY = {
-  m: '#4a4740',
+  m: '#6e6b64',
   s: '#8d8a80',
-  h: '#a3a096',
-  d: '#74716a',
+  h: '#9a978d',
+  d: '#7f7c74',
 };
 
 const FLAGSTONE = [
@@ -468,10 +473,10 @@ export const SNOW_GRASS_KEY = {
 export const TREE_KEY = {
   '.': null,
   k: '#183a22',  // keyline, so the tree sits on the ground
-  d: '#255c33',  // shaded underside of the crown
-  m: '#317a41',  // the mass of the leaves
-  l: '#46a04f',  // lit side, up and to the left
-  h: '#62c268',  // the highlight itself
+  d: '#265734',  // shaded underside of the crown
+  m: '#337040',  // the mass of the leaves
+  l: '#42874c',  // lit side, up and to the left
+  h: '#529b59',  // the highlight itself
   t: '#4a3520',  // trunk in shadow
   T: '#6b4d2c',  // trunk in light
 };
@@ -587,8 +592,11 @@ export const CLAY_KEY = {           // the Westerlands and Dorne: sun-baked
   k: '#5a3a17', d: '#9a6a2c', m: '#b98a3d', l: '#d2a552', h: '#e8c274',
 };
 export const THATCH_KEY = {         // the Riverlands and the Reach: straw
+  // The keyline stays dark, because that is the roof's outline. The four
+  // shades of straw inside it do not: combed thatch is a mass, and drawn with
+  // a wide spread it came out as static rather than as a roof.
   '.': null,
-  k: '#3f2f13', d: '#6f5622', m: '#8c6d2c', l: '#a98639', h: '#c4a052',
+  k: '#4a3819', d: '#7b6029', m: '#8a6d31', l: '#997b39', h: '#a98a45',
 };
 
 // Thatch is not laid in courses; it is combed down in bundles, so it wants its
@@ -765,12 +773,14 @@ export const FLOWERS = [
 // get a lit rim on the open side and trunks where the mass ends.
 
 export const FOREST_KEY = {
+  // The keyline stays black - that is what makes a canopy sit on the ground -
+  // but the lit face comes down off the highlighter green it was.
   '.': null,
   k: '#16351f',  // the crease between crowns, and the keyline
-  d: '#24512f',  // a crown's shaded underside
-  m: '#35723e',  // the mass of the leaves
-  l: '#4a9450',  // the lit side, up and to the left
-  h: '#62b463',  // the highlight itself
+  d: '#27512f',  // a crown's shaded underside
+  m: '#356a3d',  // the mass of the leaves
+  l: '#438048',  // the lit side, up and to the left
+  h: '#529254',  // the highlight itself
   t: '#33230f',  // trunk in shadow
   T: '#553c1e',  // trunk in light
 };
@@ -925,11 +935,14 @@ export const WEIRWOOD = [
 // ------------------------------------------------------------------ water --
 
 export const WATER_KEY = {
+  // Water was the loudest thing in the Riverlands, a flat sheet of saturated
+  // blue that pulled the eye off everything standing beside it. Pulled toward
+  // slate and narrowed, so a river reads as depth rather than as paint.
   '.': null,
-  D: '#26509c',  // the deep
-  m: '#3868c0',  // open water
-  l: '#4a7cd4',  // a swell catching light
-  h: '#7dabe8',  // a glint on the surface
+  D: '#3a5f8e',  // the deep
+  m: '#4a739f',  // open water
+  l: '#5883ae',  // a swell catching light
+  h: '#7ba3c6',  // a glint on the surface
 };
 
 // Two drawings the map alternates between, so the surface moves. The ripples

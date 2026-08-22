@@ -123,6 +123,37 @@ no Free Cities. There is no ending: the road stops at the Bloody Gate and nothin
 declares you finished. The browser game is still where the whole of it is; this is
 the part that fits on a cartridge.
 
+## How it is drawn
+
+Every ground palette is deliberately narrow. A field, a snowfield, a road and a
+river are the quietest things on the screen, not the loudest: the speckle and
+grain are all still there, drawn in shades close enough together that they stop
+competing with the people standing on them. Water came down off a flat saturated
+blue toward slate, and the tree canopies came down off highlighter green, for the
+same reason.
+
+Light comes from up and to the left, on everything, always. A garment's palette
+gives two colours; the painter derives a lit edge and a deep crease from them, so
+every one of the forty-odd people gets four tones down the body without anybody
+choosing eight colours by hand for each. The head throws a shadow across the top
+of the chest, the shoulders have their corners knocked off, and a leg is shaded
+down one side so it reads as a cylinder. A four-bit object palette holds fifteen
+colours and a hole, so those derived tones are spent deliberately - the shaded
+side of a leg borrows the boot colour rather than inventing a new one.
+
+Roofs overhang, and the overhang throws a shadow down the wall beneath it. That
+one thing does more than anything else to stop a house reading as a rectangle of
+roof stuck on a rectangle of wall. Doors sit in dressed stone frames with a worn
+step; windows have a lintel and a sill.
+
+`node tools/closeup.mjs out.png 10 grass ".yyyyyy." ".YYYYYY." ".HwHDHw."` renders
+one patch of map very large, and `"cast:hero,guard,goodwife"` renders people in
+all four facings, so a change to a painter is looked at rather than guessed at
+from a screenshot of the whole screen. Two of the worst things in the art were
+found that way: a near-white collar that ran the full length of the torso, which
+on a floor-length gown was a white stripe from the throat to the hem, and a helm
+drawn as a flat white bar across the whole head.
+
 ## How it is built
 
 There is no devkitARM in this environment and no package mirror to fetch one

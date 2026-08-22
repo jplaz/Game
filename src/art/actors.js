@@ -19,19 +19,42 @@ function rect(ctx, x, y, w, h, color) {
   ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
 }
 
+/**
+ * The light in this world comes from up and to the left, on every sprite,
+ * always. A palette gives a garment two tones, which is enough to colour it and
+ * not enough to give it a body; these derive the other two, so every character
+ * gets a lit edge, a mid, a shaded side and a dark crease without anybody
+ * having to pick eight colours by hand for forty people.
+ */
+function toneShift(hex, amount) {
+  const n = parseInt(hex.slice(1), 16);
+  const mix = (c) => {
+    const v = amount > 0 ? c + (255 - c) * amount : c * (1 + amount);
+    return Math.max(0, Math.min(255, Math.round(v)));
+  };
+  const r = mix((n >> 16) & 255), g = mix((n >> 8) & 255), b = mix(n & 255);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
+
+const lit = (hex) => toneShift(hex, 0.13);
+const dim = (hex) => toneShift(hex, -0.22);
+const deep = (hex) => toneShift(hex, -0.4);
+
 // ----------------------------------------------------------------- builds --
 // Every measurement the painter needs. Children are shorter with a
 // proportionally larger head; heavy builds are wider in the shoulder and
 // shorter in the leg.
 const BUILDS = {
-  man:   { headY: 5, headH: 11, headW: 11, torsoY: 16, torsoH: 11, torsoW: 10,
-           legY: 25, legH: 6, legW: 3, legGap: 5, armW: 3, shoulder: 0 },
-  woman: { headY: 6, headH: 10, headW: 10, torsoY: 16, torsoH: 11, torsoW: 9,
-           legY: 25, legH: 6, legW: 3, legGap: 4, armW: 2, shoulder: -1 },
-  child: { headY: 9, headH: 10, headW: 10, torsoY: 19, torsoH: 8, torsoW: 8,
-           legY: 26, legH: 5, legW: 2, legGap: 4, armW: 2, shoulder: -1 },
-  heavy: { headY: 4, headH: 11, headW: 12, torsoY: 15, torsoH: 13, torsoW: 13,
-           legY: 27, legH: 4, legW: 4, legGap: 6, armW: 4, shoulder: 1 },
+  // Broader in the shoulder and thicker in the leg than they were. A head this
+  // size on a narrow body reads as a doll; the body has to carry it.
+  man:   { headY: 5, headH: 11, headW: 11, torsoY: 16, torsoH: 11, torsoW: 12,
+           legY: 25, legH: 6, legW: 4, legGap: 6, armW: 3, shoulder: 0 },
+  woman: { headY: 6, headH: 10, headW: 10, torsoY: 16, torsoH: 11, torsoW: 11,
+           legY: 25, legH: 6, legW: 4, legGap: 5, armW: 2, shoulder: -1 },
+  child: { headY: 9, headH: 10, headW: 10, torsoY: 19, torsoH: 8, torsoW: 9,
+           legY: 26, legH: 5, legW: 3, legGap: 5, armW: 2, shoulder: -1 },
+  heavy: { headY: 4, headH: 11, headW: 12, torsoY: 15, torsoH: 13, torsoW: 14,
+           legY: 27, legH: 4, legW: 4, legGap: 7, armW: 4, shoulder: 1 },
 };
 
 const centred = (w) => Math.round((ACTOR_W - w) / 2);
@@ -85,6 +108,10 @@ function paintLegs(ctx, m, p, outfit, step, dir) {
     const h = m.legH + leg.dy;
     rect(ctx, leg.x - 1, m.legY, m.legW + 2, h + 1, OUTLINE);
     rect(ctx, leg.x, m.legY, m.legW, h - 1, p.legs);
+    // A leg is a cylinder, not a stripe. The shaded side borrows the boot
+    // colour rather than deriving a new one: a sprite gets fifteen colours in
+    // total and there is nothing to spare for a trouser leg.
+    rect(ctx, leg.x + m.legW - 1, m.legY, 1, h - 1, p.boots);
     rect(ctx, leg.x, m.legY + h - 1, m.legW, 2, p.boots);
   }
 }
@@ -99,17 +126,34 @@ function paintTorso(ctx, m, p, outfit, dir) {
   rect(ctx, x - 1, top, w + 2, bottom - top, OUTLINE);
   rect(ctx, x, top, w, bottom - top - 1, p.cloakDark);
   rect(ctx, x, top, w, Math.max(2, (bottom - top) * 0.7), p.cloak);
-  // Lit down the left, shadowed down the right.
-  rect(ctx, x, top + 1, 1, bottom - top - 2, p.trim);
-  rect(ctx, x + w - 1, top + 1, 1, bottom - top - 2, p.cloakDark);
 
-  // A gown or robe widens toward the floor.
+  // Shoulders are not square. Knocking the top two corners off is most of what
+  // turns a coloured rectangle into somebody standing there.
+  rect(ctx, x, top, 1, 1, OUTLINE);
+  rect(ctx, x + w - 1, top, 1, 1, OUTLINE);
+
+  // Four tones down the body, lit from up and to the left. One column each:
+  // a lit edge, the garment's own colour across the middle, its shaded side,
+  // and a crease down the far edge where the light does not reach.
+  rect(ctx, x, top + 1, 1, bottom - top - 2, lit(p.cloak));
+  rect(ctx, x + w - 2, top + 2, 1, bottom - top - 3, p.cloakDark);
+  rect(ctx, x + w - 1, top + 1, 1, bottom - top - 2, deep(p.cloak));
+
+  // The head throws a shadow across the top of the chest, which is what stops
+  // a head reading as a ball resting on a box. One row, and not a black one.
+  rect(ctx, x + 1, top, w - 2, 1, p.cloakDark);
+
+  // A gown or robe widens toward the floor - but never past the edge of the
+  // sprite, or the hem runs off into the next tile as a solid band.
   if (outfit.skirt) {
+    const room = Math.max(0, Math.floor((ACTOR_W - 2 - w) / 2));
     for (let i = 1; i <= outfit.skirt; i++) {
-      const flare = Math.round((i / outfit.skirt) * (outfit.skirt + 1));
+      const flare = Math.min(room, Math.round((i / outfit.skirt) * (outfit.skirt + 1)));
       const y = bottom - outfit.skirt + i - 1;
       rect(ctx, x - flare - 1, y, w + flare * 2 + 2, 1, OUTLINE);
       rect(ctx, x - flare, y, w + flare * 2, 1, p.cloak);
+      rect(ctx, x - flare, y, 1, 1, lit(p.cloak));
+      rect(ctx, x + w + flare - 1, y, 1, 1, deep(p.cloak));
     }
   }
 
@@ -147,10 +191,12 @@ function paintTorso(ctx, m, p, outfit, dir) {
     rect(ctx, x + w, top + 1, 2, bottom - top - 3, p.cloakDark);
   }
 
-  // Collar / front seam, so facing reads at a glance.
+  // A collar, so facing reads at a glance. It used to run the whole length of
+  // the torso, which on a floor-length gown is a white stripe from the throat
+  // to the hem - the single worst thing about how these people looked.
   if (dir === 'down') {
     rect(ctx, centred(4), top, 4, 2, p.trim);
-    rect(ctx, centred(2), top + 2, 2, bottom - top - 5, p.trim);
+    rect(ctx, centred(2), top + 2, 2, Math.min(4, bottom - top - 5), p.trim);
   } else if (dir === 'up') {
     rect(ctx, centred(2), top, 2, bottom - top - 2, p.cloakDark);
   } else {
@@ -211,12 +257,22 @@ function paintHead(ctx, m, p, hair, dir) {
     return;
   }
   if (hair.helm) {
-    rect(ctx, x - 1, y, w + 2, h - 4, p.trim);
-    rect(ctx, x, y + 1, w, 3, '#ffffff');
+    // A helm is a dome of steel, not a white bar. Lit across the crown, its own
+    // colour down the middle, shadowed under the brow, with the corners knocked
+    // off the top so it reads as round.
+    const steel = p.trim;
+    rect(ctx, x - 1, y + 1, w + 2, h - 5, deep(steel));
+    rect(ctx, x, y + 1, w, h - 5, steel);
+    rect(ctx, x, y, w, 1, deep(steel));
+    rect(ctx, x + 1, y, w - 2, 1, steel);
+    rect(ctx, x + 1, y + 1, w - 3, 2, lit(steel));
+    rect(ctx, x + w - 1, y + 2, 1, h - 7, deep(steel));
+    // The brow band, and the shadow it throws over the face beneath.
     rect(ctx, x - 1, y + h - 5, w + 2, 2, p.cloakDark);
     if (dir !== 'up') {
-      rect(ctx, x + 2, y + 6, w - 4, 3, '#12121a');   // visor slit
-      rect(ctx, centred(2), y + 4, 2, h - 8, p.trim); // nasal bar
+      rect(ctx, x + 2, y + 6, w - 4, 3, OUTLINE);        // visor slit
+      rect(ctx, centred(2), y + 4, 2, h - 8, steel);     // nasal bar
+      rect(ctx, centred(2), y + 4, 1, h - 8, lit(steel));
     }
     return;
   }

@@ -382,7 +382,7 @@ void hostFrame(void) {
       else if (!windowOpen && !hero.walk) {
         if (worldId == 7) catchOnce(23, "23-castle-black");
         else if (worldId == 11) catchOnce(24, "24-moat-cailin");
-        else if (worldId == 14) catchOnce(25, "25-riverrun");
+        else if (worldId == 15) catchOnce(25, "25-riverrun");
       }
     }
   }

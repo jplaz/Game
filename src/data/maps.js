@@ -55,9 +55,13 @@ function maesterHall({ exitTo, exitX, exitY, stock, healerLine, merchantLine, ex
  * Exits: north (11,0) south (11,19)
  */
 function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = '.',
+                    roof = 'R', ridge = 'r', house = 'H',
                     encounters = [], warps = [], npcs = [], signs = [], items = [] }) {
   const W = wall;
   const g = floor;
+  const R = roof;      // the body of a roof, in whatever this region roofs with
+  const t = ridge;     // its capping course
+  const H = house;     // and what the walls under it are built of
   const row = (...parts) => parts.join('');
   const fill = (n) => g.repeat(n);
 
@@ -65,18 +69,18 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
     W.repeat(11) + '-' + W.repeat(12),
     row(W, fill(10), '-', fill(11), W),
     row(W, fill(10), '-', fill(11), W),
-    row(W, fill(2), 'rrrrrr', fill(2), '-', fill(2), 'rrrrrr', fill(3), W),
-    row(W, fill(2), 'RRRRRR', fill(2), '-', fill(2), 'RRRRRR', fill(3), W),
-    row(W, fill(2), 'RRRRRR', fill(2), '-', fill(2), 'RRRRRR', fill(3), W),
-    row(W, fill(2), 'HwHDHw', fill(2), '-', fill(2), 'HwHDHw', fill(3), W),
+    row(W, fill(2), t.repeat(6), fill(2), '-', fill(2), t.repeat(6), fill(3), W),
+    row(W, fill(2), R.repeat(6), fill(2), '-', fill(2), R.repeat(6), fill(3), W),
+    row(W, fill(2), R.repeat(6), fill(2), '-', fill(2), R.repeat(6), fill(3), W),
+    row(W, fill(2), H, 'w', H, 'D', H, 'w', fill(2), '-', fill(2), H, 'w', H, 'D', H, 'w', fill(3), W),
     row(W, fill(5), '-', fill(4), '-', fill(5), '-', fill(5), W),
     row(W, fill(2), '-'.repeat(18), fill(2), W),
     row(W, fill(10), '-', fill(11), W),
     row(W, fill(8), '!', g, '-', fill(11), W),
-    row(W, fill(2), 'rrrrrrrr', '-', fill(11), W),
-    row(W, fill(2), 'RRRRRRRR', '-', fill(11), W),
-    row(W, fill(2), 'RRRRRRRR', '-', fill(11), W),
-    row(W, fill(2), 'HwHwDHwH', '-', fill(11), W),
+    row(W, fill(2), t.repeat(8), '-', fill(11), W),
+    row(W, fill(2), R.repeat(8), '-', fill(11), W),
+    row(W, fill(2), R.repeat(8), '-', fill(11), W),
+    row(W, fill(2), H, 'w', H, 'w', 'D', H, 'w', H, '-', fill(11), W),
     row(W, fill(6), '-', fill(3), '-', fill(11), W),
     row(W, fill(2), '-'.repeat(18), fill(2), W),
     row(W, fill(10), '-', fill(11), W),
@@ -185,16 +189,16 @@ export const MAPS = {
       'MMMMMMMMMMMM-MMMMMMMMMMM',
       'MSSSSSSSSSSSSSSSSSSSSSSM',
       'MSSSSSSSSSSSSSSSSSSSSSSM',
-      'MSSSSSSSSrrrrrrSSSSSSSSM',
-      'MSSSSSSSSRRRRRRSSSSSSSSM',
-      'vSSSSSSSSRRRRRRSSSSSSSSv',
+      'MSSSSSSSSggggggSSSSSSSSM',
+      'MSSSSSSSSGGGGGGSSSSSSSSM',
+      'vSSSSSSSSGGGGGGSSSSSSSSv',
       'MSSSSSSSSHDHDHwSSSSSSSSM',
       'MSSSSSSSS!--SSSSSSSSSSSM',
       'MSS------------------SSM',
       'MSSSSSSSSSSS-SSSSSSSSSSM',
-      'MSSrrrrrrSSS-SSSrrrrSSSM',
-      'MSSRRRRRRSSS-SSSRRRRSSSM',
-      'MSSRRRRRRSSS-SSSHDHwSSSM',
+      'MSSggggggSSS-SSSggggSSSM',
+      'MSSGGGGGGSSS-SSSGGGGSSSM',
+      'MSSGGGGGGSSS-SSSHDHwSSSM',
       'vSSHwHDHwSSS-SSSSSSSSSSv',
       'MSSSSS-SSSSS-SSSSSSSSSSM',
       'MSS------------------SSM',
@@ -359,32 +363,60 @@ export const MAPS = {
     ],
   }),
 
-  castleBlack: makeTown({
-    name: 'Castle Black', ground: 'snow', wall: 'P', floor: 'S',
+  // Castle Black is not a town with snow on it. It is a huddle of black timber
+  // halls pressed against seven hundred feet of ice, with one tunnel through.
+  // Laid out by hand for that reason: the template that builds the southern
+  // towns puts a crossroads in the middle and two houses on it, and there is
+  // nothing on this earth less like the Wall than a crossroads.
+  castleBlack: {
+    name: 'Castle Black',
     music: 'wild',
+    ground: 'snow',
+    tiles: [
+      'CCCCCCCCCCC-CCCCCCCCCCCC',
+      'CCCCCCCCCCC-CCCCCCCCCCCC',
+      'CCCCCCCCCCC-CCCCCCCCCCCC',
+      'iiiiiiiiiii-iiiiiiiiiiii',
+      'PSSSSSSSSSS-SSSSSSSSSSSP',
+      'PSSzzzzSSSS-SSSSzzzzzSSP',
+      'PSSZZZZSSSS-SSSSZZZZZSSP',
+      'PSSHDHwSSSS-SSSSHwDHwSSP',
+      'PSSSSSSSSSS-SSSSSSSSSSSP',
+      'PSS------------------SSP',
+      'PSSSSSSSS!S-SSSSSSSSSSSP',
+      'PSSSSSSSSSS-SSSSSSSSSSSP',
+      'PSSzzzzzzSS-SSSSSSSSSSSP',
+      'PSSZZZZZZSS-SSSSSSSSSSSP',
+      'PSSHwDHwHSS-SSSSSSSSSSSP',
+      'PSSSSSSSSSS-SSSSSSSSSSSP',
+      'PSSSSSSSSSS-SSSSSSSSSSSP',
+      'PSS;;;;SSSS-SSSS;;;;SSSP',
+      'PSS;;;;SSSS-SSSS;;;;SSSP',
+      'PPPPPPPPPPP-PPPPPPPPPPPP',
+    ],
     warps: [
       { x: 11, y: 19, to: 'kingsroadNorth', tx: 10, ty: 1, dir: 'down' },
       { x: 11, y: 0, to: 'beyondTheWall', tx: 10, ty: 22, dir: 'up' },
-      { x: 6, y: 6, to: 'maesterHallCastleBlack', tx: 5, ty: 7, dir: 'up' },
-      { x: 17, y: 6, to: 'castleBlackArmoury', tx: 5, ty: 6, dir: 'up' },
+      { x: 4, y: 7, to: 'maesterHallCastleBlack', tx: 5, ty: 7, dir: 'up' },
+      { x: 18, y: 7, to: 'castleBlackArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
       { x: 9, y: 10, text: 'CASTLE BLACK\nSeat of the Night\u2019s Watch.\nNorth of here the maps stop.' },
     ],
     npcs: [
-      { x: 9, y: 2, dir: 'down', name: 'A Deserter', sprite: 'nightswatch',
+      { x: 12, y: 4, dir: 'down', name: 'A Deserter', sprite: 'nightswatch',
         script: 'quest', data: { quest: 'deserterAtTheGate' } },
       { x: 8, y: 9, dir: 'down', sprite: 'nightswatch', name: 'Jon Snow', script: 'duel',
         data: { duel: 'jonSnow' } },
       { x: 14, y: 10, dir: 'left', sprite: 'wildling', name: 'Tormund', script: 'duel',
         data: { duel: 'tormund' } },
       { x: 5, y: 17, dir: 'right', sprite: 'child', name: 'Steward Boy', script: 'wallHint' },
-      { x: 16, y: 17, dir: 'left', sprite: 'maester', name: 'Maester Aemon', script: 'aemon' },
+      { x: 17, y: 17, dir: 'left', sprite: 'maester', name: 'Maester Aemon', script: 'aemon' },
     ],
-  }),
+  },
 
   maesterHallCastleBlack: maesterHall({
-    exitTo: 'castleBlack', exitX: 6, exitY: 7,
+    exitTo: 'castleBlack', exitX: 4, exitY: 8,
     stock: ['warBanner', 'kingsguardBanner', 'poppyMilk', 'weirwoodSap', 'frostTonic', 'kissOfFire'],
     healerLine: 'Cold does worse to a creature than any blade. Let me look.',
     merchantLine: 'The Watch has little, and shares it.',
@@ -404,8 +436,8 @@ export const MAPS = {
       'IIIII__IIIII',
     ],
     warps: [
-      { x: 5, y: 7, to: 'castleBlack', tx: 17, ty: 7, dir: 'down' },
-      { x: 6, y: 7, to: 'castleBlack', tx: 17, ty: 7, dir: 'down' },
+      { x: 5, y: 7, to: 'castleBlack', tx: 18, ty: 8, dir: 'down' },
+      { x: 6, y: 7, to: 'castleBlack', tx: 18, ty: 8, dir: 'down' },
     ],
     npcs: [
       { x: 7, y: 1, dir: 'down', sprite: 'nightswatch', name: 'Donal Noye', script: 'smith',
@@ -506,6 +538,7 @@ export const MAPS = {
   }),
 
   theEyrie: makeTown({
+    roof: 'G', ridge: 'g',
     name: 'The Eyrie', ground: 'stone', wall: 'C', floor: 'o', music: 'town',
     warps: [
       { x: 11, y: 19, to: 'bloodyGate', tx: 10, ty: 1, dir: 'down' },
@@ -608,6 +641,7 @@ export const MAPS = {
   }),
 
   highgarden: makeTown({
+    roof: 'Y', ridge: 'y',
     name: 'Highgarden', ground: 'grass', music: 'town',
     warps: [
       { x: 11, y: 0, to: 'roseroad', tx: 10, ty: 22, dir: 'up' },
@@ -704,6 +738,7 @@ export const MAPS = {
   }),
 
   sunspear: makeTown({
+    roof: 'Q', ridge: 'q',
     name: 'Sunspear', ground: 'sand', wall: 'C', floor: 's', music: 'town',
     warps: [
       { x: 11, y: 0, to: 'princesPass', tx: 10, ty: 22, dir: 'up' },
@@ -806,6 +841,7 @@ export const MAPS = {
   }),
 
   stormsEnd: makeTown({
+    roof: 'G', ridge: 'g',
     name: "Storm's End", ground: 'grass', wall: 'C', music: 'town',
     warps: [
       { x: 11, y: 0, to: 'stormlands', tx: 10, ty: 22, dir: 'up' },
@@ -863,6 +899,7 @@ export const MAPS = {
   //  DRAGONSTONE
   // =========================================================================
   dragonstone: makeTown({
+    roof: 'Z', ridge: 'z',
     name: 'Dragonstone', ground: 'stone', wall: 'C', floor: 'o', music: 'battleBoss',
     warps: [
       { x: 11, y: 19, to: 'kingsLanding', tx: 22, ty: 21, dir: 'down' },
@@ -1009,10 +1046,10 @@ export const MAPS = {
       '#........d.........#',
       '#..UU....d....UU...#',
       '#..UU....d....UU...#',
-      '#........d.........#',
-      '#...rrrr.d.........#',
-      '#...RRRR.d....UU...#',
-      '#...HDHw.d....UU...#',
+      '#........d...gggggg#',
+      '#...gggg.d...GGGGGG#',
+      '#...GGGG.d...GGGGGG#',
+      '#...HDHw.d...HHDHwH#',
       '#....d...d.........#',
       '#....ddddddd.......#',
       '#....d.....d.......#',
@@ -1036,6 +1073,7 @@ export const MAPS = {
     warps: [
       { x: 9, y: 1, to: 'wolfswood', tx: 10, ty: 24, dir: 'up' },
       { x: 5, y: 7, to: 'maesterHallMoat', tx: 5, ty: 7, dir: 'up' },
+      { x: 15, y: 7, to: 'moatCailinForge', tx: 5, ty: 6, dir: 'up' },
       { x: 11, y: 19, to: 'riverlands', tx: 10, ty: 1, dir: 'down' },
     ],
     signs: [
@@ -1047,13 +1085,89 @@ export const MAPS = {
       { x: 13, y: 10, dir: 'down', sprite: 'guard', name: 'Bog Guard', script: 'trainer',
         data: { trainer: 'bogGuard' } },
       { x: 4, y: 15, dir: 'right', sprite: 'goodwife', name: 'Crannogwoman', script: 'moatHint' },
-      { x: 16, y: 4, dir: 'down', sprite: 'bolton', name: 'Ramsay Bolton', script: 'duel',
+      { x: 16, y: 9, dir: 'down', sprite: 'bolton', name: 'Ramsay Bolton', script: 'duel',
         data: { duel: 'ramsay' } },
-      { x: 14, y: 4, dir: 'down', sprite: 'rival', name: 'Joffrey', script: 'rivalMoat',
+      { x: 17, y: 10, dir: 'down', sprite: 'rival', name: 'Joffrey', script: 'rivalMoat',
         hideIfFlag: 'trainer_rival1' },
     ],
     items: [
       { x: 16, y: 2, item: 'poppyMilk', count: 1, flag: 'item_moat_poppy' },
+    ],
+  },
+
+  // ------------------------------------------ the smithy in the ruins ------
+  // Not the Winterfell forge with the furniture moved: a lean-to worked out of
+  // a fallen tower, anvils where the floor is still sound and the bog coming in
+  // at the north end.
+  moatCailinForge: {
+    name: 'The Bogforge',
+    indoor: true,
+    music: 'town',
+    tiles: [
+      'IIIIIIIIIIII',
+      'I%%=====%%=I',
+      'I==KKKKKK==I',
+      'I==F====F==I',
+      'I====TT====I',
+      'I=B=======UI',
+      'I=B=====UU=I',
+      'IIIII__IIIII',
+    ],
+    warps: [
+      { x: 5, y: 7, to: 'moatCailin', tx: 15, ty: 8, dir: 'down' },
+      { x: 6, y: 7, to: 'moatCailin', tx: 15, ty: 8, dir: 'down' },
+    ],
+    npcs: [
+      { x: 5, y: 1, dir: 'down', sprite: 'smallfolk', name: 'Bog Smith', script: 'smith',
+        data: {
+          line: 'Bog Smith: Crannogmen bring me iron out of the water. It has been '
+            + 'down there a long while, and it holds an edge like nothing else.',
+          stock: {
+            weapon: ['huntingKnife', 'ironSword', 'boarSpear'],
+            armour: ['gambeson', 'boiledLeather', 'ringmail'],
+            shield: ['buckler', 'oakShield'],
+          },
+        } },
+      { x: 3, y: 5, dir: 'right', sprite: 'smallfolk', name: 'Crannogman', script: 'bellowsHand',
+        data: { line: 'He does not look up from the bellows. "Mind the floor by the '
+          + 'north wall. It is not floor any more."' } },
+    ],
+  },
+
+  // ------------------------------------------ the smithy at Riverrun -------
+  // A river smithy: long, open to the water at one end, with the quenching
+  // trough running the length of it.
+  riverrunForge: {
+    name: 'The Tully Armoury',
+    indoor: true,
+    music: 'town',
+    tiles: [
+      'IIIIIIIIIIII',
+      'I=F=TTTT=F=I',
+      'I==========I',
+      'I=KKKKKKKK=I',
+      'I==========I',
+      'IB=======B=I',
+      'IB=======B=I',
+      'IIIII__IIIII',
+    ],
+    warps: [
+      { x: 5, y: 7, to: 'riverrun', tx: 18, ty: 14, dir: 'down' },
+      { x: 6, y: 7, to: 'riverrun', tx: 18, ty: 14, dir: 'down' },
+    ],
+    npcs: [
+      { x: 3, y: 2, dir: 'down', sprite: 'merchant', name: 'Armourer Ryn', script: 'smith',
+        data: {
+          line: 'Ryn: River steel, and mail a man can swim in if he has to. '
+            + 'Half of Riverrun has had to.',
+          stock: {
+            weapon: ['ironSword', 'woodAxe', 'huntingBow', 'castleForged'],
+            armour: ['boiledLeather', 'ringmail', 'scaleArmour'],
+            shield: ['oakShield', 'towerShield'],
+          },
+        } },
+      { x: 8, y: 5, dir: 'left', sprite: 'tully', name: 'Hedge Knight', script: 'duel',
+        data: { duel: 'hedgeKnight' } },
     ],
   },
 
@@ -1139,19 +1253,19 @@ export const MAPS = {
       '~~~~~~~~~~~~-~~~~~~~~~~~',
       '~..........s-s.........~',
       '~..........--.........~~',
-      '~..rrrrrr..-..rrrr....~~',
-      '~..RRRRRR..-..RRRR....~~',
-      '~..RRRRRR..-..HDHw....~~',
+      '~..yyyyyy..-..yyyy....~~',
+      '~..YYYYYY..-..YYYY....~~',
+      '~..YYYYYY..-..HDHw....~~',
       '~..HwHDHw..-..........~~',
       '~.....-....-..........~~',
       '~.....------------....~~',
       '~..........-......!...~~',
-      '~..*.......-..........~~',
-      '~..........-..........~~',
-      '~...rrrrrrrrrrr.......~~',
-      '~...RRRRRRRRRRR.......~~',
-      '~...RRRRRRRRRRR.......~~',
-      '~...RRRRRRRRRRR.......~~',
+      '~..*.......-....yyyyyy~~',
+      '~..........-....YYYYYY~~',
+      '~...yyyyyyyyyyy.YYYYYY~~',
+      '~...YYYYYYYYYYY.HHDHwH~~',
+      '~...YYYYYYYYYYY.......~~',
+      '~...YYYYYYYYYYY.......~~',
       '~...HwHwHwDHwHw.......~~',
       '~..........-..........~~',
       '~..........-.......,,.~~',
@@ -1167,6 +1281,7 @@ export const MAPS = {
     warps: [
       { x: 12, y: 0, to: 'riverlands', tx: 10, ty: 23, dir: 'up' },
       { x: 6, y: 6, to: 'maesterHallRiverrun', tx: 5, ty: 7, dir: 'up' },
+      { x: 18, y: 13, to: 'riverrunForge', tx: 5, ty: 6, dir: 'up' },
       { x: 15, y: 5, to: 'riverrunInn', tx: 5, ty: 6, dir: 'up' },
       { x: 10, y: 16, to: 'riverrunKeep', tx: 8, ty: 14, dir: 'up' },
       { x: 11, y: 19, to: 'goldRoad', tx: 10, ty: 1, dir: 'down' },
@@ -1178,7 +1293,7 @@ export const MAPS = {
       { x: 12, y: 6, dir: 'down', name: 'Smallfolk Woman', sprite: 'goodwife',
         script: 'quest', data: { quest: 'hangingTree' } },
       { x: 8, y: 10, dir: 'down', sprite: 'child', name: 'Squire', script: 'riverrunSquire' },
-      { x: 17, y: 13, dir: 'left', sprite: 'oldman', name: 'Boatwright', script: 'riverrunHint' },
+      { x: 17, y: 15, dir: 'left', sprite: 'oldman', name: 'Boatwright', script: 'riverrunHint' },
       { x: 4, y: 17, dir: 'right', sprite: 'goodwife', name: 'Fishwife', script: 'riverrunFishwife' },
     ],
   },
@@ -1584,6 +1699,7 @@ export const MAPS = {
   // Westerosi house you swore to, which is most of the point of going.
 
   braavos: makeTown({
+    roof: 'G', ridge: 'g',
     // Canals rather than walls, which is the one thing everybody knows
     // about Braavos and makes it read as somewhere else at a glance.
     name: 'Braavos', music: 'town', ground: 'stone', wall: '~', floor: 'o',
@@ -1635,6 +1751,7 @@ export const MAPS = {
   },
 
   pentos: makeTown({
+    roof: 'Q', ridge: 'q',
     name: 'Pentos', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
       { x: 7, y: 9, dir: 'down', name: 'Illyrio Mopatis', sprite: 'merchant',
@@ -1655,6 +1772,7 @@ export const MAPS = {
   }),
 
   volantis: makeTown({
+    roof: 'Q', ridge: 'q',
     name: 'Volantis', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
       { x: 7, y: 9, dir: 'down', name: 'Red Priestess', sprite: 'redPriest',
@@ -1676,6 +1794,7 @@ export const MAPS = {
   }),
 
   meereen: makeTown({
+    roof: 'Q', ridge: 'q',
     name: 'Meereen', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
       { x: 11, y: 6, dir: 'down', name: 'Daenerys Targaryen', sprite: 'targaryen',
@@ -1903,10 +2022,10 @@ export const REGIONS = {
   castleBlack: 'The Wall', castleBlackArmoury: 'The Wall',
   maesterHallCastleBlack: 'The Wall',
   beyondTheWall: 'Beyond the Wall',
-  moatCailin: 'The Neck', maesterHallMoat: 'The Neck',
+  moatCailin: 'The Neck', maesterHallMoat: 'The Neck', moatCailinForge: 'The Neck',
   riverlands: 'The Riverlands', riverrun: 'The Riverlands',
   riverrunInn: 'The Riverlands', riverrunKeep: 'The Riverlands',
-  maesterHallRiverrun: 'The Riverlands',
+  maesterHallRiverrun: 'The Riverlands', riverrunForge: 'The Riverlands',
   bloodyGate: 'The Vale', theEyrie: 'The Vale', eyrieArmoury: 'The Vale',
   maesterHallEyrie: 'The Vale',
   goldRoad: 'The Westerlands', barrowCave: 'The Westerlands',

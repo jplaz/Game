@@ -13,10 +13,26 @@ none of the three happens on its own. If an emulator's save file ever leaves you
 starting in Winterfell without being asked, holding SELECT while it switches on
 ignores the record entirely.
 
-**Nineteen maps of the North**, joined by their real doors: Winterfell and its
+**Twenty-one maps of the North**, joined by their real doors: Winterfell and its
 keep, forge, maester's hall and your own chamber; the Wolfswood; the Kingsroad;
-Castle Black, its armoury and the land beyond the Wall; Moat Cailin; the
-Riverlands; Riverrun, its inn and its keep; the Bloody Gate.
+Castle Black, its armoury and the land beyond the Wall; Moat Cailin and the
+Bogforge; the Riverlands; Riverrun, the Tully Armoury, its inn and its keep;
+the Bloody Gate.
+
+**Every settlement is built of what its region builds with, and no two are laid
+out alike.** Winterfell is grey northern slate on snow behind battlements.
+Riverrun is thatch and green water. Moat Cailin is a ruin in a bog, slate over
+what is left of its towers. Castle Black is black tarred timber pressed against
+seven hundred feet of ice with one tunnel through it - hand-laid for that reason,
+since the template that builds the southern towns puts a crossroads in the middle
+and there is nothing less like the Wall than a crossroads. Four roof materials,
+one geometry apiece for slate, tarred timber and clay, and a combed-down bundle
+texture of its own for thatch.
+
+**Somewhere to buy a sword in every town.** The Winterfell Forge, the Watch
+Armoury, the Bogforge in the ruins of Moat Cailin and the Tully Armoury by the
+water at Riverrun - the last two written for this, because until now half the
+map had nowhere at all to buy a weapon.
 
 **A crowd that is doing something.** People wander within a few tiles of where
 they belong, keep clear of doorways, and turn to face you when you speak. What

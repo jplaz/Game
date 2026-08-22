@@ -571,6 +571,85 @@ export const ROOF_EAVE = [
   'kkkkkkkkkkkkkkkk',
 ];
 
+// The same courses of tile in the materials the rest of Westeros roofs with.
+// One geometry, four palettes: a town reads as its region from the far side of
+// the screen, which is the whole job a roof has to do here.
+export const SLATE_KEY = {          // the North and the Vale: split grey stone
+  '.': null,
+  k: '#20262e', d: '#3d4753', m: '#4e5a68', l: '#5f6d7d', h: '#7b8a9a',
+};
+export const PITCH_KEY = {          // the Wall: tarred timber, almost black
+  '.': null,
+  k: '#100e0e', d: '#241f1c', m: '#332b26', l: '#413630', h: '#54463d',
+};
+export const CLAY_KEY = {           // the Westerlands and Dorne: sun-baked
+  '.': null,
+  k: '#5a3a17', d: '#9a6a2c', m: '#b98a3d', l: '#d2a552', h: '#e8c274',
+};
+export const THATCH_KEY = {         // the Riverlands and the Reach: straw
+  '.': null,
+  k: '#3f2f13', d: '#6f5622', m: '#8c6d2c', l: '#a98639', h: '#c4a052',
+};
+
+// Thatch is not laid in courses; it is combed down in bundles, so it wants its
+// own texture rather than the tile grid with a different colour on it.
+export const THATCH = [
+  'lmlhmlmhlmlhmlml',
+  'lmlhmlmhlmlhmlml',
+  'mdmlhmlmhmdmlhmd',
+  'mdmlhmlmhmdmlhmd',
+  'dmdklmdlkdmdklmd',
+  'dmdklmdlkdmdklmd',
+  'lmlhmlmhlmlhmlml',
+  'lmlhmlmhlmlhmlml',
+  'mdmlhmlmhmdmlhmd',
+  'mdmlhmlmhmdmlhmd',
+  'dmdklmdlkdmdklmd',
+  'dmdklmdlkdmdklmd',
+  'lmlhmlmhlmlhmlml',
+  'lmlhmlmhlmlhmlml',
+  'mdmlhmlmhmdmlhmd',
+  'mdmlhmlmhmdmlhmd',
+];
+
+export const THATCH_RIDGE = [
+  'kkkkkkkkkkkkkkkk',
+  'hhhhhhhhhhhhhhhh',
+  'hlhhlhhlhhlhhlhh',
+  'llhllhllhllhllhl',
+  'lmlhmlmhlmlhmlml',
+  'lmlhmlmhlmlhmlml',
+  'mdmlhmlmhmdmlhmd',
+  'mdmlhmlmhmdmlhmd',
+  'dmdklmdlkdmdklmd',
+  'dmdklmdlkdmdklmd',
+  'lmlhmlmhlmlhmlml',
+  'lmlhmlmhlmlhmlml',
+  'mdmlhmlmhmdmlhmd',
+  'mdmlhmlmhmdmlhmd',
+  'dmdklmdlkdmdklmd',
+  'dmdklmdlkdmdklmd',
+];
+
+export const THATCH_EAVE = [
+  'lmlhmlmhlmlhmlml',
+  'mdmlhmlmhmdmlhmd',
+  'dmdklmdlkdmdklmd',
+  'lmlhmlmhlmlhmlml',
+  'mdmlhmlmhmdmlhmd',
+  'dmdklmdlkdmdklmd',
+  'lmlhmlmhlmlhmlml',
+  'mdmlhmlmhmdmlhmd',
+  'dmdklmdlkdmdklmd',
+  'lmlhmlmhlmlhmlml',
+  'mdmlhmlmhmdmlhmd',
+  'dmdmdmdmdmdmdmdm',
+  'dddddddddddddddd',
+  'kdkdkdkdkdkdkdkd',
+  'kkkkkkkkkkkkkkkk',
+  'kkkkkkkkkkkkkkkk',
+];
+
 // ------------------------------------------------------------------ cliff --
 
 export const CLIFF_KEY = {

@@ -10,6 +10,8 @@ import {
   FOREST_KEY, FOREST_MASS, FOREST_CROWN, FOREST_FOOT,
   PINE_KEY, LONE_PINE, PINE_MASS, PINE_CROWN, PINE_FOOT,
   ROOF, ROOF_RIDGE, ROOF_EAVE, ROOF_KEY,
+  SLATE_KEY, PITCH_KEY, CLAY_KEY, THATCH_KEY,
+  THATCH, THATCH_RIDGE, THATCH_EAVE,
   WEIRWOOD, WEIRWOOD_KEY,
   CLIFF, CLIFF_TOP, CLIFF_KEY, WATER, WATER_KEY,
 } from './tilesets.js';
@@ -343,28 +345,20 @@ const painters = {
     painters.banner(ctx, 0, mask, null, '#4a5364', '#dfe4ee', '#333a47');
   },
 
-  roof(ctx, _frame, mask) {
-    // A course of tiles, capped where the roof ends and overhanging where it
-    // meets the wall below.
-    if (!(mask & N)) paintArt(ctx, ROOF_RIDGE, ROOF_KEY);
-    else if (!(mask & S)) paintArt(ctx, ROOF_EAVE, ROOF_KEY);
-    else paintArt(ctx, ROOF, ROOF_KEY);
-    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, ROOF_KEY.k);
-    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, ROOF_KEY.k);
-  },
+  roof(ctx, _frame, mask) { roofBody(ctx, mask, ROOF, ROOF_RIDGE, ROOF_EAVE, ROOF_KEY); },
+  roofNorth(ctx, _frame, mask) { roofCap(ctx, mask, painters.roof, ROOF_KEY); },
 
-  // The ridge tile that caps a roof.
-  roofNorth(ctx, _frame, mask) {
-    painters.roof(ctx, 0, mask | S);
-    // The ridge cap along the top of the roof.
-    rect(ctx, 0, 0, TILE, 5, '#411614');
-    rect(ctx, 0, 1, TILE, 3, '#b8544a');
-    rect(ctx, 0, 1, TILE, 1, '#d4796b');
-    rect(ctx, 0, 4, TILE, 1, '#6d2724');
-    for (let x = 2; x < TILE; x += 4) rect(ctx, x, 1, 1, 3, '#8b3630');
-    if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, '#411614');
-    if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, '#411614');
-  },
+  // The same house in the materials the rest of Westeros builds with. A town's
+  // roofs are the largest block of colour on the screen, so this is most of
+  // what makes the Wall not look like the Reach.
+  roofSlate(ctx, _frame, mask) { roofBody(ctx, mask, ROOF, ROOF_RIDGE, ROOF_EAVE, SLATE_KEY); },
+  roofSlateCap(ctx, _frame, mask) { roofCap(ctx, mask, painters.roofSlate, SLATE_KEY); },
+  roofPitch(ctx, _frame, mask) { roofBody(ctx, mask, ROOF, ROOF_RIDGE, ROOF_EAVE, PITCH_KEY); },
+  roofPitchCap(ctx, _frame, mask) { roofCap(ctx, mask, painters.roofPitch, PITCH_KEY); },
+  roofClay(ctx, _frame, mask) { roofBody(ctx, mask, ROOF, ROOF_RIDGE, ROOF_EAVE, CLAY_KEY); },
+  roofClayCap(ctx, _frame, mask) { roofCap(ctx, mask, painters.roofClay, CLAY_KEY); },
+  roofThatch(ctx, _frame, mask) { roofBody(ctx, mask, THATCH, THATCH_RIDGE, THATCH_EAVE, THATCH_KEY); },
+  roofThatchCap(ctx, _frame, mask) { roofCap(ctx, mask, painters.roofThatch, THATCH_KEY); },
 
   door(ctx) {
     painters.wall(ctx);
@@ -562,6 +556,28 @@ const painters = {
  *   'ledge'      one-way hop to the south
  *   'water'      blocks movement (no surfing in this game)
  */
+/* One roof, any material. The geometry says where the courses and the eave go;
+   the key says what it is made of. */
+function roofBody(ctx, mask, body, ridge, eave, key) {
+  if (!(mask & N)) paintArt(ctx, ridge, key);
+  else if (!(mask & S)) paintArt(ctx, eave, key);
+  else paintArt(ctx, body, key);
+  if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, key.k);
+  if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, key.k);
+}
+
+/* The capping course along the very top of a roof, in the roof's own colours. */
+function roofCap(ctx, mask, body, key) {
+  body(ctx, 0, mask | S);
+  rect(ctx, 0, 0, TILE, 5, key.k);
+  rect(ctx, 0, 1, TILE, 3, key.l);
+  rect(ctx, 0, 1, TILE, 1, key.h);
+  rect(ctx, 0, 4, TILE, 1, key.d);
+  for (let x = 2; x < TILE; x += 4) rect(ctx, x, 1, 1, 3, key.m);
+  if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, key.k);
+  if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, key.k);
+}
+
 export const TILE_DEFS = {
   '.': { paint: painters.grass, kind: 'floor', varies: true, autotile: true },
   ',': { paint: painters.tallGrass, kind: 'encounter', frames: 2, rate: 0.55, varies: true },
@@ -584,6 +600,14 @@ export const TILE_DEFS = {
   'v': { paint: painters.bannerGrey, kind: 'solid' },
   'R': { paint: painters.roof, kind: 'solid', autotile: true },
   'r': { paint: painters.roofNorth, kind: 'solid', autotile: true },
+  'G': { paint: painters.roofSlate, kind: 'solid', autotile: true },
+  'g': { paint: painters.roofSlateCap, kind: 'solid', autotile: true },
+  'Z': { paint: painters.roofPitch, kind: 'solid', autotile: true },
+  'z': { paint: painters.roofPitchCap, kind: 'solid', autotile: true },
+  'Q': { paint: painters.roofClay, kind: 'solid', autotile: true },
+  'q': { paint: painters.roofClayCap, kind: 'solid', autotile: true },
+  'Y': { paint: painters.roofThatch, kind: 'solid', autotile: true },
+  'y': { paint: painters.roofThatchCap, kind: 'solid', autotile: true },
   'D': { paint: painters.door, kind: 'floor' },
   'w': { paint: painters.window, kind: 'solid' },
   '!': { paint: painters.sign, kind: 'solid', grounded: true },
@@ -633,6 +657,10 @@ export const TILE_GROUP = {
   'H': 'building', 'w': 'building', 'D': 'building',
   'A': 'castle', 'M': 'castle', 'V': 'castle', 'v': 'castle',
   'R': 'roof', 'r': 'roof',
+  'G': 'slate', 'g': 'slate',
+  'Z': 'pitch', 'z': 'pitch',
+  'Q': 'clay', 'q': 'clay',
+  'Y': 'thatch', 'y': 'thatch',
 };
 
 /**

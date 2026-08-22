@@ -376,6 +376,14 @@ void hostFrame(void) {
         catchOnce(17, "16-in-the-grass");
       else if (windowOpen && windowSays("in the grass")) catchOnce(22, "22-lying-in-the-grass");
       else if (!windowOpen && frameNo > 60 && frameNo < 400) catchOnce(14, "03-winterfell");
+      /* One picture of each settlement, so the four of them can be put side by
+         side and told apart, which is the whole point of building them out of
+         different materials. */
+      else if (!windowOpen && !hero.walk) {
+        if (worldId == 7) catchOnce(23, "23-castle-black");
+        else if (worldId == 11) catchOnce(24, "24-moat-cailin");
+        else if (worldId == 14) catchOnce(25, "25-riverrun");
+      }
     }
   }
 

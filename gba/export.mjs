@@ -25,8 +25,9 @@ const MAP_IDS = [
   'winterfell', 'heroHouse', 'maesterHallWinterfell', 'greatKeep', 'winterfellForge',
   'wolfswood', 'kingsroadNorth', 'castleBlack', 'maesterHallCastleBlack',
   'castleBlackArmoury', 'beyondTheWall', 'moatCailin', 'maesterHallMoat',
-  'riverlands', 'riverrun', 'maesterHallRiverrun', 'riverrunInn', 'riverrunKeep',
-  'bloodyGate',
+  'moatCailinForge',
+  'riverlands', 'riverrun', 'maesterHallRiverrun', 'riverrunForge', 'riverrunInn',
+  'riverrunKeep', 'bloodyGate',
 ];
 
 // What the cartridge's hardware will hold.

@@ -19,6 +19,7 @@
 #undef main
 
 unsigned char *gbaMem;
+unsigned char hostSram[65536];
 int hostFramesLeft;
 void hostFrame(void) { }
 
@@ -134,6 +135,12 @@ int main(void) {
       if (warpOn(to, w->tx, w->ty)) {
         bad("%s: the door at %d,%d lands you on another door in %s", map->name, w->x, w->y, to->name);
       }
+      for (j = 0; j < to->npcCount; j++) {
+        if (to->npcs[j].x == w->tx && to->npcs[j].y == w->ty) {
+          note("%s: the door at %d,%d lands on %s, who gets stepped aside",
+            map->name, w->x, w->y, to->npcs[j].name);
+        }
+      }
       for (j = 0; j < to->warpCount; j++) if (to->warps[j].to == m) back = 1;
       if (!back) note("%s: the door at %d,%d into %s has no door back", map->name, w->x, w->y, to->name);
     }
@@ -206,10 +213,75 @@ int main(void) {
     checkText(houses[i].full, houses[i].words);
     checkText(houses[i].full, houses[i].sworn);
     checkText(houses[i].full, houses[i].seat);
-    if (houses[i].actor >= ACTOR_COUNT) bad("%s has no appearance", houses[i].full);
+    for (j = 0; j < 4; j++) {
+      if (houses[i].looks[j] >= ACTOR_COUNT) bad("%s has no body for kit %d", houses[i].full, j);
+    }
     speaker = 0;
     wrapText(houses[i].sworn, TXT_W - 44);
     if (lineCount > 2) note("%s: the words at swearing run to %d lines, the card shows two", houses[i].full, lineCount);
+  }
+
+  /* --- what can be bought ------------------------------------------------- */
+  for (i = 0; i < WARE_COUNT; i++) {
+    const Ware *w = &wares[i];
+    if (!w->price) bad("%s is for sale at nothing", w->name);
+    if (w->kind > WARE_SHIELD) bad("%s is a kind of thing that does not exist", w->name);
+    if (w->kind == WARE_POTION && !w->heal) bad("%s heals nothing", w->name);
+    if (w->kind == WARE_ARMOUR && w->tier > 3) bad("%s puts you in body %d", w->name, w->tier);
+    for (j = 0; j < w->techCount; j++) {
+      if (w->tech[j] >= TECH_COUNT) bad("%s teaches technique %d", w->name, w->tech[j]);
+    }
+    checkText(w->name, w->name);
+    if (textWidth(w->name) > 150) note("\"%s\" is wide for a shop list", w->name);
+  }
+  for (i = 0; i < 2; i++) {
+    if (!stalls[i].count) bad("a stall with nothing on it");
+    for (j = 0; j < stalls[i].count; j++) {
+      if (stalls[i].ware[j] >= WARE_COUNT) bad("a stall selling ware %d", stalls[i].ware[j]);
+    }
+  }
+  if (START_WEAPON < 0 || START_WEAPON >= WARE_COUNT) bad("the starting blade does not exist");
+
+  /* --- the record, written and read back ---------------------------------- */
+  {
+    int ok = 1;
+    world = &maps[3];
+    worldId = 3;
+    hero.px = 5 * 16; hero.py = 7 * 16; hero.dir = 2;
+    you.house = 2; you.level = 23; you.exp = 41000; you.gold = 7654;
+    you.hp = 99; you.kills = 41;
+    you.weapon = 6; you.armour = 12; you.shield = 17;
+    for (i = 0; i < WARE_COUNT; i++) you.bag[i] = (u8)(i * 3 % 7);
+    for (i = 0; i < MAP_COUNT; i++) for (j = 0; j < MAX_CROWD; j++) slain[i][j] = (u8)((i + j) & 1);
+    keepRecord();
+
+    you.house = 0; you.level = 1; you.exp = 0; you.gold = 0; you.hp = 1; you.kills = 0;
+    you.weapon = you.armour = you.shield = 0;
+    for (i = 0; i < WARE_COUNT; i++) you.bag[i] = 0;
+    for (i = 0; i < MAP_COUNT; i++) for (j = 0; j < MAX_CROWD; j++) slain[i][j] = 0;
+
+    if (!findRecord()) { bad("a record written and read straight back does not check out"); ok = 0; }
+    if (ok) {
+      takeUpRecord();
+      if (you.house != 2 || you.level != 23 || you.exp != 41000 || you.gold != 7654
+          || you.hp != 99 || you.kills != 41
+          || you.weapon != 6 || you.armour != 12 || you.shield != 17
+          || record.worldId != 3 || record.x != 5 || record.y != 7 || record.dir != 2) {
+        bad("the record does not come back the way it went in");
+      }
+      for (i = 0; i < WARE_COUNT; i++) {
+        if (you.bag[i] != (u8)(i * 3 % 7)) { bad("the pouch does not survive a save"); break; }
+      }
+      for (i = 0; i < MAP_COUNT; i++) {
+        for (j = 0; j < MAX_CROWD; j++) {
+          if (slain[i][j] != (u8)((i + j) & 1)) { bad("the dead do not survive a save"); i = MAP_COUNT; break; }
+        }
+      }
+      hostSram[7] ^= 0xFF;
+      if (findRecord()) bad("a damaged record is accepted");
+    }
+    if ((int)sizeof(Record) > 32768) bad("the record is bigger than the cartridge's memory");
+    note("the record is %d bytes", (int)sizeof(Record));
   }
 
   /* --- where you start --------------------------------------------------- */

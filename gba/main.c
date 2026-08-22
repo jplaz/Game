@@ -13,7 +13,7 @@
 
 #include "data.h"
 
-typedef signed char    s8;
+
 typedef signed short   s16;
 typedef signed int     s32;
 
@@ -39,6 +39,8 @@ extern unsigned char *gbaMem;             /* covers 0x04000000 .. 0x07000400 */
 #define REG_BG0VOFS   REG16(0x04000012)
 #define REG_BG1HOFS   REG16(0x04000014)
 #define REG_BG1VOFS   REG16(0x04000016)
+#define REG_BLDCNT    REG16(0x04000050)
+#define REG_BLDY      REG16(0x04000054)
 #define REG_KEYINPUT  REG16(0x04000130)
 
 #define PAL_BG        ((volatile u16 *)HW(0x05000000))
@@ -225,6 +227,23 @@ static void drawText(int x, int y, const char *s, u8 ink) {
   }
 }
 
+/* One letter, and how far the next one starts along. Text is typed out rather
+   than stamped, so this is the piece the window actually uses. */
+static int drawGlyph(int x, int y, char c, u8 ink) {
+  int g = glyphOf[(u8)c & 127], row, col, pass;
+  for (pass = 0; pass < 2; pass++) {
+    for (row = 0; row < FONT_ROWS; row++) {
+      u16 bits = font_rows[g][row];
+      for (col = 0; bits >> col; col++) {
+        if (!((bits >> col) & 1)) continue;
+        if (pass) plot(x + col, y + row, ink);
+        else plot(x + col + 1, y + row + 1, C_SHADE);
+      }
+    }
+  }
+  return font_advance[g];
+}
+
 static void centreText(int y, const char *s, u8 ink) {
   drawText((TXT_W - textWidth(s)) >> 1, y, s, ink);
 }
@@ -247,6 +266,7 @@ static void drawFrame(int x, int y, int w, int h) {
 #define TEXT_PLAY 0
 #define TEXT_MIDDLE 1
 #define TEXT_DUEL 2
+#define TEXT_TOP 3
 
 static void layoutTextRows(int mode) {
   int ty, tx;
@@ -254,6 +274,7 @@ static void layoutTextRows(int mode) {
     for (tx = 0; tx < 32; tx++) {
       int buf = -1;
       if (mode == TEXT_MIDDLE) { if (ty >= 3 && ty < 17) buf = ty - 3; }
+      else if (mode == TEXT_TOP) { if (ty < 14) buf = ty; }
       else if (mode == TEXT_DUEL) {
         if (ty < 4) buf = ty;
         else if (ty >= 10) buf = ty - 6;
@@ -277,6 +298,7 @@ static int lineCount, lineAt;
 static const char *speaker;
 static int windowOpen;
 static int windowTop, windowRows;
+static u32 frameClock;
 
 static void wrapText(const char *s, int width) {
   char word[LINE_CHARS];
@@ -323,25 +345,47 @@ static void wrapText(const char *s, int width) {
 
 static int bodyRows(void) { return speaker ? 2 : 3; }
 
+/* Where the next letter goes. */
+static int typeLine, typeCol, typeX, typeY, typeDone, markerOn;
+
 static void paintWindow(void) {
-  int i, y;
   clearRows(windowTop, windowRows * 8);
   drawFrame(2, windowTop, TXT_W - 4, windowRows * 8 - 1);
+  typeY = windowTop + 7;
+  if (speaker) { drawText(12, typeY, speaker, C_GOLD); typeY += 12; }
+  typeLine = 0; typeCol = 0; typeX = 12; typeDone = 0; markerOn = 0;
+}
 
-  y = windowTop + 7;
-  if (speaker) { drawText(12, y, speaker, C_GOLD); y += 12; }
-  for (i = 0; i < bodyRows(); i++) {
-    int at = lineAt + i;
-    if (at >= lineCount) break;
-    drawText(12, y, lines[at], C_INK);
-    y += 12;
+/* The little wedge under the last line, which blinks while it waits for you. */
+static void drawMarker(int on) {
+  int wx = TXT_W - 18, wy = windowTop + windowRows * 8 - 9;
+  fillRect(wx, wy, 7, 4, C_FILL);
+  if (!on) return;
+  fillRect(wx, wy, 7, 1, C_GOLD);
+  fillRect(wx + 1, wy + 1, 5, 1, C_GOLD);
+  fillRect(wx + 2, wy + 2, 3, 1, C_GOLD);
+  fillRect(wx + 3, wy + 3, 1, 1, C_GOLD);
+}
+
+/* Lays down the next few letters. Returns 1 while there is still typing to do. */
+static int typeOn(int letters) {
+  while (letters-- > 0) {
+    const char *line;
+    if (typeDone) return 0;
+    if (typeLine >= bodyRows() || lineAt + typeLine >= lineCount) { typeDone = 1; return 0; }
+    line = lines[lineAt + typeLine];
+    if (!line[typeCol]) {
+      typeLine++; typeCol = 0; typeX = 12; typeY += 12;
+      continue;
+    }
+    typeX += drawGlyph(typeX, typeY, line[typeCol], C_INK);
+    typeCol++;
   }
-  if (lineAt + bodyRows() < lineCount) {
-    int wx = TXT_W - 16, wy = windowTop + windowRows * 8 - 8;
-    fillRect(wx, wy, 6, 1, C_GOLD);
-    fillRect(wx + 1, wy + 1, 4, 1, C_GOLD);
-    fillRect(wx + 2, wy + 2, 2, 1, C_GOLD);
-  }
+  return 1;
+}
+
+static void finishPage(void) {
+  while (typeOn(1)) { }
 }
 
 static void openWindowAt(const char *name, const char *body, int top, int rows) {
@@ -357,7 +401,9 @@ static void openWindow(const char *name, const char *body) {
   openWindowAt(name, body, 16, 6);
 }
 
+/* A press either hurries the typing along or turns the page. */
 static int advanceWindow(void) {
+  if (!typeDone) { finishPage(); return 1; }
   lineAt += bodyRows();
   if (lineAt >= lineCount) {
     windowOpen = 0;
@@ -366,6 +412,34 @@ static int advanceWindow(void) {
   }
   paintWindow();
   return 1;
+}
+
+/* Called every frame a window is up: types, then blinks. */
+static void tickWindow(int hurry) {
+  if (!windowOpen) return;
+  if (typeOn(hurry ? 3 : 1)) return;
+  if (lineAt + bodyRows() < lineCount) {
+    int on = (frameClock >> 4) & 1;
+    if (on != markerOn) { markerOn = on; drawMarker(on); }
+  }
+}
+
+/* The pointer that sits beside whatever is chosen. */
+static void drawCursor(int x, int y, u8 colour) {
+  fillRect(x, y, 2, 7, colour);
+  fillRect(x + 2, y + 1, 2, 5, colour);
+  fillRect(x + 4, y + 2, 2, 3, colour);
+  fillRect(x + 6, y + 3, 1, 1, colour);
+}
+
+/* Six rows of a list, with the chosen one kept in view. */
+#define LIST_ROWS 6
+
+static int listTop(int pick, int count) {
+  int top = pick - (LIST_ROWS >> 1);
+  if (top > count - LIST_ROWS) top = count - LIST_ROWS;
+  if (top < 0) top = 0;
+  return top;
 }
 
 /* ---------------------------------------------------------------- plate ---- */
@@ -419,6 +493,57 @@ static void placeBigObject(int slot, int x, int y, int tile, int bank) {
   oam[slot * 4 + 3] = 0;
 }
 
+/* The bubble that pops over somebody the moment they see you. Four character
+   tiles at the top of object memory, written once at start-up. */
+#define SPOT_TILE 896
+#define SPOT_BANK 13
+
+static const char *const SPOT_ART[16] = {
+  "................",
+  "..kkkkkkkkkkkk..",
+  ".kwwwwwwwwwwwwk.",
+  ".kwwwwwkkwwwwwk.",
+  ".kwwwwwkkwwwwwk.",
+  ".kwwwwwkkwwwwwk.",
+  ".kwwwwwkkwwwwwk.",
+  ".kwwwwwkkwwwwwk.",
+  ".kwwwwwwwwwwwwk.",
+  ".kwwwwwkkwwwwwk.",
+  ".kwwwwwkkwwwwwk.",
+  ".kwwwwwwwwwwwwk.",
+  "..kkkkkkkkkkkk..",
+  "...kwwk.........",
+  "....kk..........",
+  "................",
+};
+
+static void buildBubble(void) {
+  int y, x;
+  volatile u8 *out = (volatile u8 *)(VRAM_OBJ) + SPOT_TILE * 32;
+  for (y = 0; y < 32 * 4; y++) out[y] = 0;
+  for (y = 0; y < 16; y++) {
+    for (x = 0; x < 16; x++) {
+      char c = SPOT_ART[y][x];
+      int v = c == 'k' ? 1 : c == 'w' ? 2 : 0;
+      int tile = (y >> 3) * 2 + (x >> 3);
+      int at = tile * 32 + (y & 7) * 4 + ((x & 7) >> 1);
+      if (!v) continue;
+      if (x & 1) out[at] = (u8)((out[at] & 0x0F) | (v << 4));
+      else out[at] = (u8)((out[at] & 0xF0) | v);
+    }
+  }
+  PAL_OBJ[SPOT_BANK * 16 + 1] = RGB15(3, 3, 5);
+  PAL_OBJ[SPOT_BANK * 16 + 2] = RGB15(31, 31, 31);
+}
+
+static void placeBubble(int slot, int x, int y) {
+  if (x < -16 || x > SCREEN_W || y < -16 || y > SCREEN_H) { oam[slot * 4] = 0x0200; return; }
+  oam[slot * 4 + 0] = (u16)(y & 0xFF);                       /* square */
+  oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0x4000);           /* size 1 => 16x16 */
+  oam[slot * 4 + 2] = (u16)(SPOT_TILE | (SPOT_BANK << 12));
+  oam[slot * 4 + 3] = 0;
+}
+
 static void pushObjects(void) {
   int i;
   for (i = 0; i < 128 * 4; i++) OAM[i] = oam[i];
@@ -446,10 +571,73 @@ static u8 crowdAlive[MAX_CROWD];
 static int crowdCount;
 
 static Body hero;
-static int heroActor;            /* the appearance of the house you swore to */
+static int heroActor;
+static int spotted = -1, spotTimer;
+static u8 beaten[MAP_COUNT][MAX_CROWD];            /* the appearance of the house you swore to */
 
 /* Who has been killed, so the road stays as you left it. */
 static u8 slain[MAP_COUNT][MAX_CROWD];
+
+/* --------------------------------------------------------------- the you --- */
+
+typedef struct {
+  int house;
+  int level, exp, hp, gold;
+  int kills;
+  u8 weapon, armour, shield;      /* a ware index plus one; nothing is 0 */
+  u8 bag[WARE_COUNT];
+} You;
+
+static You you;
+
+/* What you are wearing decides which of the four bodies is resident. */
+static int lookOf(void) {
+  return you.armour ? wares[you.armour - 1].tier : 0;
+}
+
+static int vigourFor(int level) { return 28 + level * 6; }
+
+static int mightFor(int level) {
+  return 10 + level * 3 + (you.weapon ? wares[you.weapon - 1].might : 0);
+}
+static int guardFor(int level) {
+  return 6 + level * 2
+    + (you.armour ? wares[you.armour - 1].guard : 0)
+    + (you.shield ? wares[you.shield - 1].guard : 0);
+}
+static int swiftFor(int level) {
+  int s = 10 + level * 2;
+  if (you.weapon) s += wares[you.weapon - 1].swiftness;
+  if (you.armour) s += wares[you.armour - 1].swiftness;
+  if (you.shield) s += wares[you.shield - 1].swiftness;
+  return s < 1 ? 1 : s;
+}
+
+/* Your four techniques: whatever the blade in your hand teaches, and Guard,
+   which anybody can do and which always keeps the last slot. */
+static u8 myTechs[4];
+
+static void reckonTechniques(void) {
+  int n = 0, i;
+  if (you.weapon) {
+    const Ware *w = &wares[you.weapon - 1];
+    for (i = 0; i < w->techCount && n < 3; i++) myTechs[n++] = w->tech[i];
+  }
+  while (n < 3) { myTechs[n] = player_techs[n]; n++; }
+  myTechs[3] = player_techs[3];              /* Guard */
+}
+
+static int expForLevel(int level) { return level <= 1 ? 0 : 30 * (level - 1) * level; }
+
+static int levelUp(void) {
+  int gained = 0;
+  while (you.level < 50 && you.exp >= expForLevel(you.level + 1)) {
+    you.level++;
+    you.hp = vigourFor(you.level);
+    gained = 1;
+  }
+  return gained;
+}
 
 /* ----------------------------------------------------------------- world --- */
 
@@ -460,6 +648,12 @@ static int camX, camY;
 static int solidAt(int x, int y) {
   if (x < 0 || y < 0 || x >= world->w || y >= world->h) return 1;
   return world->solid[y * world->w + x];
+}
+
+/* Tall grass and reeds. Nothing jumps you out of a cobbled street. */
+static int coverAt(int x, int y) {
+  if (x < 0 || y < 0 || x >= world->w || y >= world->h) return 0;
+  return world->cover[y * world->w + x];
 }
 
 /* A body mid-step is standing on two tiles at once as far as everyone else is
@@ -504,6 +698,17 @@ static void writeScreenblock(void) {
 #define NPC_TILE_BASE (PLAYER_FRAMES * ACTOR_FRAME_TILES)
 #define NPC_TILE_STRIDE (NPC_FRAMES * ACTOR_FRAME_TILES)
 
+/* Just the player's own frames, for when the armour changes and the body has
+   to change with it. */
+static void loadPlayerBody(void) {
+  int i, w;
+  const u32 *src;
+  heroActor = houses[you.house].looks[lookOf()];
+  src = actors[heroActor].tiles;
+  for (w = 0; w < PLAYER_FRAMES * ACTOR_FRAME_TILES * 8; w++) VRAM_OBJ[w] = src[w];
+  for (i = 0; i < 16; i++) PAL_OBJ[i] = actors[heroActor].pal[i];
+}
+
 static void loadActors(void) {
   int i, d, w;
   const u32 *src = actors[heroActor].tiles;
@@ -539,6 +744,7 @@ static void enterMap(int id, int tx, int ty, int dir) {
   hero.dir = (u8)dir;
   hero.walk = 0;
 
+  spotted = -1;
   crowdCount = world->npcCount > MAX_CROWD ? MAX_CROWD : world->npcCount;
   for (i = 0; i < crowdCount; i++) {
     crowd[i].px = (s16)(world->npcs[i].x * 16);
@@ -548,6 +754,23 @@ static void enterMap(int id, int tx, int ty, int dir) {
     crowd[i].stride = 0;
     crowdTimer[i] = (u16)(20 + roll(140));
     crowdAlive[i] = (u8)!slain[id][i];
+  }
+
+  /* A door can put you down where somebody is already standing — their own
+     doorstep, usually. Step them aside rather than letting the two of you share
+     a tile, which looks exactly like walking through people. */
+  for (i = 0; i < crowdCount; i++) {
+    int d;
+    if (!crowdAlive[i]) continue;
+    if ((crowd[i].px >> 4) != tx || (crowd[i].py >> 4) != ty) continue;
+    for (d = 0; d < 4; d++) {
+      int nx = tx + DIR_X[d], ny = ty + DIR_Y[d];
+      if (solidAt(nx, ny) || occupied(nx, ny, i)) continue;
+      crowd[i].px = (s16)(nx * 16);
+      crowd[i].py = (s16)(ny * 16);
+      crowd[i].dir = (u8)d;
+      break;
+    }
   }
 
   /* Half of video memory changes at a warp, which does not fit in a blanking
@@ -598,33 +821,6 @@ static int crowdAt(int x, int y) {
   return -1;
 }
 
-/* --------------------------------------------------------------- the you --- */
-
-typedef struct {
-  int house;
-  int level, exp, hp, gold;
-  int kills;
-} You;
-
-static You you;
-
-static int vigourFor(int level) { return 28 + level * 6; }
-static int mightFor(int level)  { return 10 + level * 3 + 12; }   /* + a longsword */
-static int guardFor(int level)  { return 6 + level * 2 + 6; }     /* + boiled leather */
-static int swiftFor(int level)  { return 10 + level * 2; }
-
-static int expForLevel(int level) { return level <= 1 ? 0 : 30 * (level - 1) * level; }
-
-static int levelUp(void) {
-  int gained = 0;
-  while (you.level < 50 && you.exp >= expForLevel(you.level + 1)) {
-    you.level++;
-    you.hp = vigourFor(you.level);
-    gained = 1;
-  }
-  return gained;
-}
-
 /* ---------------------------------------------------------------- duels ---- */
 
 typedef struct {
@@ -639,7 +835,7 @@ static const Duellist *foeDef;
 static int foeSlot;              /* which of the crowd is being fought, or -1 */
 static int foeBank;              /* which resident appearance they wear */
 static int duelMenu, duelPhase, duelOver;
-static char scratch[96];
+static char scratch[288];
 
 static void copyString(char *dst, const char *src, int room) {
   int i = 0;
@@ -714,21 +910,49 @@ static void paintDuelPlates(void) {
 #define DUEL_WINDOW_TOP 56
 #define DUEL_WINDOW_ROWS 7
 
-static void paintDuelMenu(void) {
-  int i;
+/* Two menus, one inside the other, the way the handhelds do it: what kind of
+   thing you are about to do, and then which one. */
+static int topPick;
+static const char *const DUEL_TOP_ITEMS[4] = { "Fight", "Pouch", "Guard", "Flee" };
+
+static void paintFrameOnly(void) {
   clearRows(DUEL_WINDOW_TOP, DUEL_WINDOW_ROWS * 8);
   drawFrame(3, DUEL_WINDOW_TOP + 1, TXT_W - 6, DUEL_WINDOW_ROWS * 8 - 2);
+}
+
+static void paintDuelTop(void) {
+  int i;
+  paintFrameOnly();
   for (i = 0; i < 4; i++) {
-    int x = 16 + (i & 1) * 112;
-    int y = DUEL_WINDOW_TOP + 8 + (i >> 1) * 16;
-    drawText(x, y, techniques[mine.tech[i]].name, i == duelMenu ? C_GOLD : C_INK);
-    if (i == duelMenu) {
-      fillRect(x - 9, y + 2, 2, 5, C_GOLD);
-      fillRect(x - 7, y + 3, 2, 3, C_GOLD);
-      fillRect(x - 5, y + 4, 2, 1, C_GOLD);
-    }
+    int x = 24 + (i & 1) * 112;
+    int y = DUEL_WINDOW_TOP + 10 + (i >> 1) * 16;
+    if (i == topPick) drawCursor(x - 11, y + 1, C_GOLD);
+    drawText(x, y, DUEL_TOP_ITEMS[i], i == topPick ? C_GOLD : C_INK);
   }
-  drawText(16, DUEL_WINDOW_TOP + 42, "B to break off", C_DIM);
+}
+
+static void paintDuelMenu(void) {
+  int i;
+  paintFrameOnly();
+  for (i = 0; i < 4; i++) {
+    int x = 24 + (i & 1) * 112;
+    int y = DUEL_WINDOW_TOP + 8 + (i >> 1) * 16;
+    if (i == duelMenu) drawCursor(x - 11, y + 1, C_GOLD);
+    drawText(x, y, techniques[mine.tech[i]].name, i == duelMenu ? C_GOLD : C_INK);
+  }
+  {
+    const Tech *t = &techniques[mine.tech[duelMenu]];
+    copyString(scratch, "", sizeof scratch);
+    if (t->power) {
+      appendString(scratch, "Power ", sizeof scratch);
+      appendNumber(scratch, t->power, sizeof scratch);
+      appendString(scratch, "   ", sizeof scratch);
+    }
+    appendString(scratch, "Lands ", sizeof scratch);
+    appendNumber(scratch, t->accuracy, sizeof scratch);
+    appendString(scratch, " in a hundred", sizeof scratch);
+    drawText(24, DUEL_WINDOW_TOP + 42, scratch, C_DIM);
+  }
 }
 
 static void duelSay(const char *who, const char *what) {
@@ -747,7 +971,8 @@ static void beginDuel(int duellist, int bank, int slot) {
   mine.might = mightFor(you.level);
   mine.guard = guardFor(you.level);
   mine.swiftness = swiftFor(you.level);
-  mine.tech = player_techs;
+  reckonTechniques();
+  mine.tech = myTechs;
   mine.defending = 0;
 
   theirs.name = foeDef->name;
@@ -761,6 +986,7 @@ static void beginDuel(int duellist, int bank, int slot) {
 
   duelOver = 0;
   duelMenu = 0;
+  topPick = 0;
   duelPhase = 0;
   clearPage();
   layoutTextRows(TEXT_DUEL);
@@ -834,6 +1060,7 @@ static void setUpVideo(void) {
   REG_DISPCNT = 0x0080;                              /* forced blank while loading */
   copyPalettes();
   for (i = 0; i < 8; i++) VRAM_TXT_CHR[i] = 0;       /* the blank text tile */
+  buildBubble();
   layoutTextRows(TEXT_MIDDLE);
   REG_BG0CNT = (u16)(1 | 0x0080 | (28 << 8) | (3 << 14));   /* 8bpp, 64x64, behind */
   REG_BG1CNT = (u16)(0 | (2 << 2) | (27 << 8));             /* 4bpp text, in front */
@@ -918,18 +1145,6 @@ static void paintHousePicker(void) {
   }
 }
 
-static void paintTitle(void) {
-  clearPage();
-  drawFrame(16, 8, TXT_W - 32, TXT_H - 24);
-  centreText(16, "A SONG OF", C_INK);
-  centreText(30, "ICE AND MONSTERS", C_GOLD);
-  fillRect(70, 46, TXT_W - 140, 1, C_EDGE);
-  centreText(54, "The North remembers.", C_DIM);
-  centreText(74, "PRESS START", C_GOLD);
-}
-
-/* ------------------------------------------------------------ the status --- */
-
 static void paintStatus(void) {
   const House *h = &houses[you.house];
   clearRows(0, TXT_H);
@@ -965,6 +1180,281 @@ static void paintStatus(void) {
   drawText(16, 94, "SELECT draws on whoever you face", C_GOLD);
 }
 
+/* ------------------------------------------------------------ the record -- */
+/* Battery-backed memory on the cartridge itself, which is where a Game Boy
+   keeps a save. It answers a byte at a time and no wider, so everything is
+   written out through a volatile byte pointer. The string is what tells an
+   emulator the cartridge has any. */
+
+__attribute__((used)) static const char SAVE_KIND[] = "SRAM_V113";
+
+#ifdef HOST_TEST
+extern unsigned char hostSram[65536];              /* the harness's stand-in */
+#define SRAM ((volatile u8 *)hostSram)
+#else
+#define SRAM ((volatile u8 *)0x0E000000)
+#endif
+#define RECORD_MAGIC 0x31454349u          /* "ICE1" */
+
+typedef struct {
+  u32 magic;
+  u8 house, level, worldId, dir;
+  u8 x, y, weapon, armour;
+  u8 shield, pad0, pad1, pad2;
+  u32 exp, gold, hp, kills;
+  u8 bag[WARE_COUNT];
+  u8 slain[MAP_COUNT][MAX_CROWD];
+  u32 sum;
+} Record;
+
+static Record record;
+
+static u32 tally(const Record *r) {
+  const u8 *p = (const u8 *)r;
+  u32 n = sizeof(Record) - 4, sum = 0;
+  while (n--) sum = sum * 31u + *p++;
+  return sum;
+}
+
+static void keepRecord(void) {
+  const u8 *p;
+  u32 i;
+  int m, k;
+  for (i = 0; i < sizeof(Record); i++) ((u8 *)&record)[i] = 0;
+  record.magic = RECORD_MAGIC;
+  record.house = (u8)you.house;
+  record.level = (u8)you.level;
+  record.worldId = (u8)worldId;
+  record.dir = hero.dir;
+  record.x = (u8)(hero.px >> 4);
+  record.y = (u8)(hero.py >> 4);
+  record.weapon = you.weapon;
+  record.armour = you.armour;
+  record.shield = you.shield;
+  record.exp = (u32)you.exp;
+  record.gold = (u32)you.gold;
+  record.hp = (u32)you.hp;
+  record.kills = (u32)you.kills;
+  for (i = 0; i < WARE_COUNT; i++) record.bag[i] = you.bag[i];
+  for (m = 0; m < MAP_COUNT; m++) for (k = 0; k < MAX_CROWD; k++) record.slain[m][k] = slain[m][k];
+  record.sum = tally(&record);
+
+  p = (const u8 *)&record;
+  for (i = 0; i < sizeof(Record); i++) SRAM[i] = p[i];
+}
+
+/* Reads the record back. Returns 1 if there was one worth reading. */
+static int findRecord(void) {
+  u8 *p = (u8 *)&record;
+  u32 i;
+  for (i = 0; i < sizeof(Record); i++) p[i] = SRAM[i];
+  return record.magic == RECORD_MAGIC && record.sum == tally(&record)
+    && record.house < HOUSE_COUNT && record.worldId < MAP_COUNT
+    && record.level >= 1 && record.level <= 50;
+}
+
+static void takeUpRecord(void) {
+  u32 i;
+  int m, k;
+  you.house = record.house;
+  you.level = record.level;
+  you.exp = (int)record.exp;
+  you.gold = (int)record.gold;
+  you.hp = (int)record.hp;
+  you.kills = (int)record.kills;
+  you.weapon = record.weapon;
+  you.armour = record.armour;
+  you.shield = record.shield;
+  for (i = 0; i < WARE_COUNT; i++) you.bag[i] = record.bag[i];
+  for (m = 0; m < MAP_COUNT; m++) for (k = 0; k < MAX_CROWD; k++) slain[m][k] = record.slain[m][k];
+  reckonTechniques();
+}
+
+/* ------------------------------------------------------------ the pouch --- */
+/* What you are carrying, what a stall has on it, and the two lists that show
+   them. Both are the same shape: a title, six rows, a pointer, and a footer. */
+
+static int menuPick, bagPick, shopPick, shopStall, bagInDuel;
+static int afterWindow;
+
+static int carrying(void) {
+  int i, n = 0;
+  for (i = 0; i < WARE_COUNT; i++) if (you.bag[i]) n++;
+  return n;
+}
+
+static int nthCarried(int n) {
+  int i;
+  for (i = 0; i < WARE_COUNT; i++) if (you.bag[i] && !n--) return i;
+  return -1;
+}
+
+static void showGold(int y) {
+  copyString(scratch, "Gold ", sizeof scratch);
+  appendNumber(scratch, you.gold, sizeof scratch);
+  drawText(TXT_W - 14 - textWidth(scratch), y, scratch, C_GOLD);
+}
+
+static void paintBag(void) {
+  int have = carrying(), top = listTop(bagPick, have), i;
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
+  drawText(14, 6, "WHAT YOU CARRY", C_GOLD);
+  showGold(6);
+  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+
+  if (!have) {
+    drawText(20, 34, "Nothing but your own hands.", C_DIM);
+    drawText(14, TXT_H - 18, "B to put it away", C_DIM);
+    return;
+  }
+  for (i = 0; i < LIST_ROWS && top + i < have; i++) {
+    int at = nthCarried(top + i);
+    int y = 22 + i * 11;
+    if (top + i == bagPick) drawCursor(14, y + 1, C_GOLD);
+    drawText(24, y, wares[at].name, top + i == bagPick ? C_GOLD : C_INK);
+    copyString(scratch, "x", sizeof scratch);
+    appendNumber(scratch, you.bag[at], sizeof scratch);
+    drawText(TXT_W - 34, y, scratch, C_DIM);
+  }
+  {
+    int at = nthCarried(bagPick);
+    copyString(scratch, "Restores ", sizeof scratch);
+    if (wares[at].heal >= 9999) appendString(scratch, "everything.", sizeof scratch);
+    else { appendNumber(scratch, wares[at].heal, sizeof scratch); appendString(scratch, " health.", sizeof scratch); }
+    drawText(14, TXT_H - 18, scratch, C_DIM);
+  }
+}
+
+/* Drinking something. Returns 1 if it was any use. */
+static int useWare(int at) {
+  int max = vigourFor(you.level), heal;
+  if (!you.bag[at]) return 0;
+  heal = wares[at].heal >= 9999 ? max : wares[at].heal;
+  if (you.hp >= max) return 0;
+  you.hp += heal;
+  if (you.hp > max) you.hp = max;
+  you.bag[at]--;
+  return 1;
+}
+
+static void paintShop(void) {
+  const Stall *stall = &stalls[shopStall];
+  int top = listTop(shopPick, stall->count), i;
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
+  drawText(14, 6, shopStall ? "ARMS AND ARMOUR" : "REMEDIES", C_GOLD);
+  showGold(6);
+  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+
+  for (i = 0; i < LIST_ROWS && top + i < stall->count; i++) {
+    int at = stall->ware[top + i];
+    int y = 22 + i * 11;
+    int mine = (wares[at].kind == WARE_POTION) ? 0
+      : (you.weapon == at + 1 || you.armour == at + 1 || you.shield == at + 1);
+    if (top + i == shopPick) drawCursor(14, y + 1, C_GOLD);
+    drawText(24, y, wares[at].name,
+      mine ? C_DIM : (top + i == shopPick ? C_GOLD : C_INK));
+    copyString(scratch, "", sizeof scratch);
+    appendNumber(scratch, wares[at].price, sizeof scratch);
+    drawText(TXT_W - 24 - textWidth(scratch), y, scratch,
+      you.gold >= wares[at].price ? C_INK : C_DYING);
+  }
+  {
+    const Ware *w = &wares[stall->ware[shopPick]];
+    copyString(scratch, "", sizeof scratch);
+    if (w->kind == WARE_POTION) {
+      appendString(scratch, "Restores ", sizeof scratch);
+      if (w->heal >= 9999) appendString(scratch, "everything.", sizeof scratch);
+      else { appendNumber(scratch, w->heal, sizeof scratch); appendString(scratch, " health.", sizeof scratch); }
+    } else {
+      if (w->might) { appendString(scratch, "Might +", sizeof scratch); appendNumber(scratch, w->might, sizeof scratch); }
+      if (w->guard) {
+        if (scratch[0]) appendString(scratch, "  ", sizeof scratch);
+        appendString(scratch, "Guard +", sizeof scratch); appendNumber(scratch, w->guard, sizeof scratch);
+      }
+      if (w->swiftness) {
+        appendString(scratch, "  Swiftness ", sizeof scratch);
+        appendNumber(scratch, w->swiftness, sizeof scratch);
+      }
+    }
+    drawText(14, TXT_H - 18, scratch, C_DIM);
+  }
+}
+
+/* The same drink, in the middle of a fight. It costs you the turn. */
+static int useInDuel(int at) {
+  if (!useWare(at)) return 0;
+  mine.hp = you.hp;
+  paintDuelPlates();
+  return 1;
+}
+
+/* Returns a line about what just happened at the counter. */
+static const char *buyWare(int at) {
+  const Ware *w = &wares[at];
+  if (you.gold < w->price) return "You cannot afford that, and it shows.";
+  you.gold -= w->price;
+  if (w->kind == WARE_POTION) {
+    if (you.bag[at] < 99) you.bag[at]++;
+    return "Wrapped and handed over.";
+  }
+  if (w->kind == WARE_WEAPON) { you.weapon = (u8)(at + 1); reckonTechniques(); }
+  else if (w->kind == WARE_ARMOUR) { you.armour = (u8)(at + 1); loadPlayerBody(); }
+  else you.shield = (u8)(at + 1);
+  if (you.hp > vigourFor(you.level)) you.hp = vigourFor(you.level);
+  return "You put it on there and then.";
+}
+
+/* ------------------------------------------------------------- the menu --- */
+
+#define MENU_ENTRIES 4
+static const char *const MENU[MENU_ENTRIES] = { "Sigil", "Pouch", "Record", "Leave" };
+
+static void paintMenu(void) {
+  int i;
+  clearRows(0, TXT_H);
+  drawFrame(TXT_W - 92, 2, 88, 14 + MENU_ENTRIES * 12);
+  for (i = 0; i < MENU_ENTRIES; i++) {
+    int y = 9 + i * 12;
+    if (i == menuPick) drawCursor(TXT_W - 84, y + 1, C_GOLD);
+    drawText(TXT_W - 74, y, MENU[i], i == menuPick ? C_GOLD : C_INK);
+  }
+}
+
+static int hasRecord, titlePick;
+
+static void paintTitle(void) {
+  clearPage();
+  drawFrame(16, 4, TXT_W - 32, TXT_H - 16);
+  centreText(12, "A SONG OF", C_INK);
+  centreText(26, "ICE AND MONSTERS", C_GOLD);
+  fillRect(70, 42, TXT_W - 140, 1, C_EDGE);
+  centreText(48, "The North remembers.", C_DIM);
+
+  if (!hasRecord) {
+    centreText(74, "PRESS START", C_GOLD);
+    return;
+  }
+  {
+    /* There is a record on the cartridge, so the road can be taken up again. */
+    static const char *const PICK[2] = { "Take up the road", "Begin again" };
+    int i;
+    for (i = 0; i < 2; i++) {
+      int y = 66 + i * 14;
+      int w = textWidth(PICK[i]);
+      if (i == titlePick) drawCursor(((TXT_W - w) >> 1) - 12, y + 1, C_GOLD);
+      centreText(y, PICK[i], i == titlePick ? C_GOLD : C_INK);
+    }
+    copyString(scratch, houses[record.house].full, sizeof scratch);
+    appendString(scratch, ", level ", sizeof scratch);
+    appendNumber(scratch, record.level, sizeof scratch);
+    centreText(TXT_H - 20, scratch, C_DIM);
+  }
+}
+
+/* ------------------------------------------------------------ the status --- */
+
 /* ---------------------------------------------------------------- scenes --- */
 
 #define SCENE_TITLE 0
@@ -972,6 +1462,9 @@ static void paintStatus(void) {
 #define SCENE_WORLD 2
 #define SCENE_DUEL  3
 #define SCENE_STATUS 4
+#define SCENE_MENU 5
+#define SCENE_BAG 6
+#define SCENE_SHOP 7
 
 static int scene;
 
@@ -981,15 +1474,16 @@ static int scene;
 #define DUEL_MINE 2
 #define DUEL_THEIRS 3
 #define DUEL_END 4
+#define DUEL_TOP 5
 
 static int firstMover;
 
-static void enterWorld(void) {
+static void enterWorld(int map, int x, int y, int dir) {
   scene = SCENE_WORLD;
   clearPage();
   layoutTextRows(TEXT_PLAY);
-  heroActor = houses[you.house].actor;
-  enterMap(0, 12, 12, 0);
+  heroActor = houses[you.house].looks[lookOf()];
+  enterMap(map, x, y, dir);
 }
 
 static void endDuel(void) {
@@ -1004,6 +1498,7 @@ static void endDuel(void) {
 }
 
 static void youFell(void) {
+  if (foeSlot >= 0) beaten[worldId][foeSlot] = 1;
   you.hp = vigourFor(you.level);
   you.gold -= you.gold / 3;
   endDuel();
@@ -1017,6 +1512,7 @@ static void youFell(void) {
 static void theyFell(void) {
   you.gold += foeDef->reward;
   you.exp += foeDef->exp;
+  if (foeSlot >= 0) beaten[worldId][foeSlot] = 1;
   if (foeDef->mortal) {
     if (foeSlot >= 0) { slain[worldId][foeSlot] = 1; crowdAlive[foeSlot] = 0; }
     you.kills++;
@@ -1026,11 +1522,20 @@ static void theyFell(void) {
   you.hp = mine.hp + (vigourFor(you.level) >> 2);
   if (you.hp > vigourFor(you.level)) you.hp = vigourFor(you.level);
   copyString(scratch, foeDef->defeat, sizeof scratch);
+  appendString(scratch, "  You take ", sizeof scratch);
+  appendNumber(scratch, foeDef->reward, sizeof scratch);
+  appendString(scratch, " gold and ", sizeof scratch);
+  appendNumber(scratch, foeDef->exp, sizeof scratch);
+  appendString(scratch, " experience.", sizeof scratch);
   endDuel();
   if (levelUp()) {
     appendString(scratch, "  You are level ", sizeof scratch);
     appendNumber(scratch, you.level, sizeof scratch);
-    appendString(scratch, " now, and whole again.", sizeof scratch);
+    appendString(scratch, " — might ", sizeof scratch);
+    appendNumber(scratch, mightFor(you.level), sizeof scratch);
+    appendString(scratch, ", guard ", sizeof scratch);
+    appendNumber(scratch, guardFor(you.level), sizeof scratch);
+    appendString(scratch, ", and whole again.", sizeof scratch);
   }
   openWindow(0, scratch);
 }
@@ -1055,7 +1560,7 @@ static void duelTurn(void) {
       duelPhase = DUEL_END;
       duelOver = (d == &mine) ? 2 : 1;
     } else {
-      duelPhase = DUEL_MENU;
+      duelPhase = DUEL_TOP;
     }
   }
 }
@@ -1083,6 +1588,45 @@ static void paintDuelGround(void) {
   REG_BG0VOFS = 0;
 }
 
+/* ------------------------------------------------------------ drawing on -- */
+/* A fight does not simply appear. The screen cracks white twice, falls to
+   black, and comes up again in the yard — which is what the handhelds do, and
+   what stops a duel reading as the game having glitched. */
+
+static int shift, shiftDuellist, shiftBank, shiftSlot;
+
+static void setFade(int black, int amount) {
+  REG_BLDCNT = (u16)(0x003F | (black ? (3 << 6) : (2 << 6)));
+  REG_BLDY = (u16)(amount < 0 ? 0 : amount > 16 ? 16 : amount);
+}
+
+static void clearFade(void) { REG_BLDCNT = 0; REG_BLDY = 0; }
+
+static void callToArms(int duellist, int bank, int slot) {
+  shiftDuellist = duellist;
+  shiftBank = bank;
+  shiftSlot = slot;
+  shift = 48;
+}
+
+static void tickShift(void) {
+  int t = 48 - shift;
+  if (t < 4) setFade(0, 16);
+  else if (t < 8) setFade(0, 0);
+  else if (t < 12) setFade(0, 16);
+  else if (t < 16) setFade(0, 0);
+  else if (t < 32) setFade(1, t - 16);
+  else if (t == 32) {
+    setFade(1, 16);
+    scene = SCENE_DUEL;
+    duelPhase = DUEL_INTRO;
+    paintDuelGround();
+    REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
+    beginDuel(shiftDuellist, shiftBank, shiftSlot);
+  } else setFade(1, 48 - t);
+  if (!--shift) clearFade();
+}
+
 static void tryTalk(void) {
   int fx = (hero.px >> 4) + DIR_X[hero.dir];
   int fy = (hero.py >> 4) + DIR_Y[hero.dir];
@@ -1090,8 +1634,15 @@ static void tryTalk(void) {
   if (who >= 0) {
     const Npc *npc = &world->npcs[who];
     /* Face whoever spoke to you; it is rude not to. */
+    /* Somebody spoken to mid-stride finishes the step first. Stopping them
+       where they stand leaves them straddling two tiles: drawn on one, standing
+       on the other, and walked through as if they were not there. */
+    if (crowd[who].walk) {
+      crowd[who].px = (s16)(crowd[who].px + crowd[who].dx * crowd[who].walk);
+      crowd[who].py = (s16)(crowd[who].py + crowd[who].dy * crowd[who].walk);
+      crowd[who].walk = 0;
+    }
     crowd[who].dir = (u8)(hero.dir ^ 1);
-    crowd[who].walk = 0;
     if (npc->heals && you.hp < vigourFor(you.level)) {
       you.hp = vigourFor(you.level);
       openWindow(npc->name,
@@ -1099,6 +1650,7 @@ static void tryTalk(void) {
       return;
     }
     openWindow(npc->name, npc->line);
+    if (npc->trade) { afterWindow = npc->trade; }
     return;
   }
   {
@@ -1116,21 +1668,73 @@ static void tryChallenge(void) {
     openWindow(world->npcs[who].name, "I will not draw on you, and you know it.");
     return;
   }
-  scene = SCENE_DUEL;
-  duelPhase = DUEL_INTRO;
-  paintDuelGround();
-  REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
-  beginDuel(world->npcs[who].duellist, world->npcs[who].bank, who);
+  callToArms(world->npcs[who].duellist, world->npcs[who].bank, who);
 }
 
-/* Somebody was already on this road when you got here. */
+/* Somebody was already in the grass when you walked into it. */
 static void ambush(void) {
   const Ambush *a = &world->ambushes[roll(world->ambushCount)];
-  scene = SCENE_DUEL;
-  duelPhase = DUEL_INTRO;
-  paintDuelGround();
-  REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
-  beginDuel(a->duellist, a->bank, -1);
+  callToArms(a->duellist, a->bank, -1);
+}
+
+/* ------------------------------------------------------------- spotted ---- */
+/* Somebody who fights and who is facing your way will see you coming, put an
+   exclamation over their head, walk up, and draw. This is the single most
+   recognisable thing a handheld role-playing game does, and the road is a
+   different place with it. */
+
+static void lookForTrouble(void) {
+  int i, step;
+  if (spotted >= 0 || shift || windowOpen) return;
+  for (i = 0; i < crowdCount; i++) {
+    const Npc *npc = &world->npcs[i];
+    int x, y;
+    if (!crowdAlive[i] || !npc->sight || !npc->fights) continue;
+    if (beaten[worldId][i] || crowd[i].walk) continue;
+    x = crowd[i].px >> 4;
+    y = crowd[i].py >> 4;
+    for (step = 1; step <= npc->sight; step++) {
+      x += DIR_X[crowd[i].dir];
+      y += DIR_Y[crowd[i].dir];
+      if (solidAt(x, y)) break;
+      if ((hero.px >> 4) == x && (hero.py >> 4) == y && !hero.walk) {
+        spotted = i;
+        spotTimer = 44;
+        return;
+      }
+    }
+  }
+}
+
+/* Once they have seen you they close the distance, then say their piece. */
+static void tickSpotted(void) {
+  Body *them = &crowd[spotted];
+  int tx, ty, hx, hy;
+  if (spotTimer > 0) { spotTimer--; return; }
+  if (them->walk) { moveBody(them, WALK_SPEED); return; }
+
+  tx = them->px >> 4; ty = them->py >> 4;
+  hx = hero.px >> 4; hy = hero.py >> 4;
+  if ((tx == hx && (ty == hy - 1 || ty == hy + 1))
+   || (ty == hy && (tx == hx - 1 || tx == hx + 1))) {
+    int who = spotted;
+    them->dir = (u8)(tx == hx ? (ty < hy ? 0 : 1) : (tx < hx ? 3 : 2));
+    hero.dir = (u8)(tx == hx ? (ty < hy ? 1 : 0) : (tx < hx ? 2 : 3));
+    beaten[worldId][who] = 1;
+    spotted = -1;
+    callToArms(world->npcs[who].duellist, world->npcs[who].bank, who);
+    return;
+  }
+  {
+    int dir = (tx != hx) ? (tx < hx ? 3 : 2) : (ty < hy ? 0 : 1);
+    int nx = tx + DIR_X[dir], ny = ty + DIR_Y[dir];
+    if (solidAt(nx, ny) || occupied(nx, ny, spotted)) {
+      dir = (ty != hy) ? (ty < hy ? 0 : 1) : (tx < hx ? 3 : 2);
+      nx = tx + DIR_X[dir]; ny = ty + DIR_Y[dir];
+      if (solidAt(nx, ny) || occupied(nx, ny, spotted)) { spotted = -1; return; }
+    }
+    stepBody(them, dir);
+  }
 }
 
 /* Everyone who is not waiting to say something has somewhere to be. */
@@ -1141,7 +1745,10 @@ static void moveCrowd(void) {
     if (crowd[i].walk) { moveBody(&crowd[i], WALK_SPEED); continue; }
     if (!world->npcs[i].roams) continue;
     if (crowdTimer[i]) { crowdTimer[i]--; continue; }
-    crowdTimer[i] = (u16)(30 + roll(150));
+    /* Somebody who happens to be standing on a doorstep moves on sooner, so a
+       door is never blocked for long. */
+    crowdTimer[i] = nearWarp(crowd[i].px >> 4, crowd[i].py >> 4)
+      ? (u16)(10 + roll(30)) : (u16)(30 + roll(150));
     {
       int dir = (int)roll(4);
       int nx = (crowd[i].px >> 4) + DIR_X[dir];
@@ -1162,6 +1769,7 @@ static void moveCrowd(void) {
 static void placeEveryone(void) {
   int order[MAX_CROWD + 1], count = 0, i, j;
   hideAllObjects();
+
   for (i = 0; i < crowdCount; i++) if (crowdAlive[i]) order[count++] = i;
   order[count++] = -1;                              /* the player */
 
@@ -1174,6 +1782,11 @@ static void placeEveryone(void) {
       order[j + 1] = order[j];
     }
     order[j + 1] = key;
+  }
+
+  if (spotted >= 0 && spotTimer > 0) {
+    placeBubble(MAX_CROWD + 2, crowd[spotted].px - camX,
+      crowd[spotted].py - camY - 30);
   }
 
   /* A lower object number is drawn nearer the front, so the list — sorted with
@@ -1215,6 +1828,7 @@ int main(void) {
   you.house = 0; you.level = 5; you.gold = 120;
   you.hp = vigourFor(you.level);
   you.exp = expForLevel(you.level);
+  hasRecord = findRecord();
   paintTitle();
   flushPage();
   pushObjects();
@@ -1226,29 +1840,148 @@ int main(void) {
     keysWas = keysNow;
     keysNow = (u16)(~REG_KEYINPUT & 0x03FF);
     seed += keysNow + 1;
+    frameClock++;
+
+    if (shift) {
+      tickShift();
+      keysNow = 0;                      /* the buttons are held while it plays */
+      if (scene == SCENE_DUEL) { waitVBlank(); pushObjects(); flushPage(); continue; }
+    }
 
     if (scene == SCENE_TITLE) {
+      if (hasRecord) {
+        int was = titlePick;
+        if (hit(KEY_UP) && titlePick) titlePick--;
+        if (hit(KEY_DOWN) && !titlePick) titlePick++;
+        if (titlePick != was) paintTitle();
+      }
       if (hit(KEY_START) || hit(KEY_A)) {
-        scene = SCENE_HOUSE;
-        houseChoice = 0;
-        paintHousePicker();
+        if (hasRecord && titlePick == 0) {
+          takeUpRecord();
+          PAL_BG[TXT_BANK * 16 + C_HOUSE] = houses[you.house].colour;
+          PAL_BG[TXT_BANK * 16 + C_TRIM] = houses[you.house].accent;
+          PAL_BG[TXT_BANK * 16 + C_EDGE] = houses[you.house].colour;
+          enterWorld(record.worldId, record.x, record.y, record.dir);
+          REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
+        } else {
+          scene = SCENE_HOUSE;
+          houseChoice = 0;
+          paintHousePicker();
+        }
       }
     } else if (scene == SCENE_HOUSE) {
       if (hit(KEY_LEFT) && houseChoice > 0) { houseChoice--; paintHousePicker(); }
       if (hit(KEY_RIGHT) && houseChoice < HOUSE_COUNT - 1) { houseChoice++; paintHousePicker(); }
       if (hit(KEY_A)) {
         you.house = houseChoice;
+        /* Nobody is sent out of the yard with their bare hands. */
+        you.weapon = START_WEAPON + 1;
+        you.armour = START_ARMOUR + 1;
+        you.bag[START_POTION] = 2;
+        reckonTechniques();
         PAL_BG[TXT_BANK * 16 + C_HOUSE] = houses[you.house].colour;
         PAL_BG[TXT_BANK * 16 + C_TRIM] = houses[you.house].accent;
         PAL_BG[TXT_BANK * 16 + C_EDGE] = houses[you.house].colour;
-        enterWorld();
+        enterWorld(0, 12, 12, 0);
         REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
       }
     } else if (scene == SCENE_STATUS) {
       if (hit(KEY_START) || hit(KEY_B) || hit(KEY_A)) {
+        scene = SCENE_MENU;
+        clearPage();
+        layoutTextRows(TEXT_TOP);
+        paintMenu();
+      }
+    } else if (scene == SCENE_MENU) {
+      int was = menuPick;
+      if (hit(KEY_UP) && menuPick > 0) menuPick--;
+      if (hit(KEY_DOWN) && menuPick < MENU_ENTRIES - 1) menuPick++;
+      if (menuPick != was) paintMenu();
+      if (hit(KEY_B) || hit(KEY_START)) {
         scene = SCENE_WORLD;
         clearPage();
         layoutTextRows(TEXT_PLAY);
+      } else if (hit(KEY_A)) {
+        if (menuPick == 0) {
+          scene = SCENE_STATUS;
+          clearPage();
+          layoutTextRows(TEXT_MIDDLE);
+          paintStatus();
+        } else if (menuPick == 1) {
+          scene = SCENE_BAG;
+          bagInDuel = 0;
+          bagPick = 0;
+          clearPage();
+          layoutTextRows(TEXT_TOP);
+          paintBag();
+        } else if (menuPick == 2) {
+          keepRecord();
+          clearPage();
+          layoutTextRows(TEXT_PLAY);
+          scene = SCENE_WORLD;
+          openWindow(0, "Your record is written down. The maesters keep worse ones.");
+        } else {
+          scene = SCENE_WORLD;
+          clearPage();
+          layoutTextRows(TEXT_PLAY);
+        }
+      }
+    } else if (scene == SCENE_BAG) {
+      int have = carrying(), was = bagPick;
+      if (hit(KEY_UP) && bagPick > 0) bagPick--;
+      if (hit(KEY_DOWN) && bagPick < have - 1) bagPick++;
+      if (bagPick != was) paintBag();
+      if (hit(KEY_B)) {
+        clearPage();
+        if (bagInDuel) {
+          scene = SCENE_DUEL;
+          layoutTextRows(TEXT_DUEL);
+          paintDuelPlates();
+          paintDuelMenu();
+        } else {
+          scene = SCENE_MENU;
+          layoutTextRows(TEXT_TOP);
+          paintMenu();
+        }
+      } else if (hit(KEY_A) && have) {
+        int at = nthCarried(bagPick);
+        int worked = bagInDuel ? useInDuel(at) : useWare(at);
+        if (bagPick >= carrying() && bagPick) bagPick--;
+        if (bagInDuel && worked) {
+          clearPage();
+          scene = SCENE_DUEL;
+          layoutTextRows(TEXT_DUEL);
+          paintDuelPlates();
+          duelPhase = DUEL_THEIRS;
+          copyString(scratch, "You drink it down.", sizeof scratch);
+          duelSay(0, scratch);
+        } else if (worked) {
+          clearPage();
+          scene = SCENE_WORLD;
+          layoutTextRows(TEXT_PLAY);
+          openWindow(0, "Better. Not good, but better.");
+        } else {
+          paintBag();
+        }
+      }
+    } else if (scene == SCENE_SHOP) {
+      const Stall *stall = &stalls[shopStall];
+      int was = shopPick;
+      if (hit(KEY_UP) && shopPick > 0) shopPick--;
+      if (hit(KEY_DOWN) && shopPick < stall->count - 1) shopPick++;
+      if (shopPick != was) paintShop();
+      if (hit(KEY_B)) {
+        scene = SCENE_WORLD;
+        clearPage();
+        layoutTextRows(TEXT_PLAY);
+      } else if (hit(KEY_A)) {
+        const char *said = buyWare(stall->ware[shopPick]);
+        paintShop();
+        scene = SCENE_WORLD;
+        clearPage();
+        layoutTextRows(TEXT_PLAY);
+        openWindow(0, said);
+        afterWindow = shopStall + 1;
       }
     } else if (scene == SCENE_DUEL) {
       if (windowOpen) {
@@ -1256,7 +1989,7 @@ int main(void) {
           if (!advanceWindow()) {
             if (duelPhase == DUEL_INTRO) {
               firstMover = mine.swiftness >= theirs.swiftness;
-              duelPhase = DUEL_MENU;
+              duelPhase = DUEL_TOP;
             } else if (duelPhase == DUEL_END) {
               if (duelOver == 2) youFell(); else theyFell();
             } else if (duelPhase == DUEL_MINE || duelPhase == DUEL_THEIRS) {
@@ -1264,7 +1997,40 @@ int main(void) {
                  through to here on the menu phase would hand out a free hit. */
               duelTurn();
             }
-            if (scene == SCENE_DUEL && duelPhase == DUEL_MENU && !windowOpen) paintDuelMenu();
+            if (scene == SCENE_DUEL && duelPhase == DUEL_TOP && !windowOpen) paintDuelTop();
+          }
+        }
+      } else if (duelPhase == DUEL_TOP) {
+        int was = topPick;
+        if (hit(KEY_LEFT) && (topPick & 1)) topPick--;
+        if (hit(KEY_RIGHT) && !(topPick & 1)) topPick++;
+        if (hit(KEY_UP) && topPick > 1) topPick -= 2;
+        if (hit(KEY_DOWN) && topPick < 2) topPick += 2;
+        if (topPick != was) paintDuelTop();
+        if (hit(KEY_A)) {
+          if (topPick == 0) { duelPhase = DUEL_MENU; paintDuelMenu(); }
+          else if (topPick == 1) {
+            scene = SCENE_BAG;
+            bagInDuel = 1;
+            bagPick = 0;
+            clearPage();
+            layoutTextRows(TEXT_TOP);
+            paintBag();
+          } else if (topPick == 2) {
+            duelMenu = 3;                      /* Guard always keeps the last slot */
+            paintFrameOnly();
+            mine.defending = 0;
+            duelPhase = DUEL_MINE;
+            duelTurn();
+          } else {
+            if (roll(100) < 55) {
+              you.hp = mine.hp;
+              endDuel();
+              openWindow(0, "You break off and put distance between you.");
+            } else {
+              duelSay(0, "There is nowhere to go. Finish it.");
+              duelPhase = DUEL_MINE;
+            }
           }
         }
       } else if (duelPhase == DUEL_MENU) {
@@ -1274,17 +2040,9 @@ int main(void) {
         if (hit(KEY_UP) && duelMenu > 1) duelMenu -= 2;
         if (hit(KEY_DOWN) && duelMenu < 2) duelMenu += 2;
         if (duelMenu != was) paintDuelMenu();
-        if (hit(KEY_B)) {
-          if (roll(100) < 55) {
-            you.hp = mine.hp;
-            endDuel();
-            openWindow(0, "You break off and put distance between you.");
-          } else {
-            duelSay(0, "There is nowhere to go. Finish it.");
-            duelPhase = DUEL_MINE;
-          }
-        } else if (hit(KEY_A)) {
-          clearRows(56, 48);
+        if (hit(KEY_B)) { duelPhase = DUEL_TOP; paintDuelTop(); }
+        else if (hit(KEY_A)) {
+          paintFrameOnly();
           mine.defending = 0;
           duelPhase = DUEL_MINE;
           duelTurn();
@@ -1293,19 +2051,31 @@ int main(void) {
     } else {
       /* The world. */
       if (windowOpen) {
-        if (hit(KEY_A) || hit(KEY_B)) advanceWindow();
+        if ((hit(KEY_A) || hit(KEY_B)) && !advanceWindow() && afterWindow) {
+          shopStall = afterWindow - 1;
+          afterWindow = 0;
+          shopPick = 0;
+          scene = SCENE_SHOP;
+          clearPage();
+          layoutTextRows(TEXT_TOP);
+          paintShop();
+        }
+      } else if (spotted >= 0) {
+        /* Nothing to do but wait for them. */
       } else if (hero.walk) {
         moveBody(&hero, held(KEY_B) ? RUN_SPEED : WALK_SPEED);
         if (!hero.walk) {
           const Warp *warp = warpAt(hero.px >> 4, hero.py >> 4);
           if (warp) enterMap(warp->to, warp->tx, warp->ty, hero.dir);
-          else if (world->ambushCount && roll(1000) < 38) ambush();
+          else if (world->ambushCount && coverAt(hero.px >> 4, hero.py >> 4)
+                   && roll(100) < 12) ambush();
         }
       } else if (hit(KEY_START)) {
-        scene = SCENE_STATUS;
+        scene = SCENE_MENU;
+        menuPick = 0;
         clearPage();
-        layoutTextRows(TEXT_MIDDLE);
-        paintStatus();
+        layoutTextRows(TEXT_TOP);
+        paintMenu();
       } else if (hit(KEY_SELECT)) {
         tryChallenge();
       } else if (hit(KEY_A)) {
@@ -1327,13 +2097,18 @@ int main(void) {
         }
       }
 
-      if (!windowOpen) moveCrowd();
+      if (!windowOpen) {
+        if (spotted >= 0) tickSpotted();
+        else { moveCrowd(); lookForTrouble(); }
+      }
       if (plateTimer && !--plateTimer) clearRows(0, 16);
 
       camX = clampCamera(hero.px + 8 - (SCREEN_W >> 1), world->w * 16, SCREEN_W);
       camY = clampCamera(hero.py + 8 - (SCREEN_H >> 1), world->h * 16, SCREEN_H);
       placeEveryone();
     }
+
+    tickWindow(held(KEY_A) || held(KEY_B));
 
     if (scene == SCENE_DUEL) {
       /* The two of you, half again life size, facing each other across the yard.

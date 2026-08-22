@@ -25,8 +25,11 @@
 #include "main.c"
 #undef main
 
+#include "render.h"
+
 #define MEM_SPAN 0x03000400u
 unsigned char *gbaMem;
+unsigned char hostSram[65536];
 int hostFramesLeft;
 
 #define FRAME_CAP 900000
@@ -64,7 +67,7 @@ static int talked, signs, duels, duelsWon, duelsLost, fled, warpsTaken, levels, 
 
 static void checkFrame(void) {
   int i;
-  if (scene < 0 || scene > 4) finding("scene is %d, which is not a scene", scene);
+  if (scene < 0 || scene > SCENE_SHOP) finding("scene is %d, which is not a scene", scene);
   if (scene == SCENE_TITLE || scene == SCENE_HOUSE) return;
 
   if (worldId < 0 || worldId >= MAP_COUNT) {
@@ -80,6 +83,21 @@ static void checkFrame(void) {
     }
   }
   if (crowdCount > MAX_CROWD) finding("%s: %d in the crowd", world->name, crowdCount);
+  if (!hero.walk && ((hero.px & 15) || (hero.py & 15))) {
+    finding("%s: the player came to rest between two tiles", world->name);
+  }
+  for (i = 0; i < crowdCount; i++) {
+    if (!crowdAlive[i]) continue;
+    if (!crowd[i].walk && ((crowd[i].px & 15) || (crowd[i].py & 15))) {
+      finding("%s: %s came to rest between two tiles", world->name, world->npcs[i].name);
+    }
+    if (bodyAt(&hero, crowd[i].px >> 4, crowd[i].py >> 4)
+        && !hero.walk && !crowd[i].walk) {
+      finding("%s: the player is on top of %s at %d,%d (spotted %d, shift %d, f%d)",
+        world->name, world->npcs[i].name, crowd[i].px >> 4, crowd[i].py >> 4,
+        spotted, shift, frameNo);
+    }
+  }
   for (i = 0; i < crowdCount; i++) {
     int cx, cy;
     if (!crowdAlive[i]) continue;
@@ -156,6 +174,8 @@ static int goalKind, goalIndex, goalFrames, goalStage;
 static int npcDuelled[MAP_COUNT][MAX_CROWD];
 static int interacting, duelTries, blocked;
 static int wantHouse, runAway, statusChecks, sinceStatus, wantTech, techUsed[4];
+static int menusSeen, bagsSeen, shopsSeen, bought, records, menuWant = -1;
+static int spottings, spottedBy, shooting;
 static unsigned lastKeys;
 
 /* A tap, not a hold: the game only acts on the frame a button goes down. */
@@ -168,6 +188,7 @@ static int mapDone(int m) {
   int i;
   if (!mapSeen[m]) return 0;
   for (i = 0; i < maps[m].npcCount && i < MAX_CROWD; i++) {
+    if (m == worldId && !crowdAlive[i]) continue;      /* dead and dealt with */
     if (!npcTalked[m][i] && !npcStuck[m][i]) return 0;
   }
   for (i = 0; i < maps[m].signCount && i < 8; i++) if (!signRead[m][i]) return 0;
@@ -197,6 +218,24 @@ static int warpTowardWork(void) {
   return -1;
 }
 
+/* Somewhere in the grass, for when the tester is meant to be levelling rather
+   than sightseeing. */
+static int grindMode, grindX, grindY;
+
+static int findCover(int *gx, int *gy) {
+  int x, y, best = 1 << 30, hx = hero.px >> 4, hy = hero.py >> 4, found = 0;
+  for (y = 0; y < world->h; y++) {
+    for (x = 0; x < world->w; x++) {
+      int d;
+      if (!world->cover[y * world->w + x]) continue;
+      if (x == hx && y == hy) continue;
+      d = (x > hx ? x - hx : hx - x) + (y > hy ? y - hy : hy - y);
+      if (d < best) { best = d; *gx = x; *gy = y; found = 1; }
+    }
+  }
+  return found;
+}
+
 /* The next thing worth doing on this map, or nothing left to do. */
 static void pickGoal(void) {
   int i;
@@ -206,6 +245,9 @@ static void pickGoal(void) {
   interacting = 0;
 
   for (i = 0; i < crowdCount; i++) {
+    /* Anyone who drew on you from across the road and lost is dealt with,
+       whether or not there was ever a conversation. */
+    if (!crowdAlive[i] && !npcTalked[worldId][i]) { npcTalked[worldId][i] = 1; talked++; }
     if (!crowdAlive[i] || npcTalked[worldId][i] || npcStuck[worldId][i]) continue;
     goalKind = GOAL_NPC; goalIndex = i; return;
   }
@@ -246,11 +288,43 @@ static void completeGoal(void) {
 
 /* ------------------------------------------------------------------ play -- */
 
+/* Catch each interesting screen the first time the tester reaches it, so the
+   pictures are of the game actually being played rather than of a route
+   somebody wrote down and that the crowd has since wandered out of. */
+static int caught[24];
+
+static void catchOnce(int slot, const char *name) {
+  if (!shooting || caught[slot]) return;
+  caught[slot] = 1;
+  snapshot(name);
+}
+
 void hostFrame(void) {
   unsigned keys = 0;
   static int wasScene = -1, wasMap = -1, wasLevel = 0, wasKills = 0;
 
   checkFrame();
+
+  if (shooting) {
+    if (scene == SCENE_TITLE) catchOnce(0, "01-title");
+    else if (scene == SCENE_HOUSE) catchOnce(1, "02-swear-your-sword");
+    else if (scene == SCENE_MENU) catchOnce(2, "05-the-menu");
+    else if (scene == SCENE_STATUS) catchOnce(3, "06-your-sigil");
+    else if (scene == SCENE_BAG) catchOnce(4, "07-the-pouch");
+    else if (scene == SCENE_SHOP) catchOnce(shopStall ? 5 : 6,
+      shopStall ? "12-arms-and-armour" : "11-remedies");
+    else if (scene == SCENE_DUEL) {
+      if (duelPhase == DUEL_TOP) catchOnce(7, "09-what-to-do");
+      else if (duelPhase == DUEL_MENU) catchOnce(8, "10-which-blow");
+      else if (windowOpen && !typeDone) catchOnce(9, "08-the-duel-opens");
+    } else if (scene == SCENE_WORLD) {
+      if (shift > 40) catchOnce(10, "13-the-flash");
+      else if (shift > 20 && shift < 30) catchOnce(11, "14-going-dark");
+      else if (spotted >= 0 && spotTimer > 20) catchOnce(12, "15-spotted");
+      else if (windowOpen && !typeDone && frameNo > 400) catchOnce(13, "04-mid-sentence");
+      else if (!windowOpen && frameNo > 60 && frameNo < 400) catchOnce(14, "03-winterfell");
+    }
+  }
 
   if (scene == SCENE_TITLE) {
     keys = tap(KEY_START);
@@ -260,9 +334,36 @@ void hostFrame(void) {
     keys = houseChoice < wantHouse ? tap(KEY_RIGHT) : tap(KEY_A);
   } else if (scene == SCENE_STATUS) {
     keys = tap(KEY_B);
+  } else if (scene == SCENE_MENU) {
+    menusSeen++;
+    /* Look in the pouch about half the time, write the record now and then,
+       and otherwise leave. */
+    if (menuWant < 0) menuWant = (int)roll(4);
+    if (menuWant == 3) keys = tap(KEY_B);
+    else if (menuPick != menuWant) keys = tap(menuPick < menuWant ? KEY_DOWN : KEY_UP);
+    else { keys = tap(KEY_A); if (keys) { if (menuWant == 2) records++; menuWant = -1; } }
+  } else if (scene == SCENE_BAG) {
+    bagsSeen++;
+    menuWant = -1;
+    /* Drink something if it would help, otherwise put it away. */
+    keys = (carrying() && you.hp < vigourFor(you.level) && (roll(2) == 0))
+      ? tap(KEY_A) : tap(KEY_B);
+  } else if (scene == SCENE_SHOP) {
+    shopsSeen++;
+    if (bought < 24 && roll(3) == 0) { keys = tap(KEY_A); if (keys) bought++; }
+    else if (roll(4) == 0) keys = tap(KEY_DOWN);
+    else keys = tap(KEY_B);
   } else if (scene == SCENE_DUEL) {
     if (wasScene != SCENE_DUEL) { duelTries = 0; runAway = (duels % 5) == 4; }
     if (windowOpen) keys = tap(KEY_A);
+    else if (duelPhase == DUEL_TOP) {
+      /* Fight most of the time; sometimes reach for the pouch, sometimes run. */
+      int want = runAway ? 3 : (you.hp * 3 < vigourFor(you.level) && carrying() ? 1 : 0);
+      if ((want & 1) != (topPick & 1)) keys = tap((want & 1) ? KEY_RIGHT : KEY_LEFT);
+      else if ((want & 2) != (topPick & 2)) keys = tap((want & 2) ? KEY_DOWN : KEY_UP);
+      else keys = tap(KEY_A);
+      if (++duelTries > 900) { finding("a duel that would not end"); duelTries = 0; }
+    }
     else if (duelPhase == DUEL_MENU) {
       /* Mostly fight; every fifth duel, try to break off instead, so that path
          is walked too. And move the cursor about, so Guard and the rest are
@@ -277,7 +378,6 @@ void hostFrame(void) {
         techUsed[duelMenu]++;
         wantTech = (int)(roll(4));
       }
-      if (++duelTries > 400) { finding("a duel that would not end"); duelTries = 0; }
     }
   } else {
     if (wasMap != worldId) {
@@ -289,7 +389,11 @@ void hostFrame(void) {
     if (you.level > wasLevel) { levels++; wasLevel = you.level; }
     if (you.kills > wasKills) { kills = you.kills; wasKills = you.kills; }
 
-    if (windowOpen) {
+    if (spotted >= 0) {
+      if (!spottedBy) spottedBy = 1, spottings++;
+      keys = 0;
+    } else if (windowOpen) {
+      spottedBy = 0;
       keys = tap(KEY_A);
     } else if (!hero.walk && ++sinceStatus > 150) {
       sinceStatus = 0;
@@ -303,8 +407,48 @@ void hostFrame(void) {
       keys = 0;                                  /* a step finishes itself */
     } else {
       int gx, gy, dir;
+      if (grindMode) {
+        /* Walk the grass and fight whatever comes out of it. */
+        if (!findCover(&grindX, &grindY)) { hostFramesLeft = 0; return; }
+        goalKind = GOAL_SIGN;          /* borrow the "walk to a tile" behaviour */
+        goalIndex = 0;
+        gx = grindX; gy = grindY;
+        if ((hero.px >> 4) == gx && (hero.py >> 4) == gy) {
+          static const unsigned STEP[4] = { KEY_DOWN, KEY_UP, KEY_LEFT, KEY_RIGHT };
+          keys = STEP[roll(4)];
+          lastKeys = keys;
+          REG_KEYINPUT = (unsigned short)(~keys & 0x03FF);
+          frameNo++;
+          return;
+        }
+        dir = stepToward(gx, gy);
+        if (dir >= 0) {
+          static const unsigned STEP[4] = { KEY_DOWN, KEY_UP, KEY_LEFT, KEY_RIGHT };
+          keys = STEP[dir];
+        }
+        lastKeys = keys;
+        REG_KEYINPUT = (unsigned short)(~keys & 0x03FF);
+        frameNo++;
+        return;
+      }
       if (goalKind == GOAL_NONE) pickGoal();
-      if (goalKind == GOAL_NONE) { hostFramesLeft = 0; return; }
+      if (goalKind == GOAL_NONE) {
+        if (getenv("WHY")) {
+          int m, k;
+          printf("nothing left to do, standing in %s\n", world->name);
+          for (m = 0; m < MAP_COUNT; m++) {
+            printf("  %-24s seen %d done %d  npcs:", maps[m].name, mapSeen[m], mapDone(m));
+            for (k = 0; k < maps[m].npcCount && k < MAX_CROWD; k++) {
+              printf(" %d%s", npcTalked[m][k], npcStuck[m][k] ? "s" : "");
+            }
+            printf("  warps:");
+            for (k = 0; k < maps[m].warpCount; k++) printf(" %s", maps[maps[m].warps[k].to].name);
+            printf("\n");
+          }
+        }
+        hostFramesLeft = 0;
+        return;
+      }
       goalTile(&gx, &gy);
 
       if (++goalFrames > GOAL_FRAMES) {
@@ -344,7 +488,7 @@ void hostFrame(void) {
         } else {
           dir = stepToward(gx, gy);
           if (dir >= 0) { keys = KEYS[dir]; blocked = 0; }
-          else if (++blocked < 400) {
+          else if (++blocked < 900) {
             keys = 0;      /* somebody is in the doorway; wait for them to move */
           } else {
             blocked = 0;
@@ -366,10 +510,11 @@ void hostFrame(void) {
   }
   wasScene = scene;
 
-  if (getenv("TRACE") && frameNo < atoi(getenv("TRACE"))) {
-    printf("f%-5d sc%d %-14s hero %2d,%2d walk%2d dir%d win%d goal%d/%d gf%-4d keys %03x\n",
+  if (getenv("TRACE") && frameNo > atoi(getenv("FROM") ? getenv("FROM") : "0")
+      && frameNo < atoi(getenv("TRACE"))) {
+    printf("f%-5d sc%d %-14s hero %2d,%2d walk%2d dir%d win%d spot%d goal%d/%d gf%-4d keys %03x\n",
       frameNo, scene, world ? world->name : "-", hero.px >> 4, hero.py >> 4, hero.walk,
-      hero.dir, windowOpen, goalKind, goalIndex, goalFrames, keys);
+      hero.dir, windowOpen, spotted, goalKind, goalIndex, goalFrames, keys);
   }
   lastKeys = keys;
   REG_KEYINPUT = (unsigned short)(~keys & 0x03FF);
@@ -385,6 +530,8 @@ int main(int argc, char **argv) {
   hostFramesLeft = FRAME_CAP + 8;
   wantHouse = house;
   if (getenv("SEED")) seed = (unsigned)atoi(getenv("SEED"));
+  if (getenv("GRIND")) { grindMode = 1; hostFramesLeft = atoi(getenv("GRIND")); }
+  if (argc > 2) { shooting = 1; outDir = argv[2]; }
 
   gba_main();
 
@@ -406,6 +553,16 @@ int main(int argc, char **argv) {
     you.level, you.gold, you.hp, vigourFor(you.level), world ? world->name : "(nowhere)");
   printf("  swore to       %s\n", houses[you.house].full);
   printf("  status card    opened %d times\n", statusChecks);
+  printf("  spotted on the road %d times\n", spottings);
+  printf("  menus / pouch / stalls  %d / %d / %d, bought %d things, saved %d times\n",
+    menusSeen, bagsSeen, shopsSeen, bought, records);
+  printf("  carrying       ");
+  { int n = 0, k; for (k = 0; k < WARE_COUNT; k++) if (you.bag[k]) { printf("%s x%d  ", wares[k].name, you.bag[k]); n++; }
+    if (!n) printf("nothing"); printf("\n"); }
+  printf("  wearing        %s, %s, %s\n",
+    you.weapon ? wares[you.weapon - 1].name : "bare hands",
+    you.armour ? wares[you.armour - 1].name : "roughspun",
+    you.shield ? wares[you.shield - 1].name : "no shield");
   printf("  techniques     ");
   for (i = 0; i < 4; i++) printf("%s x%d  ", techniques[player_techs[i]].name, techUsed[i]);
   printf("\n");

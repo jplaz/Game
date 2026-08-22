@@ -6,32 +6,41 @@ and on any emulator — Delta, mGBA, VBA — from `thronebound.gba`.
 ## What is on it
 
 **Swear to a house.** Stark, Lannister, Tully, Targaryen or Greyjoy. The one you
-kneel to is the cloak you wear for the rest of the game.
+kneel to is the cloak you wear and the colour the interface is framed in.
 
-**Nineteen maps of the North**, joined by their real warps: Winterfell and its
+**Nineteen maps of the North**, joined by their real doors: Winterfell and its
 keep, forge, maester's hall and your own chamber; the Wolfswood; the Kingsroad;
 Castle Black, its armoury and the land beyond the Wall; Moat Cailin; the
-Riverlands; Riverrun, its inn and its keep; the Bloody Gate. You can walk from
-the yard you start in to Riverrun without a loading screen you would notice.
+Riverlands; Riverrun, its inn and its keep; the Bloody Gate.
 
-**People who are doing something.** The crowd wanders — within a few tiles of
-where they belong, around each other and around you — and turns to face you when
-you speak to them. What they say is what they say in the browser game.
+**A crowd that is doing something.** People wander within a few tiles of where
+they belong, keep clear of doorways, and turn to face you when you speak. What
+they say is what they say in the browser game, typed out a letter at a time with
+a wedge that blinks when it wants a button.
 
-**Fight anyone.** SELECT draws on whoever you are facing. A maester or a septa
-will tell you no; everybody else will oblige. Duels are the browser game's own
-numbers — its damage formula, its techniques, its duellists' stats — fought over
-a menu of four, with the swifter fighter swinging first. **Lose and you wake in
-Winterfell lighter by a third of your purse. Win and they are dead**, and stay
-dead, and the road remembers it.
+**Somebody sees you coming.** A fighter facing down a road will spot you at
+their own sight range, put an exclamation over their head, walk up, and draw.
 
-**People on the road.** Out on a route, somebody steps out every twenty tiles or
-so: bandits, deserters, sellswords, taken from the same encounter tables the
-browser rolls, at the same levels.
+**Grass you can be jumped in.** Encounters happen in tall grass and reeds and
+nowhere else, at about one step in eight, and the screen cracks white and falls
+to black before the fight rather than simply cutting to it.
 
-Controls: D-pad walks, hold **B** to run. **A** talks and reads signs and turns
-the page. **SELECT** challenges. **START** is your own card — house, level,
-health, gold and how many people you have killed.
+**Duels** are the browser game's own numbers — its damage formula, its
+techniques, its duellists' stats — over Fight / Pouch / Guard / Flee and then
+four techniques with their power and accuracy shown. **Lose and you wake in
+Winterfell a third of your purse lighter. Win and they are dead**, and stay dead,
+and you are told exactly what the win was worth.
+
+**Gold buys things.** A maester's hall sells remedies; a forge sells blades,
+armour and shields. Better armour changes the body you walk around in. What a
+blade teaches becomes the techniques you fight with.
+
+**START opens a menu** — Sigil, Pouch, Record, Leave. **Record writes to the
+cartridge's battery-backed memory**, and the title card offers to take up the
+road again next time you switch on.
+
+Controls: D-pad walks, hold **B** to run. **A** talks, reads signs and turns the
+page. **SELECT** challenges whoever you are facing. **START** is the menu.
 
 ## What is not on it
 

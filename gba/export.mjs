@@ -68,11 +68,13 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const { MAPS } = await import('/src/data/maps.js');
   const { DUELLISTS, ROAMERS, makeRoamer } = await import('/src/data/duellists.js');
   const { TRAINERS, trainerAsDuellist } = await import('/src/data/trainers.js');
+  const { ITEMS } = await import('/src/data/items.js');
+  const { WEAPONS, ARMOUR, SHIELDS } = await import('/src/data/gear.js');
   const { HOUSES, SWEARABLE } = await import('/src/data/houses.js');
   const { TECHNIQUES } = await import('/src/data/gear.js');
   const { baseStats } = await import('/src/game/player.js');
 
-  const { tileCanvas, isSolid, TILE_GROUP, N, E, S, W } = tiles;
+  const { tileCanvas, isSolid, tileDef, TILE_GROUP, N, E, S, W } = tiles;
 
   function read(canvas) {
     const c = document.createElement('canvas');
@@ -126,22 +128,28 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       .map((c) => c.toString(16).padStart(2, '0')).join('');
   }
 
+  // Four looks per house: what you are wearing shows. The cartridge keeps one
+  // resident at a time and swaps it when you put something else on.
+  const KIT = [
+    { outfit: 'cloak', shield: 'none' },
+    { outfit: 'leathers', shield: 'buckler' },
+    { outfit: 'mail', shield: 'oakShield' },
+    { outfit: 'plate', shield: 'towerShield' },
+  ];
   const houses = SWEARABLE.map((id) => {
     const h = HOUSES[id];
-    const who = {
-      build: 'man', outfit: 'cloak', hair: 'short',
-      weapon: 'blade', shield: 'oakShield',
-      palette: {
-        hair: '#5a3a20', hairLight: '#7a5230',
-        skin: '#e8b88c', skinDark: '#c08f66',
-        cloak: h.colour, cloakDark: shade(h.colour, -34),
-        trim: h.accent, legs: '#3d3a44', boots: '#2a2730',
-      },
+    const palette = {
+      hair: '#5a3a20', hairLight: '#7a5230',
+      skin: '#e8b88c', skinDark: '#c08f66',
+      cloak: h.colour, cloakDark: shade(h.colour, -34),
+      trim: h.accent, legs: '#3d3a44', boots: '#2a2730',
     };
+    const looks = KIT.map((kit, tier) => actorFor(
+      { build: 'man', hair: 'short', weapon: 'blade', palette, ...kit },
+      `hero:${id}:${tier}`));
     return {
       id, name: h.name, full: h.full, words: h.words, sworn: h.sworn,
-      seat: h.seat, colour: h.colour, accent: h.accent,
-      actor: actorFor(who, `hero:${id}`),
+      seat: h.seat, colour: h.colour, accent: h.accent, looks,
     };
   });
 
@@ -219,7 +227,38 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     };
   }
 
-  const out = { maps: [], houses, techniques, duellists, actors: null };
+  // What can be bought. Only what a person with no beasts has any use for:
+  // something to drink when you are hurt, and better steel.
+  const wares = [];
+  const wareIndex = new Map();
+  function ware(id, def, kind, heal) {
+    const key = `${kind}:${id}`;
+    if (wareIndex.has(key)) return wareIndex.get(key);
+    const at = wares.length;
+    wareIndex.set(key, at);
+    wares.push({
+      id, kind, name: def.name, price: def.price ?? 0, heal: heal ?? 0,
+      might: def.might ?? 0, guard: def.guard ?? 0, swiftness: def.swiftness ?? 0,
+      techs: def.techniques ?? [],
+    });
+    return at;
+  }
+  for (const [id, def] of Object.entries(ITEMS)) {
+    if (def.pocket !== 'medicine') continue;
+    if (def.use?.kind === 'heal') ware(id, def, 'potion', def.use.amount * 4);
+    else if (def.use?.kind === 'fullHeal') ware(id, def, 'potion', 9999);
+  }
+  for (const [id, def] of Object.entries(WEAPONS)) if (def.price) ware(id, def, 'weapon');
+  for (const [id, def] of Object.entries(ARMOUR)) if (def.price) ware(id, def, 'armour');
+  for (const [id, def] of Object.entries(SHIELDS)) if (def.price) ware(id, def, 'shield');
+
+  const potions = wares.map((w, i) => (w.kind === 'potion' ? i : -1)).filter((i) => i >= 0);
+  const forSale = {
+    apothecary: potions,
+    armourer: wares.map((w, i) => (w.kind !== 'potion' ? i : -1)).filter((i) => i >= 0),
+  };
+
+  const out = { maps: [], houses, techniques, duellists, wares, forSale, actors: null };
 
   for (const id of mapIds) {
     const map = MAPS[id];
@@ -227,6 +266,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     const height = map.height ?? map.grid.length;
     const cells = [];
     const solid = [];
+    const cover = [];
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const char = map.grid[y][x] ?? '.';
@@ -234,6 +274,8 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
           map.ground ?? 'grass', pixels.variantFor(x, y, 4));
         cells.push(read(canvas));
         solid.push(isSolid(char) ? 1 : 0);
+        // Cover: the tall grass and the reeds. Nothing jumps you on a paved road.
+        cover.push(tileDef(char).kind === 'encounter' ? 1 : 0);
       }
     }
 
@@ -264,9 +306,16 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         || (n.data?.trainer && TRAINERS[n.data.trainer]?.intro)
         || n.data?.line
         || null;
+      // Who trades, and who watches the road. A trainer in the browser game has
+      // a sight range; the same number decides how far down their nose they
+      // spot you here.
+      const trade = /shop|merchant/i.test(n.script ?? '') ? 1
+        : /smith|forge|armour/i.test(n.script ?? '') ? 2 : 0;
+      const sight = n.data?.trainer && TRAINERS[n.data.trainer]
+        ? Math.min(5, TRAINERS[n.data.trainer].sight ?? 0) : 0;
       return {
         x: n.x, y: n.y, dir: actors.DIRECTIONS.indexOf(n.dir ?? 'down'), said,
-        name: n.name ?? '', script: n.script ?? '', sprite,
+        name: n.name ?? '', script: n.script ?? '', sprite, trade, sight,
         actor: actorFor(sprite, sprite),
         duellist: pushDuellist(fighter),
         // A town is not a waxwork. Everybody has somewhere to be except the
@@ -301,7 +350,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     }
 
     out.maps.push({
-      id, name: map.name, width, height, cells, solid, npcs, ambushes,
+      id, name: map.name, width, height, cells, solid, cover, npcs, ambushes,
       warps: (map.warps ?? []).map((w) => ({ ...w })),
       signs: (map.signs ?? []).map((s) => ({ x: s.x, y: s.y, text: s.text })),
     });
@@ -537,6 +586,7 @@ function roleLine(npc) {
 // ------------------------------------------------------------- writing out --
 
 const hex = (n) => `0x${(n >>> 0).toString(16)}`;
+const techSlotOf = (id) => harvest.techniques.findIndex((t) => t.id === id);
 /* The cartridge draws bytes, one glyph each. The writing uses real typography —
    curly quotes, em dashes — which is three bytes a character and a hole in the
    middle of a word on a Game Boy. Everything bound for the ROM is folded down
@@ -580,6 +630,7 @@ L.push('');
 L.push('typedef unsigned char  u8;');
 L.push('typedef unsigned short u16;');
 L.push('typedef unsigned int   u32;');
+L.push('typedef signed char    s8;');
 L.push('');
 
 // Font.
@@ -621,13 +672,56 @@ L.push('');
 
 // Houses.
 L.push(`#define HOUSE_COUNT ${harvest.houses.length}`);
-L.push('typedef struct { const char *name, *full, *words, *sworn, *seat; u16 colour, accent; u16 actor; } House;');
+L.push('typedef struct { const char *name, *full, *words, *sworn, *seat; u16 colour, accent; u16 looks[4]; } House;');
 L.push('static const House houses[HOUSE_COUNT] = {');
 for (const h of harvest.houses) {
   L.push(`  { ${cstr(h.name)}, ${cstr(h.full)}, ${cstr(h.words)},`);
-  L.push(`    ${cstr(h.sworn)}, ${cstr(h.seat)}, ${hex(hexColour(h.colour))}, ${hex(hexColour(h.accent))}, ${h.actor} },`);
+  L.push(`    ${cstr(h.sworn)}, ${cstr(h.seat)}, ${hex(hexColour(h.colour))}, ${hex(hexColour(h.accent))},`);
+  L.push(`    { ${h.looks.join(', ')} } },`);
 }
 L.push('};');
+L.push('');
+
+// What can be bought, and who sells it.
+L.push(`#define WARE_COUNT ${harvest.wares.length}`);
+L.push('#define WARE_POTION 0');
+L.push('#define WARE_WEAPON 1');
+L.push('#define WARE_ARMOUR 2');
+L.push('#define WARE_SHIELD 3');
+L.push('typedef struct {');
+L.push('  const char *name;');
+L.push('  u16 price, heal;');
+L.push('  u8 kind, might, guard, tier;');
+L.push('  s8 swiftness;');
+L.push('  u8 tech[3], techCount;');
+L.push('} Ware;');
+L.push('static const Ware wares[WARE_COUNT] = {');
+{
+  const kindOf = { potion: 0, weapon: 1, armour: 2, shield: 3 };
+  // Which of the four looks a piece of armour puts you in.
+  const LOOK = { gambeson: 0, boiledLeather: 1, ringmail: 2, scaleArmour: 2, knightPlate: 3 };
+  for (const w of harvest.wares) {
+    const techs = (w.techs ?? []).map((id) => techSlotOf(id)).filter((n) => n >= 0).slice(0, 3);
+    L.push(`  { ${cstr(w.name)}, ${w.price}, ${Math.min(9999, w.heal)}, ${kindOf[w.kind]},`);
+    L.push(`    ${w.might}, ${w.guard}, ${LOOK[w.id] ?? 0}, ${w.swiftness},`);
+    L.push(`    { ${[...techs, 0, 0, 0].slice(0, 3).join(', ')} }, ${techs.length} },`);
+  }
+}
+L.push('};');
+L.push('');
+L.push(`#define START_WEAPON ${harvest.wares.findIndex((w) => w.id === 'ironSword')}`);
+L.push(`#define START_ARMOUR ${harvest.wares.findIndex((w) => w.id === 'gambeson')}`);
+L.push(`#define START_POTION ${harvest.wares.findIndex((w) => w.id === 'maesterKit')}`);
+L.push('typedef struct { const u8 *ware; u8 count; } Stall;');
+{
+  const stalls = [harvest.forSale.apothecary, harvest.forSale.armourer];
+  stalls.forEach((list, i) => {
+    L.push(`static const u8 stall_${i}[${Math.max(1, list.length)}] = { ${list.join(', ') || '0'} };`);
+  });
+  L.push('static const Stall stalls[2] = {');
+  stalls.forEach((list, i) => L.push(`  { stall_${i}, ${list.length} },`));
+  L.push('};');
+}
 L.push('');
 
 // Techniques.
@@ -667,7 +761,7 @@ L.push('typedef struct { u8 x, y, to, tx, ty; } Warp;');
 L.push('typedef struct { u8 x, y; const char *text; } Sign;');
 L.push('typedef struct { u16 duellist; u8 bank; } Ambush;');
 L.push('typedef struct {');
-L.push('  u8 x, y, dir, bank, roams, heals, fights;');
+L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight;');
 L.push('  u16 duellist;');
 L.push('  const char *name, *line;');
 L.push('} Npc;');
@@ -678,6 +772,7 @@ L.push('  u16 tileCount;');
 L.push('  const u32 *tiles;');
 L.push('  const u16 *entries;');
 L.push('  const u8  *solid;');
+L.push('  const u8  *cover;     /* where something can be hiding */');
 L.push('  const u16 *residents; u8 residentCount;');
 L.push('  const Warp *warps; u8 warpCount;');
 L.push('  const Sign *signs; u8 signCount;');
@@ -697,6 +792,9 @@ harvest.maps.forEach((map, i) => {
   L.push('};');
   L.push(`static const u8 solid_${i}[${map.height} * ${map.width}] = {`);
   L.push(block(map.solid, 24));
+  L.push('};');
+  L.push(`static const u8 cover_${i}[${map.height} * ${map.width}] = {`);
+  L.push(block(map.cover, 24));
   L.push('};');
   L.push(`static const u16 residents_${i}[${Math.max(1, map.residents.length)}] = { ${map.residents.join(', ') || '0'} };`);
 
@@ -726,10 +824,10 @@ harvest.maps.forEach((map, i) => {
       name = n.name.startsWith(spoken[1]) ? n.name : spoken[1];
       line = spoken[2];
     }
-    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.duellist},`);
+    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.duellist},`);
     L.push(`    ${cstr(name)}, ${cstr(line.trim())} },`);
   }
-  if (!map.npcs.length) L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, "", "" },');
+  if (!map.npcs.length) L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');
   L.push('};');
   L.push('');
 });
@@ -738,7 +836,7 @@ L.push(`#define MAP_COUNT ${harvest.maps.length}`);
 L.push('static const Map maps[MAP_COUNT] = {');
 harvest.maps.forEach((map, i) => {
   L.push(`  { ${cstr(map.name)}, ${map.width}, ${map.height}, ${map.bank.length}, tiles_${i},`);
-  L.push(`    entries_${i}, solid_${i}, residents_${i}, ${map.residents.length},`);
+  L.push(`    entries_${i}, solid_${i}, cover_${i}, residents_${i}, ${map.residents.length},`);
   L.push(`    warps_${i}, ${map.liveWarps}, signs_${i}, ${map.signs.length},`);
   L.push(`    npcs_${i}, ${map.npcs.length}, ambushes_${i}, ${map.ambushes.length} },`);
 });

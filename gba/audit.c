@@ -66,12 +66,15 @@ static int ledgeOn(const Map *m, int x, int y) {
    off the edge and two tiles down, so the flood has to walk the same rules the
    cartridge does or it will call a walled-off corner reachable. */
 static unsigned char standable[64 * 64];
+static unsigned char spare[64 * 64];
 static int floodQ[64 * 64];
+static int blocked = -1;               /* one tile taken out of the map */
 
 static void flood(const Map *m, int sx, int sy) {
   int head = 0, tail = 0, i;
   if (sx < 0 || sy < 0 || sx >= m->w || sy >= m->h) return;
   if (solidOn(m, sx, sy) || ledgeOn(m, sx, sy)) return;
+  if (sy * m->w + sx == blocked) return;
   if (standable[sy * m->w + sx]) return;
   standable[sy * m->w + sx] = 1;
   floodQ[tail++] = sy * m->w + sx;
@@ -88,11 +91,33 @@ static void flood(const Map *m, int sx, int sy) {
       }
       if (nx < 0 || ny < 0 || nx >= m->w || ny >= m->h) continue;
       if (solidOn(m, nx, ny)) continue;
+      if (ny * m->w + nx == blocked) continue;
       if (standable[ny * m->w + nx]) continue;
       standable[ny * m->w + nx] = 1;
       floodQ[tail++] = ny * m->w + nx;
     }
   }
+}
+
+/* The rules the cartridge uses to keep a roamer out of a place where standing
+   still would shut the map: within one tile of a door, and in the gap through a
+   line of ledges. Written out again here so the audit can check that between
+   them they cover every tile that actually matters. */
+static int nearWarpOn(const Map *m, int x, int y) {
+  int i;
+  for (i = 0; i < m->warpCount; i++) {
+    int dx = m->warps[i].x - x, dy = m->warps[i].y - y;
+    if (dx < 0) dx = -dx;
+    if (dy < 0) dy = -dy;
+    if (dx + dy <= 1) return 1;
+  }
+  return 0;
+}
+
+static int ledgeGateOn(const Map *m, int x, int y) {
+  int d;
+  for (d = -1; d <= 1; d++) if (ledgeOn(m, x - 1, y + d) && ledgeOn(m, x + 1, y + d)) return 1;
+  return 0;
 }
 
 static int standNextTo(const Map *m, int x, int y) {
@@ -132,6 +157,156 @@ static void checkFits(const char *what, const char *s, int rows) {
   wrapText(s, TXT_W - 22);
   if (lineCount > MAX_LINES - 1) bad("%s: %d lines is more than the window can page", what, lineCount);
   (void)rows;
+}
+
+/* One duel, starting from the health you walk in with. Returns 1 if you win,
+   and leaves what you have left in *hp. The cartridge's own arithmetic. */
+static int duelOnce(int level, int who, int *hp) {
+  const Duellist *d = &duellists[who];
+  Kit k = kitOf(who, d->level);
+  u8 piece[3];
+  int j2, turn, first;
+
+  mine.name = "you"; mine.level = level;
+  mine.maxHp = vigourFor(level);
+  mine.hp = *hp;
+  mine.might = mightFor(level);
+  mine.guard = guardFor(level);
+  mine.swiftness = swiftFor(level);
+  mine.tech = myTechs;
+  mine.defending = 0;
+
+  theirs.name = d->name; theirs.level = d->level;
+  theirs.maxHp = theirs.hp = d->vigour;
+  theirs.might = d->might; theirs.guard = d->guard; theirs.swiftness = d->swiftness;
+  theirs.tech = d->tech;
+  theirs.defending = 0;
+  /* Weapon and mail only, the way the cartridge fights them: the shield is on
+     their back until you take it off them. */
+  piece[0] = k.arm; piece[1] = k.mail;
+  for (j2 = 0; j2 < 2; j2++) {
+    if (piece[j2] == KIT_NONE) continue;
+    theirs.might += wares[piece[j2]].might;
+    theirs.guard += wares[piece[j2]].guard;
+    theirs.swiftness += wares[piece[j2]].swiftness;
+  }
+  if (theirs.swiftness < 1) theirs.swiftness = 1;
+
+  first = mine.swiftness >= theirs.swiftness;
+  for (turn = 0; turn < 200 && mine.hp > 0 && theirs.hp > 0; turn++) {
+    int mineTech = myTechs[0], best = -1, j3;
+    for (j3 = 0; j3 < 3; j3++) {
+      const Tech *tt = &techniques[myTechs[j3]];
+      int score = tt->power * tt->accuracy;
+      if (score > best) { best = score; mineTech = myTechs[j3]; }
+    }
+    if (first) {
+      if (swingQuiet(&mine, &theirs, mineTech)) break;
+      if (swingQuiet(&theirs, &mine, d->tech[roll(4)])) break;
+    } else {
+      if (swingQuiet(&theirs, &mine, d->tech[roll(4)])) break;
+      if (swingQuiet(&mine, &theirs, mineTech)) break;
+    }
+  }
+  *hp = mine.hp;
+  return theirs.hp <= 0 && mine.hp > 0;
+}
+
+/* Fights one duellist `tries` times with a player of the given level carrying
+   whatever `you` is carrying, and returns wins in a hundred. It is the
+   cartridge's own swing(): same damage formula, same crits, same guard, same
+   technique table, same kit on them. */
+static int winRate(int level, int who, int tries) {
+  int wins = 0, t;
+  int wasLevel = you.level;
+  u8 wasWeapon = you.weapon, wasArmour = you.armour, wasShield = you.shield;
+  const Duellist *d = &duellists[who];
+
+  you.level = level;
+  reckonTechniques();
+  for (t = 0; t < tries; t++) {
+    int turn, first;
+    Kit k = kitOf(who, d->level);
+    u8 piece[3];
+    int j2;
+
+    mine.name = "you"; mine.level = level;
+    mine.maxHp = mine.hp = vigourFor(level);
+    mine.might = mightFor(level);
+    mine.guard = guardFor(level);
+    mine.swiftness = swiftFor(level);
+    mine.tech = myTechs;
+    mine.defending = 0;
+
+    theirs.name = d->name; theirs.level = d->level;
+    theirs.maxHp = theirs.hp = d->vigour;
+    theirs.might = d->might; theirs.guard = d->guard; theirs.swiftness = d->swiftness;
+    theirs.tech = d->tech;
+    theirs.defending = 0;
+    piece[0] = k.arm; piece[1] = k.mail; piece[2] = k.shield;
+    for (j2 = 0; j2 < 3; j2++) {
+      if (piece[j2] == KIT_NONE) continue;
+      theirs.might += wares[piece[j2]].might;
+      theirs.guard += wares[piece[j2]].guard;
+      theirs.swiftness += wares[piece[j2]].swiftness;
+    }
+    if (theirs.swiftness < 1) theirs.swiftness = 1;
+
+    first = mine.swiftness >= theirs.swiftness;
+    for (turn = 0; turn < 200 && mine.hp > 0 && theirs.hp > 0; turn++) {
+      /* A player picks their best technique; the foe picks at random, which is
+         what the cartridge has them do. */
+      int mineTech = myTechs[0], best = -1, j3;
+      for (j3 = 0; j3 < 3; j3++) {
+        const Tech *tt = &techniques[myTechs[j3]];
+        int score = tt->power * tt->accuracy;
+        if (score > best) { best = score; mineTech = myTechs[j3]; }
+      }
+      if (first) {
+        if (swingQuiet(&mine, &theirs, mineTech)) break;
+        if (swingQuiet(&theirs, &mine, d->tech[roll(4)])) break;
+      } else {
+        if (swingQuiet(&theirs, &mine, d->tech[roll(4)])) break;
+        if (swingQuiet(&mine, &theirs, mineTech)) break;
+      }
+    }
+    if (theirs.hp <= 0 && mine.hp > 0) wins++;
+  }
+  you.level = wasLevel;
+  you.weapon = wasWeapon; you.armour = wasArmour; you.shield = wasShield;
+  reckonTechniques();
+  return wins * 100 / tries;
+}
+
+/* How many fights of your own standing you get through in a row, starting whole
+   and getting a quarter of your wind back on each win, the way the cartridge
+   gives it back. Averaged over `tries` runs. */
+static int runLength(int level, int tries) {
+  int total = 0, t;
+  int wasLevel = you.level;
+  you.level = level;
+  reckonTechniques();
+  for (t = 0; t < tries; t++) {
+    int hp = vigourFor(level), run = 0, guard = 0;
+    while (run < 40) {
+      int who = -1, tried;
+      /* Somebody of about your own standing, picked at random. */
+      for (tried = 0; tried < 200 && who < 0; tried++) {
+        int c = (int)roll(DUELLIST_COUNT);
+        if (duellists[c].level >= level - 2 && duellists[c].level <= level + 2) who = c;
+      }
+      if (who < 0) break;
+      if (!duelOnce(level, who, &hp)) break;
+      run++;
+      hp += vigourFor(level) >> 2;
+      if (hp > vigourFor(level)) hp = vigourFor(level);
+      (void)guard;
+    }
+    total += run;
+  }
+  you.level = wasLevel;
+  reckonTechniques();
+  return total / tries;
 }
 
 int main(void) {
@@ -198,6 +373,71 @@ int main(void) {
       const Warp *w = &map->warps[i];
       if (w->x < map->w && w->y < map->h && !standable[w->y * map->w + w->x]) {
         bad("%s: there is no walking to the door at %d,%d", map->name, w->x, w->y);
+      }
+    }
+
+    /* --- tiles that would shut the map if somebody stood still on them ---- */
+    /* Take each tile out of the map in turn and see what stops being reachable.
+       Anything that cuts the map in two is a gateway, and a roamer idling in a
+       gateway seals half the world until they happen to move. The cartridge
+       keeps them out of doorways and ledge gaps; anything else that turns up
+       here is a gateway nothing is keeping them out of. */
+    {
+      int whole = 0, x, y;
+      for (i = 0; i < map->w * map->h; i++) if (standable[i]) whole++;
+      for (y = 0; y < map->h; y++) for (x = 0; x < map->w; x++) {
+        int again = 0, k, reachedFrom = -1;
+        if (!standable[y * map->w + x]) continue;
+        if (nearWarpOn(map, x, y) || ledgeGateOn(map, x, y)) continue;
+        /* Nobody roams more than three tiles from where they belong, so a tile
+           no NPC can get to cannot be blocked by one. */
+        for (k = 0; k < map->npcCount; k++) {
+          int dx = map->npcs[k].x - x, dy = map->npcs[k].y - y;
+          if (dx < 0) dx = -dx;
+          if (dy < 0) dy = -dy;
+          if (dx <= 3 && dy <= 3) { reachedFrom = k; break; }
+        }
+        if (reachedFrom < 0) continue;
+
+        blocked = y * map->w + x;
+        memcpy(spare, standable, sizeof spare);
+        memset(standable, 0, sizeof standable);
+        if (m == 0) flood(map, 12, 12);
+        for (k = 0; k < MAP_COUNT; k++) {
+          int j2;
+          for (j2 = 0; j2 < maps[k].warpCount; j2++) {
+            if (maps[k].warps[j2].to == m) flood(map, maps[k].warps[j2].tx, maps[k].warps[j2].ty);
+          }
+        }
+        for (k = 0; k < map->w * map->h; k++) if (standable[k]) again++;
+
+        /* Cutting a broom cupboard off behind a counter costs nobody anything.
+           What matters is whether anything you need is on the far side of them:
+           a door, a sign, somebody to talk to, or simply a lot of map. */
+        if (again < whole - 1) {
+          int lostDoor = 0, lostFace = 0, j2;
+          int lost = whole - 1 - again;
+          for (j2 = 0; j2 < map->warpCount; j2++) {
+            const Warp *w2 = &map->warps[j2];
+            if (spare[w2->y * map->w + w2->x] && !standable[w2->y * map->w + w2->x]) lostDoor = 1;
+          }
+          for (j2 = 0; j2 < map->npcCount; j2++) {
+            const Npc *n2 = &map->npcs[j2];
+            if (j2 == reachedFrom) continue;
+            if (n2->x < map->w && n2->y < map->h && !standNextTo(map, n2->x, n2->y)) lostFace = 1;
+          }
+          for (j2 = 0; j2 < map->signCount; j2++) {
+            const Sign *g2 = &map->signs[j2];
+            if (g2->x < map->w && g2->y < map->h && !standNextTo(map, g2->x, g2->y)) lostFace = 1;
+          }
+          if (lostDoor || lostFace || lost > 8) {
+            bad("%s: %s can stand at %d,%d and shut %d tiles off%s",
+              map->name, map->npcs[reachedFrom].name, x, y, lost,
+              lostDoor ? ", a door among them" : lostFace ? ", and somebody with it" : "");
+          }
+        }
+        blocked = -1;
+        memcpy(standable, spare, sizeof spare);
       }
     }
 
@@ -273,6 +513,121 @@ int main(void) {
     checkFits(d->name, d->intro, 2);
     checkFits(d->name, d->defeat, 2);
     if (textWidth(d->name) > 108) note("the duel plate is tight for \"%s\"", d->name);
+  }
+
+  /* --- what everybody is carrying ---------------------------------------- */
+  /* You start with nothing, so the road has to dress you. Two things matter:
+     that nobody is carrying something that does not exist, and that the people
+     you meet first are carrying something at all - a bare-handed player who
+     beats three knights and comes away with nothing has been left in a hole. */
+  {
+    int armsEarly = 0, early = 0, dearest = 0, dearestAt = -1, dearestWare = -1;
+    int remedies = 0, pieces = 0;
+    for (i = 0; i < DUELLIST_COUNT; i++) {
+      Kit k = kitOf(i, duellists[i].level);
+      u8 piece[3];
+      int j2, has = 0;
+      piece[0] = k.arm; piece[1] = k.mail; piece[2] = k.shield;
+      for (j2 = 0; j2 < 3; j2++) {
+        static const int WANT[3] = { WARE_WEAPON, WARE_ARMOUR, WARE_SHIELD };
+        if (piece[j2] == KIT_NONE) continue;
+        if (piece[j2] >= WARE_COUNT) {
+          bad("%s carries ware %d", duellists[i].name, piece[j2]);
+          continue;
+        }
+        if (wares[piece[j2]].kind != WANT[j2]) {
+          bad("%s carries a %s where a %s belongs", duellists[i].name,
+            wares[piece[j2]].name, j2 == 0 ? "weapon" : j2 == 1 ? "mail" : "shield");
+        }
+        if (wares[piece[j2]].price > dearest) {
+          dearest = wares[piece[j2]].price; dearestAt = i; dearestWare = piece[j2];
+        }
+        has = 1;
+        pieces++;
+      }
+      if (k.remedy != KIT_NONE) {
+        if (k.remedy >= WARE_COUNT || wares[k.remedy].kind != WARE_POTION) {
+          bad("%s carries ware %d to drink", duellists[i].name, k.remedy);
+        } else remedies++;
+      }
+      if (duellists[i].level <= 5) { early++; if (has) armsEarly++; }
+    }
+    /* Low-level people having nothing is the point: bare fists against bare
+       fists is a fight. What would sink the game is nobody near the start
+       having a weapon at all, because then there is nothing to take. */
+    {
+      int firstBlade = 99, j3;
+      for (j3 = 0; j3 < DUELLIST_COUNT; j3++) {
+        Kit kk = kitOf(j3, duellists[j3].level);
+        if (kk.arm != KIT_NONE && duellists[j3].level < firstBlade) firstBlade = duellists[j3].level;
+      }
+      note("%d of the first %d carry something; %d pieces over %d people; "
+           "%d carry a remedy; the first weapon on anybody is at level %d",
+        armsEarly, early, pieces, DUELLIST_COUNT, remedies, firstBlade);
+      if (firstBlade > 10) {
+        bad("the first weapon on anybody is at level %d: a player who starts with "
+            "nothing has nothing to take for far too long", firstBlade);
+      }
+    }
+    if (dearestAt >= 0) {
+      note("the best thing on anybody is %s, on %s at level %d",
+        wares[dearestWare].name, duellists[dearestAt].name, duellists[dearestAt].level);
+    }
+  }
+
+  /* --- can somebody with nothing get started? ----------------------------- */
+  /* The one number that decides whether the game has an opening at all: you go
+     out of the gate bare-handed, so the people you meet first have to be
+     beatable bare-handed. This fights every duellist a thousand times over,
+     with the cartridge's own damage formula and the cartridge's own idea of
+     what everybody is carrying, and says what a player of that standing would
+     win. Anything under a third at the level you meet them is a wall, not a
+     fight. */
+  {
+    int lv, worstAt = -1, worstWin = 101;
+    for (i = 0; i < DUELLIST_COUNT; i++) {
+      int wins;
+      lv = duellists[i].level;
+      if (lv > 8) continue;                  /* only the opening matters here */
+      wins = winRate(lv < 5 ? 5 : lv, i, 400);
+      if (wins < worstWin) { worstWin = wins; worstAt = i; }
+    }
+    if (worstAt >= 0) {
+      note("bare-handed at their own level, the hardest of the first fights is "
+           "%s at level %d: %d wins in a hundred",
+        duellists[worstAt].name, duellists[worstAt].level, worstWin);
+      if (worstWin < 25) {
+        bad("%s is level %d and a bare-handed player of that level wins %d in a "
+            "hundred: there is no way into the game",
+          duellists[worstAt].name, duellists[worstAt].level, worstWin);
+      }
+    }
+  }
+
+  /* --- and does it stay a fight afterwards? ------------------------------- */
+  /* Per-duel odds are the wrong question. You do not go into every fight whole:
+     a win gives you back a quarter of your wind and nothing else, so what
+     decides the road is how many fights you get through before somebody puts
+     you down. Dress a player of each standing in what somebody of that standing
+     carries and count the run. Ten in a row and the road is a walk; two and it
+     is a wall. */
+  {
+    static const int AT[5] = { 5, 10, 15, 20, 25 };
+    int a;
+    for (a = 0; a < 5; a++) {
+      int lv = AT[a], run;
+      u8 wasW = you.weapon, wasA = you.armour, wasS = you.shield;
+      Kit k = kitOf(lv * 7, lv);
+      you.weapon = k.arm == KIT_NONE ? 0 : (u8)(k.arm + 1);
+      you.armour = k.mail == KIT_NONE ? 0 : (u8)(k.mail + 1);
+      you.shield = k.shield == KIT_NONE ? 0 : (u8)(k.shield + 1);
+      run = runLength(lv, 300);
+      you.weapon = wasW; you.armour = wasA; you.shield = wasS;
+      note("at level %d, in what a level %d carries, you get through %d fights "
+           "of your own standing before somebody puts you down", lv, lv, run);
+      if (run < 3) bad("level %d is a wall: %d fights in a row before you go down", lv, run);
+      if (run > 25) bad("level %d is a walk: %d fights in a row before you go down", lv, run);
+    }
   }
 
   /* --- techniques, and the four you carry -------------------------------- */

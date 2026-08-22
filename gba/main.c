@@ -969,6 +969,90 @@ static int swiftFor(int level) {
   return s < 1 ? 1 : s;
 }
 
+/* ------------------------------------------------------------- what they -- */
+/* ------------------------------------------------------------- carry ------ */
+/* Everybody on the road is carrying something, and what they are carrying is
+   fixed to who they are rather than rolled when they fall. That is the whole
+   point: a name is worth killing because of what is on them, the same blade is
+   on the same knight every time, and a serjeant of the Watch is a better prize
+   than a stableboy. You start with nothing at all, so the first few fights are
+   how you get dressed.
+
+   The purse a person's standing buys is their level times a bit, jittered by a
+   hash of who they are, and they carry the best thing of one kind that the
+   purse covers - usually. Sometimes they are a rung below it, which is what
+   keeps it worth beating the same rank twice. */
+
+#define KIT_NONE 255
+#define KIT_CEILING 3000    /* what the dearest thing on any body may cost */
+
+/* A weapon, a mail, a shield and maybe something to drink: everybody on the
+   road is dressed the way you are, out of the same list you are, and fights in
+   all of it. That symmetry is the whole balance of the thing - if they carried
+   one piece and you wore three, beating them would arm you past them within an
+   afternoon and the road south would be a walk. */
+typedef struct { u8 arm, mail, shield, remedy; } Kit;
+
+static u32 kitHash(int who) {
+  u32 h = (u32)(who + 1) * 2654435761u;
+  h ^= h >> 15; h *= 2246822519u; h ^= h >> 13; h *= 3266489917u; h ^= h >> 16;
+  return h;
+}
+
+/* No divide instruction and no remainder either, so a fraction of a range is a
+   multiply and a shift of the top sixteen bits of the hash.
+   Rotate rather than shift to get at a different part of it: a shift throws
+   bits away, and asking for one chance in eight out of what a shift of
+   twenty-one leaves is asking a three-bit number for a sixteen-bit answer -
+   which is nought, every single time. */
+static u32 rot(u32 h, int k) { return (h << k) | (h >> (32 - k)); }
+
+static int hashUpTo(u32 h, int range) {
+  return range > 0 ? (int)(((h >> 16) & 0xFFFFu) * (u32)range >> 16) : 0;
+}
+
+/* The dearest thing of one kind their purse runs to, or the one below it. */
+static u8 kitPiece(u32 h, int kind, int budget, int emptyIn) {
+  int best = -1, second = -1, i;
+  if (emptyIn > 0 && hashUpTo(h, emptyIn) == 0) return KIT_NONE;
+  for (i = 0; i < WARE_COUNT; i++) {
+    if (wares[i].kind != kind || wares[i].price > budget) continue;
+    if (best < 0 || wares[i].price > wares[best].price) { second = best; best = i; }
+    else if (second < 0 || wares[i].price > wares[second].price) second = i;
+  }
+  if (best < 0) return KIT_NONE;
+  /* One in three is carrying the lesser thing, which is what keeps it worth
+     beating the same rank of person twice. */
+  return (u8)((second >= 0 && hashUpTo(rot(h, 11), 3) == 0) ? second : best);
+}
+
+static Kit kitOf(int who, int level) {
+  u32 h = kitHash(who);
+  /* Steep at the bottom on purpose. You go out of the gate with nothing, so the
+     first people on the road have to have nothing either, or the first fight is
+     a bare fist against a shield and there is no way into the game at all. It
+     is level five before anybody has a knife and level ten before anybody has
+     mail, by which time you have taken a few things off a few people. */
+  int budget = level * level * 6 + level * 20 + hashUpTo(h, 1 + level * 40);
+  Kit k;
+  /* Nobody on the road is carrying the best things in the world. The road can
+     arm you well; a smith's counter is still the only place the finest kit
+     comes from, and gold is still worth having at the end of it. */
+  if (budget > KIT_CEILING) budget = KIT_CEILING;
+
+  k.arm    = kitPiece(rot(h, 3),  WARE_WEAPON, budget, 8);
+  k.mail   = kitPiece(rot(h, 9),  WARE_ARMOUR, budget, 5);
+  k.shield = kitPiece(rot(h, 17), WARE_SHIELD, budget, 3);
+  k.remedy = KIT_NONE;
+  /* One in eight is carrying something to drink. More than that and you can
+     out-drink any duel, which is the same as not being able to lose one. */
+  if (hashUpTo(rot(h, 23), 8) == 0) {
+    int p = level / 14;
+    k.remedy = (u8)(p > 3 ? 3 : p);
+  }
+  return k;
+}
+
 /* Your four techniques: whatever the blade in your hand teaches, and Guard,
    which anybody can do and which always keeps the last slot. */
 static u8 myTechs[4];
@@ -978,6 +1062,9 @@ static void reckonTechniques(void) {
   if (you.weapon) {
     const Ware *w = &wares[you.weapon - 1];
     for (i = 0; i < w->techCount && n < 3; i++) myTechs[n++] = w->tech[i];
+    /* A knife teaches two things; the third slot is swordplay anybody picks up,
+       not a headbutt, which is what you do when your hands are empty. */
+    while (n < 3) { myTechs[n] = armed_techs[n]; n++; }
   }
   while (n < 3) { myTechs[n] = player_techs[n]; n++; }
   myTechs[3] = player_techs[3];              /* Guard */
@@ -1190,6 +1277,17 @@ static int nearWarp(int x, int y) {
   return 0;
 }
 
+/* The one tile through a line of ledges, and the tiles queueing up to it. A
+   ledge cannot be climbed, so where a line of them has a single gap that gap is
+   the only way north, and somebody idling in it seals half a map until they
+   happen to wander off. They are kept out of it the way they are kept out of
+   doorways. */
+static int ledgeGate(int x, int y) {
+  int d;
+  for (d = -1; d <= 1; d++) if (ledgeAt(x - 1, y + d) && ledgeAt(x + 1, y + d)) return 1;
+  return 0;
+}
+
 static int crowdAt(int x, int y) {
   int i;
   for (i = 0; i < crowdCount; i++) {
@@ -1211,6 +1309,7 @@ static Fighter mine, theirs;
 static const Duellist *foeDef;
 static int foeSlot;              /* which of the crowd is being fought, or -1 */
 static int foeBank;              /* which resident appearance they wear */
+static int foeId;                /* which of the duellists, for what they carry */
 static int duelMenu, duelPhase, duelOver;
 static char scratch[288];
 
@@ -1421,6 +1520,7 @@ static int fxStar(void) {
 static void beginDuel(int duellist, int bank, int slot) {
   foeSlot = slot;
   foeBank = bank;
+  foeId = duellist;
   foeDef = &duellists[duellist];
 
   mine.name = houses[you.house].name;
@@ -1443,6 +1543,30 @@ static void beginDuel(int duellist, int bank, int slot) {
   theirs.tech = foeDef->tech;
   theirs.defending = 0;
 
+  /* They fight in what they are carrying, and what they are carrying is what
+     you will be taking off them. That is what keeps the road level as you climb
+     it: the sword that is hurting you is the sword you are about to own, and
+     the next person up the road has a better one. */
+  {
+    Kit k = kitOf(duellist, foeDef->level);
+    int i;
+    u8 piece[3];
+    /* They fight in their weapon and their mail. The shield is slung across
+       their back until it is not their fight any more, which is where you get
+       it from - and it is the one edge a scavenger has over everybody on the
+       road: you are wearing all three of everything you ever took. */
+    piece[0] = k.arm; piece[1] = k.mail;
+    for (i = 0; i < 2; i++) {
+      const Ware *w;
+      if (piece[i] == KIT_NONE) continue;
+      w = &wares[piece[i]];
+      theirs.might += w->might;
+      theirs.guard += w->guard;
+      theirs.swiftness += w->swiftness;
+    }
+    if (theirs.swiftness < 1) theirs.swiftness = 1;
+  }
+
   duelOver = 0;
   duelMenu = 0;
   topPick = 0;
@@ -1456,6 +1580,21 @@ static void beginDuel(int duellist, int bank, int slot) {
   layoutTextRows(TEXT_DUEL);
   paintDuelPlates();
   duelSay(theirs.name, foeDef->intro);
+}
+
+/* The arithmetic of one swing, with nothing written and nothing drawn: the
+   audit fights whole duels with this to find out whether the opening of the
+   game is winnable at all. Returns 1 if the duel ended on it. */
+static int swingQuiet(Fighter *actor, Fighter *target, int techId) {
+  const Tech *t = &techniques[techId];
+  int crit = 0, dmg;
+  actor->defending = 0;
+  if (t->defend) { actor->defending = 1; return 0; }
+  if ((int)roll(100) >= t->accuracy) return 0;
+  dmg = computeDamage(actor, target, t, &crit);
+  target->hp -= dmg;
+  if (target->hp < 0) target->hp = 0;
+  return target->hp <= 0;
 }
 
 /* One side's swing, written out. Returns 1 if the duel ended on it. */
@@ -1794,6 +1933,33 @@ static void showGold(int y) {
   drawText(TXT_W - 14 - textWidth(scratch), y, scratch, C_GOLD);
 }
 
+static int worn(int at) {
+  return you.weapon == at + 1 || you.armour == at + 1 || you.shield == at + 1;
+}
+
+/* One line about a thing, into scratch, for whichever list is showing it. The
+   nudge to put it on belongs in the pouch and nowhere else. */
+static void describeWare(int at, int inPouch) {
+  const Ware *w = &wares[at];
+  copyString(scratch, "", sizeof scratch);
+  if (w->kind == WARE_POTION) {
+    appendString(scratch, "Restores ", sizeof scratch);
+    if (w->heal >= 9999) appendString(scratch, "everything.", sizeof scratch);
+    else { appendNumber(scratch, w->heal, sizeof scratch); appendString(scratch, " health.", sizeof scratch); }
+    return;
+  }
+  if (w->might) { appendString(scratch, "Might +", sizeof scratch); appendNumber(scratch, w->might, sizeof scratch); }
+  if (w->guard) {
+    if (scratch[0]) appendString(scratch, "  ", sizeof scratch);
+    appendString(scratch, "Guard +", sizeof scratch); appendNumber(scratch, w->guard, sizeof scratch);
+  }
+  if (w->swiftness) {
+    appendString(scratch, "  Swiftness ", sizeof scratch);
+    appendNumber(scratch, w->swiftness, sizeof scratch);
+  }
+  if (inPouch && !worn(at)) appendString(scratch, "   A to take it up", sizeof scratch);
+}
+
 static void paintBag(void) {
   int have = carrying(), top = listTop(bagPick, have), i;
   clearRows(0, TXT_H);
@@ -1812,23 +1978,68 @@ static void paintBag(void) {
     int y = 22 + i * 11;
     if (top + i == bagPick) drawCursor(14, y + 1, C_GOLD);
     drawText(24, y, wares[at].name, top + i == bagPick ? C_GOLD : C_INK);
-    copyString(scratch, "x", sizeof scratch);
-    appendNumber(scratch, you.bag[at], sizeof scratch);
-    drawText(TXT_W - 34, y, scratch, C_DIM);
+    if (wares[at].kind == WARE_POTION) {
+      copyString(scratch, "x", sizeof scratch);
+      appendNumber(scratch, you.bag[at], sizeof scratch);
+      drawText(TXT_W - 34, y, scratch, C_DIM);
+    } else if (worn(at)) {
+      drawText(TXT_W - 52, y, wares[at].kind == WARE_WEAPON ? "in hand" : "worn", C_WELL);
+    }
   }
   {
     int at = nthCarried(bagPick);
-    copyString(scratch, "Restores ", sizeof scratch);
-    if (wares[at].heal >= 9999) appendString(scratch, "everything.", sizeof scratch);
-    else { appendNumber(scratch, wares[at].heal, sizeof scratch); appendString(scratch, " health.", sizeof scratch); }
+    describeWare(at, 1);
     drawText(14, TXT_H - 18, scratch, C_DIM);
   }
 }
 
-/* Drinking something. Returns 1 if it was any use. */
+/* Drinking something, or putting it on. Returns 1 if it did anything.
+   Gear stays in the pouch when it is taken up: what you were wearing is still
+   yours, and swapping back costs nothing but the walk to the menu. */
+static int wearWare(int at) {
+  const Ware *w = &wares[at];
+  if (!you.bag[at] || worn(at)) return 0;
+  if (w->kind == WARE_WEAPON) { you.weapon = (u8)(at + 1); reckonTechniques(); }
+  else if (w->kind == WARE_ARMOUR) { you.armour = (u8)(at + 1); loadPlayerBody(); }
+  else if (w->kind == WARE_SHIELD) you.shield = (u8)(at + 1);
+  else return 0;
+  return 1;
+}
+
+/* Everything that comes into your hands goes through here: off a body, out of
+   the grass, or over a counter. A second one of the same thing is no use to
+   anybody, so it is stripped for what the metal is worth rather than sitting in
+   the pouch forever; and a better thing than you have goes straight on, because
+   nobody walks past a better sword to go and find a menu.
+
+   Returns 0 kept and worn, 1 kept and not worn, 2 sold on the spot. */
+#define TOOK_WORN 0
+#define TOOK_KEPT 1
+#define TOOK_SOLD 2
+
+static int takeWare(int at) {
+  const Ware *w = &wares[at];
+  if (w->kind == WARE_POTION) {
+    if (you.bag[at] < 99) you.bag[at]++;
+    return TOOK_KEPT;
+  }
+  if (you.bag[at]) {
+    you.gold += w->price >> 3;      /* scrap, not the asking price */
+    return TOOK_SOLD;
+  }
+  you.bag[at]++;
+  {
+    int had = w->kind == WARE_WEAPON ? you.weapon
+            : w->kind == WARE_ARMOUR ? you.armour : you.shield;
+    if (!had || wares[had - 1].price < w->price) { wearWare(at); return TOOK_WORN; }
+  }
+  return TOOK_KEPT;
+}
+
 static int useWare(int at) {
   int max = vigourFor(you.level), heal;
   if (!you.bag[at]) return 0;
+  if (wares[at].kind != WARE_POTION) return wearWare(at);
   heal = wares[at].heal >= 9999 ? max : wares[at].heal;
   if (you.hp >= max) return 0;
   you.hp += heal;
@@ -1860,23 +2071,7 @@ static void paintShop(void) {
       you.gold >= wares[at].price ? C_INK : C_DYING);
   }
   {
-    const Ware *w = &wares[stall->ware[shopPick]];
-    copyString(scratch, "", sizeof scratch);
-    if (w->kind == WARE_POTION) {
-      appendString(scratch, "Restores ", sizeof scratch);
-      if (w->heal >= 9999) appendString(scratch, "everything.", sizeof scratch);
-      else { appendNumber(scratch, w->heal, sizeof scratch); appendString(scratch, " health.", sizeof scratch); }
-    } else {
-      if (w->might) { appendString(scratch, "Might +", sizeof scratch); appendNumber(scratch, w->might, sizeof scratch); }
-      if (w->guard) {
-        if (scratch[0]) appendString(scratch, "  ", sizeof scratch);
-        appendString(scratch, "Guard +", sizeof scratch); appendNumber(scratch, w->guard, sizeof scratch);
-      }
-      if (w->swiftness) {
-        appendString(scratch, "  Swiftness ", sizeof scratch);
-        appendNumber(scratch, w->swiftness, sizeof scratch);
-      }
-    }
+    describeWare(stall->ware[shopPick], 0);
     drawText(14, TXT_H - 18, scratch, C_DIM);
   }
 }
@@ -1892,17 +2087,17 @@ static int useInDuel(int at) {
 /* Returns a line about what just happened at the counter. */
 static const char *buyWare(int at) {
   const Ware *w = &wares[at];
+  int how;
   if (you.gold < w->price) return "You cannot afford that, and it shows.";
+  if (w->kind != WARE_POTION && you.bag[at]) return "You have one of those already.";
   you.gold -= w->price;
-  if (w->kind == WARE_POTION) {
-    if (you.bag[at] < 99) you.bag[at]++;
-    return "Wrapped and handed over.";
-  }
-  if (w->kind == WARE_WEAPON) { you.weapon = (u8)(at + 1); reckonTechniques(); }
-  else if (w->kind == WARE_ARMOUR) { you.armour = (u8)(at + 1); loadPlayerBody(); }
-  else you.shield = (u8)(at + 1);
+  how = takeWare(at);
   if (you.hp > vigourFor(you.level)) you.hp = vigourFor(you.level);
-  return "You put it on there and then.";
+  if (w->kind == WARE_POTION) return "Wrapped and handed over.";
+  /* Bought gear goes onto you only if it beats what you have, so a knife bought
+     out of curiosity does not replace a good sword. */
+  return how == TOOK_WORN ? "You put it on there and then."
+                          : "Wrapped and handed over. Yours is still the better.";
 }
 
 /* ------------------------------------------------------------- the menu --- */
@@ -2006,16 +2201,126 @@ static void endDuel(void) {
 }
 
 static void youFell(void) {
+  int bare;
   sfxLost();
   if (foeSlot >= 0) beaten[worldId][foeSlot] = 1;
   you.hp = vigourFor(you.level);
   you.gold -= you.gold / 3;
+  bare = !you.weapon;
   endDuel();
   /* Somebody carries you home. It costs you a third of your purse and the
-     ground you had covered, which is enough of a lesson. */
+     ground you had covered, which is enough of a lesson.
+
+     And if you were beaten with nothing in your hands, there is a knife by the
+     bed when you wake. Everything in this game is taken off somebody, which
+     means a player with nothing who cannot win a fight has no way back in;
+     this is the floor under that, and it is only ever laid once. */
   enterMap(0, 12, 12, 0);
-  openWindow(0, "You go down. You wake in Winterfell with your wounds dressed, "
-                "a third of your purse gone, and a good deal of road to walk again.");
+  if (bare) {
+    takeWare(FLOOR_WEAPON);
+    openWindow(0, "You go down. You wake in Winterfell with your wounds dressed, "
+                  "a third of your purse gone, and a good deal of road to walk "
+                  "again.  Somebody has left a Hunting Knife on the chest by the "
+                  "bed. Nobody says who.");
+  } else {
+    openWindow(0, "You go down. You wake in Winterfell with your wounds dressed, "
+                  "a third of your purse gone, and a good deal of road to walk again.");
+  }
+}
+
+/* What you strip off somebody who has gone down, appended to the line that is
+   already being read out. A remedy goes in the pouch; the gear goes in the
+   pouch too, and onto you if it is dearer than what you had, because nobody
+   walks past a better sword to go and find a menu. */
+static void takeTheirKit(void) {
+  Kit k = kitOf(foeId, foeDef->level);
+  u8 piece[3];
+  int i, took = 0, worn = 0, scrap = 0;
+
+  piece[0] = k.arm; piece[1] = k.mail; piece[2] = k.shield;
+
+  /* You take the lot. They were dressed out of the same list you are, and if
+     you only took a piece at a time you would fall a rank behind everybody you
+     beat and never climb back. Whatever beats what you have goes straight on;
+     whatever you have already is stripped for what the metal is worth. */
+  for (i = 0; i < 3; i++) {
+    const Ware *w;
+    int how;
+    if (piece[i] == KIT_NONE) continue;
+    w = &wares[piece[i]];
+    how = takeWare(piece[i]);
+    if (how == TOOK_SOLD) { scrap += w->price >> 3; continue; }
+    if (took) appendString(scratch, took > 1 ? ", and " : ", ", sizeof scratch);
+    else appendString(scratch, "  Off them you take ", sizeof scratch);
+    appendString(scratch, w->name, sizeof scratch);
+    if (how == TOOK_WORN) worn = 1;
+    took++;
+  }
+  if (took) appendString(scratch, worn ? ", and put on what is better." : ".", sizeof scratch);
+  if (scrap) {
+    appendString(scratch, took ? "  The rest is scrap: " : "  All they had was scrap: ", sizeof scratch);
+    appendNumber(scratch, scrap, sizeof scratch);
+    appendString(scratch, " gold.", sizeof scratch);
+    took++;
+  }
+  if (k.remedy != KIT_NONE) {
+    takeWare(k.remedy);
+    appendString(scratch, took ? "  There is a " : "  They were carrying a ", sizeof scratch);
+    appendString(scratch, wares[k.remedy].name, sizeof scratch);
+    appendString(scratch, took ? " on them as well." : ".", sizeof scratch);
+    took++;
+  }
+  if (!took) appendString(scratch, "  They had nothing worth taking.", sizeof scratch);
+}
+
+/* Somebody dropped something in the reeds a long time ago, or lost it running.
+   Mostly a remedy; now and then a piece of gear worth about what somebody of
+   your own standing would be carrying, which is what keeps looking in the grass
+   worth the walk however far along you are. */
+static void findInGrass(void) {
+  u32 h = roll(0xFFFF) | (roll(0xFFFF) << 16);
+  int budget = 200 + you.level * 150;
+  int kind, best = -1, i;
+
+  if (budget > KIT_CEILING) budget = KIT_CEILING;
+
+  if (hashUpTo(h, 100) < 40) {
+    int p = you.level / 18;
+    int found = p > 3 ? 3 : p;
+    takeWare(found);
+    copyString(scratch, "Something is lying in the grass: a ", sizeof scratch);
+    appendString(scratch, wares[found].name, sizeof scratch);
+    appendString(scratch, ", and nobody is coming back for it.", sizeof scratch);
+    openWindow(0, scratch);
+    return;
+  }
+
+  { int r = hashUpTo(rot(h, 5), 100);
+    kind = r < 40 ? WARE_WEAPON : (r < 75 ? WARE_ARMOUR : WARE_SHIELD); }
+  for (i = 0; i < WARE_COUNT; i++) {
+    if (wares[i].kind != kind || wares[i].price > budget) continue;
+    if (best < 0 || wares[i].price > wares[best].price) best = i;
+  }
+  if (best < 0) {
+    takeWare(0);
+    openWindow(0, "Something is lying in the grass: a Maester's Kit, still sealed.");
+    return;
+  }
+  {
+    int how = takeWare(best);
+    copyString(scratch, "Something is lying in the grass: a ", sizeof scratch);
+    appendString(scratch, wares[best].name, sizeof scratch);
+    if (how == TOOK_WORN) {
+      appendString(scratch, ", better than what you had. It is yours now.", sizeof scratch);
+    } else if (how == TOOK_SOLD) {
+      appendString(scratch, ". You have one, so it goes in the purse: ", sizeof scratch);
+      appendNumber(scratch, wares[best].price >> 3, sizeof scratch);
+      appendString(scratch, " gold the richer.", sizeof scratch);
+    } else {
+      appendString(scratch, ", worse than what you carry, but worth keeping.", sizeof scratch);
+    }
+  }
+  openWindow(0, scratch);
 }
 
 /* A win is not over the moment they go down. You stay in the yard, the purse
@@ -2046,6 +2351,7 @@ static void theyFell(void) {
   appendString(scratch, " gold and ", sizeof scratch);
   appendNumber(scratch, won, sizeof scratch);
   appendString(scratch, " experience.", sizeof scratch);
+  takeTheirKit();
   duelSay(0, scratch);
 }
 
@@ -2318,7 +2624,8 @@ static void moveCrowd(void) {
     if (crowdTimer[i]) { crowdTimer[i]--; continue; }
     /* Somebody who happens to be standing on a doorstep moves on sooner, so a
        door is never blocked for long. */
-    crowdTimer[i] = nearWarp(crowd[i].px >> 4, crowd[i].py >> 4)
+    crowdTimer[i] = (nearWarp(crowd[i].px >> 4, crowd[i].py >> 4)
+                     || ledgeGate(crowd[i].px >> 4, crowd[i].py >> 4))
       ? (u16)(10 + roll(30)) : (u16)(30 + roll(150));
     {
       int dir = (int)roll(4);
@@ -2329,7 +2636,7 @@ static void moveCrowd(void) {
       if (nx > world->npcs[i].x + 3 || nx < world->npcs[i].x - 3) continue;
       if (ny > world->npcs[i].y + 3 || ny < world->npcs[i].y - 3) continue;
       if (solidAt(nx, ny) || occupied(nx, ny, i)) continue;
-      if (nearWarp(nx, ny) || ledgeAt(nx, ny)) continue;
+      if (nearWarp(nx, ny) || ledgeAt(nx, ny) || ledgeGate(nx, ny)) continue;
       stepBody(&crowd[i], dir);
     }
   }
@@ -2469,16 +2776,22 @@ int main(void) {
       if (hit(KEY_RIGHT) && houseChoice < HOUSE_COUNT - 1) { houseChoice++; sfxPick(); paintHousePicker(); }
       if (hit(KEY_A)) {
         you.house = houseChoice;
-        /* Nobody is sent out of the yard with their bare hands. */
-        you.weapon = START_WEAPON + 1;
-        you.armour = START_ARMOUR + 1;
-        you.bag[START_POTION] = 2;
+        /* You are sent out of the yard with your bare hands and one remedy.
+           Everything you fight in, you take off somebody. */
+        you.weapon = 0;
+        you.armour = 0;
+        you.shield = 0;
+        you.bag[START_POTION] = 1;
         reckonTechniques();
         PAL_BG[TXT_BANK * 16 + C_HOUSE] = houses[you.house].colour;
         PAL_BG[TXT_BANK * 16 + C_TRIM] = houses[you.house].accent;
         PAL_BG[TXT_BANK * 16 + C_EDGE] = houses[you.house].colour;
         enterWorld(0, 12, 12, 0);
         REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
+        openWindow(0, "You go out of the gate with nothing but your hands and "
+                      "one remedy. Everything you fight in, you will take off "
+                      "somebody who tried to stop you. Look in the long grass "
+                      "as well: people lose things there.");
       }
     } else if (scene == SCENE_STATUS) {
       if (hit(KEY_START) || hit(KEY_B) || hit(KEY_A)) {
@@ -2672,6 +2985,7 @@ int main(void) {
           if (warp) enterMap(warp->to, warp->tx, warp->ty, hero.dir);
           else if (world->ambushCount && coverAt(hero.px >> 4, hero.py >> 4)
                    && roll(100) < 12) ambush();
+          else if (coverAt(hero.px >> 4, hero.py >> 4) && roll(100) < 4) findInGrass();
         }
       } else if (hit(KEY_START)) {
         scene = SCENE_MENU;

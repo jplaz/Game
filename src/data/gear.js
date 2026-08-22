@@ -106,6 +106,26 @@ export const TECHNIQUES = {
     effect: { bleed: true }, chance: 0.35,
     desc: 'Claws and weight.',
   },
+
+  // --- bare hands ----------------------------------------------------------
+  // What you have before you have taken anything off anybody. Weak, cheap and
+  // quick: enough to win a first fight against somebody as poor as you are, and
+  // not enough to want to keep using once there is steel to be had.
+  // Appended at the end on purpose: the export numbers these by their order
+  // here, so anything inserted above would move every weapon's techniques.
+  jab: {
+    name: 'Jab', power: 55, accuracy: 100, stamina: 1, priority: 1,
+    desc: 'Short, straight, and it always lands. It just does not land hard.',
+  },
+  grapple: {
+    name: 'Grapple', power: 48, accuracy: 95, stamina: 2,
+    effect: { guardBreak: true }, chance: 0.4,
+    desc: 'Get inside their guard and stay there. May break it for good.',
+  },
+  headbutt: {
+    name: 'Headbutt', power: 78, accuracy: 75, stamina: 3,
+    desc: 'Desperate, and it hurts you too. Sometimes it is what there is.',
+  },
 };
 
 /** Weapons. `techniques` is what the weapon teaches you while it is drawn. */

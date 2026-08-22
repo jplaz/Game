@@ -714,6 +714,8 @@ L.push('static const Ware wares[WARE_COUNT] = {');
 L.push('};');
 L.push('');
 L.push(`#define START_WEAPON ${harvest.wares.findIndex((w) => w.id === 'ironSword')}`);
+/* The floor under a player who has been beaten with nothing in their hands. */
+L.push(`#define FLOOR_WEAPON ${harvest.wares.findIndex((w) => w.id === 'huntingKnife')}`);
 L.push(`#define START_ARMOUR ${harvest.wares.findIndex((w) => w.id === 'gambeson')}`);
 L.push(`#define START_POTION ${harvest.wares.findIndex((w) => w.id === 'maesterKit')}`);
 L.push('typedef struct { const u8 *ware; u8 count; } Stall;');
@@ -737,9 +739,16 @@ for (const t of harvest.techniques) {
 }
 L.push('};');
 L.push('');
-const playerTechs = ['slash', 'thrust', 'riposte', 'guard']
+/* What you fight with when you have nothing: the cartridge falls back to these
+   whenever no weapon is held, which is now how everybody starts. */
+const playerTechs = ['jab', 'grapple', 'headbutt', 'guard']
   .map((id) => harvest.techniques.findIndex((t) => t.id === id));
 L.push('static const u8 player_techs[4] = { ' + playerTechs.join(', ') + ' };');
+/* And what fills the empty slots once there is a weapon in your hand: a knife
+   teaches two things, and the third slot should not be a headbutt. */
+const armedTechs = ['riposte', 'slash', 'thrust']
+  .map((id) => harvest.techniques.findIndex((t) => t.id === id));
+L.push('static const u8 armed_techs[3] = { ' + armedTechs.join(', ') + ' };');
 L.push('');
 
 // Duellists.

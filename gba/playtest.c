@@ -300,8 +300,13 @@ static void completeGoal(void) {
       talked++;
       /* Having heard them out, draw on them — but only up to a quota, or the
          whole of Westeros ends up dead before it has been walked. */
+      /* Somebody a great deal better than you is a fight a player would not
+         pick, and a tester that picks it measures its own stupidity rather than
+         the game. It still happens now and then, because the game lets it. */
       if (world->npcs[goalIndex].fights && duels < MAX_DUELS
-          && !npcDuelled[worldId][goalIndex]) {
+          && !npcDuelled[worldId][goalIndex]
+          && (duellists[world->npcs[goalIndex].duellist].level <= you.level + 5
+              || roll(6) == 0)) {
         goalStage = 1;
         interacting = 0;
         return;
@@ -318,7 +323,18 @@ static void completeGoal(void) {
 /* Catch each interesting screen the first time the tester reaches it, so the
    pictures are of the game actually being played rather than of a route
    somebody wrote down and that the crowd has since wandered out of. */
-static int caught[24];
+static int caught[32];
+
+/* Is that phrase anywhere in the window that is open? Used to catch the screens
+   that only exist for one particular thing having happened. */
+static int windowSays(const char *what) {
+  int i, rows = bodyRows();
+  if (!typeDone) return 0;                    /* wait until the page is written */
+  for (i = lineAt; i < lineAt + rows && i < lineCount && i < MAX_LINES; i++) {
+    if (strstr(lines[i], what)) return 1;
+  }
+  return 0;
+}
 
 static void catchOnce(int slot, const char *name) {
   if (!shooting || caught[slot]) return;
@@ -341,6 +357,7 @@ void hostFrame(void) {
     else if (scene == SCENE_SHOP) catchOnce(shopStall ? 5 : 6,
       shopStall ? "12-arms-and-armour" : "11-remedies");
     else if (scene == SCENE_DUEL) {
+      if (windowOpen && windowSays("Off them")) catchOnce(21, "21-what-they-carried");
       /* The star is up for twelve frames of a swing; catch it in the middle. */
       if (fxStar() == 2 && !fxOnMe) catchOnce(18, "18-the-blow-lands");
       else if (fxLean(1) > 8) catchOnce(19, "19-the-lunge");
@@ -357,6 +374,7 @@ void hostFrame(void) {
       else if (hopping && hero.walk > 8 && hero.walk < 26) catchOnce(16, "17-over-the-ledge");
       else if (!windowOpen && coverAt(hero.px >> 4, hero.py >> 4) && hero.walk)
         catchOnce(17, "16-in-the-grass");
+      else if (windowOpen && windowSays("in the grass")) catchOnce(22, "22-lying-in-the-grass");
       else if (!windowOpen && frameNo > 60 && frameNo < 400) catchOnce(14, "03-winterfell");
     }
   }
@@ -431,12 +449,15 @@ void hostFrame(void) {
     if (you.level > wasLevel) { levels++; wasLevel = you.level; }
     if (you.kills > wasKills) { kills = you.kills; wasKills = you.kills; }
 
-    if (spotted >= 0) {
+    /* A window comes first, always. Somebody walking up to draw on you does not
+       move while one is open - the game holds them until it is read - so waiting
+       for them with a window up is waiting for something that cannot happen. */
+    if (spotted < 0) spottedBy = 0;
+    if (windowOpen) {
+      keys = tap(KEY_A);
+    } else if (spotted >= 0) {
       if (!spottedBy) spottedBy = 1, spottings++;
       keys = 0;
-    } else if (windowOpen) {
-      spottedBy = 0;
-      keys = tap(KEY_A);
     } else if (!hero.walk && ++sinceStatus > 150) {
       sinceStatus = 0;
       keys = tap(KEY_START);
@@ -561,7 +582,18 @@ void hostFrame(void) {
   lastKeys = keys;
   REG_KEYINPUT = (unsigned short)(~keys & 0x03FF);
   frameNo++;
-  if (frameNo > FRAME_CAP) { finding("the playthrough ran out of frames"); hostFramesLeft = 0; }
+  if (getenv("TRACE") && (frameNo % 25000) == 0) {
+    fprintf(stderr, "f%7d %-18s scene %d phase %d win %d typed %d line %d/%d shift %d spot %d at %2d,%2d\n",
+      frameNo, world ? world->name : "-", scene, duelPhase, windowOpen,
+      typeDone, lineAt, lineCount, shift, spotted, hero.px >> 4, hero.py >> 4);
+  }
+  if (frameNo > FRAME_CAP) {
+    finding("the playthrough ran out of frames in %s: scene %d, goal %d/%d, "
+            "stage %d, %d frames on it, window %d, phase %d, at %d,%d",
+            world->name, scene, goalKind, goalIndex, goalStage, goalFrames,
+            windowOpen, duelPhase, hero.px >> 4, hero.py >> 4);
+    hostFramesLeft = 0;
+  }
 }
 
 int main(int argc, char **argv) {
@@ -621,7 +653,7 @@ int main(int argc, char **argv) {
     you.armour ? wares[you.armour - 1].name : "roughspun",
     you.shield ? wares[you.shield - 1].name : "no shield");
   printf("  techniques     ");
-  for (i = 0; i < 4; i++) printf("%s x%d  ", techniques[player_techs[i]].name, techUsed[i]);
+  for (i = 0; i < 4; i++) printf("%s x%d  ", techniques[myTechs[i]].name, techUsed[i]);
   printf("\n");
 
   printf("  sound          %d notes sounded\n", soundNotes);

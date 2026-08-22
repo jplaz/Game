@@ -6430,6 +6430,7 @@ static const Ware wares[WARE_COUNT] = {
 };
 
 #define START_WEAPON 5
+#define FLOOR_WEAPON 4
 #define START_ARMOUR 11
 #define START_POTION 0
 typedef struct { const u8 *ware; u8 count; } Stall;
@@ -6440,7 +6441,7 @@ static const Stall stalls[2] = {
   { stall_1, 15 },
 };
 
-#define TECH_COUNT 17
+#define TECH_COUNT 20
 typedef struct { const char *name; u8 power, accuracy, defend, highCrit; } Tech;
 static const Tech techniques[TECH_COUNT] = {
   { "Guard", 0, 100, 1, 0 },
@@ -6460,9 +6461,13 @@ static const Tech techniques[TECH_COUNT] = {
   { "Volley", 45, 90, 0, 0 },
   { "Valyrian Arc", 105, 95, 0, 1 },
   { "Savage Blow", 90, 90, 0, 0 },
+  { "Jab", 55, 100, 0, 0 },
+  { "Grapple", 48, 95, 0, 0 },
+  { "Headbutt", 78, 75, 0, 0 },
 };
 
-static const u8 player_techs[4] = { 2, 3, 4, 0 };
+static const u8 player_techs[4] = { 17, 18, 19, 0 };
+static const u8 armed_techs[3] = { 4, 2, 3 };
 
 #define DUELLIST_COUNT 88
 typedef struct {

@@ -59,9 +59,34 @@ four techniques with their power and accuracy shown. **Lose and you wake in
 Winterfell a third of your purse lighter. Win and they are dead**, and stay dead,
 and you are told exactly what the win was worth.
 
+**You start with nothing.** Bare hands and one remedy, and Jab, Grapple and
+Headbutt to fight with. Everything you wear, you take off somebody who tried to
+stop you.
+
+**Everybody on the road is carrying something, and it is fixed to who they are.**
+A weapon, a mail, sometimes a shield, sometimes a remedy, drawn from a purse
+their standing buys and jittered by a hash of their name - so the same knight has
+the same blade on him every time, a serjeant of the Watch is a better prize than
+a stableboy, and the road can be read. They fight in their weapon and their mail;
+the shield is on their back until you take it off them, which is the one edge a
+scavenger has over everybody else. Beat them and you take the lot: whatever beats
+what you have goes straight on, whatever you have already is stripped for what
+the metal is worth. Nobody on the road carries the very best things in the world -
+those are still only at a forge, and gold is still worth having.
+
+**And things are lying about.** One step in twenty-five through long grass turns
+something up: usually a remedy, now and then a piece of gear worth about what
+somebody of your own standing would be carrying.
+
+**A floor under all of it.** Everything comes off somebody, so a player with
+nothing who cannot win a fight would have no way back in. Go down bare-handed and
+there is a Hunting Knife on the chest when you wake. Nobody says who left it.
+
 **Gold buys things.** A maester's hall sells remedies; a forge sells blades,
-armour and shields. Better armour changes the body you walk around in. What a
-blade teaches becomes the techniques you fight with.
+armour and shields. Bought gear goes in the pouch and onto you only if it beats
+what you have. Better armour changes the body you walk around in. What a blade
+teaches becomes the techniques you fight with - and with nothing in your hands,
+you fight with your hands.
 
 **Sound.** Three tunes on the sound hardware's own square and noise generators —
 one for the road, one for a title card, and a faster one in C minor once steel is
@@ -153,6 +178,18 @@ and the sound hardware switched off or silent for ten seconds together. Three mo
 runs switch the cartridge on with a record already written, and play out each of
 the title's three entries in turn.
 
+**And the audit fights.** Balance is not something to have an opinion about when
+the arithmetic is right there: the audit runs the cartridge's own damage formula,
+with the cartridge's own idea of what everybody is carrying, over thousands of
+duels. It asks the two questions that decide whether the game has a shape - can
+somebody who starts with nothing beat the people they meet first (the hardest of
+those fights is 83 wins in a hundred), and does it stay a fight afterwards
+(dressed in what your own standing carries, you get through eleven to twenty
+fights of your own standing before somebody puts you down). Under three in a row
+is a wall and over twenty-five is a walk, and it fails the build either way. It
+also reports the first level at which anybody carries a weapon, since a player
+who starts with nothing needs something to take.
+
 A full run is about 35,000 frames, ten minutes of real play, and covers all 19
 maps, all 64 people, all 12 signs and about 90 duels. The build runs one per
 house; sixty runs across five houses and sixty different rolls of the dice
@@ -169,6 +206,22 @@ processor that drew every object as sixteen by thirty-two whatever its size bits
 said, so a small sprite showed the tiles of whatever was stored after it. That
 last one was a lie in the screenshots rather than a bug in the cartridge, which
 is worse.
+
+Latest: two of the four rolls that decide what somebody is carrying were dead.
+`hashUpTo` reads the top sixteen bits of what it is handed, and it was being
+handed a hash shifted twenty-one places - three bits, asked for a sixteen-bit
+answer, which is nought every single time. Everybody carried a remedy and nobody
+ever carried the lesser thing. Rotating instead of shifting fixed it, and the
+audit's own tally of who carries what is what showed it up: eighty-eight of
+eighty-eight, which is not what one in eight looks like.
+
+Also: a roamer could stand in the one gap through a line of ledges and shut the
+Riverlands in half. They are kept out of it the way they are kept out of
+doorways, and the audit now takes every tile out of every map in turn to find
+which ones cut it in two - reporting only the cuts that strand a door, a person,
+a sign, or more than eight tiles, since shutting a broom cupboard costs nobody
+anything. Taking the guard back out proves the check works: it finds Brienne of
+Tarth able to shut a hundred and eighty-five tiles off at the Bloody Gate.
 
 None of it is an emulator. It does not model timing, DMA, or the BIOS, so it
 cannot tell you the ROM runs on hardware — only that the game is reachable,

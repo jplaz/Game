@@ -45,6 +45,9 @@ jobs:
       - name: Apply Westeros presentation v2
         run: python3 crossroads_westeros/apply_westeros_v2.py crossroads
 
+      - name: Convert title artwork to GBA 4bpp
+        run: python3 crossroads_westeros/fix_title_palette.py crossroads
+
       - name: Build ROM
         working-directory: crossroads
         env:
@@ -68,7 +71,7 @@ jobs:
           This build intentionally treats Crossroads as an engine rather than a Pokemon presentation.
 
           Added/changed in v2:
-          - Game of Thrones title logo source artwork
+          - Game of Thrones title logo source artwork in native GBA 4bpp format
           - Removed Rayquaza from title scene
           - GBA header/title identifies the game as a Thrones RPG
           - Start-menu terminology: Lore, Party, Pack, Realm Map, Hunt Map

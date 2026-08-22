@@ -5,15 +5,27 @@ and on any emulator — Delta, mGBA, VBA — from `thronebound.gba`.
 
 ## What is on it
 
-**Swear to a house.** Stark, Lannister, Tully, Targaryen or Greyjoy. The one you
-kneel to is the cloak you wear and the colour the interface is framed in. The
+**Swear to a house, and begin at its seat.** Stark, Lannister, Tully, Targaryen
+or Greyjoy. The one you kneel to is the cloak you wear, the colour the interface
+is framed in, and where you wake up: Winterfell, Casterly Rock, Riverrun,
+Dragonstone, or - since the cartridge has no Pyke - Moat Cailin, which is where
+the ironborn take hold anyway. All five seats are joined on foot, and the world
+is checked walkable from every one of them.
+
+The seats are not equally gentle ground, so the level you walk out at is set to
+the one you are standing on rather than to five for everybody. The weakest
+fighter within one door of Winterfell is level three; of Casterly Rock,
+twenty-seven. A Lannister starting at five would wake somewhere they cannot beat
+a single person, which is not a harder game but no game at all - so a Stark
+begins at five and a Lannister at twenty-three, and the audit fights the people
+who are actually next to each bed to prove there is somebody there to start on. The
 title asks before it does anything: with a record on the cartridge it offers to
 take up the road, to swear a new sword instead, or to throw that record away, and
 none of the three happens on its own. If an emulator's save file ever leaves you
 starting in Winterfell without being asked, holding SELECT while it switches on
 ignores the record entirely.
 
-**Twenty-one maps of the North**, joined by their real doors: Winterfell and its
+**Thirty-five maps**, joined by their real doors: Winterfell and its
 keep, forge, maester's hall and your own chamber; the Wolfswood; the Kingsroad;
 Castle Black, its armoury and the land beyond the Wall; Moat Cailin and the
 Bogforge; the Riverlands; Riverrun, the Tully Armoury, its inn and its keep;

@@ -28,6 +28,12 @@ const MAP_IDS = [
   'moatCailinForge',
   'riverlands', 'riverrun', 'maesterHallRiverrun', 'riverrunForge', 'riverrunInn',
   'riverrunKeep', 'bloodyGate',
+  // The road south, so every house can begin at its own seat rather than all
+  // five of them starting in the Stark yard.
+  'theEyrie', 'maesterHallEyrie', 'eyrieArmoury',
+  'goldRoad', 'lannisport', 'maesterHallLannisport', 'lannisportForge', 'casterlyRock',
+  'kingsroad', 'kingsLanding', 'maesterHallKL', 'klArmoury',
+  'dragonstone', 'maesterHallDragonstone',
 ];
 
 // What the cartridge's hardware will hold.
@@ -153,6 +159,30 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       seat: h.seat, colour: h.colour, accent: h.accent, looks,
     };
   });
+
+  // Where a sworn sword of each house walks out of their own gate. Every one of
+  // these is a tile some door already lands you on, so it is walkable ground
+  // that the audit has already checked rather than a coordinate picked by eye.
+  // The ironborn have no Pyke on the cartridge; they hold Moat Cailin instead,
+  // which is where they take hold in the story anyway.
+  // `level` is what you begin at, and it is not the same for everybody. The
+  // ground around a seat decides it: the weakest fighter within one door of
+  // Winterfell is level three, and of Casterly Rock, twenty-seven. Starting a
+  // Lannister at level five would put them somewhere they cannot beat a single
+  // person, which is not a harder game, it is no game. A sworn sword of a great
+  // house in the richest seat in Westeros was never a nobody anyway.
+  const SEAT_START = {
+    stark:     { map: 'winterfell',   x: 12, y: 12, dir: 0, level: 5 },
+    lannister: { map: 'casterlyRock', x: 8,  y: 16, dir: 0, level: 23 },
+    tully:     { map: 'riverrun',     x: 10, y: 17, dir: 1, level: 12 },
+    targaryen: { map: 'dragonstone',  x: 11, y: 18, dir: 1, level: 21 },
+    greyjoy:   { map: 'moatCailin',   x: 11, y: 18, dir: 1, level: 6 },
+  };
+  for (const h of houses) {
+    const seat = SEAT_START[h.id];
+    if (!seat) throw new Error(`no starting seat for ${h.id}`);
+    h.start = seat;
+  }
 
   // --- techniques and duellists --------------------------------------------
 
@@ -677,12 +707,18 @@ L.push('');
 
 // Houses.
 L.push(`#define HOUSE_COUNT ${harvest.houses.length}`);
-L.push('typedef struct { const char *name, *full, *words, *sworn, *seat; u16 colour, accent; u16 looks[4]; } House;');
+L.push('typedef struct { const char *name, *full, *words, *sworn, *seat; u16 colour, accent;'
+     + ' u16 looks[4]; u8 startMap, startX, startY, startDir, startLevel; } House;');
 L.push('static const House houses[HOUSE_COUNT] = {');
 for (const h of harvest.houses) {
   L.push(`  { ${cstr(h.name)}, ${cstr(h.full)}, ${cstr(h.words)},`);
   L.push(`    ${cstr(h.sworn)}, ${cstr(h.seat)}, ${hex(hexColour(h.colour))}, ${hex(hexColour(h.accent))},`);
-  L.push(`    { ${h.looks.join(', ')} } },`);
+  {
+    const at = MAP_IDS.indexOf(h.start.map);
+    if (at < 0) throw new Error(`${h.id} starts on ${h.start.map}, which is not exported`);
+    L.push(`    { ${h.looks.join(', ')} }, ${at}, ${h.start.x}, ${h.start.y}, `
+      + `${h.start.dir}, ${h.start.level} },`);
+  }
 }
 L.push('};');
 L.push('');

@@ -1582,9 +1582,12 @@ static void beginDuel(int duellist, int bank, int slot) {
   duelSay(theirs.name, foeDef->intro);
 }
 
+#ifdef HOST_TEST
 /* The arithmetic of one swing, with nothing written and nothing drawn: the
    audit fights whole duels with this to find out whether the opening of the
-   game is winnable at all. Returns 1 if the duel ended on it. */
+   game is winnable at all. It is no use to the cartridge, which always has
+   something to say about a swing, so it is not built into it. Returns 1 if the
+   duel ended on it. */
 static int swingQuiet(Fighter *actor, Fighter *target, int techId) {
   const Tech *t = &techniques[techId];
   int crit = 0, dmg;
@@ -1596,6 +1599,7 @@ static int swingQuiet(Fighter *actor, Fighter *target, int techId) {
   if (target->hp < 0) target->hp = 0;
   return target->hp <= 0;
 }
+#endif
 
 /* One side's swing, written out. Returns 1 if the duel ended on it. */
 static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
@@ -2215,17 +2219,21 @@ static void youFell(void) {
      bed when you wake. Everything in this game is taken off somebody, which
      means a player with nothing who cannot win a fight has no way back in;
      this is the floor under that, and it is only ever laid once. */
-  enterMap(0, 12, 12, 0);
+  {
+    /* Somebody carries you home, and home is your own house's seat. */
+    const House *h = &houses[you.house];
+    enterMap(h->startMap, h->startX, h->startY, h->startDir);
+  }
+  copyString(scratch, "You go down. You wake at ", sizeof scratch);
+  appendString(scratch, maps[houses[you.house].startMap].name, sizeof scratch);
+  appendString(scratch, " with your wounds dressed, a third of your purse gone, "
+                        "and a good deal of road to walk again.", sizeof scratch);
   if (bare) {
     takeWare(FLOOR_WEAPON);
-    openWindow(0, "You go down. You wake in Winterfell with your wounds dressed, "
-                  "a third of your purse gone, and a good deal of road to walk "
-                  "again.  Somebody has left a Hunting Knife on the chest by the "
-                  "bed. Nobody says who.");
-  } else {
-    openWindow(0, "You go down. You wake in Winterfell with your wounds dressed, "
-                  "a third of your purse gone, and a good deal of road to walk again.");
+    appendString(scratch, "  Somebody has left a Hunting Knife on the chest by "
+                          "the bed. Nobody says who.", sizeof scratch);
   }
+  openWindow(0, scratch);
 }
 
 /* What you strip off somebody who has gone down, appended to the line that is
@@ -2776,6 +2784,12 @@ int main(void) {
       if (hit(KEY_RIGHT) && houseChoice < HOUSE_COUNT - 1) { houseChoice++; sfxPick(); paintHousePicker(); }
       if (hit(KEY_A)) {
         you.house = houseChoice;
+        /* Where you begin decides what you begin as. The seats are not equally
+           gentle ground, so the level you walk out at is set to the one you are
+           standing on rather than to five for everybody. */
+        you.level = houses[you.house].startLevel;
+        you.exp = expForLevel(you.level);
+        you.hp = vigourFor(you.level);
         /* You are sent out of the yard with your bare hands and one remedy.
            Everything you fight in, you take off somebody. */
         you.weapon = 0;
@@ -2786,12 +2800,19 @@ int main(void) {
         PAL_BG[TXT_BANK * 16 + C_HOUSE] = houses[you.house].colour;
         PAL_BG[TXT_BANK * 16 + C_TRIM] = houses[you.house].accent;
         PAL_BG[TXT_BANK * 16 + C_EDGE] = houses[you.house].colour;
-        enterWorld(0, 12, 12, 0);
+        {
+          /* You start at your own house's seat, not in the Stark yard. */
+          const House *h = &houses[you.house];
+          enterWorld(h->startMap, h->startX, h->startY, h->startDir);
+        }
         REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
-        openWindow(0, "You go out of the gate with nothing but your hands and "
-                      "one remedy. Everything you fight in, you will take off "
-                      "somebody who tried to stop you. Look in the long grass "
-                      "as well: people lose things there.");
+        copyString(scratch, "You go out of the gate at ", sizeof scratch);
+        appendString(scratch, maps[houses[you.house].startMap].name, sizeof scratch);
+        appendString(scratch, " with nothing but your hands and one remedy. "
+                              "Everything you fight in, you will take off somebody "
+                              "who tried to stop you. Look in the long grass as "
+                              "well: people lose things there.", sizeof scratch);
+        openWindow(0, scratch);
       }
     } else if (scene == SCENE_STATUS) {
       if (hit(KEY_START) || hit(KEY_B) || hit(KEY_A)) {

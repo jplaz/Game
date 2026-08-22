@@ -323,7 +323,11 @@ int main(void) {
 
   /* --- can you get everywhere, and back again? ------------------------- */
   for (i = 0; i < MAP_COUNT; i++) seen[i] = 0;
-  seen[0] = 1; q[tail++] = 0;
+  /* Every house begins at its own seat now, so the world has to be walkable
+     from all five of them, not just from the Stark yard. */
+  for (i = 0; i < HOUSE_COUNT; i++) {
+    if (!seen[houses[i].startMap]) { seen[houses[i].startMap] = 1; q[tail++] = houses[i].startMap; }
+  }
   while (head < tail) {
     const Map *cur = &maps[q[head++]];
     for (i = 0; i < cur->warpCount; i++) {
@@ -351,7 +355,9 @@ int main(void) {
 
     /* --- can you walk to everything on this map? ------------------------ */
     memset(standable, 0, sizeof standable);
-    if (m == 0) flood(map, 12, 12);
+    for (i = 0; i < HOUSE_COUNT; i++) {
+      if (houses[i].startMap == m) flood(map, houses[i].startX, houses[i].startY);
+    }
     for (i = 0; i < MAP_COUNT; i++) {
       for (j = 0; j < maps[i].warpCount; j++) {
         if (maps[i].warps[j].to == m) flood(map, maps[i].warps[j].tx, maps[i].warps[j].ty);
@@ -402,7 +408,9 @@ int main(void) {
         blocked = y * map->w + x;
         memcpy(spare, standable, sizeof spare);
         memset(standable, 0, sizeof standable);
-        if (m == 0) flood(map, 12, 12);
+        for (k = 0; k < HOUSE_COUNT; k++) {
+          if (houses[k].startMap == m) flood(map, houses[k].startX, houses[k].startY);
+        }
         for (k = 0; k < MAP_COUNT; k++) {
           int j2;
           for (j2 = 0; j2 < maps[k].warpCount; j2++) {
@@ -604,6 +612,58 @@ int main(void) {
     }
   }
 
+  /* --- is the ground each house starts on winnable? ----------------------- */
+  /* The check that was missing. Every house begins at its own seat, and the
+     seats are not equally gentle: the weakest fighter within one door of
+     Winterfell is level three and of Casterly Rock twenty-seven. A player who
+     wakes up somewhere they cannot beat a single person has not been given a
+     harder game, they have been given no game, and the balance figures for
+     "your own standing" will never say so - the people by your bed are not of
+     your standing. So this fights the ones who actually are by your bed. */
+  for (m = 0; m < HOUSE_COUNT; m++) {
+    const House *h = &houses[m];
+    int near[MAP_COUNT], start = h->startMap, wins = 0, fights = 0, best = 0, lowest = 99;
+    int j2, k;
+    u8 wasW = you.weapon, wasA = you.armour, wasS = you.shield;
+    for (j2 = 0; j2 < MAP_COUNT; j2++) near[j2] = (j2 == start);
+    for (j2 = 0; j2 < MAP_COUNT; j2++) {
+      for (k = 0; k < maps[j2].warpCount; k++) {
+        if (j2 == start) near[maps[j2].warps[k].to] = 1;
+        else if (maps[j2].warps[k].to == start) near[j2] = 1;
+      }
+    }
+    /* Bare-handed, the way everybody actually starts. */
+    you.weapon = 0; you.armour = 0; you.shield = 0;
+    for (j2 = 0; j2 < MAP_COUNT; j2++) {
+      if (!near[j2]) continue;
+      for (k = 0; k < maps[j2].npcCount; k++) {
+        int rate;
+        if (!maps[j2].npcs[k].fights) continue;
+        if (duellists[maps[j2].npcs[k].duellist].level < lowest) {
+          lowest = duellists[maps[j2].npcs[k].duellist].level;
+        }
+        rate = winRate(h->startLevel, maps[j2].npcs[k].duellist, 200);
+        if (rate > best) best = rate;
+        wins += rate; fights++;
+      }
+    }
+    you.weapon = wasW; you.armour = wasA; you.shield = wasS;
+    if (fights) {
+      /* The average is dragged about by whoever the hardest person nearby
+         happens to be, and that is not the question. The question is whether
+         there is somebody there you can start on, so the number that decides it
+         is the easiest fight within one door of your own bed. */
+      note("%s starts at level %d beside %d fighters from level %d up: %d in a "
+           "hundred against the easiest of them bare-handed, %d on average",
+        h->name, h->startLevel, fights, lowest, best, wins / fights);
+      if (best < 45) {
+        bad("%s wakes up at %s and beats even the easiest person within one door "
+            "%d times in a hundred: there is nobody there they can start on",
+          h->name, maps[start].name, best);
+      }
+    }
+  }
+
   /* --- and does it stay a fight afterwards? ------------------------------- */
   /* Per-duel odds are the wrong question. You do not go into every fight whole:
      a win gives you back a quarter of your wind and nothing else, so what
@@ -718,7 +778,15 @@ int main(void) {
   }
 
   /* --- where you start --------------------------------------------------- */
-  if (solidOn(&maps[0], 12, 12)) bad("the game starts you inside a wall");
+  for (i = 0; i < HOUSE_COUNT; i++) {
+    const House *h = &houses[i];
+    if (h->startMap >= MAP_COUNT) { bad("%s starts on map %d", h->name, h->startMap); continue; }
+    if (solidOn(&maps[h->startMap], h->startX, h->startY)) {
+      bad("%s starts inside a wall at %d,%d in %s", h->name, h->startX, h->startY,
+        maps[h->startMap].name);
+    }
+    note("%s begins at %s, on %s", h->name, h->seat, maps[h->startMap].name);
+  }
   if (warpOn(&maps[0], 12, 12)) bad("the game starts you on a doorway");
 
   printf("\n  %d maps (%d reachable), %d people, %d signs, %d doors\n",

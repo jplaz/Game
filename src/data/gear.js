@@ -128,6 +128,27 @@ export const TECHNIQUES = {
   },
 };
 
+/**
+ * What fighting itself teaches you, whatever is in your hand.
+ *
+ * A weapon teaches its own techniques, and until now that was the only way a
+ * moveset ever changed - so levelling up altered two numbers and nothing you
+ * could see. These are learned by standing, not by shopping: the third of your
+ * four slots is whichever of these you have reached, so climbing visibly
+ * changes how you fight.
+ */
+export const LEARNED = [
+  { level: 8,  id: 'quickCut' },
+  { level: 12, id: 'riposte' },
+  { level: 16, id: 'sweep' },
+  { level: 20, id: 'lunge' },
+  { level: 24, id: 'hook' },
+  { level: 28, id: 'cleave' },
+  { level: 32, id: 'skewer' },
+  { level: 36, id: 'backstab' },
+  { level: 42, id: 'valyrianArc' },
+];
+
 /** Weapons. `techniques` is what the weapon teaches you while it is drawn. */
 export const WEAPONS = {
   fists: {

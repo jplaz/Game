@@ -5,6 +5,10 @@ and on any emulator — Delta, mGBA, VBA — from `thronebound.gba`.
 
 ## What is on it
 
+**The title card carries a build stamp**, bottom left. It is the first thing to
+ask for when the game does something it should not: there is otherwise no way to
+tell one cartridge from the one before it, and guessing wastes everybody's time.
+
 **Swear to a house, and begin at its seat.** Stark, Lannister, Tully, Targaryen
 or Greyjoy. The one you kneel to is the cloak you wear, the colour the interface
 is framed in, and where you wake up: Winterfell, Casterly Rock, Riverrun,
@@ -63,6 +67,21 @@ boots while you are in it, in green on the road and in frost north of Winterfell
 that way, so you can turn on the spot to speak to somebody beside you. Hold B and
 you run. Ledges are one-way: press down at one and you drop two tiles south in a
 single arc, and you cannot climb back up.
+
+**Fighting above your weight is how you climb.** What a win is worth used to be
+a figure for the person you beat and nothing else, so a level thirty paid the
+same whether you were thirty yourself or five, and there was never a reason to
+pick a hard fight. The gap counts now. At level fifteen a rung costs about nine
+hundred experience: beating somebody of your own standing pays about half of one,
+beating a level thirty pays six rungs at once, and beating a level five pays
+seven experience, which is to say nothing.
+
+**Standing teaches you to fight, not just shopping.** A weapon teaches the first
+two of your four techniques and always did; the third is now whichever technique
+you have reached by level - Quick Cut at eight, Riposte at twelve, Sweep at
+sixteen, and on up to a Valyrian Arc at forty-two - so climbing visibly changes
+how you fight rather than moving two numbers you cannot see. The level-up plate
+names what you have learned.
 
 **A ladder to climb.** Experience for every duel won, on a curve that gets steeper
 as you go. A win does not end the moment they go down: you stay in the yard, the

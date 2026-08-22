@@ -203,6 +203,8 @@ static int interacting, duelTries, blocked;
 static int wantHouse, runAway, statusChecks, sinceStatus, wantTech, techUsed[4];
 static int menusSeen, bagsSeen, shopsSeen, bought, records, menuWant = -1;
 static int spottings, spottedBy, shooting, titleWant;
+static const char *startedAt = "nowhere";
+static int startedLevel;
 static unsigned lastKeys;
 
 /* A tap, not a hold: the game only acts on the frame a button goes down. */
@@ -449,6 +451,9 @@ void hostFrame(void) {
     }
   } else {
     if (wasMap != worldId) {
+      /* The very first map the game puts you on, which is the thing the player
+         says is wrong. */
+      if (wasMap < 0) { startedAt = world->name; startedLevel = you.level; }
       if (wasMap >= 0) warpsTaken++;
       wasMap = worldId;
       mapSeen[worldId]++;
@@ -664,6 +669,7 @@ int main(int argc, char **argv) {
   for (i = 0; i < 4; i++) printf("%s x%d  ", techniques[myTechs[i]].name, techUsed[i]);
   printf("\n");
 
+  printf("  started at     %s, level %d\n", startedAt, startedLevel);
   printf("  sound          %d notes sounded\n", soundNotes);
 
   if (!findingCount) {

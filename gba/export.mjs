@@ -78,7 +78,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const { ITEMS } = await import('/src/data/items.js');
   const { WEAPONS, ARMOUR, SHIELDS } = await import('/src/data/gear.js');
   const { HOUSES, SWEARABLE } = await import('/src/data/houses.js');
-  const { TECHNIQUES } = await import('/src/data/gear.js');
+  const { TECHNIQUES, LEARNED } = await import('/src/data/gear.js');
   const { baseStats } = await import('/src/game/player.js');
 
   const { tileCanvas, isSolid, tileDef, TILE_GROUP, N, E, S, W } = tiles;
@@ -194,6 +194,8 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       highCrit: TECHNIQUES[id].highCrit ? 1 : 0,
     }));
   const techSlot = new Map(techniques.map((t, i) => [t.id, i]));
+  // What levelling teaches, in the order it teaches it.
+  const learned = LEARNED.map((l) => ({ level: l.level, tech: techSlot.get(l.id) }));
   const guardSlot = techSlot.get('guard');
 
   const duellists = [];
@@ -289,7 +291,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     armourer: wares.map((w, i) => (w.kind !== 'potion' ? i : -1)).filter((i) => i >= 0),
   };
 
-  const out = { maps: [], houses, techniques, duellists, wares, forSale, actors: null };
+  const out = { maps: [], houses, techniques, learned, duellists, wares, forSale, actors: null };
 
   for (const id of mapIds) {
     const map = MAPS[id];
@@ -786,6 +788,13 @@ L.push('static const u8 player_techs[4] = { ' + playerTechs.join(', ') + ' };');
 const armedTechs = ['riposte', 'slash', 'thrust']
   .map((id) => harvest.techniques.findIndex((t) => t.id === id));
 L.push('static const u8 armed_techs[3] = { ' + armedTechs.join(', ') + ' };');
+L.push('');
+/* What standing itself teaches, whatever is in your hand. */
+L.push(`#define LEARN_COUNT ${harvest.learned.length}`);
+L.push('typedef struct { u8 level, tech; } Learned;');
+L.push('static const Learned learned[LEARN_COUNT] = {');
+for (const l of harvest.learned) L.push(`  { ${l.level}, ${l.tech} },`);
+L.push('};');
 L.push('');
 
 // Duellists.

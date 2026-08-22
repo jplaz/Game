@@ -7549,6 +7549,20 @@ static const Tech techniques[TECH_COUNT] = {
 static const u8 player_techs[4] = { 17, 18, 19, 0 };
 static const u8 armed_techs[3] = { 4, 2, 3 };
 
+#define LEARN_COUNT 9
+typedef struct { u8 level, tech; } Learned;
+static const Learned learned[LEARN_COUNT] = {
+  { 8, 11 },
+  { 12, 4 },
+  { 16, 8 },
+  { 20, 9 },
+  { 24, 6 },
+  { 28, 5 },
+  { 32, 10 },
+  { 36, 12 },
+  { 42, 15 },
+};
+
 #define DUELLIST_COUNT 133
 typedef struct {
   const char *name;

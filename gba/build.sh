@@ -13,6 +13,11 @@ CFLAGS="--target=armv4t-none-eabi -mthumb -mcpu=arm7tdmi -O2 -fno-builtin
         -Wall -Wno-unused-variable -Wno-unused-parameter -std=c99"
 HOSTFLAGS="-DHOST_TEST -O1 -Wall -Wno-unused-function"
 
+# A stamp on the title screen, so a cartridge in somebody's hand can always be
+# told from the one before it. Guessing which build a bug came from wastes
+# everybody's time, and there was no way to tell them apart at all until now.
+printf '#define BUILD_STAMP "%s"\n' "$(date -u +%Y-%m-%d\ %H:%M)" > build.h
+
 # The font is indexed by byte, so a curly quote or an em dash in a line the game
 # draws comes out as three wrong glyphs. Catch it before it is ever seen.
 node -e '

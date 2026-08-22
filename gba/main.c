@@ -12,6 +12,7 @@
  * what lets a town's worth of different people be resident at once. */
 
 #include "data.h"
+#include "build.h"
 
 
 typedef signed short   s16;
@@ -1057,16 +1058,43 @@ static Kit kitOf(int who, int level) {
    which anybody can do and which always keeps the last slot. */
 static u8 myTechs[4];
 
+/* The best thing standing itself has taught you by now, or -1 if you are not
+   far enough along to have been taught anything. */
+static int learnedBy(int level) {
+  int i, best = -1;
+  for (i = 0; i < LEARN_COUNT; i++) if (learned[i].level <= level) best = learned[i].tech;
+  return best;
+}
+
+/* Which level, if any, teaches something exactly on reaching it. */
+static int learnedAt(int level) {
+  int i;
+  for (i = 0; i < LEARN_COUNT; i++) if (learned[i].level == level) return learned[i].tech;
+  return -1;
+}
+
 static void reckonTechniques(void) {
-  int n = 0, i;
+  int n = 0, i, mine = learnedBy(you.level);
+
+  /* Your weapon teaches the first two slots. What you have learned by standing
+     takes the third, so climbing visibly changes how you fight instead of
+     moving two numbers you cannot see. */
   if (you.weapon) {
     const Ware *w = &wares[you.weapon - 1];
-    for (i = 0; i < w->techCount && n < 3; i++) myTechs[n++] = w->tech[i];
-    /* A knife teaches two things; the third slot is swordplay anybody picks up,
-       not a headbutt, which is what you do when your hands are empty. */
-    while (n < 3) { myTechs[n] = armed_techs[n]; n++; }
+    for (i = 0; i < w->techCount && n < 2; i++) myTechs[n++] = w->tech[i];
+  } else {
+    while (n < 2) { myTechs[n] = player_techs[n]; n++; }
   }
-  while (n < 3) { myTechs[n] = player_techs[n]; n++; }
+  if (mine >= 0) {
+    myTechs[2] = (u8)mine;
+  } else if (you.weapon) {
+    const Ware *w = &wares[you.weapon - 1];
+    /* Nothing learned yet: a third blade technique if the weapon has one,
+       otherwise swordplay anybody picks up. */
+    myTechs[2] = (u8)(w->techCount > 2 ? w->tech[2] : armed_techs[2]);
+  } else {
+    myTechs[2] = player_techs[2];
+  }
   myTechs[3] = player_techs[3];              /* Guard */
 }
 
@@ -1077,7 +1105,19 @@ static void reckonTechniques(void) {
  * somebody your own level is always worth about a third of the next rung. */
 static int expForLevel(int level) { return level <= 1 ? 0 : 5 * level * level * level / 4; }
 
-static int expFrom(int level) { return 24 + level * level * 2; }
+/* What a win is worth. This used to be a figure for the person you beat and
+   nothing else, so a level thirty paid the same whether you were thirty
+   yourself or five, and there was no reason to ever fight above your weight.
+   The gap counts now: punching up pays a great deal more, and beating somebody
+   far beneath you is barely worth the walk. */
+static int expFrom(int foe, int mine) {
+  int base = 24 + foe * foe * 2;
+  int gap = foe - mine;
+  int scale = 100 + (gap > 0 ? gap * 14 : gap * 9);
+  if (scale < 10) scale = 10;
+  if (scale > 400) scale = 400;
+  return base * scale / 100;
+}
 
 /* How far along the current rung a given tally is, in hundredths. The rail is
    drawn from a figure that walks up to the real one rather than from the real
@@ -2157,6 +2197,9 @@ static void paintTitle(void) {
   } else {
     centreText(80, "The North remembers.", C_DIM);
   }
+  /* Which cartridge this is. Small, in the corner, and the first thing to ask
+     for when somebody says the game did something it should not. */
+  drawText(22, TXT_H - 14, BUILD_STAMP, C_DIM);
 }
 
 /* ------------------------------------------------------------ the status --- */
@@ -2336,7 +2379,7 @@ static void findInGrass(void) {
    passes stops it long enough to say what that rung bought. Only then do you
    walk away. */
 static void theyFell(void) {
-  int won = expFrom(foeDef->level);
+  int won = expFrom(foeDef->level, you.level);
   sfxWon();
   you.gold += foeDef->reward;
   you.exp += won;
@@ -2384,6 +2427,7 @@ static void tickSpoils(void) {
     you.hp = mine.maxHp;
     mine.hp = you.hp;
     sfxRank();
+    reckonTechniques();
     copyString(scratch, "You are level ", sizeof scratch);
     appendNumber(scratch, you.level, sizeof scratch);
     appendString(scratch, ".  Might ", sizeof scratch);
@@ -2393,6 +2437,14 @@ static void tickSpoils(void) {
     appendString(scratch, ", swiftness ", sizeof scratch);
     appendNumber(scratch, mine.swiftness, sizeof scratch);
     appendString(scratch, ", and whole again.", sizeof scratch);
+    {
+      int taught = learnedAt(you.level);
+      if (taught >= 0) {
+        appendString(scratch, "  You have learned ", sizeof scratch);
+        appendString(scratch, techniques[taught].name, sizeof scratch);
+        appendString(scratch, ".", sizeof scratch);
+      }
+    }
     duelSay(0, scratch);
     paintDuelPlates();
   }

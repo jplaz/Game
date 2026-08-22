@@ -38,10 +38,15 @@ for h in 0 1 2 3 4; do
   SEED=$((h * 104729 + 7)) ./playtest "$h" | sed -n '2,12p'
 done
 
-# hosttest walks one fixed route and draws every frame of it through the mode 0
-# compositing rules, so the screenshots in shots/ can be looked at.
-clang $HOSTFLAGS -o hosttest hosttest.c
+# The pictures in shots/ come from the playthrough rather than from a written
+# route: it catches each screen the first time it reaches one, so the crowd
+# wandering about cannot make a screenshot miss what it was aimed at. Both are
+# drawn through the mode 0 compositing rules by render.h.
 mkdir -p shots
 rm -f shots/*.ppm shots/*.png
-./hosttest shots > /dev/null
+SEED=31337 ./playtest 2 shots > /dev/null
 node topng.mjs shots 3
+
+# hosttest still walks one fixed route, as a second opinion.
+clang $HOSTFLAGS -o hosttest hosttest.c
+./hosttest /tmp > /dev/null

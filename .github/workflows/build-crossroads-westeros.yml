@@ -31,7 +31,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            git make gcc g++ python3 libpng-dev \
+            git make gcc g++ python3 python3-pil libpng-dev \
             binutils-arm-none-eabi gcc-arm-none-eabi libnewlib-arm-none-eabi
 
       - name: Clone Pokemon Crossroads source
@@ -39,8 +39,11 @@ jobs:
           git clone --depth 1 https://github.com/eonlynx/pokecrossroads.git crossroads
           git -C crossroads rev-parse HEAD
 
-      - name: Apply Westeros prototype edits
+      - name: Apply Westeros foundation edits
         run: python3 crossroads_westeros/apply_westeros.py crossroads
+
+      - name: Apply Westeros presentation v2
+        run: python3 crossroads_westeros/apply_westeros_v2.py crossroads
 
       - name: Build ROM
         working-directory: crossroads
@@ -58,21 +61,34 @@ jobs:
         run: |
           sha256sum crossroads/westeros_crossroads.gba | tee crossroads/WESTEROS_BUILD_SHA256.txt
           cat > crossroads/WESTEROS_BUILD_NOTES.txt <<'EOF'
-          Crossroads Westeros prototype
+          Game of Thrones / Westeros RPG - Crossroads v2
           Base: eonlynx/pokecrossroads master
           Engine: pokeemerald-expansion / Pokemon Crossroads
-          Prototype changes:
-          - GBA title/header changed to WESTEROS RPG
-          - Littleroot map name changed to WINTERFELL
-          - New-game introduction rewritten for Westeros
-          - Winterfell opening dialogue and first rescue hook re-themed
-          This is a playable vertical-slice conversion, not yet a complete replacement of Pokemon mechanics/assets.
+
+          This build intentionally treats Crossroads as an engine rather than a Pokemon presentation.
+
+          Added/changed in v2:
+          - Game of Thrones title logo source artwork
+          - Removed Rayquaza from title scene
+          - GBA header/title identifies the game as a Thrones RPG
+          - Start-menu terminology: Lore, Party, Pack, Realm Map, Hunt Map
+          - Pokemon-facing terms broadly converted to Westeros RPG terminology in player-facing text
+          - Pokemon Center -> Healer's Hall
+          - Pokemon League -> Iron Throne
+          - Hall of Fame -> Book of Deeds
+          - money -> gold; badges -> sigils; trainer -> fighter; gyms -> keeps
+          - Major Hoenn map-section display names repurposed as Westeros locations
+          - Route labels repurposed as Westeros roads/regions
+          - First starter/early creature display names begin conversion to direwolves, dragon progression, squire/knight and hounds
+          - Winterfell opening and first quest hook from v1 retained
+
+          The master spec in the build branch defines the continuing conversion: Houses/distinct starts, weapons/armor/renown, companions, dragons, human/undead factions, political branching, living-world NPC simulation, Iron Throne progression and ruler postgame.
           EOF
 
       - name: Upload compiled ROM
         uses: actions/upload-artifact@v4
         with:
-          name: westeros-crossroads-rom
+          name: westeros-crossroads-v2-rom
           path: |
             crossroads/westeros_crossroads.gba
             crossroads/WESTEROS_BUILD_SHA256.txt

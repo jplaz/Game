@@ -65,8 +65,23 @@ static int talked, signs, duels, duelsWon, duelsLost, fled, warpsTaken, levels, 
 
 /* ------------------------------------------------------------ invariants -- */
 
+/* Nobody here can hear it, so the next best thing: watch the four sound
+   generators being written, and shout if the game ever falls silent. */
+static int soundNotes, soundWas, soundSilent;
+
+static void checkSound(void) {
+  unsigned freq = REG_SND1_FREQ;
+  if (!(REG_SNDCNT_X & 0x0080)) finding("the sound hardware is switched off");
+  if (freq != (unsigned)soundWas) { soundNotes++; soundWas = (int)freq; soundSilent = 0; }
+  else if (++soundSilent > 600) {
+    finding("nothing has sounded for ten seconds");
+    soundSilent = 0;
+  }
+}
+
 static void checkFrame(void) {
   int i;
+  checkSound();
   if (scene < 0 || scene > SCENE_SHOP) finding("scene is %d, which is not a scene", scene);
   if (scene == SCENE_TITLE || scene == SCENE_HOUSE) return;
 
@@ -140,8 +155,17 @@ static int stepToward(int gx, int gy) {
     int cur = queue[head++];
     int cx = cur % w, cy = cur / w;
     if (cx == gx && cy == gy) { best = cur; break; }
-    for (i = 0; i < 4; i++) {
-      int nx = cx + DIR_X[i], ny = cy + DIR_Y[i];
+    for (i = 0; i < 5; i++) {
+      int nx, ny;
+      if (i < 4) {
+        nx = cx + DIR_X[i]; ny = cy + DIR_Y[i];
+        /* A ledge is scenery you drop off, never a tile you stand on. */
+        if (ny >= 0 && ny < h && nx >= 0 && nx < w && ledgeAt(nx, ny)) continue;
+      } else {
+        /* The fifth way out of a tile: south over a ledge, landing two down. */
+        if (!ledgeAt(cx, cy + 1)) continue;
+        nx = cx; ny = cy + 2;
+      }
       if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
       if (cameFrom[ny * w + nx] != -2) continue;
       /* The goal tile itself may be a person or a sign; everything on the way
@@ -159,6 +183,9 @@ static int stepToward(int gx, int gy) {
   {
     int nx = at % w, ny = at / w;
     for (i = 0; i < 4; i++) if (hx + DIR_X[i] == nx && hy + DIR_Y[i] == ny) return i;
+    /* Two tiles south in one move means the route goes over a ledge, and the
+       key that takes it is the same one that would walk there. */
+    if (nx == hx && ny == hy + 2) return 0;
   }
   return -1;
 }
@@ -322,6 +349,9 @@ void hostFrame(void) {
       else if (shift > 20 && shift < 30) catchOnce(11, "14-going-dark");
       else if (spotted >= 0 && spotTimer > 20) catchOnce(12, "15-spotted");
       else if (windowOpen && !typeDone && frameNo > 400) catchOnce(13, "04-mid-sentence");
+      else if (hopping && hero.walk > 8 && hero.walk < 26) catchOnce(16, "17-over-the-ledge");
+      else if (!windowOpen && coverAt(hero.px >> 4, hero.py >> 4) && hero.walk)
+        catchOnce(17, "16-in-the-grass");
       else if (!windowOpen && frameNo > 60 && frameNo < 400) catchOnce(14, "03-winterfell");
     }
   }
@@ -566,6 +596,8 @@ int main(int argc, char **argv) {
   printf("  techniques     ");
   for (i = 0; i < 4; i++) printf("%s x%d  ", techniques[player_techs[i]].name, techUsed[i]);
   printf("\n");
+
+  printf("  sound          %d notes sounded\n", soundNotes);
 
   if (!findingCount) {
     printf("\n  nothing went wrong.\n");

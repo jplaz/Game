@@ -23,7 +23,24 @@ their own sight range, put an exclamation over their head, walk up, and draw.
 
 **Grass you can be jumped in.** Encounters happen in tall grass and reeds and
 nowhere else, at about one step in eight, and the screen cracks white and falls
-to black before the fight rather than simply cutting to it.
+to black before the fight rather than simply cutting to it. Blades rustle at your
+boots while you are in it, in green on the road and in frost north of Winterfell.
+
+**Walking that feels like walking.** Facing a new way takes a beat before you go
+that way, so you can turn on the spot to speak to somebody beside you. Hold B and
+you run. Ledges are one-way: press down at one and you drop two tiles south in a
+single arc, and you cannot climb back up.
+
+**A ladder to climb.** Experience for every duel won, a curve that gets steeper
+as you go, a thin rail under your health showing how far along the rung you are,
+and a level-up that names your new might and guard and puts you whole again. A
+beeline through the North ends around level 17-23; an hour in the grass will take
+you further.
+
+**A yard at dusk.** A duel is fought against a banded sky: eleven flat tiles and
+eleven palette entries running deep blue down to a low sun and then two courses of
+trodden earth, which is how a handheld draws a gradient when it has no room for a
+picture.
 
 **Duels** are the browser game's own numbers — its damage formula, its
 techniques, its duellists' stats — over Fight / Pouch / Guard / Flee and then
@@ -35,6 +52,11 @@ and you are told exactly what the win was worth.
 armour and shields. Better armour changes the body you walk around in. What a
 blade teaches becomes the techniques you fight with.
 
+**Sound.** Three tunes on the sound hardware's own square and noise generators —
+one for the road, one for a title card, and a faster one in C minor once steel is
+out — with a cursor tick, a door, a blow landing, a level-up flourish and a sting
+for winning and for going down.
+
 **START opens a menu** — Sigil, Pouch, Record, Leave. **Record writes to the
 cartridge's battery-backed memory**, and the title card offers to take up the
 road again next time you switch on.
@@ -44,9 +66,10 @@ page. **SELECT** challenges whoever you are facing. **START** is the menu.
 
 ## What is not on it
 
-No beasts, no eggs, no riding, no standing with houses, no court, no holdfast, no
-Free Cities, no shops, no saving and no sound. The browser game is still where the
-game is; this is the part of it that fits on a cartridge.
+No beasts, no eggs, no riding, no standing with houses, no court, no holdfast and
+no Free Cities. There is no ending: the road stops at the Bloody Gate and nothing
+declares you finished. The browser game is still where the whole of it is; this is
+the part that fits on a cartridge.
 
 ## How it is built
 
@@ -113,7 +136,9 @@ sign, draws on whoever will draw back, uses all four techniques, breaks off from
 some duels and loses others, opens the status card, and takes every door. On
 every single frame it checks the game has not put itself somewhere impossible —
 the player inside a wall or off the map, somebody in the crowd inside a wall, a
-window paged past its own end, a duel with more health than it started with.
+window paged past its own end, a duel with more health than it started with,
+somebody at rest between two tiles, the player standing on top of somebody else,
+and the sound hardware switched off or silent for ten seconds together.
 
 A full run is about 35,000 frames, ten minutes of real play, and covers all 19
 maps, all 64 people, all 12 signs and about 90 duels. The build runs one per
@@ -121,9 +146,12 @@ house; sixty runs across five houses and sixty different rolls of the dice
 currently come back clean.
 
 Between them these found: a fifth of Westeros mute, an NPC able to park in a
-one-tile gateway and seal a map until they wandered off, and curly quotes and
-em dashes in the writing that the font had no glyph for and would have drawn as
-holes in the middle of words.
+one-tile gateway and seal a map until they wandered off, curly quotes and em
+dashes in the writing that the font had no glyph for and would have drawn as holes
+in the middle of words, a door at Winterfell that put you down on top of Jory
+Cassel, a technique swung for free after a window closed, and — the newest — a
+ledge that the tester walked north into for a quarter of a million frames because
+its pathfinder did not know ledges only go one way.
 
 None of it is an emulator. It does not model timing, DMA, or the BIOS, so it
 cannot tell you the ROM runs on hardware — only that the game is reachable,

@@ -13,6 +13,14 @@ CFLAGS="--target=armv4t-none-eabi -mthumb -mcpu=arm7tdmi -O2 -fno-builtin
         -Wall -Wno-unused-variable -Wno-unused-parameter -std=c99"
 HOSTFLAGS="-DHOST_TEST -O1 -Wall -Wno-unused-function"
 
+# The font is indexed by byte, so a curly quote or an em dash in a line the game
+# draws comes out as three wrong glyphs. Catch it before it is ever seen.
+node -e '
+const src = require("fs").readFileSync("main.c", "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const bad = (src.match(/"(?:[^"\\\n]|\\.)*"/g) || []).filter((s) => /[^\x00-\x7e]/.test(s));
+if (bad.length) { console.error("non-ASCII in a drawn string:\n  " + bad.join("\n  ")); process.exit(1); }
+'
+
 clang $CFLAGS -c main.c -o main.o
 clang --target=armv4t-none-eabi -c crt0.s -o crt0.o -I.
 ld.lld -T link.ld -o thronebound.elf crt0.o main.o

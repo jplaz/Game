@@ -267,6 +267,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     const cells = [];
     const solid = [];
     const cover = [];
+    const ledge = [];
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const char = map.grid[y][x] ?? '.';
@@ -276,6 +277,8 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         solid.push(isSolid(char) ? 1 : 0);
         // Cover: the tall grass and the reeds. Nothing jumps you on a paved road.
         cover.push(tileDef(char).kind === 'encounter' ? 1 : 0);
+        // A ledge you can drop off but not climb.
+        ledge.push(tileDef(char).kind === 'ledge' ? 1 : 0);
       }
     }
 
@@ -350,7 +353,8 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     }
 
     out.maps.push({
-      id, name: map.name, width, height, cells, solid, cover, npcs, ambushes,
+      id, name: map.name, width, height, cells, solid, cover, ledge, npcs, ambushes,
+      frost: (map.ground ?? 'grass') === 'snow' ? 1 : 0,
       warps: (map.warps ?? []).map((w) => ({ ...w })),
       signs: (map.signs ?? []).map((s) => ({ x: s.x, y: s.y, text: s.text })),
     });
@@ -773,6 +777,8 @@ L.push('  const u32 *tiles;');
 L.push('  const u16 *entries;');
 L.push('  const u8  *solid;');
 L.push('  const u8  *cover;     /* where something can be hiding */');
+L.push('  const u8  *ledge;     /* a drop you can take but not climb */');
+L.push('  u8 frost;             /* whether the cover here is under snow */');
 L.push('  const u16 *residents; u8 residentCount;');
 L.push('  const Warp *warps; u8 warpCount;');
 L.push('  const Sign *signs; u8 signCount;');
@@ -795,6 +801,9 @@ harvest.maps.forEach((map, i) => {
   L.push('};');
   L.push(`static const u8 cover_${i}[${map.height} * ${map.width}] = {`);
   L.push(block(map.cover, 24));
+  L.push('};');
+  L.push(`static const u8 ledge_${i}[${map.height} * ${map.width}] = {`);
+  L.push(block(map.ledge, 24));
   L.push('};');
   L.push(`static const u16 residents_${i}[${Math.max(1, map.residents.length)}] = { ${map.residents.join(', ') || '0'} };`);
 
@@ -836,7 +845,7 @@ L.push(`#define MAP_COUNT ${harvest.maps.length}`);
 L.push('static const Map maps[MAP_COUNT] = {');
 harvest.maps.forEach((map, i) => {
   L.push(`  { ${cstr(map.name)}, ${map.width}, ${map.height}, ${map.bank.length}, tiles_${i},`);
-  L.push(`    entries_${i}, solid_${i}, cover_${i}, residents_${i}, ${map.residents.length},`);
+  L.push(`    entries_${i}, solid_${i}, cover_${i}, ledge_${i}, ${map.frost}, residents_${i}, ${map.residents.length},`);
   L.push(`    warps_${i}, ${map.liveWarps}, signs_${i}, ${map.signs.length},`);
   L.push(`    npcs_${i}, ${map.npcs.length}, ambushes_${i}, ${map.ambushes.length} },`);
 });

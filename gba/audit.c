@@ -56,6 +56,55 @@ static int walkableNeighbour(const Map *m, int x, int y) {
   return 0;
 }
 
+static int ledgeOn(const Map *m, int x, int y) {
+  if (x < 0 || y < 0 || x >= m->w || y >= m->h) return 0;
+  return m->ledge[y * m->w + x];
+}
+
+/* Where a player can actually put their feet on one map. A ledge is not a tile
+   you stand on and not a tile you climb: the only way across one is southward,
+   off the edge and two tiles down, so the flood has to walk the same rules the
+   cartridge does or it will call a walled-off corner reachable. */
+static unsigned char standable[64 * 64];
+static int floodQ[64 * 64];
+
+static void flood(const Map *m, int sx, int sy) {
+  int head = 0, tail = 0, i;
+  if (sx < 0 || sy < 0 || sx >= m->w || sy >= m->h) return;
+  if (solidOn(m, sx, sy) || ledgeOn(m, sx, sy)) return;
+  if (standable[sy * m->w + sx]) return;
+  standable[sy * m->w + sx] = 1;
+  floodQ[tail++] = sy * m->w + sx;
+  while (head < tail) {
+    int cur = floodQ[head++], cx = cur % m->w, cy = cur / m->w;
+    for (i = 0; i < 5; i++) {
+      int nx, ny;
+      if (i < 4) {
+        nx = cx + DIR_X[i]; ny = cy + DIR_Y[i];
+        if (ledgeOn(m, nx, ny)) continue;
+      } else {
+        if (!ledgeOn(m, cx, cy + 1)) continue;
+        nx = cx; ny = cy + 2;
+      }
+      if (nx < 0 || ny < 0 || nx >= m->w || ny >= m->h) continue;
+      if (solidOn(m, nx, ny)) continue;
+      if (standable[ny * m->w + nx]) continue;
+      standable[ny * m->w + nx] = 1;
+      floodQ[tail++] = ny * m->w + nx;
+    }
+  }
+}
+
+static int standNextTo(const Map *m, int x, int y) {
+  int i;
+  for (i = 0; i < 4; i++) {
+    int nx = x + DIR_X[i], ny = y + DIR_Y[i];
+    if (nx < 0 || ny < 0 || nx >= m->w || ny >= m->h) continue;
+    if (standable[ny * m->w + nx]) return 1;
+  }
+  return 0;
+}
+
 static const Warp *warpOn(const Map *m, int x, int y) {
   int i;
   for (i = 0; i < m->warpCount; i++) if (m->warps[i].x == x && m->warps[i].y == y) return &m->warps[i];
@@ -92,8 +141,10 @@ int main(void) {
   gbaMem = calloc(0x03000400u, 1);
   buildGlyphTable();
 
+  for (m = 0; m < MAP_COUNT; m++) totalNpc += maps[m].npcCount;
   printf("\nAuditing %d maps, %d people, %d duellists, %d techniques.\n\n",
-    MAP_COUNT, 0, DUELLIST_COUNT, TECH_COUNT);
+    MAP_COUNT, totalNpc, DUELLIST_COUNT, TECH_COUNT);
+  totalNpc = 0;
 
   /* --- can you get everywhere, and back again? ------------------------- */
   for (i = 0; i < MAP_COUNT; i++) seen[i] = 0;
@@ -122,6 +173,33 @@ int main(void) {
     if (map->residentCount > 12) bad("%s needs %d appearances resident", map->name, map->residentCount);
     if (map->npcCount > MAX_CROWD) bad("%s has %d people, the crowd holds %d", map->name, map->npcCount, MAX_CROWD);
     checkText("a map name", map->name);
+
+    /* --- can you walk to everything on this map? ------------------------ */
+    memset(standable, 0, sizeof standable);
+    if (m == 0) flood(map, 12, 12);
+    for (i = 0; i < MAP_COUNT; i++) {
+      for (j = 0; j < maps[i].warpCount; j++) {
+        if (maps[i].warps[j].to == m) flood(map, maps[i].warps[j].tx, maps[i].warps[j].ty);
+      }
+    }
+    for (i = 0; i < map->npcCount; i++) {
+      const Npc *n = &map->npcs[i];
+      if (n->x < map->w && n->y < map->h && !standNextTo(map, n->x, n->y)) {
+        bad("%s: there is no walking up to %s at %d,%d", map->name, n->name, n->x, n->y);
+      }
+    }
+    for (i = 0; i < map->signCount; i++) {
+      const Sign *g = &map->signs[i];
+      if (g->x < map->w && g->y < map->h && !standNextTo(map, g->x, g->y)) {
+        bad("%s: there is no walking up to the sign at %d,%d", map->name, g->x, g->y);
+      }
+    }
+    for (i = 0; i < map->warpCount; i++) {
+      const Warp *w = &map->warps[i];
+      if (w->x < map->w && w->y < map->h && !standable[w->y * map->w + w->x]) {
+        bad("%s: there is no walking to the door at %d,%d", map->name, w->x, w->y);
+      }
+    }
 
     /* --- doors ---------------------------------------------------------- */
     for (i = 0; i < map->warpCount; i++) {

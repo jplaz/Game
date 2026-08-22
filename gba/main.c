@@ -43,6 +43,20 @@ extern unsigned char *gbaMem;             /* covers 0x04000000 .. 0x07000400 */
 #define REG_BLDY      REG16(0x04000054)
 #define REG_KEYINPUT  REG16(0x04000130)
 
+/* The four programmable sound generators. Direct Sound wants samples in ROM and
+   a DMA feeding them; these four are just registers, which is what a cartridge
+   this size can afford. */
+#define REG_SND1_SWEEP REG16(0x04000060)
+#define REG_SND1_ENV   REG16(0x04000062)
+#define REG_SND1_FREQ  REG16(0x04000064)
+#define REG_SND2_ENV   REG16(0x04000068)
+#define REG_SND2_FREQ  REG16(0x0400006C)
+#define REG_SND4_ENV   REG16(0x04000078)
+#define REG_SND4_FREQ  REG16(0x0400007C)
+#define REG_SNDCNT_L   REG16(0x04000080)
+#define REG_SNDCNT_H   REG16(0x04000082)
+#define REG_SNDCNT_X   REG16(0x04000084)
+
 #define PAL_BG        ((volatile u16 *)HW(0x05000000))
 #define PAL_OBJ       ((volatile u16 *)HW(0x05000200))
 #define VRAM_BG_CHR   ((volatile u32 *)HW(0x06000000))   /* charblocks 0-1: the world */
@@ -83,6 +97,7 @@ extern unsigned char *gbaMem;             /* covers 0x04000000 .. 0x07000400 */
 #define C_DIM   13
 #define C_NIGHT 14
 #define C_EARTH 15
+#define C_RAIL 9      /* shares the healthy green; a rail is never red */
 
 #define RGB15(r, g, b) ((u16)((r) | ((g) << 5) | ((b) << 10)))
 
@@ -128,6 +143,216 @@ static u32 roll(u32 range) {
   seed = seed * 1664525u + 1013904223u;
   /* Multiply and shift rather than divide: there is no divide instruction. */
   return range ? (((seed >> 16) & 0xFFFFu) * range) >> 16 : 0;
+}
+
+/* ----------------------------------------------------------------- sound --- */
+/* Four channels, no samples: square one carries the tune, square two the bass
+   under it and any sting that wants a pitch, and the noise channel is every
+   blow that lands and every drum. A sting borrows a channel for as long as it
+   lasts and the tune goes quiet on that channel until it is done, which is the
+   old trick and costs nothing.
+
+   A rate is what the hardware wants instead of a frequency: 2048 - 131072/Hz.
+   NOTES runs C3 up to B5; 254 holds the note already sounding, 255 rests. */
+
+#define HOLD 254
+#define REST 255
+
+static const u16 NOTES[36] = {
+  1046, 1102, 1155, 1205, 1253, 1297, 1340, 1379, 1417, 1452, 1486, 1517,
+  1547, 1575, 1602, 1627, 1650, 1673, 1694, 1714, 1732, 1750, 1767, 1783,
+  1798, 1812, 1825, 1837, 1849, 1860, 1871, 1881, 1890, 1899, 1907, 1915,
+};
+
+/* Scale degrees, so the tunes below read as music rather than as numbers. */
+#define C3 0
+#define D3 2
+#define Eb3 3
+#define F3 5
+#define G3 7
+#define Ab3 8
+#define Bb3 10
+#define C4 12
+#define D4 14
+#define Eb4 15
+#define F4 17
+#define G4 19
+#define Ab4 20
+#define Bb4 22
+#define C5 24
+#define D5 26
+#define Eb5 27
+#define G5 31
+
+typedef struct {
+  const u8 *tune;      /* square one */
+  const u8 *under;     /* square two */
+  const u8 *drum;      /* noise: 0 quiet, 1 tap, 2 hit */
+  u8 steps;            /* how many entries before it comes round again */
+  u8 frames;           /* frames a step lasts */
+  u8 duty;             /* square wave duty, 0..3 */
+} Tune;
+
+/* Winterfell and the road: slow, in C minor, meant to be lived under rather
+   than listened to. */
+static const u8 ROAD_TUNE[32] = {
+  G4, HOLD, Eb4, HOLD, C4, HOLD, Eb4, HOLD,
+  F4, HOLD, Eb4, HOLD, D4, HOLD, HOLD, HOLD,
+  Eb4, HOLD, G4, HOLD, Ab4, HOLD, G4, HOLD,
+  F4, HOLD, D4, HOLD, C4, HOLD, HOLD, HOLD,
+};
+static const u8 ROAD_UNDER[32] = {
+  C3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  F3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  Ab3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  G3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+};
+static const u8 ROAD_DRUM[32] = {
+  1, 0, 0, 0, 0, 0, 1, 0,  1, 0, 0, 0, 0, 0, 1, 0,
+  1, 0, 0, 0, 0, 0, 1, 0,  1, 0, 0, 0, 1, 0, 1, 0,
+};
+
+/* Steel drawn: the same key, twice the speed, and it will not sit still. */
+static const u8 DUEL_TUNE[32] = {
+  C4, Eb4, G4, Eb4, C4, Eb4, G4, Bb4,
+  C5, Bb4, G4, Eb4, C4, HOLD, HOLD, REST,
+  F4, Ab4, C5, Ab4, F4, Ab4, C5, Eb4,
+  D4, F4, Ab4, F4, D4, HOLD, HOLD, REST,
+};
+static const u8 DUEL_UNDER[32] = {
+  C3, REST, C3, REST, C3, REST, C3, REST,
+  Ab3, REST, Ab3, REST, G3, REST, G3, REST,
+  F3, REST, F3, REST, F3, REST, F3, REST,
+  D3, REST, D3, REST, G3, REST, G3, REST,
+};
+static const u8 DUEL_DRUM[32] = {
+  2, 0, 1, 0, 2, 0, 1, 1,  2, 0, 1, 0, 2, 0, 1, 0,
+  2, 0, 1, 0, 2, 0, 1, 1,  2, 0, 1, 0, 2, 1, 1, 1,
+};
+
+/* The title card: stately, and it takes its time. */
+static const u8 HALL_TUNE[32] = {
+  C4, HOLD, HOLD, HOLD, Eb4, HOLD, G4, HOLD,
+  Ab4, HOLD, HOLD, G4, F4, HOLD, HOLD, REST,
+  D4, HOLD, HOLD, HOLD, F4, HOLD, Ab4, HOLD,
+  Bb4, HOLD, HOLD, Ab4, G4, HOLD, HOLD, REST,
+};
+static const u8 HALL_UNDER[32] = {
+  C3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  F3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  Bb3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  G3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+};
+static const u8 HALL_DRUM[32] = { 0 };
+
+static const Tune TUNES[3] = {
+  { ROAD_TUNE, ROAD_UNDER, ROAD_DRUM, 32, 11, 2 },
+  { DUEL_TUNE, DUEL_UNDER, DUEL_DRUM, 32,  6, 1 },
+  { HALL_TUNE, HALL_UNDER, HALL_DRUM, 32, 16, 2 },
+};
+
+#define TUNE_ROAD 0
+#define TUNE_DUEL 1
+#define TUNE_HALL 2
+
+static int tunePlaying = -1, tuneStep, tuneWait;
+static int stingLeft, drumLeft;
+
+static void soundUp(void) {
+  REG_SNDCNT_X = 0x0080;                     /* the sound hardware at all */
+  REG_SNDCNT_L = (u16)(0x7700 | 0x0077);     /* both squares and the noise, both ears */
+  REG_SNDCNT_H = 0x0002;                     /* the four generators at full */
+  REG_SND1_SWEEP = 0;
+}
+
+/* A note on square one or two: duty, an envelope that decays, then the rate
+   with the restart bit set. */
+static void voice(int chan, int note, int duty, int vol, int decay) {
+  u16 env = (u16)((duty << 6) | (vol << 12) | (decay << 8));
+  u16 freq = (u16)(NOTES[note] | 0x8000);
+  if (chan == 1) { REG_SND1_ENV = env; REG_SND1_FREQ = freq; }
+  else { REG_SND2_ENV = env; REG_SND2_FREQ = freq; }
+}
+
+static void hush(int chan) {
+  if (chan == 1) REG_SND1_ENV = 0;
+  else if (chan == 2) REG_SND2_ENV = 0;
+  else REG_SND4_ENV = 0;
+}
+
+/* The noise channel, which is every drum and every blow. */
+static void knock(int hard) {
+  REG_SND4_ENV = (u16)(hard ? (12 << 12) | (2 << 8) : (7 << 12) | (1 << 8));
+  REG_SND4_FREQ = (u16)((hard ? 0x0034 : 0x0051) | 0x8000);
+}
+
+static void playTune(int which) {
+  if (which == tunePlaying) return;
+  tunePlaying = which;
+  tuneStep = 0;
+  tuneWait = 0;
+  if (which < 0) { hush(1); hush(2); hush(4); }
+}
+
+/* Stings borrow a channel. The tune stays off it until the sting is spent, so
+   a blow landing is never chopped in half by the next quaver. */
+static const u8 SFX_WON[6]   = { C4, Eb4, G4, C5, G4, C5 };
+static const u8 SFX_RANK[6]  = { G4, C5, Eb5, G5, Eb5, G5 };
+static const u8 SFX_LOST[6]  = { G4, F4, Eb4, D4, C4, C4 };
+static const u8 SFX_DOOR[2]  = { G4, C4 };
+static const u8 SFX_YES[2]   = { C5, G5 };
+
+static const u8 *sting;
+static int stingLen, stingAt, stingWait, stingHold;
+
+static void playSting(const u8 *notes, int len, int hold) {
+  sting = notes; stingLen = len; stingAt = 0; stingWait = 0; stingHold = hold;
+  stingLeft = len * hold;
+}
+
+static void sfxPick(void)  { REG_SND4_ENV = (u16)((5 << 12) | (1 << 8)); REG_SND4_FREQ = (u16)(0x0022 | 0x8000); drumLeft = 4; }
+static void sfxYes(void)   { playSting(SFX_YES, 2, 5); }
+static void sfxDoor(void)  { playSting(SFX_DOOR, 2, 7); }
+static void sfxWon(void)   { playSting(SFX_WON, 6, 9); }
+static void sfxRank(void)  { playSting(SFX_RANK, 6, 8); }
+static void sfxLost(void)  { playSting(SFX_LOST, 6, 11); }
+static void sfxHit(int hard) { knock(hard); drumLeft = hard ? 10 : 6; }
+
+/* One frame of whatever is sounding. */
+static void tickSound(void) {
+  const Tune *t;
+
+  if (stingLeft) {
+    stingLeft--;
+    if (!stingWait) {
+      if (stingAt < stingLen) voice(2, sting[stingAt++], 2, 11, 2);
+      stingWait = stingHold;
+    }
+    stingWait--;
+    if (!stingLeft) hush(2);
+  }
+  if (drumLeft && !--drumLeft) hush(4);
+
+  if (tunePlaying < 0) return;
+  t = &TUNES[tunePlaying];
+  if (tuneWait) { tuneWait--; return; }
+  {
+    u8 lead = t->tune[tuneStep];
+    u8 low = t->under[tuneStep];
+    u8 beat = t->drum[tuneStep];
+    if (lead != HOLD) {
+      if (lead == REST) hush(1);
+      else voice(1, lead, t->duty, 9, 3);
+    }
+    if (!stingLeft && low != HOLD) {
+      if (low == REST) hush(2);
+      else voice(2, low, 3, 7, 4);
+    }
+    if (!drumLeft && beat) { knock(beat == 2); drumLeft = t->frames - 1; }
+  }
+  tuneWait = t->frames - 1;
+  tuneStep++;
+  if (tuneStep >= t->steps) tuneStep = 0;
 }
 
 /* ------------------------------------------------------------- the text ---- */
@@ -536,6 +761,88 @@ static void buildBubble(void) {
   PAL_OBJ[SPOT_BANK * 16 + 2] = RGB15(31, 31, 31);
 }
 
+/* Grass closing over your boots. Two frames, drawn over the player whenever
+   they are standing in cover, which is what makes tall grass feel like tall
+   grass rather than a differently coloured floor. */
+#define GRASS_TILE 900
+#define GRASS_BANK 14
+#define FROST_BANK 15
+
+static const char *const GRASS_ART[2][16] = {
+  {
+    "................",
+    "..l..h.....h..l.",
+    "..l.mh...l.h..l.",
+    ".lm.mm..lm.m.hl.",
+    ".lm.mm.dlm.m.lh.",
+    "dlmdmm.ddmdm.lm.",
+    "dlmdmmddddmd.lm.",
+    "ddmdmmddddmdddm.",
+    "ddmdddddddddddm.",
+    ".dddddddddddddd.",
+    "..dd.dd..dd.dd..",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+  },
+  {
+    "....h.....h..l..",
+    "...h.l...h.l.l..",
+    ".h.m.ml.m.mm.ml.",
+    ".hl.m.mlm.mm.ml.",
+    ".ml.mdmdmdmmdml.",
+    ".mldmdddmdmmdmld",
+    ".mdddddddddmdmld",
+    ".mdddddddddddddd",
+    ".dddddddddddddd.",
+    "..dd..dd..dd.dd.",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+  },
+};
+
+static void buildGrass(void) {
+  int f, y, x;
+  for (f = 0; f < 2; f++) {
+    volatile u8 *out = (volatile u8 *)(VRAM_OBJ) + (GRASS_TILE + f * 4) * 32;
+    for (y = 0; y < 32 * 4; y++) out[y] = 0;
+    for (y = 0; y < 16; y++) {
+      for (x = 0; x < 16; x++) {
+        char c = GRASS_ART[f][y][x];
+        int v = c == 'd' ? 1 : c == 'm' ? 2 : c == 'l' ? 3 : c == 'h' ? 4 : 0;
+        int tile = (y >> 3) * 2 + (x >> 3);
+        int at = tile * 32 + (y & 7) * 4 + ((x & 7) >> 1);
+        if (!v) continue;
+        if (x & 1) out[at] = (u8)((out[at] & 0x0F) | (v << 4));
+        else out[at] = (u8)((out[at] & 0xF0) | v);
+      }
+    }
+  }
+  PAL_OBJ[GRASS_BANK * 16 + 1] = RGB15(5, 11, 5);
+  PAL_OBJ[GRASS_BANK * 16 + 2] = RGB15(7, 15, 6);
+  PAL_OBJ[GRASS_BANK * 16 + 3] = RGB15(11, 20, 9);
+  PAL_OBJ[GRASS_BANK * 16 + 4] = RGB15(14, 24, 11);
+  /* The same blades under snow, for everything north of the Neck. */
+  PAL_OBJ[FROST_BANK * 16 + 1] = RGB15(10, 14, 13);
+  PAL_OBJ[FROST_BANK * 16 + 2] = RGB15(14, 18, 16);
+  PAL_OBJ[FROST_BANK * 16 + 3] = RGB15(18, 22, 20);
+  PAL_OBJ[FROST_BANK * 16 + 4] = RGB15(24, 28, 26);
+}
+
+static void placeGrass(int slot, int x, int y, int frame, int bank) {
+  if (x < -16 || x > SCREEN_W || y < -16 || y > SCREEN_H) { oam[slot * 4] = 0x0200; return; }
+  oam[slot * 4 + 0] = (u16)(y & 0xFF);
+  oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0x4000);
+  oam[slot * 4 + 2] = (u16)((GRASS_TILE + frame * 4) | (bank << 12));
+  oam[slot * 4 + 3] = 0;
+}
+
 static void placeBubble(int slot, int x, int y) {
   if (x < -16 || x > SCREEN_W || y < -16 || y > SCREEN_H) { oam[slot * 4] = 0x0200; return; }
   oam[slot * 4 + 0] = (u16)(y & 0xFF);                       /* square */
@@ -572,6 +879,7 @@ static int crowdCount;
 
 static Body hero;
 static int heroActor;
+static int turnHold;
 static int spotted = -1, spotTimer;
 static u8 beaten[MAP_COUNT][MAX_CROWD];            /* the appearance of the house you swore to */
 
@@ -595,7 +903,9 @@ static int lookOf(void) {
   return you.armour ? wares[you.armour - 1].tier : 0;
 }
 
-static int vigourFor(int level) { return 28 + level * 6; }
+/* Health rises faster than it used to. A fight that lasts five or six exchanges
+   is a fight; one that ends in two is a coin toss, and a coin toss is not fun. */
+static int vigourFor(int level) { return 30 + level * 9; }
 
 static int mightFor(int level) {
   return 10 + level * 3 + (you.weapon ? wares[you.weapon - 1].might : 0);
@@ -627,7 +937,25 @@ static void reckonTechniques(void) {
   myTechs[3] = player_techs[3];              /* Guard */
 }
 
-static int expForLevel(int level) { return level <= 1 ? 0 : 30 * (level - 1) * level; }
+/* The ladder, and what a rung costs.
+ *
+ * A cube, the way the handhelds do it, tuned so that two or three fights buy a
+ * level the whole way up rather than four early and fifteen later. Beating
+ * somebody your own level is always worth about a third of the next rung. */
+static int expForLevel(int level) { return level <= 1 ? 0 : 5 * level * level * level / 4; }
+
+static int expFrom(int level) { return 24 + level * level * 2; }
+
+/* How far along the current rung you are, in hundredths. */
+static int expShare(void) {
+  int floorAt = expForLevel(you.level), next = expForLevel(you.level + 1);
+  if (you.level >= 50 || next <= floorAt) return 100;
+  {
+    int into = you.exp - floorAt;
+    if (into < 0) into = 0;
+    return (int)udiv((u32)(into * 100), (u32)(next - floorAt));
+  }
+}
 
 static int levelUp(void) {
   int gained = 0;
@@ -636,6 +964,7 @@ static int levelUp(void) {
     you.hp = vigourFor(you.level);
     gained = 1;
   }
+  if (gained) sfxRank();
   return gained;
 }
 
@@ -654,6 +983,13 @@ static int solidAt(int x, int y) {
 static int coverAt(int x, int y) {
   if (x < 0 || y < 0 || x >= world->w || y >= world->h) return 0;
   return world->cover[y * world->w + x];
+}
+
+/* A drop. You can go over it southward and no other way, which is the oldest
+   one-way valve in the genre. */
+static int ledgeAt(int x, int y) {
+  if (x < 0 || y < 0 || x >= world->w || y >= world->h) return 0;
+  return world->ledge[y * world->w + x];
 }
 
 /* A body mid-step is standing on two tiles at once as far as everyone else is
@@ -737,6 +1073,7 @@ static void loadWorldTiles(void) {
 static void enterMap(int id, int tx, int ty, int dir) {
   int i;
   u16 was = REG_DISPCNT;
+  sfxDoor();
   worldId = id;
   world = &maps[id];
   hero.px = (s16)(tx * 16);
@@ -873,6 +1210,15 @@ static int computeDamage(const Fighter *a, const Fighter *d, const Tech *t, int 
   return dmg < 1 ? 1 : dmg;
 }
 
+/* The experience rail: thinner than a health bar and a different colour, the
+   way the handhelds draw it, so a fight visibly moves you along. */
+static void drawRail(int x, int y, int w, int percent) {
+  int filled = percent * w / 100;
+  fillRect(x - 1, y - 1, w + 2, 4, C_DEEP);
+  fillRect(x, y, w, 2, C_BACK);
+  if (filled) fillRect(x, y, filled, 2, C_RAIL);
+}
+
 static void drawBar(int x, int y, int w, int hp, int max) {
   int filled, colour;
   if (max < 1) max = 1;
@@ -899,12 +1245,13 @@ static void paintDuelPlates(void) {
 
   /* Wholly inside the lower block of the page: a plate that starts one row
      higher would have its top edge drawn at the top of the screen instead. */
-  drawPlate(TXT_W - 156, 32, 152, 23);
-  drawText(TXT_W - 148, 35, mine.name, C_INK);
+  drawPlate(TXT_W - 156, 32, 152, 24);
+  drawText(TXT_W - 148, 34, mine.name, C_INK);
   copyString(scratch, "Lv ", sizeof scratch);
   appendNumber(scratch, mine.level, sizeof scratch);
-  drawText(TXT_W - 36, 35, scratch, C_DIM);
-  drawBar(TXT_W - 148, 47, 132, mine.hp, mine.maxHp);
+  drawText(TXT_W - 36, 34, scratch, C_DIM);
+  drawBar(TXT_W - 148, 43, 132, mine.hp, mine.maxHp);
+  drawRail(TXT_W - 148, 51, 132, expShare());
 }
 
 #define DUEL_WINDOW_TOP 56
@@ -1003,6 +1350,7 @@ static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
   copyString(scratch, isYou ? "You" : actor->name, sizeof scratch);
 
   if (t->defend) {
+    sfxHit(0);
     actor->defending = 1;
     appendString(scratch, isYou ? " raise your guard and catch a breath."
                                 : " raises a guard.", sizeof scratch);
@@ -1010,6 +1358,7 @@ static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
     return 0;
   }
   if ((int)roll(100) >= t->accuracy) {
+    sfxHit(0);
     appendString(scratch, isYou ? " swing " : " swings ", sizeof scratch);
     appendString(scratch, t->name, sizeof scratch);
     appendString(scratch, " and it goes wide.", sizeof scratch);
@@ -1017,6 +1366,7 @@ static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
     return 0;
   }
   dmg = computeDamage(actor, target, t, &crit);
+  sfxHit(crit ? 1 : 0);
   target->hp -= dmg;
   if (target->hp < 0) target->hp = 0;
   appendString(scratch, isYou ? " land " : " lands ", sizeof scratch);
@@ -1061,6 +1411,7 @@ static void setUpVideo(void) {
   copyPalettes();
   for (i = 0; i < 8; i++) VRAM_TXT_CHR[i] = 0;       /* the blank text tile */
   buildBubble();
+  buildGrass();
   layoutTextRows(TEXT_MIDDLE);
   REG_BG0CNT = (u16)(1 | 0x0080 | (28 << 8) | (3 << 14));   /* 8bpp, 64x64, behind */
   REG_BG1CNT = (u16)(0 | (2 << 2) | (27 << 8));             /* 4bpp text, in front */
@@ -1084,6 +1435,26 @@ static void stepBody(Body *b, int dir) {
   b->dx = DIR_X[dir];
   b->dy = DIR_Y[dir];
   b->stride ^= 1;
+}
+
+/* Over the edge: two tiles south in one movement, with an arc on the way. */
+static int hopping;
+
+static void hopBody(Body *b) {
+  b->dir = 0;
+  b->dx = 0;
+  b->dy = 1;
+  b->walk = 32;
+  b->stride ^= 1;
+  hopping = 1;
+}
+
+/* How far off the ground the body is, part way through a hop. */
+static int hopLift(const Body *b) {
+  int gone;
+  if (!hopping || !b->walk) return 0;
+  gone = 32 - b->walk;
+  return (gone * (32 - gone)) / 30;
 }
 
 static void moveBody(Body *b, int speed) {
@@ -1171,6 +1542,7 @@ static void paintStatus(void) {
   copyString(scratch, "Next level in ", sizeof scratch);
   appendNumber(scratch, expForLevel(you.level + 1) - you.exp, sizeof scratch);
   drawText(16, 64, scratch, C_DIM);
+  drawRail(140, 68, 76, expShare());
 
   copyString(scratch, "Killed ", sizeof scratch);
   appendNumber(scratch, you.kills, sizeof scratch);
@@ -1498,6 +1870,7 @@ static void endDuel(void) {
 }
 
 static void youFell(void) {
+  sfxLost();
   if (foeSlot >= 0) beaten[worldId][foeSlot] = 1;
   you.hp = vigourFor(you.level);
   you.gold -= you.gold / 3;
@@ -1510,8 +1883,10 @@ static void youFell(void) {
 }
 
 static void theyFell(void) {
+  int won = expFrom(foeDef->level);
+  sfxWon();
   you.gold += foeDef->reward;
-  you.exp += foeDef->exp;
+  you.exp += won;
   if (foeSlot >= 0) beaten[worldId][foeSlot] = 1;
   if (foeDef->mortal) {
     if (foeSlot >= 0) { slain[worldId][foeSlot] = 1; crowdAlive[foeSlot] = 0; }
@@ -1525,13 +1900,13 @@ static void theyFell(void) {
   appendString(scratch, "  You take ", sizeof scratch);
   appendNumber(scratch, foeDef->reward, sizeof scratch);
   appendString(scratch, " gold and ", sizeof scratch);
-  appendNumber(scratch, foeDef->exp, sizeof scratch);
+  appendNumber(scratch, won, sizeof scratch);
   appendString(scratch, " experience.", sizeof scratch);
   endDuel();
   if (levelUp()) {
     appendString(scratch, "  You are level ", sizeof scratch);
     appendNumber(scratch, you.level, sizeof scratch);
-    appendString(scratch, " — might ", sizeof scratch);
+    appendString(scratch, " - might ", sizeof scratch);
     appendNumber(scratch, mightFor(you.level), sizeof scratch);
     appendString(scratch, ", guard ", sizeof scratch);
     appendNumber(scratch, guardFor(you.level), sizeof scratch);
@@ -1568,20 +1943,34 @@ static void duelTurn(void) {
 /* A duel is fought somewhere, not in front of a black rectangle. Two flat
    tiles and a horizon are enough to say "a yard, at dusk" — and they cost two
    tiles at the top of the map's own character memory, which no map reaches. */
-#define DUEL_SKY_TILE 508
-#define DUEL_EARTH_TILE 509
+#define DUEL_BAND 496            /* eleven flat tiles, above anything a map uses */
+#define DUEL_PAL 200             /* and eleven colours, above anything the art uses */
+
+/* Dusk over a yard, banded from a deep blue overhead down to a low sun, then
+   two courses of trodden earth. Eleven flat tiles and eleven palette entries —
+   which is how a handheld draws a gradient, since it has no such thing. */
+static const u16 DUSK[11] = {
+  RGB15(3, 4, 11), RGB15(4, 5, 12), RGB15(6, 6, 13), RGB15(8, 7, 13),
+  RGB15(11, 8, 12), RGB15(14, 9, 11), RGB15(18, 10, 10), RGB15(22, 12, 9),
+  RGB15(26, 15, 9),
+  RGB15(12, 10, 7), RGB15(9, 8, 6),
+};
 
 static void paintDuelGround(void) {
-  int i, ty, tx;
-  for (i = 0; i < 16; i++) {
-    VRAM_BG_CHR[DUEL_SKY_TILE * 16 + i] = 0x01010101u * (TXT_BANK * 16 + C_NIGHT);
-    VRAM_BG_CHR[DUEL_EARTH_TILE * 16 + i] = 0x01010101u * (TXT_BANK * 16 + C_EARTH);
+  int i, w, ty, tx;
+  for (i = 0; i < 11; i++) {
+    PAL_BG[DUEL_PAL + i] = DUSK[i];
+    for (w = 0; w < 16; w++) {
+      VRAM_BG_CHR[(DUEL_BAND + i) * 16 + w] = 0x01010101u * (u32)(DUEL_PAL + i);
+    }
   }
   for (ty = 0; ty < 64; ty++) {
+    /* Nine bands of sky over the top nine rows, then the ground. */
+    int band = ty < 8 ? ty + 1 : (ty & 1) ? 9 : 10;
     volatile u16 *rowBase = VRAM_BG_MAP + ((ty >> 5) << 11) + ((ty & 31) << 5);
     for (tx = 0; tx < 64; tx++) {
       volatile u16 *cell = rowBase + ((tx >> 5) << 10) + (tx & 31);
-      *cell = (u16)(ty < 9 ? DUEL_SKY_TILE : DUEL_EARTH_TILE);
+      *cell = (u16)(DUEL_BAND + band);
     }
   }
   REG_BG0HOFS = 0;
@@ -1646,7 +2035,7 @@ static void tryTalk(void) {
     if (npc->heals && you.hp < vigourFor(you.level)) {
       you.hp = vigourFor(you.level);
       openWindow(npc->name,
-        "Sit. There. Whole again — and no charge to a sworn sword of a great house.");
+        "Sit. There. Whole again, and no charge to a sworn sword of a great house.");
       return;
     }
     openWindow(npc->name, npc->line);
@@ -1758,7 +2147,7 @@ static void moveCrowd(void) {
       if (nx > world->npcs[i].x + 3 || nx < world->npcs[i].x - 3) continue;
       if (ny > world->npcs[i].y + 3 || ny < world->npcs[i].y - 3) continue;
       if (solidAt(nx, ny) || occupied(nx, ny, i)) continue;
-      if (nearWarp(nx, ny)) continue;
+      if (nearWarp(nx, ny) || ledgeAt(nx, ny)) continue;
       stepBody(&crowd[i], dir);
     }
   }
@@ -1784,6 +2173,11 @@ static void placeEveryone(void) {
     order[j + 1] = key;
   }
 
+  if (coverAt(hero.px >> 4, hero.py >> 4)) {
+    placeGrass(MAX_CROWD + 1, hero.px - camX, hero.py - camY,
+      hero.walk ? (int)((frameClock >> 2) & 1) : 0,
+      world->frost ? FROST_BANK : GRASS_BANK);
+  }
   if (spotted >= 0 && spotTimer > 0) {
     placeBubble(MAX_CROWD + 2, crowd[spotted].px - camX,
       crowd[spotted].py - camY - 30);
@@ -1795,7 +2189,7 @@ static void placeEveryone(void) {
     int who = order[i];
     int slot = count - 1 - i;
     if (who < 0) {
-      placeObject(slot, hero.px - camX, hero.py - camY - 16,
+      placeObject(slot, hero.px - camX, hero.py - camY - 16 - hopLift(&hero),
         PLAYER_TILE_BASE + frameOf(&hero, 4) * ACTOR_FRAME_TILES, 0);
     } else {
       int bank = world->npcs[who].bank;
@@ -1825,7 +2219,8 @@ int main(void) {
   buildGlyphTable();
   hideAllObjects();
   setUpVideo();
-  you.house = 0; you.level = 5; you.gold = 120;
+  soundUp();
+  you.house = 0; you.level = 5; you.gold = 220;
   you.hp = vigourFor(you.level);
   you.exp = expForLevel(you.level);
   hasRecord = findRecord();
@@ -1833,6 +2228,7 @@ int main(void) {
   flushPage();
   pushObjects();
   scene = SCENE_TITLE;
+  playTune(TUNE_HALL);
   REG_DISPCNT = (u16)(0x0040 | 0x0200);
 
   for (;;) {
@@ -1841,6 +2237,12 @@ int main(void) {
     keysNow = (u16)(~REG_KEYINPUT & 0x03FF);
     seed += keysNow + 1;
     frameClock++;
+    tickSound();
+    /* One tune for the road, another once steel is out, and the title's own. */
+    if (hit(KEY_A) && scene != SCENE_WORLD && scene != SCENE_DUEL) sfxYes();
+    if (scene == SCENE_TITLE || scene == SCENE_HOUSE) playTune(TUNE_HALL);
+    else if (scene == SCENE_DUEL || (scene == SCENE_BAG && bagInDuel)) playTune(TUNE_DUEL);
+    else playTune(TUNE_ROAD);
 
     if (shift) {
       tickShift();
@@ -1853,7 +2255,7 @@ int main(void) {
         int was = titlePick;
         if (hit(KEY_UP) && titlePick) titlePick--;
         if (hit(KEY_DOWN) && !titlePick) titlePick++;
-        if (titlePick != was) paintTitle();
+        if (titlePick != was) { sfxPick(); paintTitle(); }
       }
       if (hit(KEY_START) || hit(KEY_A)) {
         if (hasRecord && titlePick == 0) {
@@ -1870,8 +2272,8 @@ int main(void) {
         }
       }
     } else if (scene == SCENE_HOUSE) {
-      if (hit(KEY_LEFT) && houseChoice > 0) { houseChoice--; paintHousePicker(); }
-      if (hit(KEY_RIGHT) && houseChoice < HOUSE_COUNT - 1) { houseChoice++; paintHousePicker(); }
+      if (hit(KEY_LEFT) && houseChoice > 0) { houseChoice--; sfxPick(); paintHousePicker(); }
+      if (hit(KEY_RIGHT) && houseChoice < HOUSE_COUNT - 1) { houseChoice++; sfxPick(); paintHousePicker(); }
       if (hit(KEY_A)) {
         you.house = houseChoice;
         /* Nobody is sent out of the yard with their bare hands. */
@@ -1896,7 +2298,7 @@ int main(void) {
       int was = menuPick;
       if (hit(KEY_UP) && menuPick > 0) menuPick--;
       if (hit(KEY_DOWN) && menuPick < MENU_ENTRIES - 1) menuPick++;
-      if (menuPick != was) paintMenu();
+      if (menuPick != was) { sfxPick(); paintMenu(); }
       if (hit(KEY_B) || hit(KEY_START)) {
         scene = SCENE_WORLD;
         clearPage();
@@ -1930,7 +2332,7 @@ int main(void) {
       int have = carrying(), was = bagPick;
       if (hit(KEY_UP) && bagPick > 0) bagPick--;
       if (hit(KEY_DOWN) && bagPick < have - 1) bagPick++;
-      if (bagPick != was) paintBag();
+      if (bagPick != was) { sfxPick(); paintBag(); }
       if (hit(KEY_B)) {
         clearPage();
         if (bagInDuel) {
@@ -1969,7 +2371,7 @@ int main(void) {
       int was = shopPick;
       if (hit(KEY_UP) && shopPick > 0) shopPick--;
       if (hit(KEY_DOWN) && shopPick < stall->count - 1) shopPick++;
-      if (shopPick != was) paintShop();
+      if (shopPick != was) { sfxPick(); paintShop(); }
       if (hit(KEY_B)) {
         scene = SCENE_WORLD;
         clearPage();
@@ -2006,7 +2408,7 @@ int main(void) {
         if (hit(KEY_RIGHT) && !(topPick & 1)) topPick++;
         if (hit(KEY_UP) && topPick > 1) topPick -= 2;
         if (hit(KEY_DOWN) && topPick < 2) topPick += 2;
-        if (topPick != was) paintDuelTop();
+        if (topPick != was) { sfxPick(); paintDuelTop(); }
         if (hit(KEY_A)) {
           if (topPick == 0) { duelPhase = DUEL_MENU; paintDuelMenu(); }
           else if (topPick == 1) {
@@ -2039,7 +2441,7 @@ int main(void) {
         if (hit(KEY_RIGHT) && !(duelMenu & 1)) duelMenu++;
         if (hit(KEY_UP) && duelMenu > 1) duelMenu -= 2;
         if (hit(KEY_DOWN) && duelMenu < 2) duelMenu += 2;
-        if (duelMenu != was) paintDuelMenu();
+        if (duelMenu != was) { sfxPick(); paintDuelMenu(); }
         if (hit(KEY_B)) { duelPhase = DUEL_TOP; paintDuelTop(); }
         else if (hit(KEY_A)) {
           paintFrameOnly();
@@ -2063,7 +2465,8 @@ int main(void) {
       } else if (spotted >= 0) {
         /* Nothing to do but wait for them. */
       } else if (hero.walk) {
-        moveBody(&hero, held(KEY_B) ? RUN_SPEED : WALK_SPEED);
+        moveBody(&hero, hopping ? 2 : (held(KEY_B) ? RUN_SPEED : WALK_SPEED));
+        if (!hero.walk) hopping = 0;
         if (!hero.walk) {
           const Warp *warp = warpAt(hero.px >> 4, hero.py >> 4);
           if (warp) enterMap(warp->to, warp->tx, warp->ty, hero.dir);
@@ -2080,17 +2483,29 @@ int main(void) {
         tryChallenge();
       } else if (hit(KEY_A)) {
         tryTalk();
+      } else if (turnHold) {
+        /* Facing a new way takes a beat before you go that way, which is what
+           lets you turn on the spot to talk to somebody beside you. */
+        turnHold--;
       } else {
         int want = -1;
         if (held(KEY_UP)) want = 1;
         else if (held(KEY_DOWN)) want = 0;
         else if (held(KEY_LEFT)) want = 2;
         else if (held(KEY_RIGHT)) want = 3;
-        if (want >= 0) {
+        if (want >= 0 && hero.dir != want) {
+          hero.dir = (u8)want;
+          turnHold = 6;
+        } else if (want >= 0) {
           int nx = (hero.px >> 4) + DIR_X[want];
           int ny = (hero.py >> 4) + DIR_Y[want];
-          hero.dir = (u8)want;
-          if (!solidAt(nx, ny) && !occupied(nx, ny, -1)) {
+          if (ledgeAt(nx, ny)) {
+            /* Southward only, and it carries you clear of the drop. */
+            if (want == 0 && !solidAt(nx, ny + 1) && !occupied(nx, ny + 1, -1)) {
+              hopBody(&hero);
+              moveBody(&hero, 2);
+            }
+          } else if (!solidAt(nx, ny) && !occupied(nx, ny, -1)) {
             stepBody(&hero, want);
             moveBody(&hero, held(KEY_B) ? RUN_SPEED : WALK_SPEED);
           }

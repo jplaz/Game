@@ -48,6 +48,9 @@ jobs:
       - name: Convert title artwork to GBA 4bpp
         run: python3 crossroads_westeros/fix_title_palette.py crossroads
 
+      - name: Fix GBA cartridge header
+        run: python3 crossroads_westeros/fix_gba_header.py crossroads
+
       - name: Build ROM
         working-directory: crossroads
         env:

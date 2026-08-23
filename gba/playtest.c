@@ -64,6 +64,7 @@ static void finding(const char *fmt, ...) {
 static int frameNo;
 static int mapSeen[MAP_COUNT];
 static int portsSeen, sailed, talesSeen, crownRun;
+static int partiesSeen, partyLooks, swaps;
 static int npcTalked[MAP_COUNT][MAX_CROWD];
 static int signRead[MAP_COUNT][8];
 static int npcStuck[MAP_COUNT][MAX_CROWD];
@@ -88,7 +89,7 @@ static void checkSound(void) {
 static void checkFrame(void) {
   int i;
   checkSound();
-  if (scene < 0 || scene > SCENE_TALE) finding("scene is %d, which is not a scene", scene);
+  if (scene < 0 || scene > SCENE_PARTY) finding("scene is %d, which is not a scene", scene);
   /* Nothing is standing anywhere yet on the screens that come before the
      world, and there is no map to be standing on. */
   if (scene == SCENE_TITLE || scene == SCENE_HOUSE || scene == SCENE_NAME) return;
@@ -711,13 +712,20 @@ void hostFrame(void) {
     menusSeen++;
     /* Look in the pouch about half the time, write the record now and then,
        and otherwise leave. */
-    if (menuWant < 0) menuWant = (int)roll(4);
+    if (menuWant < 0) menuWant = (int)roll(MENU_ENTRIES);
     /* Leaving has to clear what it wanted too. Without this the first roll of
        "leave" sticks, and every menu after it is opened and shut again without
        the tester ever looking in the pouch. */
-    if (menuWant == 3) { keys = tap(KEY_B); if (keys) menuWant = -1; }
+    if (menuWant == MENU_ENTRIES - 1) { keys = tap(KEY_B); if (keys) menuWant = -1; }
     else if (menuPick != menuWant) keys = tap(menuPick < menuWant ? KEY_DOWN : KEY_UP);
-    else { keys = tap(KEY_A); if (keys) { if (menuWant == 2) records++; menuWant = -1; } }
+    else { keys = tap(KEY_A); if (keys) { if (menuWant == 3) records++; menuWant = -1; } }
+  } else if (scene == SCENE_PARTY) {
+    /* Read down whatever is at your heel, put a different one in front now and
+       then, and go. */
+    partiesSeen++;
+    if (partyLooks < 3) { partyLooks++; keys = tap(KEY_DOWN); }
+    else if (partyLooks == 3) { partyLooks++; keys = tap(KEY_A); if (keys) swaps++; }
+    else { keys = tap(KEY_B); if (keys) partyLooks = 0; }
   } else if (scene == SCENE_BAG) {
     bagsSeen++;
     menuWant = -1;
@@ -758,6 +766,13 @@ void hostFrame(void) {
         else if (wares[at].kind == WARE_SNARE) { if (you.bag[at] >= 3) continue; }
         else if (had && wares[had - 1].price >= wares[at].price) continue;
         if (wares[at].price > you.gold) continue;
+        /* A net before anything else when there is none in the pouch. Buying
+           the dearest thing on the counter is a reasonable way to shop and it
+           meant a net was never once bought in a whole playthrough - the
+           cheapest net is a hundred and fifty and the dearest sword is nine
+           thousand - so the run threw no nets, took nothing alive, and the half
+           of this game that is about animals went untested. */
+        if (wares[at].kind == WARE_SNARE && !you.bag[at]) { best = i; break; }
         if (best < 0 || wares[stall->ware[best]].price < wares[at].price) best = i;
       }
       if (best < 0) keys = tap(KEY_B);
@@ -843,7 +858,7 @@ void hostFrame(void) {
         : (foeBeast >= 0 && haveNet && theirs.hp * 3 < theirs.maxHp) ? 1
         : (you.hp * 3 < vigourFor(you.level) && carrying() ? 1 : 0);
       /* And set the beast on them when there is one to set. */
-      if (want == 0 && you.beast.kind != 255 && (roll(3) == 0)) want = 2;
+      if (want == 0 && MY_BEAST.kind != 255 && (roll(3) == 0)) want = 2;
       if ((want & 1) != (topPick & 1)) keys = tap((want & 1) ? KEY_RIGHT : KEY_LEFT);
       else if ((want & 2) != (topPick & 2)) keys = tap((want & 2) ? KEY_DOWN : KEY_UP);
       else keys = tap(KEY_A);
@@ -1130,7 +1145,7 @@ int main(int argc, char **argv) {
     r.dir = 0;
     r.x = (u8)THRONE_GATE_X; r.y = (u8)THRONE_GATE_Y;
     r.sigils = (u16)((1u << (LEADER_COUNT - 1)) - 1u);   /* nine of ten */
-    r.beastKind = 255;
+    { int q; for (q = 0; q < PARTY_MAX; q++) r.partyKind[q] = 255; }
     r.haven = 255;
     r.exp = (unsigned)expForLevel(44);
     r.gold = 40000; r.hp = 9999; r.kills = 200;
@@ -1161,7 +1176,7 @@ int main(int argc, char **argv) {
     r.x = houses[2].startX; r.y = houses[2].startY;
     r.worn[WARE_WEAPON] = 3; r.worn[WARE_ARMOUR] = 2; r.worn[WARE_SHIELD] = 1;
     r.worn[WARE_HELM] = 4; r.worn[WARE_GLOVES] = 5;
-    r.beastKind = 255;                          /* nothing at your heel */
+    { int q; for (q = 0; q < PARTY_MAX; q++) r.partyKind[q] = 255; }
     r.haven = 255;
     r.exp = (unsigned)expForLevel(14) + 40;
     r.gold = 1180; r.hp = 140; r.kills = 9;
@@ -1218,6 +1233,7 @@ int main(int argc, char **argv) {
   printf("  status card    opened %d times\n", statusChecks);
   printf("  passage list   opened %d times, sailed %d\n", portsSeen, sailed);
   printf("  the last act   %d pages read, story at %d\n", talesSeen, you.story);
+  printf("  the party card %d visits, %d sent out in front\n", partiesSeen, swaps);
   if (crownRun && you.story < 3) {
     finding("the last act stopped at stage %d: the chair was never taken", you.story);
   }
@@ -1227,8 +1243,17 @@ int main(int argc, char **argv) {
   printf("  benches        %d looked at, %d things made\n", craftsSeen, crafted);
   printf("  the wild       %d animals met, %d nets thrown, %d taken alive\n",
     wildsMet, snaresThrown, you.tamed);
-  if (you.beast.kind != 255) {
-    printf("  at your heel   %s, level %d\n", beasts[you.beast.kind].name, you.beast.level);
+  if (MY_BEAST.kind != 255) {
+    int q;
+    printf("  at your heel   %s, level %d\n", beasts[MY_BEAST.kind].name, MY_BEAST.level);
+    printf("  the party      ");
+    for (q = 0; q < PARTY_MAX; q++) {
+      if (you.party[q].kind == 255) continue;
+      printf("%s%s lv%d", q == you.lead ? "*" : "",
+        beasts[you.party[q].kind].name, you.party[q].level);
+      printf("  ");
+    }
+    printf("\n");
   } else {
     printf("  at your heel   nothing\n");
   }

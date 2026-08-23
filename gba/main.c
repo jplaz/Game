@@ -54,6 +54,8 @@ extern unsigned char *gbaMem;             /* covers 0x04000000 .. 0x07000400 */
 #define REG_SND2_FREQ  REG16(0x0400006C)
 #define REG_SND4_ENV   REG16(0x04000078)
 #define REG_SND4_FREQ  REG16(0x0400007C)
+#define REG_TM0_COUNT  REG16(0x04000100)
+#define REG_TM0_CTRL   REG16(0x04000102)
 #define REG_SNDCNT_L   REG16(0x04000080)
 #define REG_SNDCNT_H   REG16(0x04000082)
 #define REG_SNDCNT_X   REG16(0x04000084)
@@ -354,6 +356,55 @@ static void tickSound(void) {
   tuneWait = t->frames - 1;
   tuneStep++;
   if (tuneStep >= t->steps) tuneStep = 0;
+}
+
+/*
+ * Keeping time.
+ *
+ * The music used to advance once per pass of the game loop, which meant the
+ * tempo was the frame rate: every frame the loop missed was a quaver the tune
+ * missed too, so it dragged and stuttered at exactly the moments the screen
+ * did. Timer 0 free-runs at a sixteen-thousandth of a second whatever the CPU
+ * is doing, and the tune is stepped from that instead - so a heavy frame costs
+ * a frame of animation and nothing at all of the music.
+ */
+#define SOUND_HZ_TICKS 274        /* 16.78MHz / 1024, divided by sixty */
+
+static u16 soundClockWas;
+static int soundOwed;
+
+static void startSoundClock(void) {
+#ifndef HOST_TEST
+  REG_TM0_CTRL = 0;
+  REG_TM0_COUNT = 0;
+  REG_TM0_CTRL = (u16)(3 | 0x0080);      /* prescaler 1024, running */
+  soundClockWas = 0;
+#endif
+  soundOwed = 0;
+}
+
+static void soundClock(void) {
+#ifdef HOST_TEST
+  /* No hardware to read; the host runs the loop at a fixed rate anyway. */
+  tickSound();
+#else
+  u16 now = REG_TM0_COUNT;
+  soundOwed += (int)(u16)(now - soundClockWas);
+  soundClockWas = now;
+  /* Anything longer than a few frames is a map being loaded or a record being
+     written, not the music falling behind. Catching that up would be a burst of
+     notes rather than a tune. */
+  if (soundOwed > SOUND_HZ_TICKS * 4) soundOwed = SOUND_HZ_TICKS;
+  /* Bounded, so a long stall is never paid back as a burst of notes. */
+  {
+    int owed = 0;
+    while (soundOwed >= SOUND_HZ_TICKS && owed < 4) {
+      soundOwed -= SOUND_HZ_TICKS;
+      owed++;
+    }
+    while (owed-- > 0) tickSound();
+  }
+#endif
 }
 
 /* ------------------------------------------------------------- the text ---- */
@@ -1097,6 +1148,11 @@ static u8 gifted[MAP_COUNT][MAX_CROWD];
    nobody, which is how everybody starts. */
 typedef struct { u8 kind, level; u16 exp; int hp; } Kept;
 
+/* Six, the way a party has always been six. `lead` is the one at your heel and
+   the one that fights beside you; the rest come along and can be swapped to the
+   front at the menu. */
+#define PARTY_MAX 6
+
 typedef struct {
   int house;
   int level, exp, hp, gold;
@@ -1108,7 +1164,8 @@ typedef struct {
   u8 worn[WARE_KINDS];
   u8 bag[WARE_COUNT];
   char name[NAME_MAX + 1];        /* what people call you */
-  Kept beast;
+  Kept party[PARTY_MAX];
+  u8 lead;                        /* which of them is at your heel */
   u8 eggWins;                     /* fights won since you picked the egg up */
   u8 tamed;                       /* how many you have taken alive */
   /* Where somebody last put you back together. Going down used to send you all
@@ -1119,6 +1176,11 @@ typedef struct {
      2 you have stood in the throne room, 3 the chair is yours. */
   u8 story;
 } You;
+
+/* The animal currently at your heel. Everything that used to say `MY_BEAST`
+   says this, so gaining a party of six did not mean rewriting every line that
+   ever mentioned the one you had. */
+#define MY_BEAST (you.party[you.lead])
 
 #define WORN_WEAPON worn[WARE_WEAPON]
 #define WORN_ARMOUR worn[WARE_ARMOUR]
@@ -1846,7 +1908,7 @@ static const char *const DUEL_TOP_ITEMS[4] = { "Fight", "Pouch", "Guard", "Flee"
    here was doing nothing that could not be done one press deeper. It is what
    you set on them, once you have something to set. */
 static const char *topItem(int i) {
-  if (i == 2 && you.beast.kind != 255) return beasts[you.beast.kind].name;
+  if (i == 2 && MY_BEAST.kind != 255) return beasts[MY_BEAST.kind].name;
   return DUEL_TOP_ITEMS[i];
 }
 
@@ -2081,8 +2143,8 @@ static void readyYourself(void) {
   beastActed = 0;
   /* And whatever is at your heel, if the other side is not itself an animal -
      there is only room in object memory for two of them at once. */
-  if (you.beast.kind != 255 && foeBeast < 0) {
-    loadBeastArt(you.beast.kind, MY_BEAST_TILE, MY_BEAST_BANK);
+  if (MY_BEAST.kind != 255 && foeBeast < 0) {
+    loadBeastArt(MY_BEAST.kind, MY_BEAST_TILE, MY_BEAST_BANK);
   }
 }
 
@@ -2484,11 +2546,11 @@ static void paintStatus(void) {
   appendNumber(scratch, LEADER_COUNT, sizeof scratch);
   drawText(130, 77, scratch, C_HOUSE);
 
-  if (you.beast.kind != 255) {
+  if (MY_BEAST.kind != 255) {
     copyString(scratch, "At your heel: ", sizeof scratch);
-    appendString(scratch, beasts[you.beast.kind].name, sizeof scratch);
+    appendString(scratch, beasts[MY_BEAST.kind].name, sizeof scratch);
     appendString(scratch, ", level ", sizeof scratch);
-    appendNumber(scratch, you.beast.level, sizeof scratch);
+    appendNumber(scratch, MY_BEAST.level, sizeof scratch);
     drawText(16, 90, scratch, C_WELL);
   } else if (you.tamed) {
     drawText(16, 90, "Nothing at your heel just now.", C_DIM);
@@ -2545,8 +2607,11 @@ typedef struct {
   u8 worn[WARE_KINDS];
   u8 pad2, pad3b, pad4b;
   u16 sigils, pad3;
-  u8 beastKind, beastLevel, eggWins, tamed;
-  u16 beastExp, pad4;
+  u8 eggWins, tamed, lead, pad4;
+  /* All six of them. It used to be one kind, one level and one lot of
+     experience, which is what a party of one needs. */
+  u8 partyKind[PARTY_MAX], partyLevel[PARTY_MAX];
+  u16 partyExp[PARTY_MAX];
   u8 haven, havenX, havenY, story;
   u8 emptied[MAP_COUNT][8];
   u32 exp, gold, hp, kills;
@@ -2580,9 +2645,14 @@ static void keepRecord(void) {
   record.y = (u8)(hero.py >> 4);
   { int k; for (k = 0; k < WARE_KINDS; k++) record.worn[k] = you.worn[k]; }
   record.sigils = sigils;
-  record.beastKind = you.beast.kind;
-  record.beastLevel = you.beast.level;
-  record.beastExp = you.beast.exp;
+  { int k;
+    for (k = 0; k < PARTY_MAX; k++) {
+      record.partyKind[k] = you.party[k].kind;
+      record.partyLevel[k] = you.party[k].level;
+      record.partyExp[k] = you.party[k].exp;
+    }
+    record.lead = you.lead;
+  }
   record.story = you.story;
   record.eggWins = you.eggWins;
   record.tamed = you.tamed;
@@ -2634,12 +2704,17 @@ static void takeUpRecord(void) {
   { int k; for (k = 0; k < WARE_KINDS; k++) you.worn[k] = record.worn[k]; }
   sigils = record.sigils;
   layLadder();
-  you.beast.kind = record.beastKind;
-  you.beast.level = record.beastLevel;
-  you.beast.exp = record.beastExp;
+  { int k;
+    for (k = 0; k < PARTY_MAX; k++) {
+      you.party[k].kind = record.partyKind[k];
+      you.party[k].level = record.partyLevel[k];
+      you.party[k].exp = record.partyExp[k];
+      you.party[k].hp = record.partyKind[k] == 255
+        ? 0 : beastVigour(record.partyKind[k], record.partyLevel[k]);
+    }
+    you.lead = record.lead < PARTY_MAX ? record.lead : 0;
+  }
   you.story = record.story;
-  you.beast.hp = you.beast.kind == 255
-    ? 0 : beastVigour(you.beast.kind, you.beast.level);
   you.eggWins = record.eggWins;
   you.tamed = record.tamed;
   you.haven = record.haven == 255 ? -1 : record.haven;
@@ -2843,12 +2918,34 @@ static int snareOdds(int snare) {
 
 /* Puts it at your heel. Whatever you had walks away, and it is said out loud
    rather than swapped silently: losing one you raised should cost a sentence. */
-static void keepBeast(int which, int level) {
-  you.beast.kind = (u8)which;
-  you.beast.level = (u8)level;
-  you.beast.exp = (u16)beastExpFor(level);
-  you.beast.hp = beastVigour(which, level);
+/* How many are travelling with you. */
+static int partyCount(void) {
+  int i, n = 0;
+  for (i = 0; i < PARTY_MAX; i++) if (you.party[i].kind != 255) n++;
+  return n;
+}
+
+/* The first empty place in it, or -1 when six are already at your heel. */
+static int partyRoom(void) {
+  int i;
+  for (i = 0; i < PARTY_MAX; i++) if (you.party[i].kind == 255) return i;
+  return -1;
+}
+
+/* Puts one into the party. Returns 0 when there is no room for it - the caller
+   says so; there is nothing sadder than a net thrown well and a beast that
+   quietly does not appear anywhere. */
+static int keepBeast(int which, int level) {
+  int at = partyRoom();
+  if (at < 0) return 0;
+  you.party[at].kind = (u8)which;
+  you.party[at].level = (u8)level;
+  you.party[at].exp = (u16)beastExpFor(level);
+  you.party[at].hp = beastVigour(which, level);
+  /* The first one you ever take walks out in front. */
+  if (MY_BEAST.kind == 255) you.lead = (u8)at;
   you.tamed++;
+  return 1;
 }
 
 static int useWare(int at) {
@@ -3067,16 +3164,20 @@ static int useInDuel(int at) {
     if (!you.bag[at]) return 0;
     you.bag[at]--;
     if ((int)roll(100) < snareOdds(at)) {
-      int had = you.beast.kind;
-      keepBeast(foeBeast, theirs.level);
+      int room = keepBeast(foeBeast, theirs.level);
       copyString(scratch, "The net holds. The ", sizeof scratch);
       appendString(scratch, beasts[foeBeast].name, sizeof scratch);
       appendString(scratch, " stops fighting it, and then stops fighting you.",
         sizeof scratch);
-      if (had != 255 && had != foeBeast) {
-        appendString(scratch, "  Your ", sizeof scratch);
-        appendString(scratch, beasts[had].name, sizeof scratch);
-        appendString(scratch, " watches, and then goes back to the woods.", sizeof scratch);
+      if (!room) {
+        /* Six is the whole party, and a net thrown well should never end with
+           an animal quietly not appearing anywhere. */
+        appendString(scratch, "  But six already walk with you, and it will not "
+          "be the seventh. You cut it loose.", sizeof scratch);
+      } else {
+        appendString(scratch, "  That is ", sizeof scratch);
+        appendNumber(scratch, partyCount(), sizeof scratch);
+        appendString(scratch, " at your heel.", sizeof scratch);
       }
       snareSaid = scratch;
       theirs.hp = 0;                 /* the fight is over, and nothing died */
@@ -3115,8 +3216,9 @@ static const char *buyWare(int at) {
 
 /* ------------------------------------------------------------- the menu --- */
 
-#define MENU_ENTRIES 4
-static const char *const MENU[MENU_ENTRIES] = { "Sigil", "Pouch", "Record", "Leave" };
+#define MENU_ENTRIES 5
+static const char *const MENU[MENU_ENTRIES] =
+  { "Sigil", "At Heel", "Pouch", "Record", "Leave" };
 
 static void paintMenu(void) {
   int i;
@@ -3187,6 +3289,7 @@ static void paintTitle(void) {
 #define SCENE_CRAFT 9
 #define SCENE_PORT 10
 #define SCENE_TALE 11
+#define SCENE_PARTY 12
 
 static int scene;
 
@@ -3215,9 +3318,9 @@ static void enterWorld(int map, int x, int y, int dir) {
 static void beginGame(void) {
   const House *h = &houses[you.house];
   sigils = 0;
-  you.beast.kind = 255;
-  you.beast.level = 0;
-  you.beast.exp = 0;
+  MY_BEAST.kind = 255;
+  MY_BEAST.level = 0;
+  MY_BEAST.exp = 0;
   you.eggWins = 0;
   you.tamed = 0;
   you.haven = -1;
@@ -3384,7 +3487,7 @@ static void findInGrass(void) {
   /* And if there is a nest on this ground, what is in it - once. An egg is not
      a thing you find on the way to the shops; it is on the Dragonmont and in
      the barrows and beyond the Wall, and nowhere else in the world. */
-  if (world->nest != 255 && !you.bag[world->nest] && you.beast.kind == 255
+  if (world->nest != 255 && !you.bag[world->nest] && MY_BEAST.kind == 255
       && hashUpTo(rot(h, 3), 100) < 30) {
     takeWare(world->nest);
     you.eggWins = 0;
@@ -3451,13 +3554,18 @@ static void findInGrass(void) {
    which is the whole reason to keep the one you caught. */
 static void raiseBeast(void) {
   int b, was;
-  if (you.beast.kind == 255) {
+  if (MY_BEAST.kind == 255) {
     /* Nothing at your heel yet, but perhaps something under your arm. */
     int i;
     for (i = 0; i < EGG_COUNT; i++) {
       if (!you.bag[eggs[i].ware]) continue;
       if (++you.eggWins < eggs[i].wins) {
         appendString(scratch, "  Something shifts under your arm.", sizeof scratch);
+        return;
+      }
+      if (partyRoom() < 0) {
+        appendString(scratch, "  It is trying to hatch and there is no room at "
+          "your heel for what comes out.", sizeof scratch);
         return;
       }
       you.bag[eggs[i].ware]--;
@@ -3471,24 +3579,24 @@ static void raiseBeast(void) {
     }
     return;
   }
-  b = you.beast.kind;
-  was = you.beast.level;
-  you.beast.exp += (u16)(12 + foeLevel * 6);
-  while (you.beast.level < 50 && you.beast.exp >= beastExpFor(you.beast.level + 1)) {
-    you.beast.level++;
+  b = MY_BEAST.kind;
+  was = MY_BEAST.level;
+  MY_BEAST.exp += (u16)(12 + foeLevel * 6);
+  while (MY_BEAST.level < 50 && MY_BEAST.exp >= beastExpFor(MY_BEAST.level + 1)) {
+    MY_BEAST.level++;
   }
-  if (you.beast.level != was) {
+  if (MY_BEAST.level != was) {
     appendString(scratch, "  Your ", sizeof scratch);
     appendString(scratch, beasts[b].name, sizeof scratch);
     appendString(scratch, " is level ", sizeof scratch);
-    appendNumber(scratch, you.beast.level, sizeof scratch);
+    appendNumber(scratch, MY_BEAST.level, sizeof scratch);
     appendString(scratch, " now.", sizeof scratch);
-    if (beasts[b].into != 255 && you.beast.level >= beasts[b].growAt) {
-      you.beast.kind = beasts[b].into;
+    if (beasts[b].into != 255 && MY_BEAST.level >= beasts[b].growAt) {
+      MY_BEAST.kind = beasts[b].into;
       appendString(scratch, "  It has stopped being a ", sizeof scratch);
       appendString(scratch, beasts[b].name, sizeof scratch);
       appendString(scratch, ". What stands there now is a ", sizeof scratch);
-      appendString(scratch, beasts[you.beast.kind].name, sizeof scratch);
+      appendString(scratch, beasts[MY_BEAST.kind].name, sizeof scratch);
       appendString(scratch, ".", sizeof scratch);
       sfxRank();
     }
@@ -3662,7 +3770,7 @@ static void tickDuelBars(void) {
 static Fighter yours;
 
 static void readyBeast(void) {
-  int b = you.beast.kind, lv = you.beast.level;
+  int b = MY_BEAST.kind, lv = MY_BEAST.level;
   yours.name = beasts[b].name;
   yours.level = lv;
   yours.maxHp = yours.hp = 9999;
@@ -3680,7 +3788,7 @@ static void readyBeast(void) {
 static void duelTurn(void) {
   /* Whichever of you is swinging on your side of it, and with what. */
   Fighter *me = beastSwinging ? &yours : &mine;
-  int myTech = beastSwinging ? beasts[you.beast.kind].tech[roll(4)] : mine.tech[duelMenu];
+  int myTech = beastSwinging ? beasts[MY_BEAST.kind].tech[roll(4)] : mine.tech[duelMenu];
   /* Both sides swing; who goes first is decided by swiftness. */
   if (duelPhase == DUEL_MINE) {
     int mineFirst = firstMover;
@@ -3822,6 +3930,88 @@ static void paintDuelGround(void) {
   }
   REG_BG0HOFS = 0;
   REG_BG0VOFS = 0;
+}
+
+/* -------------------------------------------------------------- the party --
+ *
+ * Six animals, and which one is out in front.
+ *
+ * There was one, and no way to look at it except a line on the status card, so
+ * everything you ever took alive after the first quietly replaced what you had.
+ * This is the card the handhelds have always had: what is with you, how far
+ * along each of them is, how much fight is left in it, and a press to send a
+ * different one out.
+ */
+static int partyPick;
+
+static void paintParty(void) {
+  int i, shown = 0;
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
+  drawText(14, 6, "AT YOUR HEEL", C_GOLD);
+  copyString(scratch, "", sizeof scratch);
+  appendNumber(scratch, partyCount(), sizeof scratch);
+  appendString(scratch, " of 6", sizeof scratch);
+  drawText(TXT_W - 14 - textWidth(scratch), 6, scratch, C_DIM);
+  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+
+  for (i = 0; i < PARTY_MAX; i++) {
+    int y = 24 + shown * 14, full;
+    const Kept *k = &you.party[i];
+    if (k->kind == 255) continue;
+    if (i == partyPick) drawCursor(14, y + 2, C_GOLD);
+    drawText(24, y, beasts[k->kind].name,
+      i == partyPick ? C_GOLD : (i == you.lead ? C_WELL : C_INK));
+    copyString(scratch, "Lv ", sizeof scratch);
+    appendNumber(scratch, k->level, sizeof scratch);
+    drawText(TXT_W - 108, y, scratch, C_DIM);
+    full = beastVigour(k->kind, k->level);
+    drawBar(TXT_W - 78, y + 2, 56, k->hp > full ? full : k->hp, full);
+    if (i == you.lead) drawText(TXT_W - 78, y, "out in front", C_WELL);
+    shown++;
+  }
+  if (!shown) {
+    drawText(24, 34, "Nothing walks with you yet.", C_DIM);
+    drawText(24, 48, "Wear one down and throw a net over it.", C_DIM);
+  } else {
+    const Kept *k = &you.party[partyPick];
+    if (k->kind != 255) {
+      int next = beastExpFor(k->level + 1) - beastExpFor(k->level);
+      int got = (int)k->exp - beastExpFor(k->level);
+      copyString(scratch, "Grows at ", sizeof scratch);
+      if (beasts[k->kind].into != 255) {
+        appendNumber(scratch, beasts[k->kind].growAt, sizeof scratch);
+        appendString(scratch, " into ", sizeof scratch);
+        appendString(scratch, beasts[beasts[k->kind].into].name, sizeof scratch);
+      } else {
+        copyString(scratch, "This is as far as it grows.", sizeof scratch);
+      }
+      drawText(14, TXT_H - 32, scratch, C_DIM);
+      copyString(scratch, "", sizeof scratch);
+      appendNumber(scratch, got < 0 ? 0 : got, sizeof scratch);
+      appendString(scratch, " of ", sizeof scratch);
+      appendNumber(scratch, next < 1 ? 1 : next, sizeof scratch);
+      appendString(scratch, " to the next level", sizeof scratch);
+      drawText(TXT_W - 14 - textWidth(scratch), TXT_H - 32, scratch, C_DIM);
+    }
+  }
+  drawText(14, TXT_H - 18, "A: send it out    B: go", C_DIM);
+}
+
+/* Moves the cursor to the next one that is actually there. */
+static void partyStep(int by) {
+  int i, at = partyPick;
+  for (i = 0; i < PARTY_MAX; i++) {
+    /* Wrapped by hand. A remainder by six is a remainder by a constant and
+       ought to compile to a multiply, and here it did not: it called out for
+       __aeabi_uidivmod, which on an ARM7 with no divide instruction and no
+       library behind it is a symbol that does not exist and a build that does
+       not link. */
+    at += by;
+    if (at < 0) at = PARTY_MAX - 1;
+    if (at >= PARTY_MAX) at = 0;
+    if (you.party[at].kind != 255) { partyPick = at; return; }
+  }
 }
 
 /* ---------------------------------------------------------- the last act --
@@ -4073,7 +4263,7 @@ static void tryTalk(void) {
       you.havenY = (hero.py >> 4);
       if (you.hp < vigourFor(you.level)) {
         you.hp = vigourFor(you.level);
-        if (you.beast.kind != 255) you.beast.hp = beastVigour(you.beast.kind, you.beast.level);
+        if (MY_BEAST.kind != 255) MY_BEAST.hp = beastVigour(MY_BEAST.kind, MY_BEAST.level);
         openWindow(npc->name,
           "Sit. There. Whole again, and no charge to a sworn sword of a great "
           "house. If you go down out there, they will bring you back here.");
@@ -4327,6 +4517,7 @@ int main(void) {
   hideAllObjects();
   setUpVideo();
   soundUp();
+  startSoundClock();
   you.house = 0; you.level = 5; you.gold = 220;
   you.hp = vigourFor(you.level);
   you.exp = expForLevel(you.level);
@@ -4347,7 +4538,7 @@ int main(void) {
     keysNow = (u16)(~REG_KEYINPUT & 0x03FF);
     seed += keysNow + 1;
     frameClock++;
-    tickSound();
+    soundClock();
     /* One tune for the road, another once steel is out, and the title's own. */
     if (hit(KEY_A) && scene != SCENE_WORLD && scene != SCENE_DUEL) sfxYes();
     if (scene == SCENE_TITLE || scene == SCENE_HOUSE) playTune(TUNE_HALL);
@@ -4403,6 +4594,8 @@ int main(void) {
         /* You are sent out of the yard with your bare hands and one remedy.
            Everything you fight in, you take off somebody. */
         { int k; for (k = 0; k < WARE_KINDS; k++) you.worn[k] = 0; }
+        { int k; for (k = 0; k < PARTY_MAX; k++) you.party[k].kind = 255; }
+        you.lead = 0;
         you.story = 0;
         you.bag[START_POTION] = 1;
         reckonTechniques();
@@ -4466,13 +4659,20 @@ int main(void) {
           layoutTextRows(TEXT_MIDDLE);
           paintStatus();
         } else if (menuPick == 1) {
+          scene = SCENE_PARTY;
+          partyPick = you.lead;
+          if (you.party[partyPick].kind == 255) partyStep(1);
+          clearPage();
+          layoutTextRows(TEXT_TOP);
+          paintParty();
+        } else if (menuPick == 2) {
           scene = SCENE_BAG;
           bagInDuel = 0;
           bagPick = 0;
           clearPage();
           layoutTextRows(TEXT_TOP);
           paintBag();
-        } else if (menuPick == 2) {
+        } else if (menuPick == 3) {
           keepRecord();
           clearPage();
           layoutTextRows(TEXT_PLAY);
@@ -4483,6 +4683,25 @@ int main(void) {
           clearPage();
           layoutTextRows(TEXT_PLAY);
         }
+      }
+    } else if (scene == SCENE_PARTY) {
+      int was = partyPick;
+      if (hit(KEY_UP)) partyStep(-1);
+      if (hit(KEY_DOWN)) partyStep(1);
+      if (partyPick != was) { sfxPick(); paintParty(); }
+      if (hit(KEY_B)) {
+        scene = SCENE_MENU;
+        clearPage();
+        layoutTextRows(TEXT_TOP);
+        paintMenu();
+      } else if (hit(KEY_A) && you.party[partyPick].kind != 255
+                 && partyPick != you.lead) {
+        you.lead = (u8)partyPick;
+        sfxRank();
+        /* The one out in front is the one drawn walking behind you, so its art
+           has to be the art that is resident. */
+        loadBeastArt(MY_BEAST.kind, MY_BEAST_TILE, MY_BEAST_BANK);
+        paintParty();
       }
     } else if (scene == SCENE_BAG) {
       int have = carrying(), was = bagPick;
@@ -4674,7 +4893,7 @@ int main(void) {
             clearPage();
             layoutTextRows(TEXT_TOP);
             paintBag();
-          } else if (topPick == 2 && you.beast.kind != 255) {
+          } else if (topPick == 2 && MY_BEAST.kind != 255) {
             /* Set it on them. It is your turn that is spent, so this is a
                choice and not a free hit: a well-raised beast hits harder than
                you do, and a neglected one wastes an exchange. */
@@ -4880,7 +5099,7 @@ int main(void) {
           PLAYER_TILE_BASE + (1 * 4) * ACTOR_FRAME_TILES, 0);
       }
       /* And whatever is at your heel, standing a pace behind your shoulder. */
-      if (you.beast.kind != 255 && foeBeast < 0 && sinkMine < 70) {
+      if (MY_BEAST.kind != 255 && foeBeast < 0 && sinkMine < 70) {
         placeBeast(3, myX - 44 + (beastSwinging ? 20 : 0), 44 + sinkMine,
           MY_BEAST_TILE, MY_BEAST_BANK);
       }

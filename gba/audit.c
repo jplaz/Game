@@ -946,6 +946,42 @@ int main(void) {
   }
   if (START_WEAPON < 0 || START_WEAPON >= WARE_COUNT) bad("the starting blade does not exist");
 
+  /* --- six at your heel, and no seventh ------------------------------------ */
+  /* The party is the one thing in this game a wandering run cannot prove: the
+     tester has to buy a net, wear an animal down to a third and roll well, and
+     over a whole playthrough it managed that once. So the rules are checked
+     here directly - it fills up, it refuses a seventh, the front one can be
+     changed, and what is at your heel is what the duel picks up. */
+  {
+    int k, tookAll = 1;
+    for (k = 0; k < PARTY_MAX; k++) you.party[k].kind = 255;
+    you.lead = 0;
+    you.level = 20;
+    if (partyCount() != 0) bad("an empty party counts %d", partyCount());
+    for (k = 0; k < PARTY_MAX; k++) {
+      if (!keepBeast(k % BEAST_COUNT, 10 + k)) tookAll = 0;
+    }
+    if (!tookAll) bad("six would not fit in a party of six");
+    if (partyCount() != PARTY_MAX) {
+      bad("six taken and %d counted", partyCount());
+    }
+    if (partyRoom() >= 0) bad("a full party still reports room at %d", partyRoom());
+    if (keepBeast(0, 10)) bad("a seventh got into a party of six");
+    if (MY_BEAST.kind != you.party[0].kind) {
+      bad("the first one taken is not the one at your heel");
+    }
+    /* Sending a different one out in front. */
+    you.lead = 3;
+    if (MY_BEAST.kind != you.party[3].kind) {
+      bad("sending the fourth out in front did not change what is at your heel");
+    }
+    if (MY_BEAST.level != you.party[3].level) {
+      bad("the one out in front is carrying somebody else's level");
+    }
+    for (k = 0; k < PARTY_MAX; k++) you.party[k].kind = 255;
+    you.lead = 0;
+  }
+
   /* --- the record, written and read back ---------------------------------- */
   {
     int ok = 1;
@@ -956,11 +992,19 @@ int main(void) {
     you.hp = 99; you.kills = 41;
     you.WORN_WEAPON = 6; you.WORN_ARMOUR = 12; you.WORN_SHIELD = 17;
     you.WORN_HELM = 21; you.WORN_GLOVES = 25;
+    for (i = 0; i < PARTY_MAX; i++) {
+      you.party[i].kind = (u8)(i % BEAST_COUNT);
+      you.party[i].level = (u8)(12 + i * 3);
+      you.party[i].exp = (u16)(100 + i);
+    }
+    you.lead = 2;
     for (i = 0; i < WARE_COUNT; i++) you.bag[i] = (u8)(i * 3 % 7);
     for (i = 0; i < MAP_COUNT; i++) for (j = 0; j < MAX_CROWD; j++) slain[i][j] = (u8)((i + j) & 1);
     keepRecord();
 
     you.house = 0; you.level = 1; you.exp = 0; you.gold = 0; you.hp = 1; you.kills = 0;
+    for (i = 0; i < PARTY_MAX; i++) you.party[i].kind = 255;
+    you.lead = 0;
     for (i = 0; i < WARE_KINDS; i++) you.worn[i] = 0;
     for (i = 0; i < WARE_COUNT; i++) you.bag[i] = 0;
     for (i = 0; i < MAP_COUNT; i++) for (j = 0; j < MAX_CROWD; j++) slain[i][j] = 0;
@@ -976,6 +1020,16 @@ int main(void) {
       }
       for (i = 0; i < WARE_COUNT; i++) {
         if (you.bag[i] != (u8)(i * 3 % 7)) { bad("the pouch does not survive a save"); break; }
+      }
+      /* And all six of them, with the right one still out in front. */
+      if (you.lead != 2) bad("the one out in front does not survive a save");
+      for (i = 0; i < PARTY_MAX; i++) {
+        if (you.party[i].kind != (u8)(i % BEAST_COUNT)
+            || you.party[i].level != (u8)(12 + i * 3)
+            || you.party[i].exp != (u16)(100 + i)) {
+          bad("the party does not survive a save (place %d)", i);
+          break;
+        }
       }
       for (i = 0; i < MAP_COUNT; i++) {
         for (j = 0; j < MAX_CROWD; j++) {

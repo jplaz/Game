@@ -1115,6 +1115,11 @@ static u8 kitPiece(u32 h, int kind, int budget, int emptyIn) {
   int best = -1, second = -1, i;
   if (emptyIn > 0 && hashUpTo(h, emptyIn) == 0) return KIT_NONE;
   for (i = 0; i < WARE_COUNT; i++) {
+    /* Priced at nothing means it is not for sale and not on anybody: the four
+       things at the end of the ladder are made and nothing else. A test for
+       "costs no more than their purse" said yes to all of them, so a bandit on
+       the first road could be wearing White Plate. */
+    if (!wares[i].price) continue;
     if (wares[i].kind != kind || wares[i].price > budget) continue;
     if (best < 0 || wares[i].price > wares[best].price) { second = best; best = i; }
     else if (second < 0 || wares[i].price > wares[second].price) second = i;
@@ -1762,7 +1767,7 @@ static int fxStar(void) {
    in - so the first leader is always a fight you can take, and your own liege
    is always nearly the last. */
 static int shiftHere(void) {
-  return 3 * ((int)strideBy[you.house][worldId] - (int)strideBy[0][worldId]);
+  return (int)groundBy[you.house][worldId] - (int)groundBy[0][worldId];
 }
 
 static int scaleTo(int v, int from, int to) {
@@ -1808,6 +1813,15 @@ static void beginDuel(int duellist, int bank, int slot) {
   theirs.might = scaleTo(foeDef->might, foeDef->level, foeLevel);
   theirs.guard = scaleTo(foeDef->guard, foeDef->level, foeLevel);
   theirs.swiftness = scaleTo(foeDef->swiftness, foeDef->level, foeLevel);
+  /* A sigil-holder is meant to be a wall, and on the numbers alone they were
+     not: played properly, every one of them went down in a handful of exchanges
+     because they were simply another person of about your level. They are the
+     nine hardest fights in the game, so they fight like it. */
+  if (leaderFor(duellist) >= 0) {
+    theirs.hp = theirs.maxHp = theirs.maxHp + (theirs.maxHp >> 1);
+    theirs.might += theirs.might / 5;
+    theirs.guard += theirs.guard / 4;
+  }
   theirs.tech = foeDef->tech;
   theirs.defending = 0;
 
@@ -1824,7 +1838,14 @@ static void beginDuel(int duellist, int bank, int slot) {
        it from - and it is the one edge a scavenger has over everybody on the
        road: you are wearing all three of everything you ever took. */
     piece[0] = k.arm; piece[1] = k.mail;
-    for (i = 0; i < 2; i++) {
+    /* And their shield, if they had the sense to get it off their back. Every
+       one of them used to fight with it slung, which meant the player was the
+       only person in Westeros wearing all three pieces they owned - and by the
+       middle of the game that gap was worth twenty-eight fights in a row
+       without going down. Half of them have it up now; you still take it off
+       them either way. */
+    piece[2] = (kitHash(duellist) & 1) ? k.shield : KIT_NONE;
+    for (i = 0; i < 3; i++) {
       const Ware *w;
       if (piece[i] == KIT_NONE) continue;
       w = &wares[piece[i]];
@@ -2302,6 +2323,21 @@ static int worn(int at) {
 static void describeWare(int at, int inPouch) {
   const Ware *w = &wares[at];
   copyString(scratch, "", sizeof scratch);
+  if (w->kind == WARE_STUFF) {
+    int i, j;
+    copyString(scratch, "Makings. Good for ", sizeof scratch);
+    for (i = 0, j = 0; i < RECIPE_COUNT && j < 2; i++) {
+      int k;
+      for (k = 0; k < recipes[i].count; k++) {
+        if (recipes[i].mat[k] != at) continue;
+        if (j++) appendString(scratch, ", ", sizeof scratch);
+        appendString(scratch, wares[recipes[i].makes].name, sizeof scratch);
+        break;
+      }
+    }
+    appendString(scratch, j ? " and more." : "nothing you have found yet.", sizeof scratch);
+    return;
+  }
   if (w->kind == WARE_POTION) {
     appendString(scratch, "Restores ", sizeof scratch);
     if (w->heal >= 9999) appendString(scratch, "everything.", sizeof scratch);
@@ -2338,7 +2374,7 @@ static void paintBag(void) {
     int y = 22 + i * 11;
     if (top + i == bagPick) drawCursor(14, y + 1, C_GOLD);
     drawText(24, y, wares[at].name, top + i == bagPick ? C_GOLD : C_INK);
-    if (wares[at].kind == WARE_POTION) {
+    if (wares[at].kind == WARE_POTION || wares[at].kind == WARE_STUFF) {
       copyString(scratch, "x", sizeof scratch);
       appendNumber(scratch, you.bag[at], sizeof scratch);
       drawText(TXT_W - 34, y, scratch, C_DIM);
@@ -2379,7 +2415,8 @@ static int wearWare(int at) {
 
 static int takeWare(int at) {
   const Ware *w = &wares[at];
-  if (w->kind == WARE_POTION) {
+  /* Remedies and makings stack; steel does not, and a second sword is scrap. */
+  if (w->kind == WARE_POTION || w->kind == WARE_STUFF) {
     if (you.bag[at] < 99) you.bag[at]++;
     return TOOK_KEPT;
   }
@@ -2408,6 +2445,103 @@ static int useWare(int at) {
   return 1;
 }
 
+/* ------------------------------------------------------------ the forge ----
+   Gold was the only thing a win was worth, and by the middle of the game there
+   was more of it than there were things to buy. Everything you beat now yields
+   something a smith or a maester can use, and the best four pieces of kit in
+   the world are on nobody's counter at any price - they are made, out of what
+   you carried off people who were harder than you. */
+
+static int craftPick, craftAt;      /* craftAt: 0 a maester's bench, 1 a forge */
+
+/* How many of this recipe's list you are short of. Nought means make it. */
+static int shortOf(const Recipe *r) {
+  int i, missing = 0;
+  for (i = 0; i < r->count; i++) {
+    if (you.bag[r->mat[i]] < r->many[i]) missing++;
+  }
+  return missing;
+}
+
+static int craftCount(void) {
+  int i, n = 0;
+  for (i = 0; i < RECIPE_COUNT; i++) if (recipes[i].at == craftAt) n++;
+  return n;
+}
+
+static int nthRecipe(int n) {
+  int i;
+  for (i = 0; i < RECIPE_COUNT; i++) {
+    if (recipes[i].at != craftAt) continue;
+    if (!n--) return i;
+  }
+  return 0;
+}
+
+/* Four rows, not six: this screen carries a line of makings under the list and
+   a line of instructions under that, and six rows ran straight through both. */
+#define CRAFT_ROWS 4
+
+static void paintCraft(void) {
+  int have = craftCount(), i;
+  int top = craftPick - (CRAFT_ROWS >> 1);
+  if (top > have - CRAFT_ROWS) top = have - CRAFT_ROWS;
+  if (top < 0) top = 0;
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
+  drawText(14, 6, craftAt ? "AT THE ANVIL" : "AT THE BENCH", C_GOLD);
+  showGold(6);
+  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+
+  for (i = 0; i < CRAFT_ROWS && top + i < have; i++) {
+    const Recipe *r = &recipes[nthRecipe(top + i)];
+    int y = 22 + i * 11, able = !shortOf(r) && you.gold >= r->gold;
+    if (top + i == craftPick) drawCursor(14, y + 1, C_GOLD);
+    drawText(24, y, wares[r->makes].name,
+      !able ? C_DIM : (top + i == craftPick ? C_GOLD : C_INK));
+    copyString(scratch, "", sizeof scratch);
+    appendNumber(scratch, r->gold, sizeof scratch);
+    drawText(TXT_W - 46, y, scratch, able ? C_GOLD : C_DIM);
+  }
+  {
+    const Recipe *r = &recipes[nthRecipe(craftPick)];
+    int i2;
+    copyString(scratch, "", sizeof scratch);
+    for (i2 = 0; i2 < r->count; i2++) {
+      if (i2) appendString(scratch, ", ", sizeof scratch);
+      appendNumber(scratch, r->many[i2], sizeof scratch);
+      appendString(scratch, " ", sizeof scratch);
+      appendString(scratch, wares[r->mat[i2]].name, sizeof scratch);
+      appendString(scratch, " (", sizeof scratch);
+      appendNumber(scratch, you.bag[r->mat[i2]], sizeof scratch);
+      appendString(scratch, ")", sizeof scratch);
+    }
+    drawText(14, TXT_H - 32, scratch, C_INK);
+    drawText(14, TXT_H - 18, craftAt ? "A: forge it    SELECT: the counter    B: go"
+                                     : "A: brew it    SELECT: the counter    B: go", C_DIM);
+  }
+}
+
+/* Hands over the work, or says why not. */
+static const char *makeWare(int which) {
+  const Recipe *r = &recipes[which];
+  int i;
+  if (shortOf(r)) return "You have not got the makings of that.";
+  if (you.gold < r->gold) return "Not for what is in your purse.";
+  you.gold -= r->gold;
+  for (i = 0; i < r->count; i++) you.bag[r->mat[i]] -= r->many[i];
+  {
+    int how = takeWare(r->makes);
+    copyString(scratch, craftAt ? "Hammered out and quenched: a "
+                                : "Ground, steeped and stoppered: a ", sizeof scratch);
+    appendString(scratch, wares[r->makes].name, sizeof scratch);
+    appendString(scratch, how == TOOK_WORN ? ", and you put it on at once."
+               : how == TOOK_SOLD ? ". You had one already; this one goes for scrap."
+                                  : ", wrapped and handed over.", sizeof scratch);
+  }
+  return scratch;
+}
+
 static void paintShop(void) {
   const Stall *stall = &stalls[shopStall];
   int top = listTop(shopPick, stall->count), i;
@@ -2432,7 +2566,11 @@ static void paintShop(void) {
   }
   {
     describeWare(stall->ware[shopPick], 0);
-    drawText(14, TXT_H - 18, scratch, C_DIM);
+    drawText(14, TXT_H - 30, scratch, C_DIM);
+    /* Nobody would ever have found this by pressing buttons at a counter. */
+    drawText(14, TXT_H - 18, shopStall
+      ? "SELECT: forge something out of what you carry"
+      : "SELECT: have something brewed from what you carry", C_GOLD);
   }
 }
 
@@ -2531,6 +2669,7 @@ static void paintTitle(void) {
 #define SCENE_BAG 6
 #define SCENE_SHOP 7
 #define SCENE_NAME 8
+#define SCENE_CRAFT 9
 
 static int scene;
 
@@ -2601,7 +2740,11 @@ static void endDuel(void) {
 static void youFell(void) {
   int bare;
   sfxLost();
-  if (foeSlot >= 0) beaten[worldId][foeSlot] = 1;
+  /* Losing does NOT settle it. `beaten` is what stops somebody drawing on you
+     twice, and it used to be set whoever won - so losing to a sigil-holder shut
+     the only door to them: talking to them afterwards got a line and nothing
+     else, and the ladder could not be climbed past the first bad fight. Somebody
+     who has just put you on the floor is still willing to do it again. */
   you.hp = vigourFor(you.level);
   you.gold -= you.gold / 3;
   bare = !you.weapon;
@@ -2686,7 +2829,17 @@ static void findInGrass(void) {
 
   if (budget > KIT_CEILING) budget = KIT_CEILING;
 
-  if (hashUpTo(h, 100) < 40) {
+  /* Green things, mostly: the grass is where a maester's bench gets stocked. */
+  if (hashUpTo(h, 100) < 34) {
+    int found = forage[hashUpTo(rot(h, 7), FORAGE_COUNT)];
+    takeWare(found);
+    copyString(scratch, "Growing in the grass: ", sizeof scratch);
+    appendString(scratch, wares[found].name, sizeof scratch);
+    appendString(scratch, ". Worth stooping for.", sizeof scratch);
+    openWindow(0, scratch);
+    return;
+  }
+  if (hashUpTo(h, 100) < 60) {
     int p = you.level / 18;
     int found = p > 3 ? 3 : p;
     takeWare(found);
@@ -2700,6 +2853,7 @@ static void findInGrass(void) {
   { int r = hashUpTo(rot(h, 5), 100);
     kind = r < 40 ? WARE_WEAPON : (r < 75 ? WARE_ARMOUR : WARE_SHIELD); }
   for (i = 0; i < WARE_COUNT; i++) {
+    if (!wares[i].price) continue;          /* the made things are never dropped */
     if (wares[i].kind != kind || wares[i].price > budget) continue;
     if (best < 0 || wares[i].price > wares[best].price) best = i;
   }
@@ -2739,10 +2893,13 @@ static void theyFell(void) {
     if (foeSlot >= 0) { slain[worldId][foeSlot] = 1; crowdAlive[foeSlot] = 0; }
     you.kills++;
   }
-  /* You get your wind back after a win: not all of it, but enough to keep
-     walking, since there is no maester between here and the next town. The
-     bar rises to it in front of you rather than being different afterwards. */
-  you.hp = mine.hp + (vigourFor(you.level) >> 2);
+  /* You get some wind back after a win, so a road is walkable without a maester
+     at the end of every field - but an eighth, not a quarter. A quarter was
+     more than an ordinary fight cost you by the middle of the game, which meant
+     the health bar climbed the longer you fought and twenty-six fights in a row
+     was a normal afternoon. Now a long day on the road runs you down, and what
+     a maester's bench brews is worth carrying. */
+  you.hp = mine.hp + (vigourFor(you.level) >> 3);
   if (you.hp > vigourFor(you.level)) you.hp = vigourFor(you.level);
   mine.hp = you.hp;
 
@@ -2773,6 +2930,19 @@ static void theyFell(void) {
     }
   }
   takeTheirKit();
+  /* And something a smith or a maester can use. Which band it comes out of is
+     how hard they were, so a fight is worth stripping at every level rather
+     than only for the steel. */
+  {
+    int band = 0, i;
+    while (band < SPOIL_BANDS - 1 && foeLevel > spoils[band].upTo) band++;
+    i = spoils[band].drop[roll(SPOIL_WIDE)];
+    takeWare(i);
+    appendString(scratch, "  You also take ", sizeof scratch);
+    appendString(scratch, wares[i].name, sizeof scratch);
+    appendString(scratch, " off them, which somebody will know what to do with.",
+      sizeof scratch);
+  }
   duelSay(0, scratch);
 }
 
@@ -3423,13 +3593,44 @@ int main(void) {
           paintBag();
         }
       }
+    } else if (scene == SCENE_CRAFT) {
+      int have = craftCount(), was = craftPick;
+      if (hit(KEY_UP) && craftPick > 0) craftPick--;
+      if (hit(KEY_DOWN) && craftPick < have - 1) craftPick++;
+      if (craftPick != was) { sfxPick(); paintCraft(); }
+      if (hit(KEY_B)) {
+        scene = SCENE_WORLD;
+        clearPage();
+        layoutTextRows(TEXT_PLAY);
+      } else if (hit(KEY_SELECT)) {
+        scene = SCENE_SHOP;
+        shopPick = 0;
+        sfxPick();
+        paintShop();
+      } else if (hit(KEY_A)) {
+        const char *said = makeWare(nthRecipe(craftPick));
+        sfxRank();
+        scene = SCENE_WORLD;
+        clearPage();
+        layoutTextRows(TEXT_PLAY);
+        openWindow(0, said);
+        afterWindow = shopStall + 1;
+      }
     } else if (scene == SCENE_SHOP) {
       const Stall *stall = &stalls[shopStall];
       int was = shopPick;
       if (hit(KEY_UP) && shopPick > 0) shopPick--;
       if (hit(KEY_DOWN) && shopPick < stall->count - 1) shopPick++;
       if (shopPick != was) { sfxPick(); paintShop(); }
-      if (hit(KEY_B)) {
+      if (hit(KEY_SELECT)) {
+        /* The bench behind the counter. A smith will make you what he has the
+           makings of; a maester will steep you something. */
+        craftAt = shopStall;
+        craftPick = 0;
+        scene = SCENE_CRAFT;
+        sfxPick();
+        paintCraft();
+      } else if (hit(KEY_B)) {
         scene = SCENE_WORLD;
         clearPage();
         layoutTextRows(TEXT_PLAY);

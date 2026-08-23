@@ -247,7 +247,8 @@ static int duelOnce(int level, int who, int *hp) {
   /* Weapon and mail only, the way the cartridge fights them: the shield is on
      their back until you take it off them. */
   piece[0] = k.arm; piece[1] = k.mail;
-  for (j2 = 0; j2 < 2; j2++) {
+  piece[2] = (kitHash(who) & 1) ? k.shield : KIT_NONE;
+  for (j2 = 0; j2 < 3; j2++) {
     if (piece[j2] == KIT_NONE) continue;
     theirs.might += wares[piece[j2]].might;
     theirs.guard += wares[piece[j2]].guard;
@@ -365,7 +366,7 @@ static int runLength(int level, int tries) {
       if (who < 0) break;
       if (!duelOnce(level, who, &hp)) break;
       run++;
-      hp += vigourFor(level) >> 2;
+      hp += vigourFor(level) >> 3;
       if (hp > vigourFor(level)) hp = vigourFor(level);
       (void)guard;
     }
@@ -534,6 +535,34 @@ int main(void) {
       }
       for (j = 0; j < to->warpCount; j++) if (to->warps[j].to == m) back = 1;
       if (!back) note("%s: the door at %d,%d into %s has no door back", map->name, w->x, w->y, to->name);
+    }
+
+    /* --- is there room to get at every door? ----------------------------- */
+    /* A door with exactly one tile you can stand on to use it is a door one
+       person can shut. The Great Keep of Winterfell had its only approach
+       occupied by Jory Cassel from the moment the game started, so the eighth
+       sigil could not be reached at all - and nothing here said so, because the
+       tile was walkable and the map was still connected. */
+    for (i = 0; i < map->warpCount; i++) {
+      const Warp *w = &map->warps[i];
+      int ways = 0, j2, only = -1;
+      for (j2 = 0; j2 < 4; j2++) {
+        int nx = w->x + DIR_X[j2], ny = w->y + DIR_Y[j2];
+        if (nx < 0 || ny < 0 || nx >= map->w || ny >= map->h) continue;
+        if (solidOn(map, nx, ny) || ledgeOn(map, nx, ny)) continue;
+        if (warpOn(map, nx, ny)) continue;
+        ways++; only = ny * map->w + nx;
+      }
+      if (ways == 0) {
+        bad("%s: the door at %d,%d has nowhere to stand to use it", map->name, w->x, w->y);
+      } else if (ways == 1) {
+        for (j2 = 0; j2 < map->npcCount; j2++) {
+          if (map->npcs[j2].y * map->w + map->npcs[j2].x == only) {
+            bad("%s: the only way to the door at %d,%d is the tile %s stands on",
+              map->name, w->x, w->y, map->npcs[j2].name);
+          }
+        }
+      }
     }
 
     /* --- people --------------------------------------------------------- */
@@ -806,8 +835,16 @@ int main(void) {
   /* --- what can be bought ------------------------------------------------- */
   for (i = 0; i < WARE_COUNT; i++) {
     const Ware *w = &wares[i];
-    if (!w->price) bad("%s is for sale at nothing", w->name);
-    if (w->kind > WARE_SHIELD) bad("%s is a kind of thing that does not exist", w->name);
+    /* Makings are not sold, and neither are the four things that can only be
+       made. A price of nought on anything on a counter is still a fault. */
+    if (w->kind == WARE_STUFF) continue;
+    if (!w->price) {
+      int j2, listed = 0;
+      for (j2 = 0; j2 < stalls[0].count; j2++) if (stalls[0].ware[j2] == i) listed = 1;
+      for (j2 = 0; j2 < stalls[1].count; j2++) if (stalls[1].ware[j2] == i) listed = 1;
+      if (listed) bad("%s is on a counter at no price", w->name);
+    }
+    if (w->kind > WARE_STUFF) bad("%s is a kind of thing that does not exist", w->name);
     if (w->kind == WARE_POTION && !w->heal) bad("%s heals nothing", w->name);
     if (w->kind == WARE_ARMOUR && w->tier > 3) bad("%s puts you in body %d", w->name, w->tier);
     for (j = 0; j < w->techCount; j++) {

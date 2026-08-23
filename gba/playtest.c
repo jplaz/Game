@@ -82,7 +82,7 @@ static void checkSound(void) {
 static void checkFrame(void) {
   int i;
   checkSound();
-  if (scene < 0 || scene > SCENE_NAME) finding("scene is %d, which is not a scene", scene);
+  if (scene < 0 || scene > SCENE_CRAFT) finding("scene is %d, which is not a scene", scene);
   /* Nothing is standing anywhere yet on the screens that come before the
      world, and there is no map to be standing on. */
   if (scene == SCENE_TITLE || scene == SCENE_HOUSE || scene == SCENE_NAME) return;
@@ -204,6 +204,8 @@ static int npcDuelled[MAP_COUNT][MAX_CROWD];
 static int interacting, duelTries, blocked;
 static int wantHouse, runAway, statusChecks, sinceStatus, wantTech, techUsed[4];
 static int menusSeen, bagsSeen, shopsSeen, bought, records, menuWant = -1;
+static int craftsSeen, crafted, craftedHere, lastShopGold, shopRung = -2;
+static int doorsThisRung;
 static int spottings, spottedBy, shooting, titleWant;
 static const char *startedAt = "nowhere";
 static int storyEvery, storyFor;
@@ -254,6 +256,82 @@ static int warpTowardWork(void) {
    than sightseeing. */
 static int grindMode, grindX, grindY;
 
+/* ------------------------------------------------------------- the ladder --
+   LADDER=1 plays the game the way somebody trying to finish it would, instead
+   of the way a surveyor walks a field. It looks up which sigil it is short of,
+   walks towards whoever holds it, stops in the long grass on the way if it is
+   under the weight of that fight, spends its gold at the first smith it passes,
+   and then goes and knocks. What it prints is the shape of the game: what level
+   each rung was actually taken at, how long the walk was, and what was in your
+   hands when you got there.
+
+   A run that reaches the ninth rung is a game that can be finished. A run whose
+   levels sag or spike between rungs is a game with a hole in it, and no amount
+   of walking every map end to end will show you that. */
+static int ladderMode, ladderRung = -1, ladderFrames, ladderFights;
+static int wantShop;
+
+static int leaderNpcOn(int m, int lead) {
+  int i;
+  for (i = 0; i < maps[m].npcCount && i < MAX_CROWD; i++) {
+    if (maps[m].npcs[i].duellist == leaders[lead].duellist) return i;
+  }
+  return -1;
+}
+
+/* The nearest map with a counter on it, and the door out of here towards it. */
+static int mapHasTrade(int m) {
+  int i;
+  for (i = 0; i < maps[m].npcCount && i < MAX_CROWD; i++) {
+    if (maps[m].npcs[i].trade == 2) return 1;
+  }
+  return 0;
+}
+
+static int warpTowardTrade(void) {
+  int from[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, i, want = -1, at;
+  for (i = 0; i < MAP_COUNT; i++) from[i] = -2;
+  from[worldId] = -1;
+  q[tail++] = worldId;
+  while (head < tail) {
+    int m = q[head++];
+    if (m != worldId && mapHasTrade(m)) { want = m; break; }
+    for (i = 0; i < maps[m].warpCount; i++) {
+      int to = maps[m].warps[i].to;
+      if (from[to] != -2) continue;
+      from[to] = m;
+      q[tail++] = to;
+    }
+  }
+  if (want < 0) return -1;
+  at = want;
+  while (from[at] != worldId) { at = from[at]; if (at < 0) return -1; }
+  for (i = 0; i < world->warpCount; i++) if (world->warps[i].to == at) return i;
+  return -1;
+}
+
+/* The door out of here that gets nearest to a given map. */
+static int warpTowardMap(int want) {
+  int from[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, i, at = want;
+  if (want == worldId) return -1;
+  for (i = 0; i < MAP_COUNT; i++) from[i] = -2;
+  from[worldId] = -1;
+  q[tail++] = worldId;
+  while (head < tail) {
+    int m = q[head++];
+    for (i = 0; i < maps[m].warpCount; i++) {
+      int to = maps[m].warps[i].to;
+      if (from[to] != -2) continue;
+      from[to] = m;
+      q[tail++] = to;
+    }
+  }
+  if (from[want] == -2) return -1;
+  while (from[at] != worldId) { at = from[at]; if (at < 0) return -1; }
+  for (i = 0; i < world->warpCount; i++) if (world->warps[i].to == at) return i;
+  return -1;
+}
+
 static int findCover(int *gx, int *gy) {
   int x, y, best = 1 << 30, hx = hero.px >> 4, hy = hero.py >> 4, found = 0;
   for (y = 0; y < world->h; y++) {
@@ -268,13 +346,78 @@ static int findCover(int *gx, int *gy) {
   return found;
 }
 
+/* What the ladder run wants next: the leader it is short of, the grass it needs
+   to be worth fighting them, or the road in between. */
+static void pickLadderGoal(void) {
+  int at = nextRung(), lead, want, who, i;
+  if (at < 0) {                                      /* nine sigils: finished */
+    printf("      the realm is yours: nine sigils at level %d, %d gold\n",
+      you.level, you.gold);
+    hostFramesLeft = 0;
+    return;
+  }
+  lead = atRung[at];
+  want = leaderLevel[at];
+  if (at != ladderRung) {
+    ladderRung = at;
+    printf("    rung %d  %-22s at %-18s wants about %2d\n",
+      at + 1, leaders[lead].name, leaders[lead].seat, want);
+  }
+  /* Under the weight of that fight: go and earn it - but only where the ground
+     is worth walking. Standing in the snow outside your own front door killing
+     level threes at level thirty-nine is not levelling, it is arithmetic, and a
+     player would have gone somewhere harder. */
+  grindMode = 0;
+  if (you.level + 1 < want) {
+    int here = groundBy[you.house][worldId];
+    if (here + 8 >= you.level && findCover(&grindX, &grindY)) {
+      grindMode = 1;
+      goalKind = GOAL_SIGN; goalIndex = 0;            /* borrow "walk to a tile" */
+      return;
+    }
+  }
+  /* Find a smith when there is money in your purse. Walking the whole ladder
+     without ever opening a shop door is not playing the game - and it is what
+     the run did, because the smiths are all one door off the road inside the
+     forges and nothing was ever going in. */
+  if (wantShop) {
+    for (i = 0; i < crowdCount; i++) {
+      if (world->npcs[i].trade == 2 && crowdAlive[i]) {
+        wantShop = 0;
+        goalKind = GOAL_NPC; goalIndex = i; return;
+      }
+    }
+    { int door = warpTowardTrade();
+      if (door >= 0) { goalKind = GOAL_WARP; goalIndex = door; return; } }
+    wantShop = 0;
+  }
+  if (worldId == leaders[lead].map) {
+    who = leaderNpcOn(worldId, lead);
+    if (who >= 0 && crowdAlive[who]) { goalKind = GOAL_NPC; goalIndex = who; return; }
+  }
+  i = warpTowardMap(leaders[lead].map);
+  if (i >= 0) { goalKind = GOAL_WARP; goalIndex = i; return; }
+  /* No road from here to the person you want. Falling back to wandering put the
+     run in a two-door loop it walked thirty-five thousand times, so say so and
+     stop rather than pretend to be busy. */
+  printf("      lost: no road from %s to %s at level %d\n",
+    world->name, leaders[lead].seat, you.level);
+  hostFramesLeft = 0;
+}
+
 /* The next thing worth doing on this map, or nothing left to do. */
 static void pickGoal(void) {
   int i;
+  /* Clearing the clock first, for everybody. The ladder branch used to return
+     above this, so once one goal had timed out goalFrames stayed over the limit
+     and every frame after it timed out instantly - a spin that ate the whole
+     frame budget while the counter that reports how long the run took barely
+     moved. It looked exactly like being stuck at a door. */
   goalKind = GOAL_NONE;
   goalFrames = 0;
   goalStage = 0;
   interacting = 0;
+  if (ladderMode) { pickLadderGoal(); return; }
 
   for (i = 0; i < crowdCount; i++) {
     /* Anyone who drew on you from across the road and lost is dealt with,
@@ -323,8 +466,10 @@ static void goalTile(int *gx, int *gy) {
 static void completeGoal(void) {
   if (goalKind == GOAL_NPC) {
     if (goalStage == 0) {
+      /* Once each. The ladder run walks back to the same shopkeeper a dozen
+         times, and counting every visit made the tally read "568 of 161". */
+      if (!npcTalked[worldId][goalIndex]) talked++;
       npcTalked[worldId][goalIndex] = 1;
-      talked++;
       /* Having heard them out, draw on them — but only up to a quota, or the
          whole of Westeros ends up dead before it has been walked. */
       /* Somebody a great deal better than you is a fight a player would not
@@ -399,6 +544,7 @@ void hostFrame(void) {
     else if (scene == SCENE_MENU) catchOnce(2, "05-the-menu");
     else if (scene == SCENE_STATUS) catchOnce(3, "06-your-sigil");
     else if (scene == SCENE_BAG) catchOnce(4, "07-the-pouch");
+    else if (scene == SCENE_CRAFT) catchOnce(24, craftAt ? "12b-at-the-anvil" : "11b-at-the-bench");
     else if (scene == SCENE_SHOP) catchOnce(shopStall ? 5 : 6,
       shopStall ? "12-arms-and-armour" : "11-remedies");
     else if (scene == SCENE_DUEL) {
@@ -468,11 +614,59 @@ void hostFrame(void) {
       ? tap(KEY_A) : tap(KEY_B);
   } else if (scene == SCENE_SHOP) {
     shopsSeen++;
-    if (bought < 24 && roll(3) == 0) { keys = tap(KEY_A); if (keys) bought++; }
+    lastShopGold = you.gold;
+    if (ladderMode && !craftedHere) {
+      /* Look behind the counter first: anything a smith will make out of what
+         you are carrying is better than anything on the shelf, and it is the
+         only way the last four pieces of kit in the game are ever seen. */
+      craftedHere = 1;
+      keys = tap(KEY_SELECT);
+    }
+    else if (ladderMode) {
+      /* Buy the dearest thing on the counter that is better than what is in
+         your hands and that the purse will stand, which is what somebody
+         playing to finish would do. */
+      const Stall *stall = &stalls[shopStall];
+      int best = -1, i;
+      for (i = 0; i < stall->count; i++) {
+        int at = stall->ware[i];
+        int had = wares[at].kind == WARE_WEAPON ? you.weapon
+                : wares[at].kind == WARE_ARMOUR ? you.armour
+                : wares[at].kind == WARE_SHIELD ? you.shield : 0;
+        if (wares[at].kind == WARE_POTION) { if (you.bag[at] >= 4) continue; }
+        else if (had && wares[had - 1].price >= wares[at].price) continue;
+        if (wares[at].price > you.gold) continue;
+        if (best < 0 || wares[stall->ware[best]].price < wares[at].price) best = i;
+      }
+      if (best < 0) keys = tap(KEY_B);
+      else if (shopPick != best) keys = tap(shopPick < best ? KEY_DOWN : KEY_UP);
+      else { keys = tap(KEY_A); if (keys) bought++; }
+    }
+    else if (bought < 24 && roll(3) == 0) { keys = tap(KEY_A); if (keys) bought++; }
     else if (roll(4) == 0) keys = tap(KEY_DOWN);
     else keys = tap(KEY_B);
+  } else if (scene == SCENE_CRAFT) {
+    craftsSeen++;
+    lastShopGold = you.gold;
+    /* Make the dearest thing this bench can manage out of what is in the pouch,
+       then go back to the counter. */
+    {
+      int have = craftCount(), best = -1, i;
+      for (i = 0; i < have; i++) {
+        const Recipe *r = &recipes[nthRecipe(i)];
+        if (shortOf(r) || you.gold < r->gold) continue;
+        if (best < 0 || recipes[nthRecipe(best)].gold < r->gold) best = i;
+      }
+      if (best < 0) keys = tap(KEY_SELECT);
+      else if (craftPick != best) keys = tap(craftPick < best ? KEY_DOWN : KEY_UP);
+      else { keys = tap(KEY_A); if (keys) crafted++; }
+    }
   } else if (scene == SCENE_DUEL) {
-    if (wasScene != SCENE_DUEL) { duelTries = 0; runAway = (duels % 5) == 4; }
+    if (wasScene != SCENE_DUEL) {
+      duelTries = 0;
+      runAway = ladderMode ? 0 : (duels % 5) == 4;
+      if (ladderMode) ladderFights++;
+    }
     if (windowOpen) keys = tap(KEY_A);
     else if (duelPhase == DUEL_TOP) {
       /* Fight most of the time; sometimes reach for the pouch, sometimes run. */
@@ -483,10 +677,20 @@ void hostFrame(void) {
       if (++duelTries > 900) { finding("a duel that would not end"); duelTries = 0; }
     }
     else if (duelPhase == DUEL_MENU) {
-      /* Mostly fight; every fifth duel, try to break off instead, so that path
-         is walked too. And move the cursor about, so Guard and the rest are
-         used and not only the technique that happens to sit first. */
-      if (runAway) keys = tap(KEY_B);
+      /* On the ladder, swing the hardest thing in your hands rather than a
+         random one: this run is meant to measure the game, not the dice. */
+      if (ladderMode) {
+        int best = 0, i, score = -1;
+        for (i = 0; i < 4; i++) {
+          const Tech *t = &techniques[myTechs[i]];
+          int s2 = t->power * t->accuracy;
+          if (s2 > score) { score = s2; best = i; }
+        }
+        if ((best & 1) != (duelMenu & 1)) keys = tap((best & 1) ? KEY_RIGHT : KEY_LEFT);
+        else if ((best & 2) != (duelMenu & 2)) keys = tap((best & 2) ? KEY_DOWN : KEY_UP);
+        else { keys = tap(KEY_A); techUsed[duelMenu]++; }
+      }
+      else if (runAway) keys = tap(KEY_B);
       else if ((wantTech & 1) != (duelMenu & 1)) {
         keys = tap((wantTech & 1) ? KEY_RIGHT : KEY_LEFT);
       } else if ((wantTech & 2) != (duelMenu & 2)) {
@@ -506,6 +710,27 @@ void hostFrame(void) {
       wasMap = worldId;
       mapSeen[worldId]++;
       goalKind = GOAL_NONE;
+      /* A room with a smith in it and money in your purse is a room you stop
+         in. Armed one map at a time, so the ladder run does not walk past
+         nine thousand gold's worth of counter on its way to a fight. */
+      /* Only when there is meaningfully more in your purse than the last time
+         you stood at a counter. Arming this on every map change turned the
+         forge door into a revolving one: in, buy nothing, out, in again,
+         thirty-seven thousand times. */
+      if (ladderMode && you.gold > lastShopGold + 1500 && shopRung != ladderRung) {
+        wantShop = 1;
+        shopRung = ladderRung;                 /* one visit to a counter a rung */
+      }
+      craftedHere = 0;
+      /* A ladder run that takes hundreds of doors without taking a sigil is
+         walking a two-map loop, not travelling. Say where, and stop. */
+      if (ladderMode) {
+        if (++doorsThisRung > 400) {
+          printf("      walking in circles near %s at level %d, %d doors without "
+                 "a sigil\n", world->name, you.level, doorsThisRung);
+          hostFramesLeft = 0;
+        }
+      }
     }
     if (you.level > wasLevel) { levels++; wasLevel = you.level; }
     if (you.kills > wasKills) { kills = you.kills; wasKills = you.kills; }
@@ -531,9 +756,25 @@ void hostFrame(void) {
       keys = 0;                                  /* a step finishes itself */
     } else {
       int gx, gy, dir;
+      /* Stop grinding the moment the fight is within reach. The grind branch
+         returns before ever asking for a new goal, so without this a ladder run
+         walks into the first patch of long grass it sees and stays there until
+         the frame cap, which is precisely what it did. */
+      if (ladderMode && grindMode) {
+        int at = nextRung();
+        if (at < 0 || you.level + 1 >= leaderLevel[at]) {
+          grindMode = 0;
+          goalKind = GOAL_NONE;
+        }
+      }
       if (grindMode) {
         /* Walk the grass and fight whatever comes out of it. */
-        if (!findCover(&grindX, &grindY)) { hostFramesLeft = 0; return; }
+        if (!findCover(&grindX, &grindY)) {
+          printf("      stopped: nothing to fight in %s and still short of the "
+                 "next rung (level %d)\n", world->name, you.level);
+          hostFramesLeft = 0;
+          return;
+        }
         goalKind = GOAL_SIGN;          /* borrow the "walk to a tile" behaviour */
         goalIndex = 0;
         gx = grindX; gy = grindY;
@@ -569,6 +810,10 @@ void hostFrame(void) {
             for (k = 0; k < maps[m].warpCount; k++) printf(" %s", maps[maps[m].warps[k].to].name);
             printf("\n");
           }
+        }
+        if (ladderMode) {
+          printf("      stopped in %s at level %d: nothing it knows how to do "
+                 "next\n", world->name, you.level);
         }
         hostFramesLeft = 0;
         return;
@@ -642,6 +887,23 @@ void hostFrame(void) {
     else if (mine.hp <= 0) duelsLost++;
     else fled++;
   }
+  /* What the run actually felt like, printed the moment a sigil is taken. */
+  if (ladderMode) {
+    static int hadSigils;
+    int now = countSigils();
+    if (now != hadSigils) {
+      hadSigils = now;
+      printf("      took it at level %2d after %3d fights and %6d frames"
+             "  |  %-18s %-18s %s  |  %d gold\n",
+        you.level, ladderFights, frameNo - ladderFrames,
+        you.weapon ? wares[you.weapon - 1].name : "bare hands",
+        you.armour ? wares[you.armour - 1].name : "roughspun",
+        you.shield ? wares[you.shield - 1].name : "no shield", you.gold);
+      ladderFrames = frameNo;
+      ladderFights = 0;
+      doorsThisRung = 0;
+    }
+  }
   wasScene = scene;
 
   if (getenv("TRACE") && frameNo > atoi(getenv("FROM") ? getenv("FROM") : "0")
@@ -700,6 +962,7 @@ int main(int argc, char **argv) {
   if (getenv("SEED")) seed = (unsigned)atoi(getenv("SEED"));
   if (getenv("STORY")) { storyEvery = atoi(getenv("STORY")); storyFor = storyEvery * 40; }
   if (getenv("GRIND")) { grindMode = 1; hostFramesLeft = atoi(getenv("GRIND")); }
+  if (getenv("LADDER")) ladderMode = 1;
   if (argc > 2) { shooting = 1; outDir = argv[2]; }
 
   gba_main();
@@ -736,6 +999,7 @@ int main(int argc, char **argv) {
   printf("  spotted on the road %d times\n", spottings);
   printf("  menus / pouch / stalls  %d / %d / %d, bought %d things, saved %d times\n",
     menusSeen, bagsSeen, shopsSeen, bought, records);
+  printf("  benches        %d looked at, %d things made\n", craftsSeen, crafted);
   printf("  carrying       ");
   { int n = 0, k; for (k = 0; k < WARE_COUNT; k++) if (you.bag[k]) { printf("%s x%d  ", wares[k].name, you.bag[k]); n++; }
     if (!n) printf("nothing"); printf("\n"); }

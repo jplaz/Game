@@ -261,7 +261,7 @@ export const MAPS = {
     npcs: [
       { x: 7, y: 16, dir: 'down', name: 'Landless Knight', sprite: 'noble',
         script: 'claimHoldfast', data: {} },
-      { x: 12, y: 7, dir: 'down', name: 'Jory Cassel', sprite: 'stark',
+      { x: 15, y: 7, dir: 'down', name: 'Jory Cassel', sprite: 'stark',
         script: 'recruit', data: { companion: 'jory' } },
       { x: 12, y: 16, dir: 'down', sprite: 'maester', name: 'Maester Luwin', script: 'starter' },
       { x: 9, y: 9, dir: 'down', sprite: 'stark', name: 'Jory Cassel', script: 'joryGate' },

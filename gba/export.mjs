@@ -86,6 +86,8 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const { ITEMS } = await import('/src/data/items.js');
   const { WEAPONS, ARMOUR, SHIELDS } = await import('/src/data/gear.js');
   const { HOUSES, SWEARABLE } = await import('/src/data/houses.js');
+  const { MATERIALS, MATERIAL_IDS, SPOILS, FORAGE, RECIPES } =
+    await import('/src/data/craft.js');
   const { TECHNIQUES, LEARNED } = await import('/src/data/gear.js');
   const { baseStats } = await import('/src/game/player.js');
 
@@ -132,6 +134,64 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     }
     actorList.push({ id, w: actors.ACTOR_W, h: actors.ACTOR_H, frames });
     return at;
+  }
+
+  /* ------------------------------------------------------ one body each ---
+     Everybody sharing a sprite class was drawn from one body, so every guard in
+     Westeros was the same man with the same haircut standing in a different
+     town, and a street of eight people was two drawings. A person's own name is
+     the seed now: their hair, its colour, the shade of their skin and the exact
+     dye of their coat all move, while what the class actually means - a
+     maester's chain, a guard's helm, a Lannister's crimson - stays put, so the
+     town still reads at a glance and nobody in it is a copy. */
+  function bodyHash(key) {
+    let h = 2166136261;
+    for (let i = 0; i < key.length; i++) {
+      h ^= key.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  function nudge(hex, dr, dg, db) {
+    const n = parseInt(hex.slice(1), 16);
+    const c = (v, d) => Math.max(0, Math.min(255, v + d));
+    return '#' + [c(n >> 16, dr), c((n >> 8) & 255, dg), c(n & 255, db)]
+      .map((v) => v.toString(16).padStart(2, '0')).join('');
+  }
+
+  const HAIR_FOR = {
+    man: ['short', 'crop', 'long'],
+    woman: ['long', 'braid', 'bun'],
+    child: ['crop', 'short'],
+  };
+
+  function personLook(sprite, name) {
+    const base = actors.ACTOR_PALETTES[sprite] ?? actors.ACTOR_PALETTES.smallfolk;
+    let h = bodyHash(`${sprite}|${name}`);
+    const roll = (n) => { h = (Math.imul(h ^ (h >>> 13), 1274126177) >>> 0); return (h >>> 9) % n; };
+    const spec = { ...base, palette: { ...(base.palette ?? base) } };
+    const p = spec.palette;
+    // Hair, but only for people whose heads are not already saying something.
+    const set = HAIR_FOR[spec.build ?? 'man'];
+    if (set && ['short', 'crop', 'long', 'braid', 'bun'].includes(spec.hair ?? 'short')) {
+      spec.hair = set[roll(set.length)];
+    }
+    // Their colouring. Hair moves furthest, skin a little, the coat least of
+    // all - a Lannister still has to look like a Lannister from across a room.
+    const hairShift = [-40, -22, -8, 0, 14, 30][roll(6)];
+    p.hair = nudge(p.hair, hairShift, hairShift - roll(8), hairShift - roll(12));
+    p.hairLight = nudge(p.hairLight, hairShift, hairShift - roll(8), hairShift - roll(12));
+    const skinShift = [-26, -14, -6, 0, 8, 16][roll(6)];
+    p.skin = nudge(p.skin, skinShift, skinShift - roll(6), skinShift - roll(10));
+    p.skinDark = nudge(p.skinDark, skinShift, skinShift - roll(6), skinShift - roll(10));
+    const coat = roll(11) - 5;
+    p.cloak = nudge(p.cloak, coat * 2, coat * 2, coat * 2);
+    p.cloakDark = nudge(p.cloakDark, coat * 2, coat * 2, coat * 2);
+    const leg = roll(9) - 4;
+    p.legs = nudge(p.legs, leg * 3, leg * 3, leg * 3);
+    p.boots = nudge(p.boots, leg * 3, leg * 3, leg * 3);
+    return spec;
   }
 
   // A darker and a lighter shade of a house colour, for the cloak's fold and
@@ -304,15 +364,48 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   for (const [id, def] of Object.entries(WEAPONS)) if (def.price) ware(id, def, 'weapon');
   for (const [id, def] of Object.entries(ARMOUR)) if (def.price) ware(id, def, 'armour');
   for (const [id, def] of Object.entries(SHIELDS)) if (def.price) ware(id, def, 'shield');
+  /* And the things a recipe makes that nobody sells: they still have to exist
+     as wares, or there is nothing for the forge to hand you. */
+  for (const r of RECIPES) {
+    const from = WEAPONS[r.makes] ? ['weapon', WEAPONS] : ARMOUR[r.makes] ? ['armour', ARMOUR]
+               : SHIELDS[r.makes] ? ['shield', SHIELDS] : null;
+    if (from && !wareIndex.has(`${from[0]}:${r.makes}`)) ware(r.makes, from[1][r.makes], from[0]);
+  }
+  /* Materials are wares too - they live in the same pouch and the same record -
+     but they are worth nothing at a counter and never appear on one. */
+  const matSlot = new Map();
+  for (const id of MATERIAL_IDS) {
+    matSlot.set(id, ware(id, { ...MATERIALS[id], price: 0 }, 'stuff'));
+  }
 
   const potions = wares.map((w, i) => (w.kind === 'potion' ? i : -1)).filter((i) => i >= 0);
   const forSale = {
     apothecary: potions,
-    armourer: wares.map((w, i) => (w.kind !== 'potion' ? i : -1)).filter((i) => i >= 0),
+    armourer: wares
+      .map((w, i) => (w.kind !== 'potion' && w.kind !== 'stuff' && w.price ? i : -1))
+      .filter((i) => i >= 0),
   };
 
+  /* The recipe book, in ware numbers. */
+  const wareOf = (id) => {
+    for (const k of ['weapon', 'armour', 'shield', 'potion', 'stuff']) {
+      if (wareIndex.has(`${k}:${id}`)) return wareIndex.get(`${k}:${id}`);
+    }
+    throw new Error(`recipe makes ${id}, which is not a ware`);
+  };
+  const recipes = RECIPES.map((r) => ({
+    at: r.at === 'forge' ? 1 : 0,
+    makes: wareOf(r.makes),
+    gold: r.gold,
+    needs: r.needs.map(([m, n]) => [wareOf(m), n]),
+  }));
+  const spoils = SPOILS.map((band) => ({
+    upTo: band.upTo, drops: band.drops.map(wareOf),
+  }));
+  const forage = FORAGE.map(wareOf);
+
   const out = { maps: [], houses, techniques, learned, duellists, wares, forSale,
-                leaders: [], actors: null };
+                recipes, spoils, forage, leaders: [], actors: null };
 
   /* The spine of the game, in the order it is meant to be walked. Nine seats,
      nine sigils; the cartridge rotates this so that your own liege is the last
@@ -367,9 +460,22 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   for (const h of houses) {
     strideBy[h.id] = mapIds.includes(h.start.map) ? walkFrom([h.start.map]) : new Map();
   }
+
+  /* Doors are not the unit. House Tully's whole world is seven doors across and
+     House Martell's is thirteen, so three levels a door gave a Tully a world
+     that topped out at twenty-four while the last two sigils wanted thirty-eight
+     and forty-four - a wall with nothing to climb it on. What matters is how far
+     through your own world you are, not how many doorways the mapmaker happened
+     to put in it, so each house's road is stretched over the same span: level
+     three at your own gate, level forty-four at the far end of everything. */
+  const groundBy = houses.map((h) => {
+    const st = strideBy[h.id];
+    const far = Math.max(1, ...mapIds.map((id) => st.get(id) ?? 0));
+    return mapIds.map((id) => Math.min(44, 3 + Math.round(41 * (st.get(id) ?? far) / far)));
+  });
+  out.groundBy = groundBy;
   const stride = strideBy[houses[0].id];
   out.stride = Object.fromEntries(stride);
-  out.strideBy = houses.map((h) => mapIds.map((id) => Math.min(60, strideBy[h.id].get(id) ?? 20)));
 
   for (const id of mapIds) {
     const map = MAPS[id];
@@ -399,8 +505,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     }
 
     /* How hard this ground is, in the northern reckoning. The cartridge shifts
-       it to whichever seat the player actually started from. */
-    const roadLevel = Math.max(3, Math.min(44, 3 + (stride.get(id) ?? 8) * 3));
+       it to whichever seat the player actually started from - so this has to be
+       the same number the first row of that table holds, or the shift lands
+       somewhere nobody meant. */
+    const roadLevel = groundBy[0][mapIds.indexOf(id)];
 
     const npcs = (map.npcs ?? []).map((n) => {
       const sprite = n.sprite ?? 'smallfolk';
@@ -457,7 +565,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       return {
         x: n.x, y: n.y, dir: actors.DIRECTIONS.indexOf(n.dir ?? 'down'), said,
         name: n.name ?? '', script: n.script ?? '', sprite, trade, sight,
-        actor: actorFor(sprite, sprite),
+        actor: actorFor(personLook(sprite, n.name ?? ''), `${sprite}|${n.name ?? ''}`),
         duellist: pushDuellist(fighter),
         // A town is not a waxwork. Everybody has somewhere to be except the
         // people whose whole job is to stand behind something.
@@ -490,7 +598,8 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       const level = Math.max(2, roadLevel + (ambushes.length % 3) - 1);
       const made = makeRoamer(row.roamer, level, (list) => list[0]);
       ambushes.push({
-        actor: actorFor(made.sprite, made.sprite),
+        actor: actorFor(personLook(made.sprite, made.name),
+                        `${made.sprite}|${made.name}`),
         duellist: pushDuellist({
           name: made.name, level: made.level, vigour: made.vigour,
           might: made.might, guard: made.guard, swiftness: made.swiftness,
@@ -877,6 +986,7 @@ L.push('#define WARE_POTION 0');
 L.push('#define WARE_WEAPON 1');
 L.push('#define WARE_ARMOUR 2');
 L.push('#define WARE_SHIELD 3');
+L.push('#define WARE_STUFF  4    /* what a recipe is made of; never on a counter */');
 L.push('typedef struct {');
 L.push('  const char *name;');
 L.push('  u16 price, heal;');
@@ -886,7 +996,7 @@ L.push('  u8 tech[3], techCount;');
 L.push('} Ware;');
 L.push('static const Ware wares[WARE_COUNT] = {');
 {
-  const kindOf = { potion: 0, weapon: 1, armour: 2, shield: 3 };
+  const kindOf = { potion: 0, weapon: 1, armour: 2, shield: 3, stuff: 4 };
   // Which of the four looks a piece of armour puts you in.
   const LOOK = { gambeson: 0, boiledLeather: 1, ringmail: 2, scaleArmour: 2, knightPlate: 3 };
   for (const w of harvest.wares) {
@@ -904,6 +1014,36 @@ L.push(`#define FLOOR_WEAPON ${harvest.wares.findIndex((w) => w.id === 'huntingK
 L.push(`#define START_ARMOUR ${harvest.wares.findIndex((w) => w.id === 'gambeson')}`);
 L.push(`#define START_POTION ${harvest.wares.findIndex((w) => w.id === 'maesterKit')}`);
 L.push('typedef struct { const u8 *ware; u8 count; } Stall;');
+/* The recipe book. */
+{
+  const R = harvest.recipes;
+  L.push(`#define RECIPE_COUNT ${R.length}`);
+  L.push('#define RECIPE_MAX_NEEDS 3');
+  L.push('typedef struct { u8 at, makes, count; u16 gold; u8 mat[RECIPE_MAX_NEEDS],'
+       + ' many[RECIPE_MAX_NEEDS]; } Recipe;');
+  L.push('static const Recipe recipes[RECIPE_COUNT] = {');
+  for (const r of R) {
+    if (r.needs.length > 3) throw new Error(`recipe for ${r.makes} wants ${r.needs.length} things`);
+    const mat = [...r.needs.map((n) => n[0]), 0, 0, 0].slice(0, 3);
+    const many = [...r.needs.map((n) => n[1]), 0, 0, 0].slice(0, 3);
+    L.push(`  { ${r.at}, ${r.makes}, ${r.needs.length}, ${r.gold},`
+      + ` { ${mat.join(', ')} }, { ${many.join(', ')} } },`);
+  }
+  L.push('};');
+  L.push('');
+  L.push(`#define SPOIL_BANDS ${harvest.spoils.length}`);
+  L.push('#define SPOIL_WIDE 5');
+  L.push('typedef struct { u8 upTo, drop[SPOIL_WIDE]; } Spoil;');
+  L.push('static const Spoil spoils[SPOIL_BANDS] = {');
+  for (const b of harvest.spoils) {
+    const d = [...b.drops, ...new Array(5).fill(b.drops[0])].slice(0, 5);
+    L.push(`  { ${b.upTo}, { ${d.join(', ')} } },`);
+  }
+  L.push('};');
+  L.push(`#define FORAGE_COUNT ${harvest.forage.length}`);
+  L.push(`static const u8 forage[FORAGE_COUNT] = { ${harvest.forage.join(', ')} };`);
+  L.push('');
+}
 {
   const stalls = [harvest.forSale.apothecary, harvest.forSale.armourer];
   stalls.forEach((list, i) => {
@@ -980,12 +1120,13 @@ L.push(`#define MAP_COUNT ${harvest.maps.length}`);
   L.push('};');
   /* What each rung of that ladder is worth. Nine evenly spaced steps from a
      first fight you can take at ten to a last one that expects everything. */
-  L.push('static const u8 leaderLevel[LEADER_COUNT] = { 10, 14, 18, 22, 26, 30, 34, 38, 44 };');
+  L.push('static const u8 leaderLevel[LEADER_COUNT] = { 10, 13, 17, 21, 25, 29, 33, 37, 42 };');
   L.push('');
-  L.push('/* Doors walked from each house seat: the difficulty of the whole world,');
-  L.push('   measured from wherever this particular player woke up. */');
-  L.push('static const u8 strideBy[HOUSE_COUNT][MAP_COUNT] = {');
-  for (const row of harvest.strideBy) L.push(`  { ${row.join(', ')} },`);
+  L.push('/* How hard the ground is on every map, measured from each house seat in');
+  L.push('   turn: level three at your own gate and level forty-four at the far end');
+  L.push('   of the world, however many doors that happens to be. */');
+  L.push('static const u8 groundBy[HOUSE_COUNT][MAP_COUNT] = {');
+  for (const row of harvest.groundBy) L.push(`  { ${row.join(', ')} },`);
   L.push('};');
   L.push('');
 }

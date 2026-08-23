@@ -976,12 +976,15 @@ static u8 slain[MAP_COUNT][MAX_CROWD];
 
 /* --------------------------------------------------------------- the you --- */
 
+#define NAME_MAX 10
+
 typedef struct {
   int house;
   int level, exp, hp, gold;
   int kills;
   u8 weapon, armour, shield;      /* a ware index plus one; nothing is 0 */
   u8 bag[WARE_COUNT];
+  char name[NAME_MAX + 1];        /* what people call you */
 } You;
 
 static You you;
@@ -1430,6 +1433,26 @@ static int ledgeGate(int x, int y) {
   return 0;
 }
 
+/* A tile with walls on both sides of it is a corridor, and somebody idling in a
+   corridor shuts whatever is on the far side of it. The gate tunnel through the
+   Wall is four such tiles in a row: a brother of the Watch wandering into it
+   seals the road north until he wanders out again. Roamers are kept out of them
+   the way they are kept out of doorways. */
+static int corridorAt(int x, int y) {
+  return (solidAt(x - 1, y) && solidAt(x + 1, y))
+      || (solidAt(x, y - 1) && solidAt(x, y + 1));
+}
+
+/* And the mouth of one. Standing at the open end of the Wall's tunnel seals it
+   just as surely as standing inside it does, and the tile at the mouth has open
+   ground either side of it so the corridor test alone does not see it. */
+static int gateAt(int x, int y) {
+  int i;
+  if (corridorAt(x, y)) return 1;
+  for (i = 0; i < 4; i++) if (corridorAt(x + DIR_X[i], y + DIR_Y[i])) return 1;
+  return 0;
+}
+
 static int crowdAt(int x, int y) {
   int i;
   for (i = 0; i < crowdCount; i++) {
@@ -1671,7 +1694,7 @@ static void beginDuel(int duellist, int bank, int slot) {
   foeId = duellist;
   foeDef = &duellists[duellist];
 
-  mine.name = houses[you.house].name;
+  mine.name = you.name[0] ? you.name : houses[you.house].name;
   mine.level = you.level;
   mine.maxHp = vigourFor(you.level);
   mine.hp = you.hp > mine.maxHp ? mine.maxHp : you.hp;
@@ -1889,6 +1912,54 @@ static int frameOf(const Body *b, int steps) {
 
 static int houseChoice;
 
+/* ------------------------------------------------------------ your name --- */
+/* Twenty-eight cells of alphabet, the way a handheld asks. You were called
+   after your house until now, which read oddly on your own duel plate: the
+   person swinging the sword had the same name as the banner behind them. */
+
+#define NAME_COLS 7
+#define NAME_ROWS 4
+static const char NAME_KEYS[NAME_COLS * NAME_ROWS + 1] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ-'";
+
+/* Row and column rather than one index divided by seven. An ARM7 has no divide
+   instruction and this is freestanding, so asking for a signed quotient and its
+   remainder together is asking the linker for __aeabi_idivmod, which is not
+   there. Two counters cost nothing and never need it. */
+static int nameCol, nameRow, nameLen;
+#define namePick (nameRow * NAME_COLS + nameCol)
+
+static void paintNamer(void) {
+  clearPage();
+  drawFrame(6, 2, TXT_W - 12, TXT_H - 8);
+  centreText(8, "WHAT ARE YOU CALLED?", C_GOLD);
+
+  /* What you have spelled so far, on a ruled line, with a place marked for the
+     next letter so an empty name still looks like somewhere to type. */
+  fillRect(60, 30, TXT_W - 120, 1, C_EDGE);
+  copyString(scratch, you.name, sizeof scratch);
+  drawText(62, 19, scratch, C_INK);
+  if (nameLen < NAME_MAX) fillRect(62 + textWidth(scratch), 26, 6, 1, C_GOLD);
+
+  {
+    int row, col;
+    for (row = 0; row < NAME_ROWS; row++) {
+      for (col = 0; col < NAME_COLS; col++) {
+        int cx = 22 + col * 28, cy = 39 + row * 12;
+        int here = (row == nameRow && col == nameCol);
+        char one[2];
+        one[0] = NAME_KEYS[row * NAME_COLS + col];
+        one[1] = 0;
+        if (here) drawCursor(cx - 9, cy + 1, C_GOLD);
+        drawText(cx, cy, one, here ? C_GOLD : C_INK);
+      }
+    }
+  }
+  /* One line, inside the frame. Two would not fit: the frame ends at a hundred
+     and six and a line of this font is ten tall, so the second was drawn under
+     the bottom edge with half of it off the screen. */
+  centreText(93, "A adds   B rubs out   START done", C_DIM);
+}
+
 static void paintHousePicker(void) {
   const House *h = &houses[houseChoice];
   int i, x, mid = TXT_W >> 1;
@@ -1988,6 +2059,7 @@ typedef struct {
   u8 shield, pad0, pad1, pad2;
   u32 exp, gold, hp, kills;
   u8 bag[WARE_COUNT];
+  char name[NAME_MAX + 1];
   u8 slain[MAP_COUNT][MAX_CROWD];
   u32 sum;
 } Record;
@@ -2021,6 +2093,7 @@ static void keepRecord(void) {
   record.hp = (u32)you.hp;
   record.kills = (u32)you.kills;
   for (i = 0; i < WARE_COUNT; i++) record.bag[i] = you.bag[i];
+  for (i = 0; i <= NAME_MAX; i++) record.name[i] = you.name[i];
   for (m = 0; m < MAP_COUNT; m++) for (k = 0; k < MAX_CROWD; k++) record.slain[m][k] = slain[m][k];
   record.sum = tally(&record);
 
@@ -2057,6 +2130,7 @@ static void takeUpRecord(void) {
   you.armour = record.armour;
   you.shield = record.shield;
   for (i = 0; i < WARE_COUNT; i++) you.bag[i] = record.bag[i];
+  for (i = 0; i <= NAME_MAX; i++) you.name[i] = record.name[i];
   for (m = 0; m < MAP_COUNT; m++) for (k = 0; k < MAX_CROWD; k++) slain[m][k] = record.slain[m][k];
   reckonTechniques();
 }
@@ -2323,6 +2397,7 @@ static void paintTitle(void) {
 #define SCENE_MENU 5
 #define SCENE_BAG 6
 #define SCENE_SHOP 7
+#define SCENE_NAME 8
 
 static int scene;
 
@@ -2343,6 +2418,23 @@ static void enterWorld(int map, int x, int y, int dir) {
   layoutTextRows(TEXT_PLAY);
   heroActor = houses[you.house].looks[lookOf()];
   enterMap(map, x, y, dir);
+}
+
+/* Out of the gate and into the world, once a house has been sworn to and a name
+   given. Lifted out of the house picker so the name screen can be the thing
+   that starts the game. */
+static void beginGame(void) {
+  const House *h = &houses[you.house];
+  enterWorld(h->startMap, h->startX, h->startY, h->startDir);
+  REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
+  copyString(scratch, you.name, sizeof scratch);
+  appendString(scratch, " goes out of the gate at ", sizeof scratch);
+  appendString(scratch, maps[h->startMap].name, sizeof scratch);
+  appendString(scratch, " with nothing but bare hands and one remedy. "
+                        "Everything you fight in, you will take off somebody who "
+                        "tried to stop you. Look in the long grass as well: "
+                        "people lose things there.", sizeof scratch);
+  openWindow(0, scratch);
 }
 
 static void endDuel(void) {
@@ -2819,7 +2911,8 @@ static void moveCrowd(void) {
     /* Somebody who happens to be standing on a doorstep moves on sooner, so a
        door is never blocked for long. */
     crowdTimer[i] = (nearWarp(crowd[i].px >> 4, crowd[i].py >> 4)
-                     || ledgeGate(crowd[i].px >> 4, crowd[i].py >> 4))
+                     || ledgeGate(crowd[i].px >> 4, crowd[i].py >> 4)
+                     || gateAt(crowd[i].px >> 4, crowd[i].py >> 4))
       ? (u16)(10 + roll(30)) : (u16)(30 + roll(150));
     {
       int dir = (int)roll(4);
@@ -2830,7 +2923,8 @@ static void moveCrowd(void) {
       if (nx > world->npcs[i].x + 3 || nx < world->npcs[i].x - 3) continue;
       if (ny > world->npcs[i].y + 3 || ny < world->npcs[i].y - 3) continue;
       if (solidAt(nx, ny) || occupied(nx, ny, i)) continue;
-      if (nearWarp(nx, ny) || ledgeAt(nx, ny) || ledgeGate(nx, ny)) continue;
+      if (nearWarp(nx, ny) || ledgeAt(nx, ny) || ledgeGate(nx, ny)
+          || gateAt(nx, ny)) continue;
       stepBody(&crowd[i], dir);
     }
   }
@@ -2986,19 +3080,39 @@ int main(void) {
         PAL_BG[TXT_BANK * 16 + C_HOUSE] = houses[you.house].colour;
         PAL_BG[TXT_BANK * 16 + C_TRIM] = houses[you.house].accent;
         PAL_BG[TXT_BANK * 16 + C_EDGE] = houses[you.house].colour;
-        {
-          /* You start at your own house's seat, not in the Stark yard. */
-          const House *h = &houses[you.house];
-          enterWorld(h->startMap, h->startX, h->startY, h->startDir);
-        }
-        REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
-        copyString(scratch, "You go out of the gate at ", sizeof scratch);
-        appendString(scratch, maps[houses[you.house].startMap].name, sizeof scratch);
-        appendString(scratch, " with nothing but your hands and one remedy. "
-                              "Everything you fight in, you will take off somebody "
-                              "who tried to stop you. Look in the long grass as "
-                              "well: people lose things there.", sizeof scratch);
-        openWindow(0, scratch);
+        /* Who you are before where you are. */
+        scene = SCENE_NAME;
+        nameCol = 0;
+        nameRow = 0;
+        nameLen = 0;
+        you.name[0] = 0;
+        layoutTextRows(TEXT_TOP);
+        paintNamer();
+      }
+    } else if (scene == SCENE_NAME) {
+      int was = namePick;
+      if (hit(KEY_LEFT) && nameCol) nameCol--;
+      if (hit(KEY_RIGHT) && nameCol < NAME_COLS - 1) nameCol++;
+      if (hit(KEY_UP) && nameRow) nameRow--;
+      if (hit(KEY_DOWN) && nameRow < NAME_ROWS - 1) nameRow++;
+      if (namePick != was) { sfxPick(); paintNamer(); }
+
+      if (hit(KEY_A) && nameLen < NAME_MAX) {
+        you.name[nameLen++] = NAME_KEYS[namePick];
+        you.name[nameLen] = 0;
+        paintNamer();
+      } else if (hit(KEY_SELECT) && nameLen && nameLen < NAME_MAX) {
+        you.name[nameLen++] = ' ';
+        you.name[nameLen] = 0;
+        paintNamer();
+      } else if (hit(KEY_B) && nameLen) {
+        you.name[--nameLen] = 0;
+        sfxPick();
+        paintNamer();
+      } else if (hit(KEY_START)) {
+        /* Somebody who will not be told keeps their house's name. */
+        if (!nameLen) copyString(you.name, houses[you.house].name, sizeof you.name);
+        beginGame();
       }
     } else if (scene == SCENE_STATUS) {
       if (hit(KEY_START) || hit(KEY_B) || hit(KEY_A)) {

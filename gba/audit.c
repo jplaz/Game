@@ -114,10 +114,45 @@ static int nearWarpOn(const Map *m, int x, int y) {
   return 0;
 }
 
+/* The cartridge's own corridor rule, so the audit judges the tiles a roamer can
+   actually reach rather than every tile on the map. */
+static int corridorOn(const Map *m, int x, int y) {
+  return (solidOn(m, x - 1, y) && solidOn(m, x + 1, y))
+      || (solidOn(m, x, y - 1) && solidOn(m, x, y + 1));
+}
+
+static int gateOn(const Map *m, int x, int y) {
+  int i;
+  if (corridorOn(m, x, y)) return 1;
+  for (i = 0; i < 4; i++) if (corridorOn(m, x + DIR_X[i], y + DIR_Y[i])) return 1;
+  return 0;
+}
+
 static int ledgeGateOn(const Map *m, int x, int y) {
   int d;
   for (d = -1; d <= 1; d++) if (ledgeOn(m, x - 1, y + d) && ledgeOn(m, x + 1, y + d)) return 1;
   return 0;
+}
+
+/* The one way into a map that the reachability flood starts from: where a house
+   begins if this is somebody's seat, otherwise the first door that lands here. */
+static int firstWayIn(const Map *mp, int m) {
+  int i, j;
+  for (i = 0; i < HOUSE_COUNT; i++) {
+    if (houses[i].startMap == m) {
+      flood(mp, houses[i].startX, houses[i].startY);
+      return houses[i].startY * mp->w + houses[i].startX;
+    }
+  }
+  for (i = 0; i < MAP_COUNT; i++) {
+    for (j = 0; j < maps[i].warpCount; j++) {
+      if (maps[i].warps[j].to == m) {
+        flood(mp, maps[i].warps[j].tx, maps[i].warps[j].ty);
+        return maps[i].warps[j].ty * mp->w + maps[i].warps[j].tx;
+      }
+    }
+  }
+  return -1;
 }
 
 static int standNextTo(const Map *m, int x, int y) {
@@ -310,7 +345,7 @@ static int runLength(int level, int tries) {
 }
 
 int main(void) {
-  int m, i, j, seen[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, reached = 0;
+  int m, i, j, seen[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, reached = 0, wayIn = -1;
   int totalNpc = 0, totalSign = 0, totalWarp = 0;
 
   gbaMem = calloc(0x03000400u, 1);
@@ -347,6 +382,7 @@ int main(void) {
     totalSign += map->signCount;
     totalWarp += map->warpCount;
 
+    wayIn = -1;
     if (map->w * 2 > 64 || map->h * 2 > 64) bad("%s is %dx%d, too big for the screen map", map->name, map->w, map->h);
     if (map->tileCount > 512) bad("%s needs %d tiles, video memory holds 512", map->name, map->tileCount);
     if (map->residentCount > 12) bad("%s needs %d appearances resident", map->name, map->residentCount);
@@ -354,15 +390,14 @@ int main(void) {
     checkText("a map name", map->name);
 
     /* --- can you walk to everything on this map? ------------------------ */
+    /* Flood from ONE way in, not from all of them at once.
+       Flooding from every entrance hides exactly the fault that matters: a tile
+       that cuts the map in two is invisible if each half still has a door of
+       its own, because both halves stay reachable. That is how a brother of the
+       Watch standing in the gate tunnel - which seals the road north - got past
+       this check and into a playthrough. From one way in, a cut is a cut. */
     memset(standable, 0, sizeof standable);
-    for (i = 0; i < HOUSE_COUNT; i++) {
-      if (houses[i].startMap == m) flood(map, houses[i].startX, houses[i].startY);
-    }
-    for (i = 0; i < MAP_COUNT; i++) {
-      for (j = 0; j < maps[i].warpCount; j++) {
-        if (maps[i].warps[j].to == m) flood(map, maps[i].warps[j].tx, maps[i].warps[j].ty);
-      }
-    }
+    wayIn = firstWayIn(map, m);
     for (i = 0; i < map->npcCount; i++) {
       const Npc *n = &map->npcs[i];
       if (n->x < map->w && n->y < map->h && !standNextTo(map, n->x, n->y)) {
@@ -390,11 +425,17 @@ int main(void) {
        here is a gateway nothing is keeping them out of. */
     {
       int whole = 0, x, y;
+      (void)wayIn;
       for (i = 0; i < map->w * map->h; i++) if (standable[i]) whole++;
       for (y = 0; y < map->h; y++) for (x = 0; x < map->w; x++) {
         int again = 0, k, reachedFrom = -1;
         if (!standable[y * map->w + x]) continue;
-        if (nearWarpOn(map, x, y) || ledgeGateOn(map, x, y)) continue;
+        /* Taking out the tile the flood starts from floods nothing at all and
+           reports the entire map as cut off, which is an artefact of the test
+           rather than anything a person standing there would do. */
+        if (y * map->w + x == wayIn) continue;
+        if (nearWarpOn(map, x, y) || ledgeGateOn(map, x, y)
+            || gateOn(map, x, y)) continue;
         /* Nobody roams more than three tiles from where they belong, so a tile
            no NPC can get to cannot be blocked by one. */
         for (k = 0; k < map->npcCount; k++) {
@@ -408,15 +449,7 @@ int main(void) {
         blocked = y * map->w + x;
         memcpy(spare, standable, sizeof spare);
         memset(standable, 0, sizeof standable);
-        for (k = 0; k < HOUSE_COUNT; k++) {
-          if (houses[k].startMap == m) flood(map, houses[k].startX, houses[k].startY);
-        }
-        for (k = 0; k < MAP_COUNT; k++) {
-          int j2;
-          for (j2 = 0; j2 < maps[k].warpCount; j2++) {
-            if (maps[k].warps[j2].to == m) flood(map, maps[k].warps[j2].tx, maps[k].warps[j2].ty);
-          }
-        }
+        firstWayIn(map, m);
         for (k = 0; k < map->w * map->h; k++) if (standable[k]) again++;
 
         /* Cutting a broom cupboard off behind a counter costs nobody anything.

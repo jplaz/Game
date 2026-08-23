@@ -24,16 +24,17 @@ const ROOT = resolve(process.cwd());
 const MAP_IDS = [
   'winterfell', 'heroHouse', 'maesterHallWinterfell', 'greatKeep', 'winterfellForge',
   'wolfswood', 'kingsroadNorth', 'castleBlack', 'maesterHallCastleBlack',
-  'castleBlackArmoury', 'beyondTheWall', 'moatCailin', 'maesterHallMoat',
+  'castleBlackArmoury', 'castleBlackHall', 'beyondTheWall', 'moatCailin',
+  'maesterHallMoat',
   'moatCailinForge',
   'riverlands', 'riverrun', 'maesterHallRiverrun', 'riverrunForge', 'riverrunInn',
   'riverrunKeep', 'bloodyGate',
   // The road south, so every house can begin at its own seat rather than all
   // five of them starting in the Stark yard.
-  'theEyrie', 'maesterHallEyrie', 'eyrieArmoury',
+  'theEyrie', 'maesterHallEyrie', 'eyrieArmoury', 'eyrieKeep',
   'goldRoad', 'lannisport', 'maesterHallLannisport', 'lannisportForge', 'casterlyRock',
   'kingsroad', 'kingsLanding', 'maesterHallKL', 'klArmoury',
-  'dragonstone', 'maesterHallDragonstone',
+  'dragonstone', 'maesterHallDragonstone', 'dragonstoneArmoury',
 ];
 
 // What the cartridge's hardware will hold.
@@ -432,6 +433,22 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       : /Wolfswood|Neck/.test(region) || /wolfswood|kingsroad/i.test(id) ? 2
       : /Riverlands|Vale/.test(region) ? 3
       : 0;
+
+    /* A door tile with no warp behind it is a lie told to the player: they walk
+       up to it and the world does not answer. Cheap to draw and impossible to
+       spot by playing, since you have to try every door in every town. */
+    {
+      const open = new Set((map.warps ?? []).map((w) => `${w.x},${w.y}`));
+      const dead = [];
+      (map.grid ?? map.tiles).forEach((row, y) => {
+        [...row].forEach((c, x) => {
+          if (c === 'D' && !open.has(`${x},${y}`)) dead.push(`${x},${y}`);
+        });
+      });
+      if (dead.length) {
+        throw new Error(`${id}: door tiles that open onto nothing at ${dead.join(' ')}`);
+      }
+    }
 
     out.maps.push({
       id, name: map.name, width, height, cells, solid, cover, ledge, npcs, ambushes,

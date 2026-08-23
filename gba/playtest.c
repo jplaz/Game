@@ -82,8 +82,10 @@ static void checkSound(void) {
 static void checkFrame(void) {
   int i;
   checkSound();
-  if (scene < 0 || scene > SCENE_SHOP) finding("scene is %d, which is not a scene", scene);
-  if (scene == SCENE_TITLE || scene == SCENE_HOUSE) return;
+  if (scene < 0 || scene > SCENE_NAME) finding("scene is %d, which is not a scene", scene);
+  /* Nothing is standing anywhere yet on the screens that come before the
+     world, and there is no map to be standing on. */
+  if (scene == SCENE_TITLE || scene == SCENE_HOUSE || scene == SCENE_NAME) return;
 
   if (worldId < 0 || worldId >= MAP_COUNT) {
     finding("worldId is %d with %d maps", worldId, MAP_COUNT);
@@ -353,6 +355,7 @@ void hostFrame(void) {
 
   if (shooting) {
     if (scene == SCENE_TITLE) catchOnce(0, getenv("SAVED") ? "01-title-with-a-record" : "01-title");
+    else if (scene == SCENE_NAME && nameLen == 3) catchOnce(23, "02b-your-name");
     else if (scene == SCENE_HOUSE) catchOnce(1, "02-swear-your-sword");
     else if (scene == SCENE_MENU) catchOnce(2, "05-the-menu");
     else if (scene == SCENE_STATUS) catchOnce(3, "06-your-sigil");
@@ -396,6 +399,11 @@ void hostFrame(void) {
        stepped past into swearing a new sword. */
     keys = (titlePick < titleWant && titlePick < TITLE_ENTRIES - 1)
       ? tap(KEY_DOWN) : tap(KEY_START);
+  } else if (scene == SCENE_NAME) {
+    /* Types a short name and confirms it, so the run gets past the screen and
+       the name actually ends up on the duel plate where it can be checked. */
+    if (nameLen < 4) keys = tap(KEY_A);
+    else keys = tap(KEY_START);
   } else if (scene == SCENE_HOUSE) {
     /* The game resets the picker when it opens, so the house has to be walked
        to rather than set — which is also what a player does. */
@@ -679,7 +687,7 @@ int main(int argc, char **argv) {
   for (i = 0; i < 4; i++) printf("%s x%d  ", techniques[myTechs[i]].name, techUsed[i]);
   printf("\n");
 
-  printf("  started at     %s, level %d\n", startedAt, startedLevel);
+  printf("  started at     %s, level %d, called \"%s\"\n", startedAt, startedLevel, you.name);
   printf("  sound          %d notes sounded\n", soundNotes);
 
   if (!findingCount) {

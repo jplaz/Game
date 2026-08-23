@@ -400,6 +400,7 @@ export const MAPS = {
       { x: 11, y: 0, to: 'beyondTheWall', tx: 10, ty: 22, dir: 'up' },
       { x: 4, y: 7, to: 'maesterHallCastleBlack', tx: 5, ty: 7, dir: 'up' },
       { x: 18, y: 7, to: 'castleBlackArmoury', tx: 5, ty: 6, dir: 'up' },
+      { x: 5, y: 14, to: 'castleBlackHall', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
       { x: 9, y: 10, text: 'CASTLE BLACK\nSeat of the Night\u2019s Watch.\nNorth of here the maps stop.' },
@@ -413,6 +414,100 @@ export const MAPS = {
         data: { duel: 'tormund' } },
       { x: 5, y: 17, dir: 'right', sprite: 'child', name: 'Steward Boy', script: 'wallHint' },
       { x: 17, y: 17, dir: 'left', sprite: 'maester', name: 'Maester Aemon', script: 'aemon' },
+    ],
+  },
+
+  // ---------------------------------------------- rooms behind real doors --
+  // Three door tiles in the towns opened onto nothing at all: a player walks up
+  // to a door and the world does not answer. Two of them now have halls behind
+  // them, and the third is the forge Dragonstone never had - which matters, as
+  // it is where a Targaryen begins.
+  castleBlackHall: {
+    name: 'The Common Hall',
+    indoor: true,
+    music: 'town',
+    tiles: [
+      'IIIIIIIIIIII',
+      'I==========I',
+      'I==TTTT====I',
+      'I==TTTT==B=I',
+      'I==========I',
+      'I==TT==TT==I',
+      'I==TT==TT==I',
+      'IIIII__IIIII',
+    ],
+    warps: [
+      { x: 5, y: 7, to: 'castleBlack', tx: 5, ty: 15, dir: 'down' },
+      { x: 6, y: 7, to: 'castleBlack', tx: 5, ty: 15, dir: 'down' },
+    ],
+    npcs: [
+      { x: 6, y: 5, dir: 'down', sprite: 'nightswatch', name: 'Hall Steward',
+        script: 'wallHint',
+        data: { line: 'Eat while it is hot. Nothing north of the Wall is hot.' } },
+      { x: 7, y: 2, dir: 'left', sprite: 'nightswatch', name: 'Sworn Brother', script: 'duel',
+        data: { duel: 'deserter' } },
+    ],
+  },
+
+  eyrieKeep: {
+    name: 'The High Hall',
+    indoor: true,
+    music: 'town',
+    tiles: [
+      'IIIIIIIIIIIIIIIII',
+      'I==============II',
+      'I===cccccccc===II',
+      'I===cccXccc c==II',
+      'I===cccccccc===II',
+      'I=B============II',
+      'I=B====TT======II',
+      'I======TT======II',
+      'I==============II',
+      'IIIIIII__IIIIIIII',
+    ],
+    warps: [
+      { x: 7, y: 9, to: 'theEyrie', tx: 7, ty: 15, dir: 'down' },
+      { x: 8, y: 9, to: 'theEyrie', tx: 7, ty: 15, dir: 'down' },
+    ],
+    npcs: [
+      { x: 7, y: 4, dir: 'down', sprite: 'goodwife', name: 'Lady of the Vale',
+        script: 'eyrieHint',
+        data: { line: 'The Vale keeps its own counsel, and its own gate. '
+          + 'Mind the Bloody Gate on your way out.' } },
+      { x: 3, y: 7, dir: 'right', sprite: 'guard', name: 'Knight of the Gate', script: 'duel',
+        data: { duel: 'hedgeKnight' } },
+    ],
+  },
+
+  dragonstoneArmoury: {
+    name: 'The Dragonpit Forge',
+    indoor: true,
+    music: 'town',
+    tiles: [
+      'IIIIIIIIIIII',
+      'I==========I',
+      'I==KKKKKK==I',
+      'I==========I',
+      'I==T====T==I',
+      'I==T====T==I',
+      'I=====UU===I',
+      'IIIII__IIIII',
+    ],
+    warps: [
+      { x: 5, y: 7, to: 'dragonstone', tx: 17, ty: 7, dir: 'down' },
+      { x: 6, y: 7, to: 'dragonstone', tx: 17, ty: 7, dir: 'down' },
+    ],
+    npcs: [
+      { x: 5, y: 1, dir: 'down', sprite: 'smallfolk', name: 'Dragonsmith', script: 'smith',
+        data: {
+          line: 'Dragonsmith: The fires under this rock never went out. '
+            + 'Neither has the steel they make.',
+          stock: {
+            weapon: ['ironSword', 'castleForged', 'warhammer'],
+            armour: ['ringmail', 'scaleArmour', 'knightsPlate'],
+            shield: ['oakShield', 'towerShield'],
+          },
+        } },
     ],
   },
 
@@ -545,6 +640,7 @@ export const MAPS = {
       { x: 11, y: 19, to: 'bloodyGate', tx: 10, ty: 1, dir: 'down' },
       { x: 6, y: 6, to: 'maesterHallEyrie', tx: 5, ty: 7, dir: 'up' },
       { x: 17, y: 6, to: 'eyrieArmoury', tx: 5, ty: 6, dir: 'up' },
+      { x: 7, y: 14, to: 'eyrieKeep', tx: 7, ty: 8, dir: 'up' },
     ],
     signs: [
       { x: 9, y: 10, text: 'THE EYRIE\nSeat of House Arryn.\nAs high as honour, and a good deal colder.' },
@@ -906,6 +1002,7 @@ export const MAPS = {
       { x: 11, y: 19, to: 'kingsLanding', tx: 22, ty: 21, dir: 'down' },
       { x: 6, y: 6, to: 'maesterHallDragonstone', tx: 5, ty: 7, dir: 'up' },
       { x: 7, y: 14, to: 'dragonmont', tx: 8, ty: 14, dir: 'up' },
+      { x: 17, y: 6, to: 'dragonstoneArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
       { x: 9, y: 10, text: 'DRAGONSTONE\nAncient seat of House Targaryen.\nThe stone here was shaped while it was still soft.' },
@@ -2024,13 +2121,14 @@ export const REGIONS = {
   greatKeep: 'The North', maesterHallWinterfell: 'The North', wolfswood: 'The North',
   kingsroadNorth: 'The North',
   castleBlack: 'The Wall', castleBlackArmoury: 'The Wall',
-  maesterHallCastleBlack: 'The Wall',
+  maesterHallCastleBlack: 'The Wall', castleBlackHall: 'The Wall',
   beyondTheWall: 'Beyond the Wall',
   moatCailin: 'The Neck', maesterHallMoat: 'The Neck', moatCailinForge: 'The Neck',
   riverlands: 'The Riverlands', riverrun: 'The Riverlands',
   riverrunInn: 'The Riverlands', riverrunKeep: 'The Riverlands',
   maesterHallRiverrun: 'The Riverlands', riverrunForge: 'The Riverlands',
   bloodyGate: 'The Vale', theEyrie: 'The Vale', eyrieArmoury: 'The Vale',
+  eyrieKeep: 'The Vale',
   maesterHallEyrie: 'The Vale',
   goldRoad: 'The Westerlands', barrowCave: 'The Westerlands',
   lannisport: 'The Westerlands', lannisportForge: 'The Westerlands',
@@ -2045,6 +2143,7 @@ export const REGIONS = {
   klArmoury: 'The Crownlands', redKeep: 'The Crownlands',
   maesterHallKL: 'The Crownlands',
   dragonstone: 'Dragonstone', dragonmont: 'Dragonstone',
+  dragonstoneArmoury: 'Dragonstone',
   maesterHallDragonstone: 'Dragonstone',
 };
 

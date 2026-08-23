@@ -1,12 +1,21 @@
-// Walks every map: is every door, person, sign and chest standing somewhere a
-// player can actually get to?
+// Walks every map the way the cartridge walks it, and complains about anything
+// you could not actually get to.
+//
+// This used to flood the map treating a ledge as ordinary ground, which is not
+// what the game does: a ledge is a one-way drop southward and can never be
+// stood on or climbed. So a whole quarter of a map reachable only by going up a
+// drop looked fine here and was a wall in your hands. Somebody standing still
+// is a wall too - roamers step aside, but a stationary body in a one-tile
+// corridor closes the road for good.
 import { MAPS } from '/home/user/Game/src/data/maps.js';
 import { TILE_DEFS } from '/home/user/Game/src/art/tiles.js';
 
 const kindOf = (c) => TILE_DEFS[c]?.kind ?? 'missing';
-const WALK = new Set(['floor', 'encounter', 'ledge']);
+const SOLID = new Set(['solid', 'water']);
 let problems = 0;
-const say = (s) => { problems++; console.log('  ✗ ' + s); };
+const say = (s) => { problems++; console.log('  x ' + s); };
+
+const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
 for (const [id, map] of Object.entries(MAPS)) {
   const { grid, width, height } = map;
@@ -15,39 +24,83 @@ for (const [id, map] of Object.entries(MAPS)) {
     if (kindOf(at(x, y)) === 'missing') say(`${id}: unknown tile '${at(x, y)}' at ${x},${y}`);
   }
 
-  // Flood from the first warp, which is how you got here.
-  const start = (map.warps ?? [])[0];
-  if (!start) { if (!map.indoor) say(`${id}: no way in or out`); continue; }
-  const seen = new Set();
-  const q = [[start.x, start.y]];
-  seen.add(`${start.x},${start.y}`);
-  for (let h = 0; h < q.length; h++) {
-    const [x, y] = q[h];
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const nx = x + dx, ny = y + dy, k = `${nx},${ny}`;
-      if (seen.has(k) || nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-      if (!WALK.has(kindOf(at(nx, ny)))) continue;
-      seen.add(k); q.push([nx, ny]);
-    }
-  }
-  const reached = (x, y) => seen.has(`${x},${y}`);
-  const beside = (x, y) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => reached(x + dx, y + dy));
+  const solid = (x, y) => x < 0 || y < 0 || x >= width || y >= height
+    || SOLID.has(kindOf(at(x, y)));
+  const ledge = (x, y) => kindOf(at(x, y)) === 'ledge';
+  // Ground you can come to rest on: not solid, and not the drop itself.
+  const stand = (x, y) => !solid(x, y) && !ledge(x, y);
 
-  for (const w of map.warps ?? []) {
-    if (!reached(w.x, w.y)) say(`${id}: the door to ${w.to} at ${w.x},${w.y} cannot be reached`);
+  /* Somebody who never moves is part of the wall. Somebody who roams shuffles
+     about and the cartridge already keeps them out of corridors and doorways,
+     so they are not a blockage. */
+  const planted = new Set((map.npcs ?? [])
+    .filter((p) => !p.roams).map((p) => `${p.x},${p.y}`));
+
+  // Where you can go from here, obeying the drop rule.
+  const from = (x, y) => {
+    const out = [];
+    for (const [dx, dy] of DIRS) {
+      const nx = x + dx, ny = y + dy;
+      if (ledge(nx, ny)) {
+        // Southward only, and it puts you down on the far side of the drop.
+        if (dy === 1 && stand(nx, ny + 1)) out.push([nx, ny + 1]);
+      } else if (stand(nx, ny)) {
+        out.push([nx, ny]);
+      }
+    }
+    return out;
+  };
+
+  const flood = (seeds, throughPeople) => {
+    const seen = new Set(), q = [];
+    for (const [x, y] of seeds) {
+      const k = `${x},${y}`;
+      if (!seen.has(k)) { seen.add(k); q.push([x, y]); }
+    }
+    for (let h = 0; h < q.length; h++) {
+      for (const [nx, ny] of from(q[h][0], q[h][1])) {
+        const k = `${nx},${ny}`;
+        if (seen.has(k)) continue;
+        if (!throughPeople && planted.has(k)) continue;
+        seen.add(k); q.push([nx, ny]);
+      }
+    }
+    return seen;
+  };
+
+  const ways = (map.warps ?? []);
+  if (!ways.length) { if (!map.indoor) say(`${id}: no way in or out`); continue; }
+  // You may arrive by any door, so everything any door reaches counts as reached.
+  const seen = flood(ways.map((w) => [w.x, w.y]), false);
+  const loose = flood(ways.map((w) => [w.x, w.y]), true);
+  const reached = (x, y) => seen.has(`${x},${y}`);
+  const beside = (x, y) => DIRS.some(([dx, dy]) => reached(x + dx, y + dy));
+  /* The difference between the two floods is exactly what a standing body
+     costs you, which is the sort of thing worth being told about by name. */
+  const shutIn = (x, y) => !seen.has(`${x},${y}`) && loose.has(`${x},${y}`);
+
+  for (const w of ways) {
+    if (!reached(w.x, w.y)) {
+      say(shutIn(w.x, w.y)
+        ? `${id}: the door to ${w.to} at ${w.x},${w.y} is shut off by somebody standing still`
+        : `${id}: the door to ${w.to} at ${w.x},${w.y} cannot be walked to`);
+    }
     const there = MAPS[w.to];
     if (!there) { say(`${id}: a door to ${w.to}, which does not exist`); continue; }
-    if (!WALK.has(kindOf(there.grid[w.ty]?.[w.tx] ?? '#'))) {
-      say(`${id}: the door to ${w.to} lands on ${w.tx},${w.ty}, which is '${there.grid[w.ty]?.[w.tx]}'`);
+    const land = there.grid[w.ty]?.[w.tx] ?? '#';
+    if (SOLID.has(kindOf(land)) || kindOf(land) === 'ledge') {
+      say(`${id}: the door to ${w.to} lands on ${w.tx},${w.ty}, which is '${land}'`);
     }
   }
   /* A shopkeeper stands behind a counter on purpose: the game lets you speak
      across one, so being walled in by counters is not being walled in. */
-  const servedOver = (x, y) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) =>
+  const servedOver = (x, y) => DIRS.some(([dx, dy]) =>
     at(x + dx, y + dy) === 'K' && reached(x + dx * 2, y + dy * 2));
+  /* You speak to somebody from the tile beside them, never from under their
+     feet, so what matters is whether you can stand next to them. */
   for (const p of map.npcs ?? []) {
-    if (!reached(p.x, p.y) && !servedOver(p.x, p.y)) {
-      say(`${id}: ${p.name ?? 'somebody'} at ${p.x},${p.y} is standing somewhere unreachable`);
+    if (!beside(p.x, p.y) && !reached(p.x, p.y) && !servedOver(p.x, p.y)) {
+      say(`${id}: ${p.name ?? 'somebody'} at ${p.x},${p.y} cannot be spoken to`);
     }
   }
   for (const s of map.signs ?? []) {
@@ -55,13 +108,88 @@ for (const [id, map] of Object.entries(MAPS)) {
   }
   for (const it of map.items ?? []) {
     if (!beside(it.x, it.y)) say(`${id}: ${it.item} at ${it.x},${it.y} cannot be got at`);
-    if ((map.items ?? []).length > 8) say(`${id}: more than eight things in the ground`);
   }
+  if ((map.items ?? []).length > 8) say(`${id}: more than eight things in the ground`);
+
+  /* The trap. Coming in by one door, you have to be able to leave by some
+     door - a drop you cannot climb back up, with no way on, is a dead end you
+     have to reset the cartridge to get out of. */
+  for (const w of ways) {
+    if (!stand(w.x, w.y)) continue;
+    const out = flood([[w.x, w.y]], false);
+    if (!ways.some((v) => v !== w && out.has(`${v.x},${v.y}`))
+        && !ways.some((v) => v === w && out.has(`${v.x},${v.y}`) && ways.length === 1)) {
+      say(`${id}: coming in at ${w.x},${w.y} from ${w.to}, there is no way back out`);
+    }
+  }
+
+  // Ground nobody can ever set foot on, in quantity, means a carve went wrong.
+  let open = 0;
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    if (stand(x, y)) open++;
+  }
+  const marooned = open - seen.size;
+  if (marooned > 12) {
+    say(`${id}: ${marooned} tiles of ground are walled off from every door`);
+  }
+
+  /* Ground at the very edge of an outdoor map reads as a road going on. If
+     there is no door on it you walk up to the border of the world and stop,
+     which is the single most common way this game has of looking broken. */
+  if (!map.indoor) {
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      if (x && y && x !== width - 1 && y !== height - 1) continue;
+      if (!stand(x, y) || !reached(x, y)) continue;
+      if (ways.some((w) => w.x === x && w.y === y)) continue;
+      say(`${id}: the ground runs off the edge at ${x},${y} with no way on`);
+    }
+  }
+
   // Every door tile has to be a door.
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-    if (at(x, y) === 'D' && !(map.warps ?? []).some((w) => w.x === x && w.y === y)) {
+    if (at(x, y) === 'D' && !ways.some((w) => w.x === x && w.y === y)) {
       say(`${id}: a door at ${x},${y} that opens onto nothing`);
     }
   }
 }
+/* And the check that has to look at two maps at once: where a door puts you
+   down, can you walk from that spot to a door out? A room you can be dropped
+   into and not walk out of is the worst thing this game can do to you, and
+   nothing that looks at one map at a time can see it. */
+for (const [id, map] of Object.entries(MAPS)) {
+  for (const w of map.warps ?? []) {
+    const there = MAPS[w.to];
+    if (!there) continue;
+    const at = (x, y) => (x < 0 || y < 0 || x >= there.width || y >= there.height)
+      ? '#' : there.grid[y][x];
+    const solid = (x, y) => x < 0 || y < 0 || x >= there.width || y >= there.height
+      || SOLID.has(kindOf(at(x, y)));
+    const ledge = (x, y) => kindOf(at(x, y)) === 'ledge';
+    const stand = (x, y) => !solid(x, y) && !ledge(x, y);
+    const planted = new Set((there.npcs ?? [])
+      .filter((p) => !p.roams).map((p) => `${p.x},${p.y}`));
+    if (planted.has(`${w.tx},${w.ty}`)) {
+      say(`${id}: the door to ${w.to} puts you down on top of somebody at ${w.tx},${w.ty}`);
+      continue;
+    }
+    const seen = new Set([`${w.tx},${w.ty}`]);
+    const q = [[w.tx, w.ty]];
+    for (let h = 0; h < q.length; h++) {
+      const [x, y] = q[h];
+      for (const [dx, dy] of DIRS) {
+        const nx = x + dx, ny = y + dy;
+        let lx = nx, ly = ny;
+        if (ledge(nx, ny)) { if (dy !== 1 || !stand(nx, ny + 1)) continue; ly = ny + 1; }
+        else if (!stand(nx, ny)) continue;
+        const k = `${lx},${ly}`;
+        if (seen.has(k) || planted.has(k)) continue;
+        seen.add(k); q.push([lx, ly]);
+      }
+    }
+    if (!(there.warps ?? []).some((v) => seen.has(`${v.x},${v.y}`))) {
+      say(`${id}: going to ${w.to} drops you at ${w.tx},${w.ty}, where there is no door out`);
+    }
+  }
+}
+
 console.log(problems ? `\n${problems} problems` : `\n${Object.keys(MAPS).length} maps, nothing wrong`);

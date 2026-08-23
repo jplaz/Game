@@ -70,6 +70,13 @@ const MAP_IDS = [
   'stormsEndInn', 'stormsEndHouse', 'dragonstoneInn', 'dragonstoneHouse', 'braavosInn', 'braavosHouse',
   'pentosInn', 'pentosHouse', 'volantisInn', 'volantisHouse', 'meereenInn', 'meereenHouse',
   'pykeInn', 'pykeHouse', 'dreadfortInn', 'dreadfortHouse',
+  // Somebody else's walls: the far gate of nine towns used to be a road that
+  // stopped at the edge of the world, and now opens onto a garrison.
+  'stoneCrowHold', 'stoneCrowCave', 'seaDragonHold', 'seaDragonVault',
+  'kennelHold', 'flayedHall', 'sealordHold', 'sealordPalace',
+  'cheesemongerHold', 'cheesemongerCellar', 'blackWallHold', 'elephantCourt',
+  'fightingPits', 'pitMasterRooms', 'waterGardens', 'pavilionOfOranges',
+  'wreckersHold', 'wreckersHall',
 ];
 
 // What the cartridge's hardware will hold.

@@ -283,6 +283,97 @@ function makeCellar({ town, name, keeper, keeperDuel, line, loot }) {
   };
 }
 
+/**
+ * A stronghold: somebody else's walls, with somebody else's people behind them.
+ *
+ * Nine towns had a road running the whole length of the map and a gate at only
+ * one end of it, so half the settlements in the world had a main street that
+ * walked you up to the edge of the world and stopped. Rather than wall the
+ * road off, the far gate now opens onto one of these - a curtain wall with a
+ * garrison in the yard and a keep at the back that you have to fight your way
+ * into and can strip once you have.
+ *
+ * The compound is twenty-four wide so it lines up with the town gate at
+ * eleven, and the way out is the same two tiles you came in by.
+ */
+function makeHold({ name, town, townGate, hall, ground = 'grass', wall = '#',
+                    floor = '.', banner = 'V', npcs = [], signs = [], items = [] }) {
+  const W = wall;    // whatever this part of the world is walled with
+  const f = floor;   // and whatever grows outside the gate
+  const A = 'A';     // dressed stone, because every hold in the world is
+  const M = 'M';     // crenellated along the top course
+  const d = 'd';     // a yard is beaten dirt wherever it stands
+  const V = banner;
+  const out = f.repeat(3);
+  const wide = (inner) => W + out + 'A' + inner + 'A' + out + W;
+
+  return {
+    name, music: 'wild', ground, wall,
+    tiles: [
+      W.repeat(24),
+      W + out + M.repeat(16) + out + W,
+      wide(d.repeat(14)),
+      wide('dd' + M.repeat(10) + 'dd'),
+      wide('dd' + A.repeat(10) + 'dd'),
+      wide('dd' + 'AA' + V + 'AAAA' + V + 'AA' + 'dd'),
+      wide('dd' + A.repeat(10) + 'dd'),
+      wide('dd' + 'AAAA' + 'DD' + 'AAAA' + 'dd'),
+      wide(d.repeat(14)),
+      wide(d.repeat(14)),
+      wide('dF' + d.repeat(10) + 'Fd'),
+      wide(d.repeat(14)),
+      wide('ddTT' + d.repeat(6) + 'TTdd'),
+      wide(d.repeat(14)),
+      wide('dl' + d.repeat(10) + 'ld'),
+      wide(d.repeat(14)),
+      wide(d.repeat(14)),
+      W + out + 'A'.repeat(7) + 'dd' + 'A'.repeat(7) + out + W,
+      W + f.repeat(10) + 'dd' + f.repeat(10) + W,
+      W + f.repeat(10) + 'dd' + f.repeat(10) + W,
+      W + f.repeat(10) + 'dd' + f.repeat(10) + W,
+      W.repeat(11) + 'dd' + W.repeat(11),
+    ],
+    warps: [
+      { x: 11, y: 7, to: hall, tx: 7, ty: 11, dir: 'up' },
+      { x: 12, y: 7, to: hall, tx: 8, ty: 11, dir: 'up' },
+      { x: 11, y: 21, to: town, tx: townGate[0], ty: townGate[1], dir: townGate[2] },
+      { x: 12, y: 21, to: town, tx: townGate[0], ty: townGate[1], dir: townGate[2] },
+    ],
+    npcs, signs, items,
+  };
+}
+
+/**
+ * What is behind the keep door: a hall with a high seat in it, two bedchambers,
+ * two larders and a kitchen, all of them worth going through. Six rooms off one
+ * corridor, so the fight comes to you a room at a time rather than all at once.
+ */
+function makeHoldHall({ name, hold, npcs = [], signs = [], items = [] }) {
+  return {
+    name, indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIIIIIIIIIII',
+      'I=bI=========Ib=I',
+      'I==I====X====I==I',
+      'I==I==TTTTT==I==I',
+      'I=bI=========Ib=I',
+      'II=IIIII=IIIII=II',
+      'I===============I',
+      'I===============I',
+      'II=IIIII=IIIII=II',
+      'I==I=========I==I',
+      'I==I==h===h==I==I',
+      'I==I=========I==I',
+      'IIIIIII__IIIIIIII',
+    ],
+    warps: [
+      { x: 7, y: 12, to: hold, tx: 11, ty: 8, dir: 'down' },
+      { x: 8, y: 12, to: hold, tx: 12, ty: 8, dir: 'down' },
+    ],
+    npcs, signs, items,
+  };
+}
+
 /** Standard door and exit coordinates for a makeTown map. */
 export const TOWN = {
   hallDoor: [6, 6], hallStand: [6, 7],
@@ -1038,7 +1129,7 @@ export const MAPS = {
       'CCCCCCCCCCC-CCCCCCCCCCCC',
       'CCCCCCCCCCC-CCCCCCCCCCCC',
       'CCCCCCCCCCC-CCCCCCCCCCCC',
-      'iiiiiiiiiii-iiiiiiiiiiii',
+      'Ciiiiiiiiii-iiiiiiiiiiiC',
       'PSSSSSSSSSS-SSSSSnSSSSSP',
       'PSSzzzzSSSS-SSSSzzzzzSSP',
       'PSSZZZZSSSS-SSSSZZZZZSSP',
@@ -1316,6 +1407,7 @@ export const MAPS = {
       { x: 5, y: 21, to: 'theEyrieInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'theEyrieHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 26, to: 'bloodyGate', tx: 11, ty: 1, dir: 'down' },
+      { x: 11, y: 0, to: 'stoneCrowHold', tx: 11, ty: 20, dir: 'up' },
       { x: 6, y: 6, to: 'maesterHallEyrie', tx: 5, ty: 7, dir: 'up' },
       { x: 17, y: 6, to: 'eyrieArmoury', tx: 5, ty: 6, dir: 'up' },
       { x: 7, y: 14, to: 'eyrieKeep', tx: 7, ty: 8, dir: 'up' },
@@ -1544,6 +1636,7 @@ export const MAPS = {
       { x: 16, y: 21, to: 'sunspearHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 7, y: 14, to: 'sunspearKeep', tx: 7, ty: 8, dir: 'up' },
       { x: 11, y: 0, to: 'princesPass', tx: 11, ty: 28, dir: 'up' },
+      { x: 11, y: 26, to: 'waterGardens', tx: 11, ty: 20, dir: 'up' },
       { x: 6, y: 6, to: 'maesterHallSunspear', tx: 5, ty: 7, dir: 'up' },
       { x: 17, y: 6, to: 'sunspearArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
@@ -1660,6 +1753,7 @@ export const MAPS = {
       { x: 16, y: 21, to: 'stormsEndHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 7, y: 14, to: 'stormsEndKeep', tx: 7, ty: 8, dir: 'up' },
       { x: 11, y: 0, to: 'stormlands', tx: 11, ty: 28, dir: 'up' },
+      { x: 11, y: 26, to: 'wreckersHold', tx: 11, ty: 20, dir: 'up' },
       { x: 6, y: 6, to: 'maesterHallStormsEnd', tx: 5, ty: 7, dir: 'up' },
       { x: 17, y: 6, to: 'stormsEndArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
@@ -1729,6 +1823,7 @@ export const MAPS = {
       { x: 5, y: 21, to: 'dragonstoneInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'dragonstoneHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 26, to: 'mudGate', tx: 9, ty: 7, dir: 'down' },
+      { x: 11, y: 0, to: 'seaDragonHold', tx: 11, ty: 20, dir: 'up' },
       { x: 6, y: 6, to: 'maesterHallDragonstone', tx: 5, ty: 7, dir: 'up' },
       { x: 7, y: 14, to: 'dragonmont', tx: 8, ty: 14, dir: 'up' },
       { x: 17, y: 6, to: 'dragonstoneArmoury', tx: 5, ty: 6, dir: 'up' },
@@ -2654,6 +2749,7 @@ export const MAPS = {
       { x: 5, y: 21, to: 'braavosInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'braavosHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { x: 11, y: 0, to: 'sealordHold', tx: 11, ty: 20, dir: 'up' },
       { x: 6, y: 6, to: 'houseOfBlackAndWhite', tx: 7, ty: 10, dir: 'up' },
     ],
   }),
@@ -2708,6 +2804,7 @@ export const MAPS = {
       { x: 5, y: 21, to: 'pentosInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'pentosHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { x: 11, y: 0, to: 'cheesemongerHold', tx: 11, ty: 20, dir: 'up' },
       { x: 7, y: 14, to: 'illyriosManse', tx: 7, ty: 10, dir: 'up' },
     ],
   }),
@@ -2737,6 +2834,7 @@ export const MAPS = {
       { x: 5, y: 21, to: 'volantisInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'volantisHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { x: 11, y: 0, to: 'blackWallHold', tx: 11, ty: 20, dir: 'up' },
       { x: 7, y: 14, to: 'templeOfRhllor', tx: 7, ty: 10, dir: 'up' },
     ],
   }),
@@ -2766,6 +2864,7 @@ export const MAPS = {
       { x: 5, y: 21, to: 'meereenInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'meereenHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { x: 11, y: 0, to: 'fightingPits', tx: 11, ty: 20, dir: 'up' },
       { x: 7, y: 14, to: 'greatPyramid', tx: 7, ty: 12, dir: 'up' },
     ],
   }),
@@ -3015,12 +3114,12 @@ export const MAPS = {
       '~~~~oooooooo~~~~',
       '~~~~oommmmmmmm~~',
       '~~~~oommmmmmmm~~',
-      '~~~~oooo~~~~oooo',
-      '~~~~oooo~~~~oooo',
-      '~~~~~~~~~~~~oooo',
-      '~~~~~~~~~~~ooooo',
-      '~~~~~~~~~~~oojoo',
-      '~~~~~mmmmmmooooo',
+      '~~~~oooo~~~~ooo~',
+      '~~~~oooo~~~~ooo~',
+      '~~~~~~~~~~~~ooo~',
+      '~~~~~~~~~~~oooo~',
+      '~~~~~~~~~~~oojo~',
+      '~~~~~mmmmmmoooo~',
       '~~~~~mmmmmmooo~~',
       '~~~oooooo~~~~~~~',
       '~~ooooooooo~~~~~',
@@ -3037,7 +3136,9 @@ export const MAPS = {
     ],
     warps: [
       { x: 8, y: 0, to: 'ironCoast', tx: 11, ty: 28, dir: 'up' },
+      { x: 9, y: 0, to: 'ironCoast', tx: 11, ty: 28, dir: 'up' },
       { x: 6, y: 19, to: 'pyke', tx: 11, ty: 1, dir: 'down' },
+      { x: 7, y: 19, to: 'pyke', tx: 11, ty: 1, dir: 'down' },
     ],
     signs: [
       { x: 6, y: 2, text: 'THE BRIDGES OF PYKE\nWalk in the middle. The ropes are older than you are.' },
@@ -3271,6 +3372,7 @@ export const MAPS = {
       { x: 5, y: 21, to: 'dreadfortInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'dreadfortHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 26, to: 'weepingWater', tx: 11, ty: 1, dir: 'down' },
+      { x: 11, y: 0, to: 'kennelHold', tx: 11, ty: 20, dir: 'up' },
       { x: 6, y: 6, to: 'maesterHallDreadfort', tx: 5, ty: 7, dir: 'up' },
       { x: 17, y: 6, to: 'dreadfortForge', tx: 5, ty: 6, dir: 'up' },
       { x: 7, y: 14, to: 'dreadfortKeep', tx: 7, ty: 12, dir: 'up' },
@@ -4135,6 +4237,528 @@ export const MAPS = {
         data: { duel: 'barristan' } },
     ],
   },
+
+  /* --------------------------------------------------------- strongholds ---
+     Somebody else's walls. Nine towns had a main street that ran the whole
+     length of the map with a gate at only one end of it, so half the
+     settlements in the world walked you up to the edge of the world and
+     stopped. The far gate now opens onto one of these instead: a garrison in
+     a yard, a keep behind it, and six rooms inside worth going through. */
+
+  stoneCrowHold: makeHold({
+    name: 'The Stone Crow Camp', town: 'theEyrie', townGate: [11, 1, 'down'], hall: 'stoneCrowCave',
+    ground: 'stone', wall: 'C', floor: 'o', banner: 'v',
+    signs: [
+      { x: 11, y: 16, text: 'THE STONE CROW CAMP\nThe clans hold the high ground above the Vale.\nThey did not ask leave, and will not give it.' },
+    ],
+    npcs: [
+      { x: 11, y: 15, dir: 'up', sprite: 'wildling', name: 'Gate Sentry', script: 'duel',
+        data: { duel: 'clansman' } },
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'wildling', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'clansman' } },
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'wildling', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'clansman' } },
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'wildling', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'clansman' } },
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'wildling', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'clansman' } },
+      { x: 18, y: 13, dir: 'left', sprite: 'guard', name: 'Captive Knight',
+        script: 'hideoutLocal', data: { line: 'They took my horse, my sword and my name. Get the door at the back open and I will not be here when you come out.' } },
+    ],
+    items: [
+      { x: 5, y: 9, item: 'ashHaft', count: 1, flag: 'item_stonecrowhold_0' },
+      { x: 18, y: 9, item: 'ironScrap', count: 1, flag: 'item_stonecrowhold_1' },
+      { x: 5, y: 16, item: 'snare', count: 1, flag: 'item_stonecrowhold_2' },
+      { x: 18, y: 16, item: 'frostTonic', count: 1, flag: 'item_stonecrowhold_3' },
+    ],
+  }),
+
+  stoneCrowCave: makeHoldHall({
+    name: 'The Chieftain\'s Cave', hold: 'stoneCrowHold',
+    signs: [
+      { x: 8, y: 7, text: 'THE CHIEFTAIN\'S CAVE\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
+    ],
+    npcs: [
+      { x: 7, y: 2, dir: 'down', sprite: 'wildling', name: 'Shagga son of Dolf', script: 'duel',
+        data: { duel: 'clansman' } },
+      { x: 5, y: 3, dir: 'right', roams: true, sprite: 'wildling', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'clansman' } },
+      { x: 11, y: 3, dir: 'left', roams: true, sprite: 'wildling', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'clansman' } },
+      { x: 4, y: 7, dir: 'right', roams: true, sprite: 'wildling', name: 'Corridor Watch',
+        script: 'duel', data: { duel: 'clansman' } },
+      { x: 8, y: 10, dir: 'down', sprite: 'goodwife', name: 'Cook',
+        script: 'hideoutLocal', data: { line: 'Cook: Take the larder. Take all of it. '
+          + 'I have cooked for whoever held this hall for nineteen years and not one '
+          + 'of them ever thanked me for it.' } },
+    ],
+    items: [
+      { x: 1, y: 2, item: 'boiledHide', count: 1, flag: 'item_stonecrowhold_h0' },
+      { x: 15, y: 2, item: 'poppyMilk', count: 1, flag: 'item_stonecrowhold_h1' },
+      { x: 1, y: 10, item: 'stillwater', count: 1, flag: 'item_stonecrowhold_h2' },
+      { x: 15, y: 10, item: 'boarTusk', count: 1, flag: 'item_stonecrowhold_h3' },
+      { x: 5, y: 10, item: 'valyrianShard', count: 1, flag: 'item_stonecrowhold_h4' },
+      { x: 11, y: 10, item: 'warPick', count: 1, flag: 'item_stonecrowhold_h5' },
+    ],
+  }),
+
+  seaDragonHold: makeHold({
+    name: 'The Sea Dragon Tower', town: 'dragonstone', townGate: [11, 1, 'down'], hall: 'seaDragonVault',
+    ground: 'stone', wall: 'C', floor: 'o', banner: 'V',
+    signs: [
+      { x: 11, y: 16, text: 'THE SEA DRAGON TOWER\nDragonstone was raised by men who could work stone\nthe way a smith works iron. Nobody now knows how.' },
+    ],
+    npcs: [
+      { x: 11, y: 15, dir: 'up', sprite: 'redPriest', name: 'Gate Sentry', script: 'duel',
+        data: { duel: 'redPriestess' } },
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'redPriest', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'redPriestess' } },
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'redPriest', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'redPriestess' } },
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'redPriest', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'redPriestess' } },
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'redPriest', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'redPriestess' } },
+      { x: 18, y: 13, dir: 'left', sprite: 'oldman', name: 'Tower Steward',
+        script: 'hideoutLocal', data: { line: 'The lower vault is older than the tower on top of it. Whatever is down there was here before we were.' } },
+    ],
+    items: [
+      { x: 5, y: 9, item: 'dragonglass', count: 1, flag: 'item_seadragonhold_0' },
+      { x: 18, y: 9, item: 'fireblood', count: 1, flag: 'item_seadragonhold_1' },
+      { x: 5, y: 16, item: 'burnSalve', count: 1, flag: 'item_seadragonhold_2' },
+      { x: 18, y: 16, item: 'wildfire', count: 1, flag: 'item_seadragonhold_3' },
+    ],
+  }),
+
+  seaDragonVault: makeHoldHall({
+    name: 'The Vault Beneath the Tower', hold: 'seaDragonHold',
+    signs: [
+      { x: 8, y: 7, text: 'THE VAULT BENEATH THE TOWER\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
+    ],
+    npcs: [
+      { x: 7, y: 2, dir: 'down', sprite: 'guard', name: 'Ser Axell', script: 'duel',
+        data: { duel: 'redPriestess' } },
+      { x: 5, y: 3, dir: 'right', roams: true, sprite: 'redPriest', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'redPriestess' } },
+      { x: 11, y: 3, dir: 'left', roams: true, sprite: 'redPriest', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'redPriestess' } },
+      { x: 4, y: 7, dir: 'right', roams: true, sprite: 'redPriest', name: 'Corridor Watch',
+        script: 'duel', data: { duel: 'redPriestess' } },
+      { x: 8, y: 10, dir: 'down', sprite: 'goodwife', name: 'Cook',
+        script: 'hideoutLocal', data: { line: 'Cook: Take the larder. Take all of it. '
+          + 'I have cooked for whoever held this hall for nineteen years and not one '
+          + 'of them ever thanked me for it.' } },
+    ],
+    items: [
+      { x: 1, y: 2, item: 'valyrianShard', count: 1, flag: 'item_seadragonhold_h0' },
+      { x: 15, y: 2, item: 'kissOfFire', count: 1, flag: 'item_seadragonhold_h1' },
+      { x: 1, y: 10, item: 'maestersSalts', count: 1, flag: 'item_seadragonhold_h2' },
+      { x: 15, y: 10, item: 'dragonglass', count: 1, flag: 'item_seadragonhold_h3' },
+      { x: 5, y: 10, item: 'netTrap', count: 1, flag: 'item_seadragonhold_h4' },
+      { x: 11, y: 10, item: 'dragonscaleMail', count: 1, flag: 'item_seadragonhold_h5' },
+    ],
+  }),
+
+  kennelHold: makeHold({
+    name: 'The Bolton Kennels', town: 'dreadfort', townGate: [11, 1, 'down'], hall: 'flayedHall',
+    ground: 'snow', wall: 'P', floor: 'S', banner: 'v',
+    signs: [
+      { x: 11, y: 16, text: 'THE BOLTON KENNELS\nThe girls are fed on Thursdays.\nDo not be here on a Wednesday.' },
+    ],
+    npcs: [
+      { x: 11, y: 15, dir: 'up', sprite: 'bolton', name: 'Gate Sentry', script: 'duel',
+        data: { duel: 'manAtArms' } },
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'bolton', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'bolton', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'bolton', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'bolton', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 18, y: 13, dir: 'left', sprite: 'girl', name: 'Kennel Girl',
+        script: 'hideoutLocal', data: { line: 'He names them after girls. When one of them stops answering to her name he gets another girl. Do not ask me any more than that.' } },
+    ],
+    items: [
+      { x: 5, y: 9, item: 'direwolfPelt', count: 1, flag: 'item_kennelhold_0' },
+      { x: 18, y: 9, item: 'boiledHide', count: 1, flag: 'item_kennelhold_1' },
+      { x: 5, y: 16, item: 'greatNet', count: 1, flag: 'item_kennelhold_2' },
+      { x: 18, y: 16, item: 'antidote', count: 1, flag: 'item_kennelhold_3' },
+    ],
+  }),
+
+  flayedHall: makeHoldHall({
+    name: 'The Flayed Man\'s Hall', hold: 'kennelHold',
+    signs: [
+      { x: 8, y: 7, text: 'THE FLAYED MAN\'S HALL\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
+    ],
+    npcs: [
+      { x: 7, y: 2, dir: 'down', sprite: 'bolton', name: 'Kennelmaster Ben', script: 'duel',
+        data: { duel: 'manAtArms' } },
+      { x: 5, y: 3, dir: 'right', roams: true, sprite: 'bolton', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 11, y: 3, dir: 'left', roams: true, sprite: 'bolton', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 4, y: 7, dir: 'right', roams: true, sprite: 'bolton', name: 'Corridor Watch',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 8, y: 10, dir: 'down', sprite: 'goodwife', name: 'Cook',
+        script: 'hideoutLocal', data: { line: 'Cook: Take the larder. Take all of it. '
+          + 'I have cooked for whoever held this hall for nineteen years and not one '
+          + 'of them ever thanked me for it.' } },
+    ],
+    items: [
+      { x: 1, y: 2, item: 'boarTusk', count: 1, flag: 'item_kennelhold_h0' },
+      { x: 15, y: 2, item: 'poppyMilk', count: 1, flag: 'item_kennelhold_h1' },
+      { x: 1, y: 10, item: 'frostTonic', count: 1, flag: 'item_kennelhold_h2' },
+      { x: 15, y: 10, item: 'ironScrap', count: 1, flag: 'item_kennelhold_h3' },
+      { x: 5, y: 10, item: 'flail', count: 1, flag: 'item_kennelhold_h4' },
+      { x: 11, y: 10, item: 'splintMail', count: 1, flag: 'item_kennelhold_h5' },
+    ],
+  }),
+
+  sealordHold: makeHold({
+    name: 'The Sealord\'s Yard', town: 'braavos', townGate: [11, 1, 'down'], hall: 'sealordPalace',
+    ground: 'stone', wall: '~', floor: 'o', banner: 'V',
+    signs: [
+      { x: 11, y: 16, text: 'THE SEALORD\'S YARD\nValar morghulis. The guard here says it back\nand keeps their hand where you can see it.' },
+    ],
+    npcs: [
+      { x: 11, y: 15, dir: 'up', sprite: 'braavosi', name: 'Gate Sentry', script: 'duel',
+        data: { duel: 'sellsword' } },
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'braavosi', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'braavosi', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'braavosi', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'braavosi', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 18, y: 13, dir: 'left', sprite: 'sellsword', name: 'Bravo',
+        script: 'hideoutLocal', data: { line: 'A bravo fights for the shape of it, not the coin. Which is what a bravo says when nobody is paying him.' } },
+    ],
+    items: [
+      { x: 5, y: 9, item: 'ironScrap', count: 1, flag: 'item_sealordhold_0' },
+      { x: 18, y: 9, item: 'valyrianShard', count: 1, flag: 'item_sealordhold_1' },
+      { x: 5, y: 16, item: 'stillwater', count: 1, flag: 'item_sealordhold_2' },
+      { x: 18, y: 16, item: 'birdLime', count: 1, flag: 'item_sealordhold_3' },
+    ],
+  }),
+
+  sealordPalace: makeHoldHall({
+    name: 'The Sealord\'s Palace', hold: 'sealordHold',
+    signs: [
+      { x: 8, y: 7, text: 'THE SEALORD\'S PALACE\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
+    ],
+    npcs: [
+      { x: 7, y: 2, dir: 'down', sprite: 'braavosi', name: 'First Sword of Braavos', script: 'duel',
+        data: { duel: 'sellsword' } },
+      { x: 5, y: 3, dir: 'right', roams: true, sprite: 'braavosi', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 11, y: 3, dir: 'left', roams: true, sprite: 'braavosi', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 4, y: 7, dir: 'right', roams: true, sprite: 'braavosi', name: 'Corridor Watch',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 8, y: 10, dir: 'down', sprite: 'goodwife', name: 'Cook',
+        script: 'hideoutLocal', data: { line: 'Cook: Take the larder. Take all of it. '
+          + 'I have cooked for whoever held this hall for nineteen years and not one '
+          + 'of them ever thanked me for it.' } },
+    ],
+    items: [
+      { x: 1, y: 2, item: 'kingsRansom', count: 1, flag: 'item_sealordhold_h0' },
+      { x: 15, y: 2, item: 'shadeOfTheEvening', count: 1, flag: 'item_sealordhold_h1' },
+      { x: 1, y: 10, item: 'maestersSalts', count: 1, flag: 'item_sealordhold_h2' },
+      { x: 15, y: 10, item: 'poppySeed', count: 1, flag: 'item_sealordhold_h3' },
+      { x: 5, y: 10, item: 'bastardSword', count: 1, flag: 'item_sealordhold_h4' },
+      { x: 11, y: 10, item: 'lamellar', count: 1, flag: 'item_sealordhold_h5' },
+    ],
+  }),
+
+  cheesemongerHold: makeHold({
+    name: 'The Slavers\' Compound', town: 'pentos', townGate: [11, 1, 'down'], hall: 'cheesemongerCellar',
+    ground: 'sand', wall: 'C', floor: 's', banner: 'V',
+    signs: [
+      { x: 11, y: 16, text: 'THE SLAVERS\' COMPOUND\nPentos signed a treaty forbidding this.\nPentos signs a great many things.' },
+    ],
+    npcs: [
+      { x: 11, y: 15, dir: 'up', sprite: 'merchant', name: 'Gate Sentry', script: 'duel',
+        data: { duel: 'sellsword' } },
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'merchant', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'merchant', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'merchant', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'merchant', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 18, y: 13, dir: 'left', sprite: 'smallfolk', name: 'Freed Man',
+        script: 'hideoutLocal', data: { line: 'There is a ledger in the back with names in it. Mine is in it. Take the ledger and I do not care what else you take.' } },
+    ],
+    items: [
+      { x: 5, y: 9, item: 'poppySeed', count: 1, flag: 'item_cheesemongerhold_0' },
+      { x: 18, y: 9, item: 'greenbriar', count: 1, flag: 'item_cheesemongerhold_1' },
+      { x: 5, y: 16, item: 'wakingDraught', count: 1, flag: 'item_cheesemongerhold_2' },
+      { x: 18, y: 16, item: 'snare', count: 1, flag: 'item_cheesemongerhold_3' },
+    ],
+  }),
+
+  cheesemongerCellar: makeHoldHall({
+    name: 'Illyrio\'s Undercellar', hold: 'cheesemongerHold',
+    signs: [
+      { x: 8, y: 7, text: 'ILLYRIO\'S UNDERCELLAR\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
+    ],
+    npcs: [
+      { x: 7, y: 2, dir: 'down', sprite: 'sellsword', name: 'Slaver Captain', script: 'duel',
+        data: { duel: 'sellsword' } },
+      { x: 5, y: 3, dir: 'right', roams: true, sprite: 'merchant', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 11, y: 3, dir: 'left', roams: true, sprite: 'merchant', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 4, y: 7, dir: 'right', roams: true, sprite: 'merchant', name: 'Corridor Watch',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 8, y: 10, dir: 'down', sprite: 'goodwife', name: 'Cook',
+        script: 'hideoutLocal', data: { line: 'Cook: Take the larder. Take all of it. '
+          + 'I have cooked for whoever held this hall for nineteen years and not one '
+          + 'of them ever thanked me for it.' } },
+    ],
+    items: [
+      { x: 1, y: 2, item: 'kingsRansom', count: 1, flag: 'item_cheesemongerhold_h0' },
+      { x: 15, y: 2, item: 'shadeOfTheEvening', count: 1, flag: 'item_cheesemongerhold_h1' },
+      { x: 1, y: 10, item: 'antidote', count: 1, flag: 'item_cheesemongerhold_h2' },
+      { x: 15, y: 10, item: 'ashHaft', count: 1, flag: 'item_cheesemongerhold_h3' },
+      { x: 5, y: 10, item: 'arakh', count: 1, flag: 'item_cheesemongerhold_h4' },
+      { x: 11, y: 10, item: 'studdedBrigandine', count: 1, flag: 'item_cheesemongerhold_h5' },
+    ],
+  }),
+
+  blackWallHold: makeHold({
+    name: 'The Black Wall', town: 'volantis', townGate: [11, 1, 'down'], hall: 'elephantCourt',
+    ground: 'sand', wall: 'C', floor: 's', banner: 'V',
+    signs: [
+      { x: 11, y: 16, text: 'THE BLACK WALL\nTwo hundred feet of fused dragonstone.\nOnly those of the old blood may pass within.' },
+    ],
+    npcs: [
+      { x: 11, y: 15, dir: 'up', sprite: 'unsullied', name: 'Gate Sentry', script: 'duel',
+        data: { duel: 'sellsword' } },
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'unsullied', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'unsullied', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'unsullied', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'unsullied', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 18, y: 13, dir: 'left', sprite: 'guard', name: 'Tiger Cloak',
+        script: 'hideoutLocal', data: { line: 'Tigers want war and elephants want trade. The wall does not care either way. It has outlasted both of them twice.' } },
+    ],
+    items: [
+      { x: 5, y: 9, item: 'fireblood', count: 1, flag: 'item_blackwallhold_0' },
+      { x: 18, y: 9, item: 'dragonglass', count: 1, flag: 'item_blackwallhold_1' },
+      { x: 5, y: 16, item: 'kissOfFire', count: 1, flag: 'item_blackwallhold_2' },
+      { x: 18, y: 16, item: 'valyrianMesh', count: 1, flag: 'item_blackwallhold_3' },
+    ],
+  }),
+
+  elephantCourt: makeHoldHall({
+    name: 'The Elephant Court', hold: 'blackWallHold',
+    signs: [
+      { x: 8, y: 7, text: 'THE ELEPHANT COURT\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
+    ],
+    npcs: [
+      { x: 7, y: 2, dir: 'down', sprite: 'guard', name: 'Tiger Cloak Captain', script: 'duel',
+        data: { duel: 'sellsword' } },
+      { x: 5, y: 3, dir: 'right', roams: true, sprite: 'unsullied', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 11, y: 3, dir: 'left', roams: true, sprite: 'unsullied', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 4, y: 7, dir: 'right', roams: true, sprite: 'unsullied', name: 'Corridor Watch',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 8, y: 10, dir: 'down', sprite: 'goodwife', name: 'Cook',
+        script: 'hideoutLocal', data: { line: 'Cook: Take the larder. Take all of it. '
+          + 'I have cooked for whoever held this hall for nineteen years and not one '
+          + 'of them ever thanked me for it.' } },
+    ],
+    items: [
+      { x: 1, y: 2, item: 'valyrianShard', count: 1, flag: 'item_blackwallhold_h0' },
+      { x: 15, y: 2, item: 'wildfire', count: 1, flag: 'item_blackwallhold_h1' },
+      { x: 1, y: 10, item: 'burnSalve', count: 1, flag: 'item_blackwallhold_h2' },
+      { x: 15, y: 10, item: 'ironScrap', count: 1, flag: 'item_blackwallhold_h3' },
+      { x: 5, y: 10, item: 'dornishSpear', count: 1, flag: 'item_blackwallhold_h4' },
+      { x: 11, y: 10, item: 'scaleArmour', count: 1, flag: 'item_blackwallhold_h5' },
+    ],
+  }),
+
+  fightingPits: makeHold({
+    name: 'The Fighting Pits', town: 'meereen', townGate: [11, 1, 'down'], hall: 'pitMasterRooms',
+    ground: 'sand', wall: 'C', floor: 's', banner: 'V',
+    signs: [
+      { x: 11, y: 16, text: 'THE FIGHTING PITS OF MEEREEN\nThe sand is raked between bouts.\nIt is the only thing here anyone bothers to clean.' },
+    ],
+    npcs: [
+      { x: 11, y: 15, dir: 'up', sprite: 'unsullied', name: 'Gate Sentry', script: 'duel',
+        data: { duel: 'sellsword' } },
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'unsullied', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'unsullied', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'unsullied', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'unsullied', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 18, y: 13, dir: 'left', sprite: 'sellsword', name: 'Pit Fighter',
+        script: 'hideoutLocal', data: { line: 'I have won eleven. The eleventh is the one that frightens me, because it means there has to be a twelfth.' } },
+    ],
+    items: [
+      { x: 5, y: 9, item: 'boarTusk', count: 1, flag: 'item_fightingpits_0' },
+      { x: 18, y: 9, item: 'boiledHide', count: 1, flag: 'item_fightingpits_1' },
+      { x: 5, y: 16, item: 'huntersDraught', count: 1, flag: 'item_fightingpits_2' },
+      { x: 18, y: 16, item: 'netTrap', count: 1, flag: 'item_fightingpits_3' },
+    ],
+  }),
+
+  pitMasterRooms: makeHoldHall({
+    name: 'The Pit Master\'s Rooms', hold: 'fightingPits',
+    signs: [
+      { x: 8, y: 7, text: 'THE PIT MASTER\'S ROOMS\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
+    ],
+    npcs: [
+      { x: 7, y: 2, dir: 'down', sprite: 'merchant', name: 'Pit Master', script: 'duel',
+        data: { duel: 'sellsword' } },
+      { x: 5, y: 3, dir: 'right', roams: true, sprite: 'unsullied', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 11, y: 3, dir: 'left', roams: true, sprite: 'unsullied', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 4, y: 7, dir: 'right', roams: true, sprite: 'unsullied', name: 'Corridor Watch',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 8, y: 10, dir: 'down', sprite: 'goodwife', name: 'Cook',
+        script: 'hideoutLocal', data: { line: 'Cook: Take the larder. Take all of it. '
+          + 'I have cooked for whoever held this hall for nineteen years and not one '
+          + 'of them ever thanked me for it.' } },
+    ],
+    items: [
+      { x: 1, y: 2, item: 'kingsRansom', count: 1, flag: 'item_fightingpits_h0' },
+      { x: 15, y: 2, item: 'maestersSalts', count: 1, flag: 'item_fightingpits_h1' },
+      { x: 1, y: 10, item: 'wakingDraught', count: 1, flag: 'item_fightingpits_h2' },
+      { x: 15, y: 10, item: 'ashHaft', count: 1, flag: 'item_fightingpits_h3' },
+      { x: 5, y: 10, item: 'poleaxe', count: 1, flag: 'item_fightingpits_h4' },
+      { x: 11, y: 10, item: 'halfPlate', count: 1, flag: 'item_fightingpits_h5' },
+    ],
+  }),
+
+  waterGardens: makeHold({
+    name: 'The Water Gardens', town: 'sunspear', townGate: [11, 25, 'up'], hall: 'pavilionOfOranges',
+    ground: 'sand', wall: 'C', floor: 's', banner: 'V',
+    signs: [
+      { x: 11, y: 16, text: 'THE WATER GARDENS\nChildren of every birth swim in the same pools here.\nThat was somebody’s idea, once.' },
+    ],
+    npcs: [
+      { x: 11, y: 15, dir: 'up', sprite: 'martell', name: 'Gate Sentry', script: 'duel',
+        data: { duel: 'dornishOutrider' } },
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'martell', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'dornishOutrider' } },
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'martell', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'dornishOutrider' } },
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'martell', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'dornishOutrider' } },
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'martell', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'dornishOutrider' } },
+      { x: 18, y: 13, dir: 'left', sprite: 'goodwife', name: 'Sand Steward',
+        script: 'hideoutLocal', data: { line: 'The prince sits and watches the children and everyone calls him idle. Unbowed, unbent, unbroken. He is doing the third one.' } },
+    ],
+    items: [
+      { x: 5, y: 9, item: 'greenbriar', count: 1, flag: 'item_watergardens_0' },
+      { x: 18, y: 9, item: 'poppySeed', count: 1, flag: 'item_watergardens_1' },
+      { x: 5, y: 16, item: 'antidote', count: 1, flag: 'item_watergardens_2' },
+      { x: 18, y: 16, item: 'birdLime', count: 1, flag: 'item_watergardens_3' },
+    ],
+  }),
+
+  pavilionOfOranges: makeHoldHall({
+    name: 'The Pavilion of Oranges', hold: 'waterGardens',
+    signs: [
+      { x: 8, y: 7, text: 'THE PAVILION OF ORANGES\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
+    ],
+    npcs: [
+      { x: 7, y: 2, dir: 'down', sprite: 'martell', name: 'Areo Hotah', script: 'duel',
+        data: { duel: 'dornishOutrider' } },
+      { x: 5, y: 3, dir: 'right', roams: true, sprite: 'martell', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'dornishOutrider' } },
+      { x: 11, y: 3, dir: 'left', roams: true, sprite: 'martell', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'dornishOutrider' } },
+      { x: 4, y: 7, dir: 'right', roams: true, sprite: 'martell', name: 'Corridor Watch',
+        script: 'duel', data: { duel: 'dornishOutrider' } },
+      { x: 8, y: 10, dir: 'down', sprite: 'goodwife', name: 'Cook',
+        script: 'hideoutLocal', data: { line: 'Cook: Take the larder. Take all of it. '
+          + 'I have cooked for whoever held this hall for nineteen years and not one '
+          + 'of them ever thanked me for it.' } },
+    ],
+    items: [
+      { x: 1, y: 2, item: 'valyrianShard', count: 1, flag: 'item_watergardens_h0' },
+      { x: 15, y: 2, item: 'huntersDraught', count: 1, flag: 'item_watergardens_h1' },
+      { x: 1, y: 10, item: 'stillwater', count: 1, flag: 'item_watergardens_h2' },
+      { x: 15, y: 10, item: 'boarTusk', count: 1, flag: 'item_watergardens_h3' },
+      { x: 5, y: 10, item: 'arakh', count: 1, flag: 'item_watergardens_h4' },
+      { x: 11, y: 10, item: 'lamellar', count: 1, flag: 'item_watergardens_h5' },
+    ],
+  }),
+
+  wreckersHold: makeHold({
+    name: 'Shipbreaker Cliffs', town: 'stormsEnd', townGate: [11, 25, 'up'], hall: 'wreckersHall',
+    ground: 'grass', wall: 'C', floor: '.', banner: 'V',
+    signs: [
+      { x: 11, y: 16, text: 'SHIPBREAKER BAY\nEvery hull that ever came at this coast is under it.\nSomebody has been going down after them.' },
+    ],
+    npcs: [
+      { x: 11, y: 15, dir: 'up', sprite: 'baratheon', name: 'Gate Sentry', script: 'duel',
+        data: { duel: 'manAtArms' } },
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'baratheon', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'baratheon', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'baratheon', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'baratheon', name: 'Yard Watch',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 18, y: 13, dir: 'left', sprite: 'smallfolk', name: 'Wrecker',
+        script: 'hideoutLocal', data: { line: 'We do not sink them. The bay does that. We only go down after and ask what they were carrying.' } },
+    ],
+    items: [
+      { x: 5, y: 9, item: 'ironScrap', count: 1, flag: 'item_wreckershold_0' },
+      { x: 18, y: 9, item: 'ashHaft', count: 1, flag: 'item_wreckershold_1' },
+      { x: 5, y: 16, item: 'frostTonic', count: 1, flag: 'item_wreckershold_2' },
+      { x: 18, y: 16, item: 'warhorn', count: 1, flag: 'item_wreckershold_3' },
+    ],
+  }),
+
+  wreckersHall: makeHoldHall({
+    name: 'The Wreckers\' Hall', hold: 'wreckersHold',
+    signs: [
+      { x: 8, y: 7, text: 'THE WRECKERS\' HALL\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
+    ],
+    npcs: [
+      { x: 7, y: 2, dir: 'down', sprite: 'sellsword', name: 'Wreck Captain', script: 'duel',
+        data: { duel: 'manAtArms' } },
+      { x: 5, y: 3, dir: 'right', roams: true, sprite: 'baratheon', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 11, y: 3, dir: 'left', roams: true, sprite: 'baratheon', name: 'Hall Guard',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 4, y: 7, dir: 'right', roams: true, sprite: 'baratheon', name: 'Corridor Watch',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 8, y: 10, dir: 'down', sprite: 'goodwife', name: 'Cook',
+        script: 'hideoutLocal', data: { line: 'Cook: Take the larder. Take all of it. '
+          + 'I have cooked for whoever held this hall for nineteen years and not one '
+          + 'of them ever thanked me for it.' } },
+    ],
+    items: [
+      { x: 1, y: 2, item: 'valyrianShard', count: 1, flag: 'item_wreckershold_h0' },
+      { x: 15, y: 2, item: 'maestersSalts', count: 1, flag: 'item_wreckershold_h1' },
+      { x: 1, y: 10, item: 'poppyMilk', count: 1, flag: 'item_wreckershold_h2' },
+      { x: 15, y: 10, item: 'boiledHide', count: 1, flag: 'item_wreckershold_h3' },
+      { x: 5, y: 10, item: 'warhammer', count: 1, flag: 'item_wreckershold_h4' },
+      { x: 11, y: 10, item: 'bandedMail', count: 1, flag: 'item_wreckershold_h5' },
+    ],
+  }),
+
+
 };
 
 /** Normalises rows to a rectangle and precomputes width/height. */
@@ -4262,6 +4886,16 @@ export const REGIONS = {
   hauntedForest: 'Beyond the Wall', fistOfTheFirstMen: 'Beyond the Wall',
   hollowHill: 'The Crownlands', stoneCrypt: 'The Reach',
   illyriosManse: 'Pentos', templeOfRhllor: 'Volantis', greatPyramid: 'Meereen',
+  /* The strongholds, each in the region whose town gate opens onto it. */
+  stoneCrowHold: 'The Vale', stoneCrowCave: 'The Vale',
+  seaDragonHold: 'Dragonstone', seaDragonVault: 'Dragonstone',
+  kennelHold: 'The North', flayedHall: 'The North',
+  sealordHold: 'Braavos', sealordPalace: 'Braavos',
+  cheesemongerHold: 'Pentos', cheesemongerCellar: 'Pentos',
+  blackWallHold: 'Volantis', elephantCourt: 'Volantis',
+  fightingPits: 'Meereen', pitMasterRooms: 'Meereen',
+  waterGardens: 'Dorne', pavilionOfOranges: 'Dorne',
+  wreckersHold: 'The Stormlands', wreckersHall: 'The Stormlands',
   dragonstone: 'Dragonstone', dragonmont: 'Dragonstone',
   dragonstoneArmoury: 'Dragonstone',
   maesterHallDragonstone: 'Dragonstone',

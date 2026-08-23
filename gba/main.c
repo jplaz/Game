@@ -2106,10 +2106,19 @@ static int foeLevel, foePurse;
 static int foeBeast = -1;        /* which animal you are facing, or -1 for a person */
 static int beastActed;           /* whether yours has already gone in this duel */
 static int beastSwinging;        /* and whether it is the one swinging right now */
+/* What a relic has left running. All three are spent inside the fight they were
+   used in and cleared when the yard comes down, so nothing carries over into
+   somebody else's duel. */
+static int snareEdge;            /* a doused net, worth this much more */
+static int theyBalk;             /* they lose their next go */
+static int mySureShots;          /* this many of your blows cannot miss */
 static int wildWanted = -1, wildLevel;   /* the animal a shift is carrying in */
 
 /* The screen the fight is fought on, once both sides are built. */
 static void openTheDuel(const char *intro) {
+  snareEdge = 0;
+  theyBalk = 0;
+  mySureShots = 0;
   duelOver = 0;
   duelMenu = 0;
   topPick = 0;
@@ -2281,7 +2290,10 @@ static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
     duelSay(0, scratch);
     return 0;
   }
-  if ((int)roll(100) >= t->accuracy) {
+  /* Somebody who has drunk the shade sees the blow before it is thrown, and
+     what you can see coming you do not miss. */
+  if (isYou && mySureShots) mySureShots--;
+  else if ((int)roll(100) >= t->accuracy) {
     sfxHit(0);
     startFx(isYou ? 0 : 1, FX_MISS);
     appendString(scratch, isYou ? " swing " : " swings ", sizeof scratch);
@@ -2908,7 +2920,7 @@ static int snareOdds(int snare) {
   int room = theirs.maxHp > 0 ? (int)udiv((u32)theirs.hp * 100, (u32)theirs.maxHp) : 100;
   int hurt = 100 - room;                       /* how far down it is, in hundredths */
   int base = 100 - beasts[foeBeast].hold;      /* how hard this kind is to hold */
-  int odds = (wares[snare].hold + (hurt >> 1)) - (base >> 2);
+  int odds = (wares[snare].hold + (hurt >> 1)) - (base >> 2) + snareEdge;
   /* A beast far above you knows what it is doing. */
   odds -= (theirs.level - you.level) * 2;
   if (odds < 3) odds = 3;
@@ -3187,6 +3199,65 @@ static int useInDuel(int at) {
         sizeof scratch);
       snareSaid = scratch;
     }
+    return 1;
+  }
+  /* A relic. Seven of them, each doing one thing that no sword does, each used
+     up doing it. This is what keeps a chest worth opening once you are already
+     wearing the best of everything in the world. */
+  if (wares[at].kind == WARE_RELIC && wares[at].relic) {
+    you.bag[at]--;
+    switch (wares[at].relic) {
+      case 1:                                   /* Hunter's Draught */
+        snareEdge = 25;
+        copyString(scratch, "You douse the net. Whatever you throw it over is "
+          "going to mind a good deal less.", sizeof scratch);
+        break;
+      case 2:                                   /* Ironwood Warhorn */
+        theirs.defending = 0;
+        theyBalk = 1;
+        copyString(scratch, "One long note off the ironwood. They spend the next "
+          "moment deciding whether to run, and lose it.", sizeof scratch);
+        break;
+      case 3:                                   /* Maester's Salts */
+        if (MY_BEAST.kind == 255) {
+          you.bag[at]++;
+          return 0;
+        }
+        MY_BEAST.hp = beastVigour(MY_BEAST.kind, MY_BEAST.level);
+        beastActed = 0;
+        copyString(scratch, "Under its nose, and it gets up. All of it gets up.",
+          sizeof scratch);
+        break;
+      case 4:                                   /* Shade of the Evening */
+        mySureShots = 2;
+        copyString(scratch, "Thick, blue, and it tastes of ink. You can see the "
+          "next two blows before they are thrown.", sizeof scratch);
+        break;
+      case 5: {                                 /* Wildfire */
+        int burn = 60 + you.level * 4;
+        theirs.hp -= burn;
+        if (theirs.hp < 0) theirs.hp = 0;
+        copyString(scratch, "The jar goes over and the green takes hold. ", sizeof scratch);
+        appendNumber(scratch, burn, sizeof scratch);
+        appendString(scratch, " damage, and it is still burning.", sizeof scratch);
+        break;
+      }
+      case 6:                                   /* Weirwood Paste */
+        you.hp = vigourFor(you.level);
+        mine.hp = you.hp;
+        copyString(scratch, "You see a great deal at once and remember almost "
+          "none of it. Everything that hurt has stopped.", sizeof scratch);
+        break;
+      default:                                  /* Dragonbinder */
+        beastActed = 0;
+        mySureShots = 3;
+        copyString(scratch, "Six feet of Valyrian horn, and the note costs you "
+          "something you will not miss until later.", sizeof scratch);
+        break;
+    }
+    snareSaid = scratch;
+    mine.hp = you.hp;
+    paintDuelPlates();
     return 1;
   }
   if (!useWare(at)) return 0;
@@ -3579,6 +3650,32 @@ static void raiseBeast(void) {
     }
     return;
   }
+  /* All six of them come on. The one out in front did the work and takes the
+     whole share; the rest walked the same road and take half. Six animals that
+     only ever level while they are the one in front is five animals you can
+     never afford to use, which is not a party - it is one beast and a cupboard.
+     Each carries its own experience and its own level and grows up on its own
+     schedule. */
+  {
+    int i, whole = 12 + foeLevel * 6;
+    for (i = 0; i < PARTY_MAX; i++) {
+      Kept *k = &you.party[i];
+      int share = (i == you.lead) ? whole : whole >> 1;
+      int wasLevel;
+      if (k->kind == 255 || i == you.lead) continue;
+      wasLevel = k->level;
+      k->exp = (u16)(k->exp + share);
+      while (k->level < 50 && k->exp >= beastExpFor(k->level + 1)) k->level++;
+      /* And they grow up in the pack, quietly, whether or not you were
+         watching. You find out on the card. */
+      if (k->level != wasLevel && beasts[k->kind].into != 255
+          && k->level >= beasts[k->kind].growAt) {
+        k->kind = beasts[k->kind].into;
+      }
+      if (k->hp < 1) k->hp = beastVigour(k->kind, k->level);
+    }
+  }
+
   b = MY_BEAST.kind;
   was = MY_BEAST.level;
   MY_BEAST.exp += (u16)(12 + foeLevel * 6);
@@ -3788,6 +3885,18 @@ static void readyBeast(void) {
 static void duelTurn(void) {
   /* Whichever of you is swinging on your side of it, and with what. */
   Fighter *me = beastSwinging ? &yours : &mine;
+  /* A horn blown in somebody's face costs them the go they were about to
+     take. It is spent the moment it is honoured. */
+  if (theyBalk) {
+    theyBalk = 0;
+    copyString(scratch, theirs.name, sizeof scratch);
+    appendString(scratch, " is still deciding whether to run, and the moment "
+      "goes past.", sizeof scratch);
+    duelSay(0, scratch);
+    duelPhase = DUEL_TOP;
+    beastSwinging = 0;
+    return;
+  }
   int myTech = beastSwinging ? beasts[MY_BEAST.kind].tech[roll(4)] : mine.tech[duelMenu];
   /* Both sides swing; who goes first is decided by swiftness. */
   if (duelPhase == DUEL_MINE) {

@@ -62,6 +62,10 @@ const MAP_IDS = [
   'volantis', 'templeOfRhllor', 'meereen', 'greatPyramid',
   // Two doors at the bottom of every town: the inn, and the house with the red
   // lamp over the door. Somewhere for the smallfolk to actually be.
+  // And what is under the eastern quarter of each of them.
+  'theEyrieCellar', 'highgardenCellar', 'sunspearCellar', 'stormsEndCellar',
+  'dragonstoneCellar', 'braavosCellar', 'pentosCellar', 'volantisCellar',
+  'meereenCellar', 'pykeCellar', 'dreadfortCellar',
   'theEyrieInn', 'theEyrieHouse', 'highgardenInn', 'highgardenHouse', 'sunspearInn', 'sunspearHouse',
   'stormsEndInn', 'stormsEndHouse', 'dragonstoneInn', 'dragonstoneHouse', 'braavosInn', 'braavosHouse',
   'pentosInn', 'pentosHouse', 'volantisInn', 'volantisHouse', 'meereenInn', 'meereenHouse',
@@ -111,7 +115,8 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const { WEAPONS, ARMOUR, SHIELDS, HELMS, GLOVES } = await import('/src/data/gear.js');
   const { HOUSES, SWEARABLE } = await import('/src/data/houses.js');
   const { TALES, TALE_ORDER, TALE_HOUSES } = await import('/src/data/tale.js');
-  const { MATERIALS, MATERIAL_IDS, SPOILS, FORAGE, RECIPES, SNARES, EGG_ITEMS } =
+  const { MATERIALS, MATERIAL_IDS, SPOILS, FORAGE, RECIPES, SNARES, EGG_ITEMS,
+          RELICS } =
     await import('/src/data/craft.js');
   const { SPECIES } = await import('/src/data/species.js');
   const { BEAST_TECHNIQUES, GROWS_INTO, NEVER_TAMED, EGGS, NESTS } =
@@ -392,6 +397,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
          than flagged by hand, so a new dragonglass weapon works the day it is
          written. */
       obsidian: /dragonglass|valyrian|ancestral/i.test(id) ? 1 : 0,
+      /* Which of the seven things a relic does. Read off the name so that a
+         relic added to the table works without touching the cartridge. */
+      relic: ['huntersDraught', 'warhorn', 'maestersSalts', 'shadeOfTheEvening',
+              'wildfire', 'weirwoodPaste', 'dragonHorn'].indexOf(id) + 1,
       techs: def.techniques ?? [],
     });
     return at;
@@ -423,6 +432,9 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   /* What you throw over an animal, and what you carry home from a nest. */
   for (const [id, def] of Object.entries(SNARES)) ware(id, def, 'snare');
   for (const [id, def] of Object.entries(EGG_ITEMS)) ware(id, def, 'egg');
+  /* And the relics, which are the reason a chest is still worth opening once
+     you are wearing the best of everything. */
+  for (const id of Object.keys(RELICS)) ware(id, RELICS[id], 'relic');
 
   const potions = wares.map((w, i) => (w.kind === 'potion' ? i : -1)).filter((i) => i >= 0);
   const forSale = {
@@ -436,7 +448,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   /* The recipe book, in ware numbers. */
   const wareOf = (id) => {
     for (const k of ['weapon', 'armour', 'shield', 'helm', 'gloves',
-                     'potion', 'stuff', 'snare', 'egg']) {
+                     'potion', 'stuff', 'snare', 'egg', 'relic']) {
       if (wareIndex.has(`${k}:${id}`)) return wareIndex.get(`${k}:${id}`);
     }
     throw new Error(`recipe makes ${id}, which is not a ware`);
@@ -700,7 +712,11 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         // A maester will put you back together. A maester will not fight you,
         // and neither will a child or a septa.
         heals: /healer|maester/i.test(n.script ?? '') || /Maester/.test(n.name ?? '') ? 1 : 0,
-        fights: ['child', 'girl', 'septa', 'maester', 'whitewalker'].includes(sprite) ? 0 : 1,
+        /* Who will not draw on you: children, and people sworn not to. A White
+           Walker was on this list, which meant the Night King and every risen
+           man on the Fist could be walked up to, spoken to and not fought - the
+           whole reason for going north was a conversation. */
+        fights: ['child', 'girl', 'septa', 'maester'].includes(sprite) ? 0 : 1,
         // Somebody whose whole purpose is to fight you draws when you speak to
         // them. Challenging was bound to SELECT, which is not a button anybody
         // presses at a lord standing in his own hall: a house leader would say
@@ -1183,24 +1199,25 @@ L.push('#define WARE_SNARE  5    /* thrown over an animal to take it alive */');
 L.push('#define WARE_EGG    6    /* carried until it is not an egg any more */');
 L.push('#define WARE_HELM   7');
 L.push('#define WARE_GLOVES 8');
-L.push('#define WARE_KINDS  9    /* how many kinds there are, worn or not */');
+L.push('#define WARE_RELIC  9    /* used up in a fight, and does what steel cannot */');
+L.push('#define WARE_KINDS  10   /* how many kinds there are, worn or not */');
 L.push('typedef struct {');
 L.push('  const char *name;');
 L.push('  u16 price, heal;');
-L.push('  u8 kind, might, guard, tier, hold, obsidian;');
+L.push('  u8 kind, might, guard, tier, hold, obsidian, relic;');
 L.push('  s8 swiftness;');
 L.push('  u8 tech[3], techCount;');
 L.push('} Ware;');
 L.push('static const Ware wares[WARE_COUNT] = {');
 {
   const kindOf = { potion: 0, weapon: 1, armour: 2, shield: 3, stuff: 4,
-                   snare: 5, egg: 6, helm: 7, gloves: 8 };
+                   snare: 5, egg: 6, helm: 7, gloves: 8, relic: 9 };
   // Which of the four looks a piece of armour puts you in.
   const LOOK = { gambeson: 0, boiledLeather: 1, ringmail: 2, scaleArmour: 2, knightPlate: 3 };
   for (const w of harvest.wares) {
     const techs = (w.techs ?? []).map((id) => techSlotOf(id)).filter((n) => n >= 0).slice(0, 3);
     L.push(`  { ${cstr(w.name)}, ${w.price}, ${Math.min(9999, w.heal)}, ${kindOf[w.kind]},`);
-    L.push(`    ${w.might}, ${w.guard}, ${LOOK[w.id] ?? 0}, ${w.hold ?? 0}, ${w.obsidian ?? 0}, ${w.swiftness},`);
+    L.push(`    ${w.might}, ${w.guard}, ${LOOK[w.id] ?? 0}, ${w.hold ?? 0}, ${w.obsidian ?? 0}, ${w.relic ?? 0}, ${w.swiftness},`);
     L.push(`    { ${[...techs, 0, 0, 0].slice(0, 3).join(', ')} }, ${techs.length} },`);
   }
 }

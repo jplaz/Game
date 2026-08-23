@@ -61,7 +61,7 @@ function maesterHall({ exitTo, exitX, exitY, stock, healerLine, merchantLine, ex
  */
 function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = '.',
                     roof = 'R', ridge = 'r', house = 'H', banner = 'V', dressing = [],
-                    shut = [],
+                    shut = [], quarter = 0,
                     encounters = [], warps = [], npcs = [], signs = [], items = [] }) {
   const W = wall;
   const g = floor;
@@ -127,9 +127,66 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
     W.repeat(11) + '-' + W.repeat(12),
   ];
 
-  /* Whatever this particular town has that no other one does: a rose bed, a
-     ruin, a pool. One plan drawn nine times is nine of the same town. */
+  /*
+   * The eastern quarter, and why no two towns look alike any more.
+   *
+   * The plan put four buildings down the west side and left eleven columns of
+   * open floor down the east, in every settlement in the world - so every town
+   * was the same town with a different roof on it. That ground is now a
+   * quarter, and there are five of them: a market, a sept, a graveyard, a
+   * training yard and a green. Underneath all five is the same thing, a stone
+   * cellar with a door at seventeen, seventeen, because a town wants somewhere
+   * worth breaking into and every town's door has to be in the same place for
+   * the map it opens onto to know where to put you back.
+   *
+   * A space leaves whatever was there alone.
+   */
+  const QUARTERS = [
+    [' KK     KK',
+     '          ',
+     ' KK     KK',
+     '  K     K '],
+    ['  pp p pp ',
+     '  pF w Fp ',
+     '  pp p pp ',
+     '          '],
+    [' U U   U U',
+     '   W   W  ',
+     ' U U   U U',
+     '          '],
+    [' ffff fff ',
+     ' f  l   f ',
+     ' f    a f ',
+     ' fff fff  '],
+    ['   ~~ ~~  ',
+     '  ~~~ ~~~ ',
+     '   ~~ ~~  ',
+     '  *   *   '],
+  ];
+  /* The same stone cellar under all five quarters, because the door has to be
+     in one place for the room it opens onto to know where to put you back. */
+  const CELLAR = ['  zzzzz  ',
+                  '  AAAAA  ',
+                  '  AADAA  '];
+
   const grid = tiles.map((r) => [...r]);
+  {
+    const plan = QUARTERS[quarter % QUARTERS.length];
+    const stamp = (art, atY) => art.forEach((line, j) => {
+      [...line].forEach((c, i) => {
+        if (c === ' ') return;
+        const x = 13 + i, y = atY + j;
+        if (grid[y] && grid[y][x] !== undefined) grid[y][x] = c;
+      });
+    });
+    /* The cellar sits above the quarter and below the keep's own row, clear of
+       both of the town's cross-streets - putting it on one of them cut the
+       eastern half of every settlement off from the western half. Every quarter
+       leaves the column under its door open so there is a way down to it. */
+    stamp(CELLAR, 9);
+    stamp(plan, 12);
+
+  }
   /* Never on open floor somebody is standing on, or a door leads to: a rose bed
      dropped on a fisherman walls him into the ground he is standing on, and the
      audit is the only thing that ever notices. */
@@ -143,14 +200,87 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
      it, presses A, and the game says nothing at all. Towns that have no room to
      spare behind a given building get a shuttered window there instead. */
   const SHUT = { hall: [6, 6], forge: [17, 6], keep: [7, 14],
-                 inn: [5, 21], house: [16, 21] };
+                 inn: [5, 21], house: [16, 21], cellar: [17, 11] };
   for (const which of shut) {
     const at = SHUT[which];
     if (at) grid[at[1]][at[0]] = 'w';
   }
+  /* A way down from the cellar door to the street below it, cut last of all -
+     after the quarter and after this town's own dressing, either of which will
+     otherwise put a pool or a rose bed in front of the door and make it a door
+     nobody can open. */
+  for (let y = 12; y <= 15; y++) if (grid[y]) grid[y][17] = g;
+
+  /* And anybody the new quarter has built on top of. The cellar and its roof
+     take three rows of ground that eleven towns had people standing on, and a
+     shopkeeper inside a wall is a shopkeeper nobody ever meets. */
+  const solidHere = (x, y) => {
+    const c = grid[y] && grid[y][x];
+    return c === undefined || !'.,S;-dso*i_=cb<%tm'.includes(c);
+  };
+  const nearestOpen = (x, y) => {
+    for (let r = 1; r < 8; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (!grid[ny] || grid[ny][nx] === undefined) continue;
+          if (!solidHere(nx, ny)) return [nx, ny];
+        }
+      }
+    }
+    return [x, y];
+  };
+  const movedNpcs = npcs.map((p) => {
+    if (!solidHere(p.x, p.y)) return p;
+    const at = nearestOpen(p.x, p.y);
+    return { ...p, x: at[0], y: at[1] };
+  });
+
   const laid = grid.map((r) => r.join(''));
 
-  return { name, music, ground, tiles: laid, encounters, warps, npcs, signs, items };
+  return { name, music, ground, tiles: laid, encounters, warps,
+           npcs: movedNpcs, signs, items };
+}
+
+/**
+ * What is under the eastern quarter of every town.
+ *
+ * Once you are wearing the best of everything in the world there is nothing
+ * left to open a chest for, and the game stops paying you for exploring at
+ * exactly the point you have most of it left. A cellar is the answer: two rare
+ * things in the dark, somebody who would rather you did not have them, and a
+ * different pair in every town.
+ */
+function makeCellar({ town, name, keeper, keeperDuel, line, loot }) {
+  return {
+    name, indoor: true, music: 'wild', ground: 'cave',
+    tiles: [
+      '@@@@@@@@@@@@@',
+      '@%%%%%%%%%%%@',
+      '@%@@%%%%%@@%@',
+      '@%@@%%%%%@@%@',
+      '@%%%%%F%%%%%@',
+      '@%@@%%%%%@@%@',
+      '@%@@%%%%%@@%@',
+      '@%%%%%%%%%%%@',
+      '@@@@@@%%@@@@@',
+      '@@@@@@%%@@@@@',
+    ],
+    warps: [
+      { x: 6, y: 9, to: town, dir: 'down', back: true },
+      { x: 7, y: 9, to: town, dir: 'down', back: true },
+    ],
+    npcs: [
+      { x: 6, y: 1, dir: 'down', sprite: 'sellsword', name: keeper,
+        script: 'duel', data: { duel: keeperDuel } },
+      { x: 3, y: 7, dir: 'right', sprite: 'oldman', name: 'Cellarman',
+        script: 'hideoutLocal', data: { line } },
+    ],
+    signs: [
+      { x: 6, y: 8, text: `${name.toUpperCase()}\nSomebody has been counting what is down here,\nand recently.` },
+    ],
+    items: loot,
+  };
 }
 
 /** Standard door and exit coordinates for a makeTown map. */
@@ -158,6 +288,7 @@ export const TOWN = {
   hallDoor: [6, 6], hallStand: [6, 7],
   shopDoor: [17, 6], shopStand: [17, 7],
   keepDoor: [7, 14], keepStand: [7, 15],
+  cellarDoor: [17, 11], cellarStand: [17, 12],
   innDoor: [5, 21], innStand: [5, 22],
   houseDoor: [16, 21], houseStand: [16, 22],
   north: [11, 0], northStand: [11, 1],
@@ -1173,6 +1304,7 @@ export const MAPS = {
   }),
 
   theEyrie: makeTown({
+    quarter: 0,
     banner: 'v',
     dressing: [[4, 1, 'i'], [5, 1, 'i'], [6, 1, 'i'], [17, 17, 'C'], [18, 17, 'C'],
                [5, 17, 'C'], [6, 18, 'C'], [19, 2, 'C'], [4, 2, 'i'], [18, 18, 'C'],
@@ -1180,6 +1312,7 @@ export const MAPS = {
     roof: 'G', ridge: 'g',
     name: 'The Eyrie', ground: 'stone', wall: 'C', floor: 'o', music: 'town',
     warps: [
+      { x: 17, y: 11, to: 'theEyrieCellar', tx: 6, ty: 8, dir: 'up' },
       { x: 5, y: 21, to: 'theEyrieInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'theEyrieHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 26, to: 'bloodyGate', tx: 11, ty: 1, dir: 'down' },
@@ -1287,6 +1420,7 @@ export const MAPS = {
   }),
 
   highgarden: makeTown({
+    quarter: 4,
     banner: 'V',
     dressing: [[4, 17, '*'], [5, 17, '*'], [6, 17, '*'], [7, 17, '*'], [4, 18, '*'],
                [5, 18, '*'], [6, 18, '*'], [15, 17, '*'], [16, 17, '*'], [17, 17, '*'],
@@ -1295,6 +1429,7 @@ export const MAPS = {
     roof: 'Y', ridge: 'y',
     name: 'Highgarden', ground: 'grass', music: 'town',
     warps: [
+      { x: 17, y: 11, to: 'highgardenCellar', tx: 6, ty: 8, dir: 'up' },
       { x: 5, y: 21, to: 'highgardenInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'highgardenHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 7, y: 14, to: 'highgardenKeep', tx: 7, ty: 8, dir: 'up' },
@@ -1395,6 +1530,7 @@ export const MAPS = {
   }),
 
   sunspear: makeTown({
+    quarter: 1,
     banner: 'V',
     dressing: [[14, 12, '~'], [15, 12, '~'], [16, 12, '~'], [14, 13, '~'], [15, 13, '~'],
                [16, 13, '~'], [4, 17, '#'], [7, 17, '#'], [5, 18, '*'], [17, 17, '#'],
@@ -1403,6 +1539,7 @@ export const MAPS = {
     roof: 'Q', ridge: 'q',
     name: 'Sunspear', ground: 'sand', wall: 'C', floor: 's', music: 'town',
     warps: [
+      { x: 17, y: 11, to: 'sunspearCellar', tx: 6, ty: 8, dir: 'up' },
       { x: 5, y: 21, to: 'sunspearInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'sunspearHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 7, y: 14, to: 'sunspearKeep', tx: 7, ty: 8, dir: 'up' },
@@ -1509,6 +1646,7 @@ export const MAPS = {
   }),
 
   stormsEnd: makeTown({
+    quarter: 3,
     banner: 'V',
     dressing: [[14, 17, '~'], [15, 17, '~'], [16, 17, '~'], [17, 17, '~'], [14, 18, '~'],
                [15, 18, '~'], [16, 18, '~'], [17, 18, '~'], [4, 17, 'U'], [5, 17, 'U'],
@@ -1517,6 +1655,7 @@ export const MAPS = {
     roof: 'G', ridge: 'g',
     name: "Storm's End", ground: 'grass', wall: 'C', music: 'town',
     warps: [
+      { x: 17, y: 11, to: 'stormsEndCellar', tx: 6, ty: 8, dir: 'up' },
       { x: 5, y: 21, to: 'stormsEndInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'stormsEndHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 7, y: 14, to: 'stormsEndKeep', tx: 7, ty: 8, dir: 'up' },
@@ -1577,6 +1716,7 @@ export const MAPS = {
   //  DRAGONSTONE
   // =========================================================================
   dragonstone: makeTown({
+    quarter: 1,
     banner: 'V',
     dressing: [[14, 17, 'U'], [15, 17, 'U'], [16, 17, 'U'], [14, 18, 'U'], [17, 17, 'U'],
                [4, 17, 'U'], [5, 17, 'U'], [6, 18, 'U'], [4, 18, 'U'], [20, 2, 'C'],
@@ -1585,6 +1725,7 @@ export const MAPS = {
     roof: 'Z', ridge: 'z',
     name: 'Dragonstone', ground: 'stone', wall: 'C', floor: 'o', music: 'battleBoss',
     warps: [
+      { x: 17, y: 11, to: 'dragonstoneCellar', tx: 6, ty: 8, dir: 'up' },
       { x: 5, y: 21, to: 'dragonstoneInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'dragonstoneHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 26, to: 'mudGate', tx: 9, ty: 7, dir: 'down' },
@@ -2485,6 +2626,7 @@ export const MAPS = {
   // Westerosi house you swore to, which is most of the point of going.
 
   braavos: makeTown({
+    quarter: 0,
     roof: 'G', ridge: 'g', shut: ['forge', 'keep'],
     // Canals rather than walls, which is the one thing everybody knows
     // about Braavos and makes it read as somewhere else at a glance.
@@ -2508,6 +2650,7 @@ export const MAPS = {
     ],
     signs: [{ x: 13, y: 10, text: 'THE TITAN OF BRAAVOS STANDS BEHIND YOU. IT IS THE ONLY THING THAT DOES.' }],
     warps: [
+      { x: 17, y: 11, to: 'braavosCellar', tx: 6, ty: 8, dir: 'up' },
       { x: 5, y: 21, to: 'braavosInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'braavosHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
@@ -2542,6 +2685,7 @@ export const MAPS = {
   },
 
   pentos: makeTown({
+    quarter: 0,
     roof: 'Q', ridge: 'q', shut: ['hall', 'forge'],
     name: 'Pentos', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
@@ -2560,6 +2704,7 @@ export const MAPS = {
     ],
     signs: [{ x: 13, y: 10, text: 'PENTOS. NO WALLS WORTH THE NAME, AND NO NEED OF THEM YET.' }],
     warps: [
+      { x: 17, y: 11, to: 'pentosCellar', tx: 6, ty: 8, dir: 'up' },
       { x: 5, y: 21, to: 'pentosInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'pentosHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
@@ -2568,6 +2713,7 @@ export const MAPS = {
   }),
 
   volantis: makeTown({
+    quarter: 1,
     roof: 'Q', ridge: 'q', shut: ['hall', 'forge'],
     name: 'Volantis', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
@@ -2587,6 +2733,7 @@ export const MAPS = {
     ],
     signs: [{ x: 13, y: 10, text: 'THE LONG BRIDGE. BUILT BY VALYRIA. NOBODY LEFT KNOWS HOW.' }],
     warps: [
+      { x: 17, y: 11, to: 'volantisCellar', tx: 6, ty: 8, dir: 'up' },
       { x: 5, y: 21, to: 'volantisInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'volantisHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
@@ -2595,6 +2742,7 @@ export const MAPS = {
   }),
 
   meereen: makeTown({
+    quarter: 2,
     roof: 'Q', ridge: 'q', shut: ['hall', 'forge'],
     name: 'Meereen', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
@@ -2614,6 +2762,7 @@ export const MAPS = {
     ],
     signs: [{ x: 13, y: 10, text: 'THE GREAT PYRAMID OF MEEREEN. A DRAGON QUEEN SITS AT THE TOP OF IT.' }],
     warps: [
+      { x: 17, y: 11, to: 'meereenCellar', tx: 6, ty: 8, dir: 'up' },
       { x: 5, y: 21, to: 'meereenInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'meereenHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
@@ -2904,6 +3053,7 @@ export const MAPS = {
   },
 
   pyke: makeTown({
+    quarter: 4,
     // A castle on broken rock, walled by the sea itself.
     roof: 'G', ridge: 'g', house: 'A', banner: 'v',
     name: 'Pyke', music: 'town', ground: 'stone', wall: '~', floor: 'o',
@@ -2930,6 +3080,7 @@ export const MAPS = {
       { x: 11, y: 10, text: 'PYKE\nSeat of House Greyjoy.\nWe Do Not Sow.' },
     ],
     warps: [
+      { x: 17, y: 11, to: 'pykeCellar', tx: 6, ty: 8, dir: 'up' },
       { x: 5, y: 21, to: 'pykeInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'pykeHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 0, to: 'pykeBridge', tx: 6, ty: 18, dir: 'up' },
@@ -3095,6 +3246,7 @@ export const MAPS = {
   }),
 
   dreadfort: makeTown({
+    quarter: 2,
     roof: 'Z', ridge: 'z', house: 'A', banner: 'v',
     name: 'The Dreadfort', music: 'town', ground: 'snow', wall: 'P', floor: 'S',
     dressing: [
@@ -3115,6 +3267,7 @@ export const MAPS = {
       { x: 11, y: 10, text: 'THE DREADFORT\nSeat of House Bolton.\nOur Blades are Sharp.' },
     ],
     warps: [
+      { x: 17, y: 11, to: 'dreadfortCellar', tx: 6, ty: 8, dir: 'up' },
       { x: 5, y: 21, to: 'dreadfortInn', tx: 6, ty: 10, dir: 'up' },
       { x: 16, y: 21, to: 'dreadfortHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 26, to: 'weepingWater', tx: 11, ty: 1, dir: 'down' },
@@ -3819,6 +3972,117 @@ export const MAPS = {
       { who: 'Kennel Girl', line: 'Kennel Girl: The girls are named after the last ones. There have been a lot of last ones.' },
       { who: 'Steward’s Son', line: 'Steward’s Son: I keep the accounts. I have learned to write very small numbers.' },
       { who: 'Northman', line: 'Northman: The North remembers. The Dreadfort remembers differently and writes it down.' },
+    ],
+  }),
+
+  // ------------------------------------------ what is under the towns ----
+  theEyrieCellar: makeCellar({
+    town: 'theEyrie', name: 'Falcon Cellar',
+    keeper: 'Sky Cell Keeper', keeperDuel: 'bronn',
+    line: 'Cellarman: The sky cells are up there. This is the other kind of hole.',
+    loot: [
+      { x: 2, y: 1, item: 'valyrianShard', count: 1, flag: 'item_eyrie_shard' },
+      { x: 10, y: 1, item: 'shadeOfTheEvening', count: 1, flag: 'item_eyrie_shade' },
+    ],
+  }),
+
+  highgardenCellar: makeCellar({
+    town: 'highgarden', name: 'Rose Cellar',
+    keeper: 'Vintner-at-Arms', keeperDuel: 'bronn',
+    line: 'Cellarman: Three hundred casks and one of them is not wine.',
+    loot: [
+      { x: 2, y: 1, item: 'weirwoodPaste', count: 1, flag: 'item_hg_paste' },
+      { x: 10, y: 1, item: 'huntersDraught', count: 1, flag: 'item_hg_draught' },
+    ],
+  }),
+
+  sunspearCellar: makeCellar({
+    town: 'sunspear', name: 'Sand Vault',
+    keeper: 'Shadow City Man', keeperDuel: 'bronn',
+    line: 'Cellarman: Cool down here. That is the whole of why Dorne digs.',
+    loot: [
+      { x: 2, y: 1, item: 'wildfire', count: 1, flag: 'item_ss_fire' },
+      { x: 10, y: 1, item: 'valyrianShard', count: 1, flag: 'item_ss_shard' },
+    ],
+  }),
+
+  stormsEndCellar: makeCellar({
+    town: 'stormsEnd', name: 'Storm Cellar',
+    keeper: 'Storm Sergeant', keeperDuel: 'bronn',
+    line: 'Cellarman: Four hundred years of weather and this room has never been wet.',
+    loot: [
+      { x: 2, y: 1, item: 'maestersSalts', count: 1, flag: 'item_se_salts' },
+      { x: 10, y: 1, item: 'warhorn', count: 1, flag: 'item_se_horn' },
+    ],
+  }),
+
+  dragonstoneCellar: makeCellar({
+    town: 'dragonstone', name: 'The Glass Vault',
+    keeper: 'Dragonstone Man', keeperDuel: 'bronn',
+    line: 'Cellarman: Obsidian, all of it, and the mountain keeps making more.',
+    loot: [
+      { x: 2, y: 1, item: 'dragonglass', count: 1, flag: 'item_ds_glass' },
+      { x: 10, y: 1, item: 'dragonHorn', count: 1, flag: 'item_ds_horn' },
+    ],
+  }),
+
+  braavosCellar: makeCellar({
+    town: 'braavos', name: 'The Iron Vault',
+    keeper: 'Bank Guard', keeperDuel: 'syrio',
+    line: 'Cellarman: The Iron Bank owns what is in here. It also owns what is not.',
+    loot: [
+      { x: 2, y: 1, item: 'valyrianMesh', count: 1, flag: 'item_br_mesh' },
+      { x: 10, y: 1, item: 'kingsRansom', count: 1, flag: 'item_br_ransom' },
+    ],
+  }),
+
+  pentosCellar: makeCellar({
+    town: 'pentos', name: 'Spice Cellar',
+    keeper: 'Cheesemonger Man', keeperDuel: 'bronn',
+    line: 'Cellarman: Cheese at the front, and behind it the reason for the cheese.',
+    loot: [
+      { x: 2, y: 1, item: 'shadeOfTheEvening', count: 1, flag: 'item_pe_shade' },
+      { x: 10, y: 1, item: 'huntersDraught', count: 1, flag: 'item_pe_draught' },
+    ],
+  }),
+
+  volantisCellar: makeCellar({
+    town: 'volantis', name: 'Temple Vault',
+    keeper: 'Tiger Cloak', keeperDuel: 'bronn',
+    line: 'Cellarman: The fire wants feeding and this is what it is fed.',
+    loot: [
+      { x: 2, y: 1, item: 'wildfire', count: 1, flag: 'item_vo_fire' },
+      { x: 10, y: 1, item: 'fireblood', count: 1, flag: 'item_vo_blood' },
+    ],
+  }),
+
+  meereenCellar: makeCellar({
+    town: 'meereen', name: 'Pyramid Vault',
+    keeper: 'Harpy\'s Man', keeperDuel: 'greyWorm',
+    line: 'Cellarman: Old Ghis buried its rich. Somebody has been unburying them.',
+    loot: [
+      { x: 2, y: 1, item: 'dragonchain', count: 1, flag: 'item_me_chain' },
+      { x: 10, y: 1, item: 'valyrianShard', count: 1, flag: 'item_me_shard' },
+    ],
+  }),
+
+  pykeCellar: makeCellar({
+    town: 'pyke', name: 'The Drowned Vault',
+    keeper: 'Reaver Captain', keeperDuel: 'bronn',
+    line: 'Cellarman: Everything down here was paid for at the iron price. Twice.',
+    loot: [
+      { x: 2, y: 1, item: 'greatNet', count: 1, flag: 'item_py_net' },
+      { x: 10, y: 1, item: 'valyrianMesh', count: 1, flag: 'item_py_mesh' },
+    ],
+  }),
+
+  dreadfortCellar: makeCellar({
+    town: 'dreadfort', name: 'The Kennel Vault',
+    keeper: 'Bolton Man', keeperDuel: 'ramsay',
+    line: 'Cellarman: Lord Roose keeps his accounts down here. And other things.',
+    loot: [
+      { x: 2, y: 1, item: 'weirwoodPaste', count: 1, flag: 'item_df_paste' },
+      { x: 10, y: 1, item: 'valyrianShard', count: 1, flag: 'item_df_shard' },
     ],
   }),
 

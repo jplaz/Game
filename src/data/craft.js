@@ -62,6 +62,10 @@ export const MATERIAL_IDS = Object.keys(MATERIALS);
  * rather than to hurt it.
  */
 export const SNARES = {
+  birdLime: {
+    name: 'Birdlime', price: 40, hold: 12,
+    desc: 'Boiled holly bark on a stick. It will hold a small thing that is very tired.',
+  },
   snare: {
     name: 'Wire Snare', price: 150, hold: 24,
     desc: 'A noose on a springer. Good for a hare, and for a wolf if it is tired enough.',
@@ -73,6 +77,54 @@ export const SNARES = {
   greatNet: {
     name: 'Kraken Net', price: 2400, hold: 74,
     desc: 'Ironborn work, made for hauling something up that did not want to come.',
+  },
+  valyrianMesh: {
+    name: 'Valyrian Mesh', price: 0, hold: 88,
+    desc: 'Rippled steel drawn into wire. Nobody sells it and nobody living can make more.',
+  },
+  dragonchain: {
+    name: 'Dragonchain', price: 0, hold: 96,
+    desc: 'Links the Targaryens used on things that could otherwise leave. It has held worse than this.',
+  },
+};
+
+/**
+ * The end of the loot ladder.
+ *
+ * Every item in this game was gear, and gear stops mattering the moment you are
+ * wearing the best of it - which by the end of the sigil ladder is a long time
+ * before the game runs out. These are the things worth still opening a chest
+ * for: they are used up rather than worn, they do things no piece of steel
+ * does, and the best of them cannot be bought at any price.
+ */
+export const RELICS = {
+  huntersDraught: {
+    name: "Hunter's Draught", price: 400, heal: 0, snareBoost: 25,
+    desc: 'Doused over a net before you throw it. Whatever you are throwing at minds a great deal less.',
+  },
+  warhorn: {
+    name: 'Ironwood Warhorn', price: 900, might: 0,
+    desc: 'One blast and whatever you are fighting spends the next few moments deciding whether to run.',
+  },
+  maestersSalts: {
+    name: "Maester's Salts", price: 650,
+    desc: 'Under the nose of something that has stopped getting up. It gets up.',
+  },
+  shadeOfTheEvening: {
+    name: 'Shade of the Evening', price: 1800,
+    desc: "Warlock's wine, thick and blue. You see the next blow before it is thrown.",
+  },
+  wildfire: {
+    name: 'Wildfire', price: 3000,
+    desc: 'A jar of green that burns on water and will not go out. The Guild will not say how much they have.',
+  },
+  weirwoodPaste: {
+    name: 'Weirwood Paste', price: 0,
+    desc: 'Ground seed and something else. Nobody who eats it will say what they saw.',
+  },
+  dragonHorn: {
+    name: 'Dragonbinder', price: 0,
+    desc: 'Valyrian glyphs down a horn six feet long. Blowing it costs the blower something.',
   },
 };
 
@@ -97,7 +149,7 @@ export const SPOILS = [
   { upTo: 19, drops: ['ironScrap', 'boiledHide', 'boarTusk', 'ashHaft', 'poppySeed'] },
   { upTo: 29, drops: ['ironScrap', 'boiledHide', 'boarTusk', 'direwolfPelt', 'poppySeed'] },
   { upTo: 38, drops: ['ironScrap', 'direwolfPelt', 'dragonglass', 'boarTusk', 'poppySeed'] },
-  { upTo: 99, drops: ['dragonglass', 'valyrianShard', 'fireblood', 'direwolfPelt', 'ironScrap'] },
+  { upTo: 99, drops: ['dragonglass', 'valyrianShard', 'fireblood', 'direwolfPelt', 'valyrianShard'] },
 ];
 
 /** And what is lying about in the long grass, which is mostly green things. */
@@ -189,4 +241,22 @@ export const RECIPES = [
   { at: 'forge', makes: 'snare',     gold: 60,   needs: [['ironScrap', 1], ['ashHaft', 1]] },
   { at: 'forge', makes: 'netTrap',   gold: 300,  needs: [['ironScrap', 3], ['boiledHide', 2]] },
   { at: 'forge', makes: 'greatNet',  gold: 1400, needs: [['ironScrap', 8], ['boiledHide', 6], ['direwolfPelt', 2]] },
+  { at: 'forge', makes: 'birdLime',  gold: 15,   needs: [['greenbriar', 2]] },
+  /* The last two are not for sale anywhere in the world. If you want to hold
+     the things that cannot be held, you make the thing that holds them. */
+  { at: 'forge', makes: 'valyrianMesh', gold: 4200,
+    needs: [['valyrianShard', 2], ['ironScrap', 10], ['direwolfPelt', 3]] },
+  { at: 'forge', makes: 'dragonchain',  gold: 7500,
+    needs: [['valyrianShard', 3], ['dragonglass', 6], ['fireblood', 1]] },
+
+  // ------------------------------------------------- what a maester keeps ---
+  // The other half of why a chest is still worth opening at level forty: none
+  // of this is worn, all of it is used up, and the last three cannot be bought.
+  { at: 'brew', makes: 'huntersDraught',    gold: 180,  needs: [['greenbriar', 2], ['boarTusk', 1]] },
+  { at: 'brew', makes: 'maestersSalts',     gold: 320,  needs: [['poppySeed', 3], ['greenbriar', 2]] },
+  { at: 'forge', makes: 'warhorn',          gold: 450,  needs: [['ashHaft', 3], ['boarTusk', 2]] },
+  { at: 'brew', makes: 'shadeOfTheEvening', gold: 900,  needs: [['poppySeed', 4], ['greenbriar', 5], ['dragonglass', 1]] },
+  { at: 'brew', makes: 'wildfire',          gold: 1600, needs: [['fireblood', 1], ['dragonglass', 3], ['poppySeed', 2]] },
+  { at: 'brew', makes: 'weirwoodPaste',     gold: 2600, needs: [['greenbriar', 8], ['direwolfPelt', 2], ['valyrianShard', 1]] },
+  { at: 'forge', makes: 'dragonHorn',       gold: 9000, needs: [['valyrianShard', 4], ['fireblood', 2], ['dragonglass', 8]] },
 ];

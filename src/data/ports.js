@@ -5,6 +5,8 @@
 
 export const PORTS = [
   { map: 'kingsLanding', name: "King's Landing", x: 11, y: 20, dir: 'down', fare: 400 },
+  { map: 'lordsportDocks', name: 'Lordsport', x: 11, y: 6, dir: 'down', fare: 350 },
+  { map: 'dragonstone', name: 'Dragonstone', x: 11, y: 18, dir: 'up', fare: 600 },
   { map: 'braavos', name: 'Braavos', x: 11, y: 18, dir: 'up', fare: 500 },
   { map: 'pentos', name: 'Pentos', x: 11, y: 18, dir: 'up', fare: 450 },
   { map: 'volantis', name: 'Volantis', x: 11, y: 18, dir: 'up', fare: 900 },

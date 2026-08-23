@@ -1604,6 +1604,11 @@ typedef struct {
   const char *name;
   int level, hp, maxHp, might, guard, swiftness;
   int defending;
+  /* Two facts about what is in this fighter's hands and what it is made of.
+     Steel does almost nothing to something that is already dead; obsidian and
+     Valyrian steel take it apart. It is the whole reason the Haunted Forest is
+     worth walking. */
+  int dead, obsidian;
   const u8 *tech;
 } Fighter;
 
@@ -1669,6 +1674,11 @@ static int computeDamage(const Fighter *a, const Fighter *d, const Tech *t, int 
   tells = biteTells(d, t);
   if (tells > 0) dmg = dmg * 15 / 10;
   else if (tells < 0) dmg = dmg * 7 / 10;
+  /* The dead do not care about a sword. Steel goes through them and they keep
+     coming; obsidian and Valyrian steel come apart in the wound and take them
+     with it. This is why there is dragonglass lying about on the Dragonmont and
+     in the snow north of the Wall, and why it is worth carrying home. */
+  if (d->dead) dmg = a->obsidian ? dmg * 5 / 2 : dmg * 2 / 5;
   *crit = (int)roll(100) < (t->highCrit ? 15 : 6);
   if (*crit) dmg = dmg * 18 / 10;
   if (d->defending) dmg >>= 1;
@@ -1926,6 +1936,8 @@ static void readyYourself(void) {
   reckonTechniques();
   mine.tech = myTechs;
   mine.defending = 0;
+  mine.dead = 0;
+  mine.obsidian = you.weapon && wares[you.weapon - 1].obsidian;
   beastActed = 0;
   /* And whatever is at your heel, if the other side is not itself an animal -
      there is only room in object memory for two of them at once. */
@@ -1954,6 +1966,8 @@ static void beginWild(int which, int level) {
   theirs.swiftness = beastSwift(which, foeLevel);
   theirs.tech = beasts[which].tech;
   theirs.defending = 0;
+  theirs.dead = beasts[which].dead;
+  theirs.obsidian = 0;
   loadBeastArt(which, FOE_BEAST_TILE, FOE_BEAST_BANK);
   readyYourself();
   copyString(scratch, "A ", sizeof scratch);
@@ -1990,6 +2004,8 @@ static void beginDuel(int duellist, int bank, int slot) {
   }
   theirs.tech = foeDef->tech;
   theirs.defending = 0;
+  theirs.dead = foeDef->dead;
+  theirs.obsidian = 0;
 
   /* They fight in what they are carrying, and what they are carrying is what
      you will be taking off them. That is what keeps the road level as you climb
@@ -2088,6 +2104,12 @@ static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
     } else if (tells < 0) {
       appendString(scratch, t->bite == 1 ? "  Nothing there to break."
                                          : "  The point turns on the plate.", sizeof scratch);
+    }
+    /* And the one thing that matters north of the Wall. */
+    if (target->dead) {
+      appendString(scratch, actor->obsidian
+        ? "  The obsidian goes in and stays in."
+        : "  Steel barely marks it. Something else is needed.", sizeof scratch);
     }
   }
   duelSay(0, scratch);
@@ -2494,6 +2516,10 @@ static void takeUpRecord(void) {
 
 static int menuPick, bagPick, shopPick, shopStall, bagInDuel;
 static int afterWindow;
+/* Set when the person you just spoke to was a harbourmaster: the passage
+   list opens once they have finished talking, the same way a counter does. */
+static int afterPort;
+static int portPick;
 static int afterDuel = -1;   /* the slot to draw on once their line is read */
 
 static int carrying(void) {
@@ -2751,6 +2777,64 @@ static void paintCraft(void) {
   }
 }
 
+/* Where a ship will take you.
+ *
+ * The Free Cities have been in the browser game since the beginning and have
+ * never been on the cartridge, because there was no way to get to them: the
+ * captain was a man standing on a deck with a line of dialogue. This is the
+ * line of dialogue turned into a berth list. The port you are standing in is
+ * not on it, and neither is one you cannot pay for - or rather it is on it, in
+ * grey, so you know what the next one costs.
+ */
+#define PORT_ROWS 5
+
+static int portHere(void) {
+  int i;
+  for (i = 0; i < PORT_COUNT; i++) if (ports[i].map == worldId) return i;
+  return -1;
+}
+
+static void paintPort(void) {
+  int i, row = 0, mine = portHere();
+  int top = portPick - (PORT_ROWS >> 1);
+  if (top > PORT_COUNT - PORT_ROWS) top = PORT_COUNT - PORT_ROWS;
+  if (top < 0) top = 0;
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
+  drawText(14, 6, "PASSAGE", C_GOLD);
+  showGold(6);
+  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+
+  for (i = 0; i < PORT_COUNT && row < PORT_ROWS; i++) {
+    int y, able;
+    if (i < top) continue;
+    y = 22 + row * 11;
+    able = i != mine && you.gold >= (int)ports[i].fare;
+    if (i == portPick) drawCursor(14, y + 1, C_GOLD);
+    drawText(24, y, ports[i].name,
+      !able ? C_DIM : (i == portPick ? C_GOLD : C_INK));
+    if (i == mine) {
+      drawText(TXT_W - 62, y, "you are here", C_DIM);
+    } else {
+      copyString(scratch, "", sizeof scratch);
+      appendNumber(scratch, (int)ports[i].fare, sizeof scratch);
+      drawText(TXT_W - 46, y, scratch, able ? C_GOLD : C_DIM);
+    }
+    row++;
+  }
+  drawText(14, TXT_H - 18, "A: sail    B: stay ashore", C_DIM);
+}
+
+/* Casts off, or says why not. */
+static const char *sailTo(int which) {
+  const Port *p = &ports[which];
+  if (p->map == worldId) return "You are already tied up here.";
+  if (you.gold < (int)p->fare) return "The captain looks at your purse and looks away.";
+  you.gold -= (int)p->fare;
+  enterMap(p->map, p->x, p->y, p->dir);
+  return 0;
+}
+
 /* Hands over the work, or says why not. */
 static const char *makeWare(int which) {
   const Recipe *r = &recipes[which];
@@ -2939,6 +3023,7 @@ static void paintTitle(void) {
 #define SCENE_SHOP 7
 #define SCENE_NAME 8
 #define SCENE_CRAFT 9
+#define SCENE_PORT 10
 
 static int scene;
 
@@ -3385,6 +3470,10 @@ static void readyBeast(void) {
   yours.swiftness = beastSwift(b, lv);
   yours.tech = beasts[b].tech;
   yours.defending = 0;
+  /* Your own animal is alive and has claws, not obsidian: it can hold a wight
+     off and it will not put one down. That is the point of carrying glass. */
+  yours.dead = beasts[b].dead;
+  yours.obsidian = 0;
 }
 
 static void duelTurn(void) {
@@ -3718,6 +3807,7 @@ static void tryTalk(void) {
     }
     openWindow(npc->name, scratch);
     if (npc->trade) { afterWindow = npc->trade; }
+    if (npc->sails) { afterPort = 1; }
     /* Somebody whose whole purpose is to fight you draws once they have said
        their piece. SELECT still challenges anybody at all; this is so that a
        lord in his own hall does not simply stand there after speaking. */
@@ -4143,6 +4233,23 @@ int main(void) {
         openWindow(0, said);
         afterWindow = shopStall + 1;
       }
+    } else if (scene == SCENE_PORT) {
+      int was = portPick;
+      if (hit(KEY_UP) && portPick > 0) portPick--;
+      if (hit(KEY_DOWN) && portPick < PORT_COUNT - 1) portPick++;
+      if (portPick != was) { sfxPick(); paintPort(); }
+      if (hit(KEY_B)) {
+        scene = SCENE_WORLD;
+        clearPage();
+        layoutTextRows(TEXT_PLAY);
+      } else if (hit(KEY_A)) {
+        const char *said = sailTo(portPick);
+        scene = SCENE_WORLD;
+        clearPage();
+        layoutTextRows(TEXT_PLAY);
+        if (said) openWindow(0, said);
+        else sfxRank();
+      }
     } else if (scene == SCENE_SHOP) {
       const Stall *stall = &stalls[shopStall];
       int was = shopPick;
@@ -4280,6 +4387,14 @@ int main(void) {
               afterDuel = -1;
               afterWindow = 0;
               callToArms(world->npcs[who].duellist, world->npcs[who].bank, who);
+            } else if (afterPort) {
+              int mine = portHere();
+              afterPort = 0;
+              portPick = (mine == 0 && PORT_COUNT > 1) ? 1 : 0;
+              scene = SCENE_PORT;
+              clearPage();
+              layoutTextRows(TEXT_TOP);
+              paintPort();
             } else if (afterWindow) {
               shopStall = afterWindow - 1;
               afterWindow = 0;

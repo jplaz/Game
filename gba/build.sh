@@ -23,7 +23,7 @@ printf '#define BUILD_STAMP "%s"\n' "$(date -u +%Y-%m-%d\ %H:%M)" > build.h
 # it when the sources have moved on silently tests the last world rather than
 # this one - and that failure looks exactly like "nothing I changed mattered",
 # which is the worst thing a test can say.
-if [ -n "$(find ../src ../tools export.mjs -newer data.h 2>/dev/null | head -1)" ]; then
+if [ ! -f data.h ] || [ -n "$(find ../src ../tools export.mjs -newer data.h 2>/dev/null | head -1)" ]; then
   echo "data.h is behind the sources. Re-exporting."
   # export.mjs serves the repository over http for the browser painters, so it
   # has to be run from the root rather than from here.

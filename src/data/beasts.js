@@ -76,4 +76,9 @@ export const NESTS = {
   beyondTheWall: ['direwolfPup'],
   barrowCave: ['direwolfPup'],
   wolfswood: ['direwolfPup'],
+  /* The far north, and the one place a dragon egg is found outside Targaryen
+     ground - Valyria's people put ships in a lot of places. */
+  fistOfTheFirstMen: ['direwolfPup'],
+  seaCave: ['dragonEgg'],
+  hauntedForest: ['direwolfPup'],
 };

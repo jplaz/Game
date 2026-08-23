@@ -747,6 +747,32 @@ export const SCRIPTS = {
     }
   },
 
+  // ----------------------------------------------------- the Iron Islands --
+  async shoreHint({ say }) {
+    await say('Salt Wife: There is a hole in the cliff off the path. Smugglers use it.');
+    await say('Salt Wife: They will not thank you for finding it. Nothing here thanks anybody.');
+  },
+
+  async bridgeHint({ say }) {
+    await say('Bridgekeeper: Three stacks, two bridges, one rope apiece that anybody has checked.');
+    await say('Bridgekeeper: Do not look down. That is not superstition, it is advice.');
+  },
+
+  /** Somebody on Pyke or at Lordsport with something to say about the rock. */
+  async pykeLocal({ say, npc }) {
+    await say(npc.data?.line ?? `${npc.name} looks at the sea instead of at you.`);
+  },
+
+  /** And somebody in the Dreadfort, saying as little as they can get away with. */
+  async dreadfortLocal({ say, npc }) {
+    await say(npc.data?.line ?? `${npc.name} does not look up.`);
+  },
+
+  /** Somebody in a hole in the ground who did not expect company. */
+  async hideoutLocal({ say, npc }) {
+    await say(npc.data?.line ?? `${npc.name} keeps one hand on a knife the whole time.`);
+  },
+
   // ------------------------------------------------------------ Gold Road --
   async goldRoadHint({ say }) {
     await say('Miner: The barrow-cave west of the road goes deeper than anyone has mapped.');

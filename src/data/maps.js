@@ -13,6 +13,11 @@
 // Shared interior: every settlement has a Maester's Hall that both heals your
 // party and sells supplies. One layout, instantiated per town.
 // ---------------------------------------------------------------------------
+/* Every tile you can stand on, which is every tile the legend calls floor,
+   encounter or ledge. Kept here rather than derived from the art so that the
+   map layer does not have to load the painters to know where the ground is. */
+const STANDABLE = new Set([...'.,S;-dsoi*L_=cb<%tmD']);
+
 const MAESTER_HALL_TILES = [
   'IIIIIIIIIIII',
   'IN=B===B=B=I',
@@ -56,6 +61,7 @@ function maesterHall({ exitTo, exitX, exitY, stock, healerLine, merchantLine, ex
  */
 function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = '.',
                     roof = 'R', ridge = 'r', house = 'H', banner = 'V', dressing = [],
+                    shut = [],
                     encounters = [], warps = [], npcs = [], signs = [], items = [] }) {
   const W = wall;
   const g = floor;
@@ -118,6 +124,14 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
     if (!grid[y] || grid[y][x] !== g || taken.has(`${x},${y}`)) continue;
     grid[y][x] = char;
   }
+  /* A door with nothing behind it is worse than a wall: the player walks up to
+     it, presses A, and the game says nothing at all. Towns that have no room to
+     spare behind a given building get a shuttered window there instead. */
+  const SHUT = { hall: [6, 6], forge: [17, 6], keep: [7, 14] };
+  for (const which of shut) {
+    const at = SHUT[which];
+    if (at) grid[at[1]][at[0]] = 'w';
+  }
   const laid = grid.map((r) => r.join(''));
 
   return { name, music, ground, tiles: laid, encounters, warps, npcs, signs, items };
@@ -140,47 +154,276 @@ export const TOWN = {
  * features: [{ type, x, y, w, h }] where type is one of
  *   grass | trees | water | cliff | ledge | flowers | sand | rubble
  */
+/**
+ * A road between two places.
+ *
+ * Every route in this game used to be a rectangle of open field with a straight
+ * dirt line painted down the middle of it: you could see the far gate from the
+ * near one and walk to it without turning. This carves instead. A trunk path
+ * wanders down the map, jogging left and right, with dead-end spurs off it that
+ * are worth walking because there is something at the end, clearings of long
+ * grass where things are hiding, and - if the caller asks for one - a river
+ * across the whole width with a plank bridge where the road meets it.
+ *
+ * It is carved from a fixed seed, so it is the same road every time you play
+ * and every time the cartridge is built, and it is carved outwards from a
+ * single connected line, so there is no such thing as a pocket you cannot reach.
+ *
+ * `features` still work: they are painted on afterwards over open ground only,
+ * so a caller asking for a patch of ice gets ice where there is room for it and
+ * never a wall across the road. Everything the caller places by coordinate -
+ * people, signs, what is in the ground - is moved to the nearest tile that
+ * makes sense, because a coordinate written for a rectangle is meaningless once
+ * the rectangle has a forest in it.
+ */
 function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor = '.',
-                     grass = ',', road = 10, width = 20, height = 24,
+                     grass = ',', road = 11, width = 24, height = 30, seed = 1,
+                     river = 0, spurs = 4, indoor = false,
                      features = [], encounters = [], warps = [], npcs = [],
                      signs = [], items = [] }) {
   const CHAR = {
     grass, trees: wall, water: '~', cliff: 'C', ledge: 'L',
     flowers: '*', sand: 's', rubble: 'U', ice: 'i', snow: 'S', sign: '!',
+    bridge: 't', sky: '^', floor,
   };
 
-  const grid = [];
-  for (let y = 0; y < height; y++) {
-    grid.push(new Array(width).fill(floor));
+  let n = (seed * 2654435761) >>> 0;
+  const roll = (k) => {
+    n = (Math.imul(n ^ (n >>> 15), 2246822519) + 374761393) >>> 0;
+    return (n >>> 9) % k;
+  };
+
+  const g = [];
+  for (let y = 0; y < height; y++) g.push(new Array(width).fill(wall));
+
+  // ---- the trunk ---------------------------------------------------------
+  // A single connected centre line from the top gate to the bottom one. It is
+  // widened afterwards rather than carved wide, which is what guarantees that
+  // everything joins up.
+  const line = [];
+  const spine = [];                       // where the road tile itself goes
+  let cx = road, y = 0, side = 1;
+  for (; y < 3; y++) { line.push([road, y]); spine.push([road, y]); }
+  while (y < height - 4) {
+    const run = 2 + roll(4);
+    for (let i = 0; i < run && y < height - 4; i++, y++) {
+      line.push([cx, y]); spine.push([cx, y]);
+    }
+    if (y >= height - 4) break;
+    // Jog. Alternating sides, so the road swings across the map instead of
+    // wobbling about in one lane, and far enough each time to be a turn rather
+    // than a stagger.
+    side = -side;
+    let want = side < 0 ? 3 + roll(Math.max(1, road - 4))
+                        : road + 2 + roll(Math.max(1, width - road - 5));
+    if (Math.abs(want - cx) < 4) want = cx + (side < 0 ? -4 : 4);
+    want = Math.max(3, Math.min(width - 4, want));
+    const step = want > cx ? 1 : -1;
+    for (let x = cx; x !== want; x += step) { line.push([x, y]); spine.push([x, y]); }
+    cx = want;
+    line.push([cx, y]); spine.push([cx, y]);
+    y++;
   }
-  // Side walls and the road.
-  for (let y = 0; y < height; y++) {
-    grid[y][0] = wall;
-    grid[y][width - 1] = wall;
-    grid[y][road] = 'd';
-  }
-  // Sealed ends with a gap for the road.
-  for (let x = 0; x < width; x++) {
-    if (x !== road) { grid[0][x] = wall; grid[height - 1][x] = wall; }
+  // Home to the far gate.
+  {
+    const step = road > cx ? 1 : -1;
+    for (let x = cx; x !== road; x += step) { line.push([x, y]); spine.push([x, y]); }
+    for (; y < height; y++) { line.push([road, y]); spine.push([road, y]); }
   }
 
+  // ---- spurs -------------------------------------------------------------
+  // Dead ends off the trunk. Each one finishes in a pocket, and the pockets are
+  // where anything the caller buried in this route ends up.
+  const pockets = [];
+  for (let s = 0; s < spurs; s++) {
+    const from = line[6 + roll(Math.max(1, line.length - 12))];
+    const [sx, sy] = from;
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    const [dx, dy] = dirs[roll(4)];
+    const len = 3 + roll(4);
+    let px = sx, py = sy, ok = true;
+    const run = [];
+    for (let i = 0; i < len; i++) {
+      px += dx; py += dy;
+      if (px < 3 || px > width - 4 || py < 3 || py > height - 4) { ok = false; break; }
+      run.push([px, py]);
+    }
+    if (!ok || run.length < 3) continue;
+    for (const cell of run) line.push(cell);
+    pockets.push([px, py]);
+  }
+
+  // ---- clearings ---------------------------------------------------------
+  // Rooms hanging off the trunk. A route made only of corridors is a tunnel;
+  // these are where the long grass goes and where anything comes at you from.
+  const glades = [];
+  for (let c = 0; c < 3; c++) {
+    const [gx, gy] = line[8 + roll(Math.max(1, line.length - 16))];
+    const w = 4 + roll(3), h = 3 + roll(3);
+    const x0 = Math.max(2, Math.min(width - 2 - w, gx - (w >> 1)));
+    const y0 = Math.max(2, Math.min(height - 2 - h, gy - (h >> 1)));
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) line.push([x0 + i, y0 + j]);
+    glades.push([x0 + (w >> 1), y0 + (h >> 1)]);
+  }
+
+  // ---- widen -------------------------------------------------------------
+  const open = (x, yy, ch) => {
+    if (x < 1 || x > width - 2 || yy < 1 || yy > height - 2) return;
+    g[yy][x] = ch;
+  };
+  for (const [x, yy] of line) {
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) open(x + i, yy + j, floor);
+  }
+  // The two gates, which sit on the border rows the widener will not touch.
+  g[0][road] = 'd';
+  g[height - 1][road] = 'd';
+  for (const [x, yy] of spine) if (yy > 0 && yy < height - 1) g[yy][x] = 'd';
+
+  // ---- long grass --------------------------------------------------------
+  // Along the shoulders, thickening at the dead ends: something worth beating
+  // through rather than a lawn with a path mown across it.
+  for (let yy = 2; yy < height - 2; yy++) {
+    for (let x = 2; x < width - 2; x++) {
+      if (g[yy][x] !== floor) continue;
+      if (roll(100) < 34) g[yy][x] = grass;
+    }
+  }
+  for (const [px, py] of pockets) {
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+      if (g[py + j] && g[py + j][px + i] === floor) g[py + j][px + i] = grass;
+    }
+  }
+
+  // ---- a river, and the plank over it ------------------------------------
+  if (river > 2 && river < height - 3) {
+    const crossings = [];
+    for (let x = 1; x < width - 1; x++) {
+      const wasOpen = g[river][x] !== wall;
+      g[river][x] = wasOpen ? 't' : '~';
+      if (wasOpen) crossings.push(x);
+    }
+    // The banks either side of the plank, so the bridge has something to land
+    // on rather than ending in a tree.
+    for (const x of crossings) {
+      if (g[river - 1][x] === wall) g[river - 1][x] = floor;
+      if (g[river + 1][x] === wall) g[river + 1][x] = floor;
+    }
+  }
+
+  // ---- features, painted over open ground only ---------------------------
   for (const f of features) {
     const char = CHAR[f.type] ?? floor;
-    for (let y = f.y; y < f.y + (f.h ?? 1); y++) {
+    for (let yy = f.y; yy < f.y + (f.h ?? 1); yy++) {
       for (let x = f.x; x < f.x + (f.w ?? 1); x++) {
-        // Never build over the road or the border; a feature that would block
-        // the route is clipped rather than sealing the map.
-        if (y <= 0 || y >= height - 1 || x <= 0 || x >= width - 1) continue;
-        if (x === road) continue;
-        grid[y][x] = char;
+        if (yy <= 0 || yy >= height - 1 || x <= 0 || x >= width - 1) continue;
+        const at = g[yy][x];
+        // Never over the road, the water or a wall: a feature decorates the
+        // ground somebody can already stand on.
+        if (at !== floor && at !== grass) continue;
+        g[yy][x] = char;
       }
     }
   }
 
+  // ---- everything must join up -------------------------------------------
+  // A feature can be asked for across ground the road needs - a caller writes
+  // a lake by eye and does not know where the road went. Flood from the near
+  // gate; anything walkable the flood does not reach is grown over, so there is
+  // no such thing as a clearing you can see and cannot get to, and the map
+  // refuses to build at all if the two gates have come apart.
+  const WALKABLE = new Set([floor, grass, ...STANDABLE]);
+  {
+    const seen = new Array(width * height).fill(false);
+    const queue = [[road, 0]];
+    seen[road] = true;
+    for (let head = 0; head < queue.length; head++) {
+      const [qx, qy] = queue[head];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = qx + dx, ny = qy + dy;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        if (seen[ny * width + nx] || !WALKABLE.has(g[ny][nx])) continue;
+        seen[ny * width + nx] = true;
+        queue.push([nx, ny]);
+      }
+    }
+    if (!seen[(height - 1) * width + road]) {
+      throw new Error(`${name}: the road does not reach the far gate`);
+    }
+    for (let yy = 1; yy < height - 1; yy++) {
+      for (let x = 1; x < width - 1; x++) {
+        if (WALKABLE.has(g[yy][x]) && !seen[yy * width + x]) g[yy][x] = wall;
+      }
+    }
+  }
+
+  // ---- putting the caller's coordinates somewhere real -------------------
+  const inside = (x, yy) => x >= 1 && x < width - 1 && yy >= 1 && yy < height - 1;
+  /** The nearest tile to (x, y) that `want` accepts, breadth-first. */
+  const nearest = (x, yy, want) => {
+    const seen = new Set([`${x},${yy}`]);
+    const queue = [[Math.max(1, Math.min(width - 2, x)), Math.max(1, Math.min(height - 2, yy))]];
+    for (let head = 0; head < queue.length; head++) {
+      const [qx, qy] = queue[head];
+      if (inside(qx, qy) && want(qx, qy)) return [qx, qy];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = qx + dx, ny = qy + dy;
+        if (!inside(nx, ny) || seen.has(`${nx},${ny}`)) continue;
+        seen.add(`${nx},${ny}`);
+        queue.push([nx, ny]);
+      }
+    }
+    return null;
+  };
+  const walkable = (x, yy) => WALKABLE.has(g[yy][x]);
+  const shoulder = (x, yy) => walkable(x, yy) && g[yy][x] !== 'd' && g[yy][x] !== 't';
+
+  // People stand at the side of the road, never in the middle of it: a person
+  // on the centre line of a three-wide corridor is a toll gate.
+  const placedNpcs = npcs.map((p) => {
+    const at = nearest(p.x, p.y, shoulder) ?? nearest(p.x, p.y, walkable);
+    return at ? { ...p, x: at[0], y: at[1] } : p;
+  });
+
+  // A sign is read by facing it, so it wants to be a solid tile with open
+  // ground beside it.
+  const placedSigns = signs.map((s) => {
+    const at = nearest(s.x, s.y, (x, yy) => g[yy][x] === wall
+      && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) =>
+        inside(x + dx, yy + dy) && walkable(x + dx, yy + dy)));
+    if (!at) return s;
+    g[at[1]][at[0]] = '!';
+    return { ...s, x: at[0], y: at[1] };
+  });
+
+  // What is buried here goes in a dead end, in the order the caller listed it,
+  // because the reason to walk down a spur is that there is something at the
+  // bottom of it.
+  const placedItems = items.map((it, i) => {
+    const aim = pockets[i % Math.max(1, pockets.length)] ?? [it.x, it.y];
+    const at = nearest(aim[0], aim[1], (x, yy) => walkable(x, yy) && g[yy][x] !== 'd'
+      && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) =>
+        inside(x + dx, yy + dy) && walkable(x + dx, yy + dy) && g[yy + dy][x + dx] !== 'j'));
+    if (!at) return it;
+    g[at[1]][at[0]] = 'j';
+    return { ...it, x: at[0], y: at[1] };
+  });
+
+  // A door in the side of a route cannot be written down in advance either: the
+  // caller says "a cave, about here", and here is wherever the carving left
+  // ground. The two gates are fixed; everything else moves to meet the road.
+  const placedWarps = warps.map((w) => {
+    if (w.y === 0 || w.y === height - 1) return w;
+    const at = nearest(w.x, w.y, shoulder) ?? nearest(w.x, w.y, walkable);
+    if (!at) return w;
+    if (w.cave) g[at[1]][at[0]] = '%';
+    return { ...w, x: at[0], y: at[1] };
+  });
+
   return {
-    name, music, ground,
-    tiles: grid.map((r) => r.join('')),
-    encounters, warps, npcs, signs, items,
+    name, music, ground, indoor,
+    tiles: g.map((r) => r.join('')),
+    encounters, warps: placedWarps, npcs: placedNpcs,
+    signs: placedSigns, items: placedItems,
   };
 }
 
@@ -362,7 +605,7 @@ export const MAPS = {
       'MSSSSSSSSSSS-SSSSSSSSSSM',
       'MSSggggggSSS-SSSggggSSSM',
       'MSSGGGGGGSSS-SSSGGGGSSSM',
-      'MSSGGGGGGSSS-SSSHDHwSSSM',
+      'MSSGGGGGGSSS-SSSHDHwSSS-',
       'vSSpepDpwSSS-SSSSSSSSSSv',
       'MSSSSS-SSSSS-SSSSSSSSSSM',
       'MSS------------------SSM',
@@ -384,7 +627,8 @@ export const MAPS = {
       { x: 12, y: 6, to: 'greatKeep', tx: 8, ty: 13, dir: 'up' },
       { x: 10, y: 6, to: 'winterfellForge', tx: 5, ty: 6, dir: 'up' },
       { x: 12, y: 19, to: 'wolfswood', tx: 10, ty: 1, dir: 'down' },
-      { x: 12, y: 0, to: 'kingsroadNorth', tx: 10, ty: 22, dir: 'up' },
+      { x: 12, y: 0, to: 'kingsroadNorth', tx: 11, ty: 28, dir: 'up' },
+      { x: 23, y: 12, to: 'weepingWater', tx: 11, ty: 28, dir: 'right' },
     ],
     signs: [
       { x: 9, y: 7, text: 'THE GREAT KEEP OF WINTERFELL\nSeat of House Stark.\nSigil-holder: LORD RICKARD.' },
@@ -491,6 +735,7 @@ export const MAPS = {
   //  THE NORTH — the kingsroad up to the Wall
   // =========================================================================
   kingsroadNorth: makeRoute({
+    seed: 0x31A7, spurs: 5,
     name: 'The Kingsroad North', ground: 'snow', wall: 'P', floor: 'S', grass: ';',
     music: 'wild',
     features: [
@@ -513,8 +758,8 @@ export const MAPS = {
       { beast: 'falconet', min: 13, max: 17, weight: 12 },
     ],
     warps: [
-      { x: 10, y: 0, to: 'castleBlack', tx: 11, ty: 18, dir: 'up' },
-      { x: 10, y: 23, to: 'winterfell', tx: 12, ty: 1, dir: 'down' },
+      { x: 11, y: 0, to: 'castleBlack', tx: 11, ty: 18, dir: 'up' },
+      { x: 11, y: 29, to: 'winterfell', tx: 12, ty: 1, dir: 'down' },
     ],
     npcs: [
       { x: 6, y: 8, dir: 'right', sprite: 'nightswatch', name: 'Ranger', script: 'trainer',
@@ -560,8 +805,8 @@ export const MAPS = {
       'PPPPPPPPPPP-PPPPPPPPPPPP',
     ],
     warps: [
-      { x: 11, y: 19, to: 'kingsroadNorth', tx: 10, ty: 1, dir: 'down' },
-      { x: 11, y: 0, to: 'beyondTheWall', tx: 10, ty: 22, dir: 'up' },
+      { x: 11, y: 19, to: 'kingsroadNorth', tx: 11, ty: 1, dir: 'down' },
+      { x: 11, y: 0, to: 'beyondTheWall', tx: 11, ty: 28, dir: 'up' },
       { x: 4, y: 7, to: 'maesterHallCastleBlack', tx: 5, ty: 7, dir: 'up' },
       { x: 18, y: 7, to: 'castleBlackArmoury', tx: 5, ty: 6, dir: 'up' },
       { x: 5, y: 14, to: 'castleBlackHall', tx: 5, ty: 6, dir: 'up' },
@@ -621,7 +866,7 @@ export const MAPS = {
       'IIIIIIIIIIIIIIIII',
       'I==============II',
       'I===cccccccc===II',
-      'I===cccXccc c==II',
+      'I===cccXccccc==II',
       'I===cccccccc===II',
       'I=B============II',
       'I=B====TT======II',
@@ -715,8 +960,9 @@ export const MAPS = {
   },
 
   beyondTheWall: makeRoute({
+    seed: 0x9C11, spurs: 6,
     name: 'Beyond the Wall', ground: 'snow', wall: 'P', floor: 'S', grass: ';',
-    music: 'wild', height: 24,
+    music: 'wild',
     features: [
       { type: 'sign', x: 8, y: 21 },
       { type: 'ice', x: 2, y: 2, w: 7, h: 3 },
@@ -737,7 +983,8 @@ export const MAPS = {
       { beast: 'palewalker', min: 34, max: 39, weight: 6 },
     ],
     warps: [
-      { x: 10, y: 23, to: 'castleBlack', tx: 11, ty: 1, dir: 'down' },
+      { x: 11, y: 29, to: 'castleBlack', tx: 11, ty: 1, dir: 'down' },
+      { x: 11, y: 0, to: 'hauntedForest', tx: 11, ty: 28, dir: 'up' },
     ],
     signs: [
       { x: 8, y: 21, text: 'Somebody has driven a spear into the ice here.\nThere is no message. The message is the spear.' },
@@ -759,6 +1006,7 @@ export const MAPS = {
   //  THE VALE
   // =========================================================================
   bloodyGate: makeRoute({
+    seed: 0x4D82, spurs: 4, river: 14,
     name: 'The Bloody Gate', ground: 'grass', wall: 'C', music: 'route',
     features: [
       { type: 'sign', x: 8, y: 21 },
@@ -782,14 +1030,14 @@ export const MAPS = {
       { beast: 'crabcrag', min: 23, max: 27, weight: 10 },
     ],
     warps: [
-      { x: 10, y: 23, to: 'riverlands', tx: 18, ty: 12, dir: 'down' },
-      { x: 10, y: 0, to: 'theEyrie', tx: 11, ty: 18, dir: 'up' },
+      { x: 11, y: 29, to: 'riverlands', tx: 18, ty: 12, dir: 'down' },
+      { x: 11, y: 0, to: 'theEyrie', tx: 11, ty: 18, dir: 'up' },
     ],
     signs: [
       { x: 8, y: 21, text: 'THE BLOODY GATE\n"You may not pass."\nSomeone has scratched: "unless"' },
     ],
     npcs: [
-      { x: 6, y: 10, dir: 'right', sprite: 'arryn', name: 'Ser Vardis', script: 'trainer',
+      { x: 11, y: 10, dir: 'right', sprite: 'arryn', name: 'Ser Vardis', script: 'trainer',
         data: { trainer: 'valeKnight' } },
       { x: 13, y: 19, dir: 'left', sprite: 'brienne', name: 'Brienne of Tarth', script: 'duel',
         data: { duel: 'brienne' } },
@@ -807,7 +1055,7 @@ export const MAPS = {
     roof: 'G', ridge: 'g',
     name: 'The Eyrie', ground: 'stone', wall: 'C', floor: 'o', music: 'town',
     warps: [
-      { x: 11, y: 19, to: 'bloodyGate', tx: 10, ty: 1, dir: 'down' },
+      { x: 11, y: 19, to: 'bloodyGate', tx: 11, ty: 1, dir: 'down' },
       { x: 6, y: 6, to: 'maesterHallEyrie', tx: 5, ty: 7, dir: 'up' },
       { x: 17, y: 6, to: 'eyrieArmoury', tx: 5, ty: 6, dir: 'up' },
       { x: 7, y: 14, to: 'eyrieKeep', tx: 7, ty: 8, dir: 'up' },
@@ -865,6 +1113,7 @@ export const MAPS = {
   //  THE REACH
   // =========================================================================
   roseroad: makeRoute({
+    seed: 0x7E05, spurs: 5, river: 19,
     name: 'The Roseroad', ground: 'grass', music: 'route',
     features: [
       { type: 'sign', x: 8, y: 2 },
@@ -888,8 +1137,9 @@ export const MAPS = {
       { beast: 'emberwisp', min: 28, max: 32, weight: 10 },
     ],
     warps: [
-      { x: 10, y: 0, to: 'lannisport', tx: 18, ty: 17, dir: 'down' },
-      { x: 10, y: 23, to: 'highgarden', tx: 11, ty: 1, dir: 'down' },
+      { x: 11, y: 0, to: 'lannisport', tx: 18, ty: 17, dir: 'down' },
+      { x: 11, y: 29, to: 'highgarden', tx: 11, ty: 1, dir: 'down' },
+      { x: 5, y: 16, to: 'stoneCrypt', tx: 7, ty: 13, dir: 'up', cave: true },
     ],
     signs: [
       { x: 8, y: 2, text: 'THE ROSEROAD\nSouth to Highgarden, and on to Dorne.\nGrowing strong.' },
@@ -917,8 +1167,8 @@ export const MAPS = {
     name: 'Highgarden', ground: 'grass', music: 'town',
     warps: [
       { x: 7, y: 14, to: 'highgardenKeep', tx: 7, ty: 8, dir: 'up' },
-      { x: 11, y: 0, to: 'roseroad', tx: 10, ty: 22, dir: 'up' },
-      { x: 11, y: 19, to: 'princesPass', tx: 10, ty: 1, dir: 'down' },
+      { x: 11, y: 0, to: 'roseroad', tx: 11, ty: 28, dir: 'up' },
+      { x: 11, y: 19, to: 'princesPass', tx: 11, ty: 1, dir: 'down' },
       { x: 6, y: 6, to: 'maesterHallHighgarden', tx: 5, ty: 7, dir: 'up' },
       { x: 17, y: 6, to: 'highgardenArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
@@ -973,6 +1223,7 @@ export const MAPS = {
   //  DORNE
   // =========================================================================
   princesPass: makeRoute({
+    seed: 0xB3C9, spurs: 5,
     name: "The Prince's Pass", ground: 'sand', wall: 'C', floor: 's', music: 'route',
     features: [
       { type: 'sign', x: 8, y: 2 },
@@ -995,8 +1246,8 @@ export const MAPS = {
       { beast: 'crabcrag', min: 31, max: 35, weight: 12 },
     ],
     warps: [
-      { x: 10, y: 0, to: 'highgarden', tx: 11, ty: 18, dir: 'up' },
-      { x: 10, y: 23, to: 'sunspear', tx: 11, ty: 1, dir: 'down' },
+      { x: 11, y: 0, to: 'highgarden', tx: 11, ty: 18, dir: 'up' },
+      { x: 11, y: 29, to: 'sunspear', tx: 11, ty: 1, dir: 'down' },
     ],
     signs: [
       { x: 8, y: 2, text: "THE PRINCE'S PASS\nThe only easy road into Dorne.\nIt is not easy." },
@@ -1020,7 +1271,7 @@ export const MAPS = {
     name: 'Sunspear', ground: 'sand', wall: 'C', floor: 's', music: 'town',
     warps: [
       { x: 7, y: 14, to: 'sunspearKeep', tx: 7, ty: 8, dir: 'up' },
-      { x: 11, y: 0, to: 'princesPass', tx: 10, ty: 22, dir: 'up' },
+      { x: 11, y: 0, to: 'princesPass', tx: 11, ty: 28, dir: 'up' },
       { x: 6, y: 6, to: 'maesterHallSunspear', tx: 5, ty: 7, dir: 'up' },
       { x: 17, y: 6, to: 'sunspearArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
@@ -1076,6 +1327,7 @@ export const MAPS = {
   //  THE STORMLANDS
   // =========================================================================
   stormlands: makeRoute({
+    seed: 0x2F60, spurs: 5, river: 12,
     name: 'The Stormlands', ground: 'grass', music: 'route',
     features: [
       { type: 'sign', x: 8, y: 2 },
@@ -1100,8 +1352,8 @@ export const MAPS = {
       { beast: 'riverfry', min: 28, max: 32, weight: 12 },
     ],
     warps: [
-      { x: 10, y: 0, to: 'kingsroad', tx: 18, ty: 14, dir: 'down' },
-      { x: 10, y: 23, to: 'stormsEnd', tx: 11, ty: 1, dir: 'down' },
+      { x: 11, y: 0, to: 'kingsroad', tx: 18, ty: 14, dir: 'down' },
+      { x: 11, y: 29, to: 'stormsEnd', tx: 11, ty: 1, dir: 'down' },
     ],
     signs: [
       { x: 8, y: 2, text: 'THE STORMLANDS\nSouth to Storm\u2019s End.\nThe weather here has opinions.' },
@@ -1129,7 +1381,7 @@ export const MAPS = {
     name: "Storm's End", ground: 'grass', wall: 'C', music: 'town',
     warps: [
       { x: 7, y: 14, to: 'stormsEndKeep', tx: 7, ty: 8, dir: 'up' },
-      { x: 11, y: 0, to: 'stormlands', tx: 10, ty: 22, dir: 'up' },
+      { x: 11, y: 0, to: 'stormlands', tx: 11, ty: 28, dir: 'up' },
       { x: 6, y: 6, to: 'maesterHallStormsEnd', tx: 5, ty: 7, dir: 'up' },
       { x: 17, y: 6, to: 'stormsEndArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
@@ -1270,7 +1522,7 @@ export const MAPS = {
       'IIIIIIIIIIIIIIIII',
       'I==============II',
       'I===cccccccc===II',
-      'I===cccXccc c==II',
+      'I===cccXccccc==II',
       'I===cccccccc===II',
       'I=B============II',
       'I=B====TT======II',
@@ -1301,7 +1553,7 @@ export const MAPS = {
       'IIIIIIIIIIIIIIIII',
       'I==============II',
       'I===cccccccc===II',
-      'I===cccXccc c==II',
+      'I===cccXccccc==II',
       'I===cccccccc===II',
       'I=B============II',
       'I=B====TT======II',
@@ -1331,7 +1583,7 @@ export const MAPS = {
       'IIIIIIIIIIIIIIIII',
       'I==============II',
       'I===cccccccc===II',
-      'I===cccXccc c==II',
+      'I===cccXccccc==II',
       'I===cccccccc===II',
       'I=B============II',
       'I=B====TT======II',
@@ -1579,7 +1831,7 @@ export const MAPS = {
       '#....##...d...##...#',
       '#.........d........#',
       '#LLLLLLLLLdLLLLLLLL#',
-      '#.........d........d',
+      'd.........d........d',
       '#..,,,,,,.d.,,,,,,.#',
       '#..,,,,,,.d.,,,,,,.#',
       '#.........d........#',
@@ -1605,7 +1857,8 @@ export const MAPS = {
     warps: [
       { x: 10, y: 0, to: 'moatCailin', tx: 11, ty: 18, dir: 'up' },
       { x: 10, y: 24, to: 'riverrun', tx: 12, ty: 1, dir: 'down' },
-      { x: 19, y: 12, to: 'bloodyGate', tx: 10, ty: 22, dir: 'right' },
+      { x: 19, y: 12, to: 'bloodyGate', tx: 11, ty: 28, dir: 'right' },
+      { x: 0, y: 12, to: 'ironCoast', tx: 11, ty: 1, dir: 'left' },
     ],
     signs: [
       { x: 9, y: 1, text: 'THE RIVERLANDS\nSouth to Riverrun.\nMind the fords.' },
@@ -1891,7 +2144,7 @@ export const MAPS = {
       { x: 14, y: 6, to: 'lannisportForge', tx: 5, ty: 6, dir: 'up' },
       { x: 9, y: 14, to: 'casterlyRock', tx: 8, ty: 16, dir: 'up' },
       { x: 9, y: 19, to: 'kingsroad', tx: 10, ty: 1, dir: 'down' },
-      { x: 19, y: 17, to: 'roseroad', tx: 10, ty: 1, dir: 'right' },
+      { x: 19, y: 17, to: 'roseroad', tx: 11, ty: 1, dir: 'right' },
     ],
     signs: [
       { x: 14, y: 10, text: 'LANNISPORT\nBeneath Casterly Rock.\nSigil-holder: SER JAIME.' },
@@ -2001,7 +2254,7 @@ export const MAPS = {
       '#..,,,,,,.d.,,,,,,.#',
       '#..,,,,,,.d.,,,,,,.#',
       '#.........d........d',
-      '#...CC....d....CC..#',
+      '#...%C....d....CC..#',
       '#.........d........#',
       '#..,,,,,..d..,,,,,.#',
       '#..,,,,,..d..,,,,,.#',
@@ -2022,7 +2275,8 @@ export const MAPS = {
     warps: [
       { x: 10, y: 0, to: 'lannisport', tx: 9, ty: 18, dir: 'up' },
       { x: 10, y: 22, to: 'kingsLanding', tx: 16, ty: 30, dir: 'up' },
-      { x: 19, y: 14, to: 'stormlands', tx: 10, ty: 1, dir: 'right' },
+      { x: 19, y: 14, to: 'stormlands', tx: 11, ty: 1, dir: 'right' },
+      { x: 4, y: 15, to: 'hollowHill', tx: 8, ty: 15, dir: 'up' },
     ],
     signs: [
       { x: 9, y: 1, text: "THE KINGSROAD\nSouth to King's Landing.\nThe end of the road, one way or another." },
@@ -2084,7 +2338,7 @@ export const MAPS = {
   // Westerosi house you swore to, which is most of the point of going.
 
   braavos: makeTown({
-    roof: 'G', ridge: 'g',
+    roof: 'G', ridge: 'g', shut: ['forge', 'keep'],
     // Canals rather than walls, which is the one thing everybody knows
     // about Braavos and makes it read as somewhere else at a glance.
     name: 'Braavos', music: 'town', ground: 'stone', wall: '~', floor: 'o',
@@ -2126,17 +2380,20 @@ export const MAPS = {
       'I============I',
       'I============I',
       'I============I',
-      'IIIIIID IIIIII'.replace(' ', '='),
+      'IIIIII__IIIIII',
     ],
     npcs: [
       { x: 7, y: 5, dir: 'down', name: 'The Kindly Man', sprite: 'oldman',
         script: 'healer', data: { line: 'The Kindly Man: All men must serve. Shall I see to yours?' } },
     ],
-    warps: [{ x: 7, y: 11, to: 'braavos', tx: 6, ty: 7, dir: 'down' }],
+    warps: [
+      { x: 6, y: 11, to: 'braavos', tx: 6, ty: 7, dir: 'down' },
+      { x: 7, y: 11, to: 'braavos', tx: 6, ty: 7, dir: 'down' },
+    ],
   },
 
   pentos: makeTown({
-    roof: 'Q', ridge: 'q',
+    roof: 'Q', ridge: 'q', shut: ['hall', 'forge'],
     name: 'Pentos', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
       { x: 7, y: 9, dir: 'down', name: 'Illyrio Mopatis', sprite: 'merchant',
@@ -2153,11 +2410,14 @@ export const MAPS = {
           + 'You walk everywhere. It is very strange.' } },
     ],
     signs: [{ x: 13, y: 10, text: 'PENTOS. NO WALLS WORTH THE NAME, AND NO NEED OF THEM YET.' }],
-    warps: [{ x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' }],
+    warps: [
+      { x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { x: 7, y: 14, to: 'illyriosManse', tx: 7, ty: 10, dir: 'up' },
+    ],
   }),
 
   volantis: makeTown({
-    roof: 'Q', ridge: 'q',
+    roof: 'Q', ridge: 'q', shut: ['hall', 'forge'],
     name: 'Volantis', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
       { x: 7, y: 9, dir: 'down', name: 'Red Priestess', sprite: 'redPriest',
@@ -2175,11 +2435,14 @@ export const MAPS = {
           + 'years. Walk on the left.' } },
     ],
     signs: [{ x: 13, y: 10, text: 'THE LONG BRIDGE. BUILT BY VALYRIA. NOBODY LEFT KNOWS HOW.' }],
-    warps: [{ x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' }],
+    warps: [
+      { x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { x: 7, y: 14, to: 'templeOfRhllor', tx: 7, ty: 10, dir: 'up' },
+    ],
   }),
 
   meereen: makeTown({
-    roof: 'Q', ridge: 'q',
+    roof: 'Q', ridge: 'q', shut: ['hall', 'forge'],
     name: 'Meereen', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
       { x: 11, y: 6, dir: 'down', name: 'Daenerys Targaryen', sprite: 'targaryen',
@@ -2197,8 +2460,115 @@ export const MAPS = {
         script: 'duel', data: { duel: 'daario' } },
     ],
     signs: [{ x: 13, y: 10, text: 'THE GREAT PYRAMID OF MEEREEN. A DRAGON QUEEN SITS AT THE TOP OF IT.' }],
-    warps: [{ x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' }],
+    warps: [
+      { x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { x: 7, y: 14, to: 'greatPyramid', tx: 7, ty: 12, dir: 'up' },
+    ],
   }),
+
+  // Three rooms across the sea worth walking into, so a Free City is somewhere
+  // you go rather than a postcard with four people standing in front of it.
+  illyriosManse: {
+    name: "Illyrio's Manse",
+    indoor: true, music: 'town', ground: 'stone',
+    tiles: [
+      'IIIIIIIIIIIIIII',
+      'I=cccccccccc==I',
+      'I=cB======Bc==I',
+      'I=c========c==I',
+      'I=c==T==T==c==I',
+      'I=c========c==I',
+      'I=cF======Fc==I',
+      'I=cccccccccc==I',
+      'I=====KKK=====I',
+      'I=============I',
+      'IIIIIII_IIIIIII',
+    ],
+    warps: [{ x: 7, y: 10, to: 'pentos', tx: 7, ty: 15, dir: 'down' }],
+    npcs: [
+      { x: 7, y: 3, dir: 'down', sprite: 'merchant', name: 'Illyrio Mopatis', script: 'freeCityLocal',
+        data: { line: 'Illyrio Mopatis: Sit. Eat. The candied figs are worth more than '
+          + 'your sword and I will not hear otherwise.' } },
+      { x: 4, y: 5, dir: 'right', sprite: 'guard', name: 'Ser Jorah', script: 'duel',
+        data: { duel: 'bronn' } },
+      { x: 10, y: 8, dir: 'left', sprite: 'merchant', name: 'Factor', script: 'shop',
+        data: { line: 'Factor: Anything from anywhere, at a Pentoshi price.',
+          stock: ['maesterKit', 'poppyMilk', 'weirwoodSap', 'kingsRansom', 'netTrap'] } },
+    ],
+    items: [
+      { x: 2, y: 1, item: 'valyrianShard', count: 1, flag: 'item_illyrio_shard' },
+    ],
+  },
+
+  templeOfRhllor: {
+    name: 'The Temple of R\'hllor',
+    indoor: true, music: 'hall', ground: 'stone',
+    tiles: [
+      'IIIIIIIIIIIIIII',
+      'I=============I',
+      'I===F=====F===I',
+      'I=============I',
+      'I==cccccccc===I',
+      'I==cccFccccc==I',
+      'I==cccccccc===I',
+      'I=============I',
+      'I===F=KKK=F===I',
+      'I=============I',
+      'IIIIIII_IIIIIII',
+    ],
+    warps: [{ x: 7, y: 10, to: 'volantis', tx: 7, ty: 15, dir: 'down' }],
+    npcs: [
+      { x: 7, y: 6, dir: 'down', sprite: 'redPriest', name: 'Kinvara', script: 'duel',
+        data: { duel: 'redPriestess' } },
+      { x: 4, y: 3, dir: 'right', sprite: 'redPriest', name: 'Red Priest', script: 'healer',
+        data: { line: 'Red Priest: The night is dark and full of terrors. '
+          + 'Come to the fire and be less afraid.' } },
+      { x: 11, y: 8, dir: 'left', sprite: 'merchant', name: 'Temple Steward', script: 'shop',
+        data: { line: 'Steward: Oil, resin, and things that burn a long time.',
+          stock: ['maesterKit', 'poppyMilk', 'kingsRansom', 'warBanner'] } },
+    ],
+    items: [
+      { x: 2, y: 1, item: 'fireblood', count: 1, flag: 'item_rhllor_blood' },
+    ],
+  },
+
+  greatPyramid: {
+    name: 'The Great Pyramid',
+    indoor: true, music: 'hall', ground: 'stone',
+    tiles: [
+      'IIIIIIIIIIIIIII',
+      'I=============I',
+      'I=====FXF=====I',
+      'I=============I',
+      'I=c=========c=I',
+      'I=c=========c=I',
+      'I=====T=T=====I',
+      'I=============I',
+      'I=B=========B=I',
+      'I=============I',
+      'I=====KKK=====I',
+      'I=============I',
+      'IIIIII__IIIIIII',
+    ],
+    warps: [
+      { x: 6, y: 12, to: 'meereen', tx: 7, ty: 15, dir: 'down' },
+      { x: 7, y: 12, to: 'meereen', tx: 7, ty: 15, dir: 'down' },
+    ],
+    npcs: [
+      { x: 7, y: 3, dir: 'down', sprite: 'targaryen', name: 'Daenerys Targaryen',
+        script: 'duel', data: { duel: 'daenerys' } },
+      { x: 4, y: 6, dir: 'right', sprite: 'unsullied', name: 'Grey Worm',
+        script: 'duel', data: { duel: 'greyWorm' } },
+      { x: 10, y: 6, dir: 'left', sprite: 'braavosi', name: 'Daario Naharis',
+        script: 'duel', data: { duel: 'daario' } },
+      { x: 10, y: 10, dir: 'left', sprite: 'merchant', name: 'Ghiscari Trader', script: 'shop',
+        data: { line: 'Trader: The Queen has views about what may be sold. This is the rest.',
+          stock: ['maesterKit', 'poppyMilk', 'kingsRansom', 'greatNet', 'kingsguardBanner'] } },
+    ],
+    items: [
+      { x: 2, y: 1, item: 'dragonEgg', count: 1, flag: 'item_pyramid_egg' },
+    ],
+  },
 
   /** The crossing itself: a deck, and the sea going past. */
   narrowSea: {
@@ -2221,7 +2591,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 9, y: 5, dir: 'down', name: 'Ship\'s Captain', sprite: 'braavosi',
-        script: 'ship', data: {} },
+        script: 'ship', data: { line: "Ship's Captain: I sail where the money is. Name a port." } },
       { x: 14, y: 8, dir: 'left', name: 'Deckhand', sprite: 'smallfolk',
         script: 'freeCityLocal', data: { line: 'Deckhand: Four days to Braavos with this wind. '
           + 'Longer if you keep asking.' } },
@@ -2229,7 +2599,634 @@ export const MAPS = {
     signs: [{ x: 11, y: 6, text: 'SPEAK TO THE CAPTAIN TO NAME A PORT.' }],
     // The gangplank puts you back on the last shore you sailed from; the
     // captain's own passage list is what takes you anywhere new.
-    warps: [{ x: 11, y: 3, to: 'kingsLanding', tx: 11, ty: 21, dir: 'down' }],
+    warps: [{ x: 11, y: 3, to: 'kingsLanding', tx: 21, ty: 28, dir: 'down' }],
+  },
+
+
+  // ===================================================== the Iron Islands ==
+  // The seventh kingdom. Greyjoy held a seat that was not on the cartridge: a
+  // sworn ironborn began at Moat Cailin, in the Neck, in somebody else's bog.
+  // The road west now runs out onto a stone coast, over three sea stacks joined
+  // by rope bridges, and onto Pyke.
+  ironCoast: makeRoute({
+    seed: 0xA11E, spurs: 5, river: 21,
+    name: 'The Stony Shore', ground: 'stone', wall: 'C', floor: 'o', grass: ',',
+    music: 'wild',
+    features: [
+      { type: 'water', x: 2, y: 4, w: 4, h: 3 },
+      { type: 'rubble', x: 17, y: 9, w: 4, h: 2 },
+      { type: 'sand', x: 3, y: 24, w: 6, h: 3 },
+      { type: 'water', x: 18, y: 25, w: 4, h: 3 },
+    ],
+    encounters: [
+      { roamer: 'ironbornReaver', min: 22, max: 27, weight: 34 },
+      { roamer: 'bandit', min: 21, max: 26, weight: 24 },
+      { roamer: 'sellsword', min: 22, max: 27, weight: 20 },
+      { beast: 'krakenling', min: 22, max: 27, weight: 18 },
+      { beast: 'riverfry', min: 21, max: 25, weight: 16 },
+      { beast: 'falconet', min: 22, max: 26, weight: 12 },
+    ],
+    warps: [
+      { x: 11, y: 0, to: 'riverlands', tx: 1, ty: 12, dir: 'down' },
+      { x: 11, y: 29, to: 'pykeBridge', tx: 8, ty: 1, dir: 'down' },
+      { x: 4, y: 12, to: 'seaCave', tx: 8, ty: 15, dir: 'up', cave: true },
+    ],
+    signs: [
+      { x: 9, y: 3, text: 'THE STONY SHORE\nWest to Pyke over the bridges.\nA sea cave gapes somewhere off the path.' },
+    ],
+    npcs: [
+      { x: 8, y: 9, dir: 'down', sprite: 'ironborn', name: 'Reaver Dagmer', script: 'trainer',
+        data: { trainer: 'ironReaver' } },
+      { x: 14, y: 18, dir: 'left', sprite: 'ironborn', name: 'The Damphair', script: 'trainer',
+        data: { trainer: 'drownedPriest' } },
+      { x: 6, y: 25, dir: 'right', sprite: 'smallfolk', name: 'Salt Wife', script: 'shoreHint' },
+    ],
+    items: [
+      { x: 4, y: 8, item: 'dragonglass', count: 2, flag: 'item_ironcoast_glass' },
+      { x: 16, y: 22, item: 'weirwoodSap', count: 1, flag: 'item_ironcoast_sap' },
+    ],
+  }),
+
+  // A smugglers' hole in the cliff, full of somebody else's cargo.
+  seaCave: {
+    name: "The Smugglers' Hole",
+    indoor: true, music: 'wild', ground: 'cave',
+    tiles: [
+      '@@@@@@@@@@@@@@@@@',
+      '@%%%%%%@@@%%%%%%@',
+      '@%%@@%%@@@%%@@%%@',
+      '@%%@@%%%%%%%@@%%@',
+      '@%%%%%%%%%%%%%%%@',
+      '@@@%%@@@%%%@@@%%@',
+      '@%%%%@%%%%%%%%%%@',
+      '@%%@@@%%@@@%%@@@@',
+      '@%%%%%%%%@%%%%%%@',
+      '@@@@%%@@@@%%%%@%@',
+      '@%%%%%@%%%%%%%@%@',
+      '@%%@%%@%%@@@%%%%@',
+      '@%%@%%%%%@%%%%%@@',
+      '@%%@@@@%%@%%@%%%@',
+      '@%%%%%%%%%%%@@%%@',
+      '@@@@@@@@%%@@@@@%@',
+      '@@@@@@@@%%@@@@@@@',
+    ],
+    encounters: [
+      { beast: 'krakenling', min: 24, max: 28, weight: 30 },
+      { beast: 'sandviper', min: 23, max: 27, weight: 22 },
+      { roamer: 'bandit', min: 24, max: 28, weight: 24 },
+    ],
+    warps: [
+      { x: 8, y: 16, to: 'ironCoast', dir: 'down', back: true },
+      { x: 9, y: 16, to: 'ironCoast', dir: 'down', back: true },
+    ],
+    npcs: [
+      { x: 4, y: 6, dir: 'right', sprite: 'braavosi', name: 'Salladhor Saan', script: 'trainer',
+        data: { trainer: 'smugglerCaptain' } },
+      { x: 13, y: 12, dir: 'left', sprite: 'sellsword', name: 'Lookout', script: 'duel',
+        data: { duel: 'bronn' } },
+    ],
+    signs: [
+      { x: 3, y: 2, text: 'Crates. Somebody has painted over the marks on all of them.' },
+    ],
+    items: [
+      { x: 2, y: 1, item: 'valyrianShard', count: 1, flag: 'item_seacave_shard' },
+      { x: 14, y: 3, item: 'kingsRansom', count: 1, flag: 'item_seacave_ransom' },
+      { x: 4, y: 14, item: 'dragonglass', count: 3, flag: 'item_seacave_glass' },
+    ],
+  },
+
+  // Three sea stacks and the rope bridges between them, over open water and a
+  // long drop. There is no other way onto Pyke.
+  pykeBridge: {
+    name: 'The Bridges of Pyke',
+    music: 'wild', ground: 'stone',
+    // Three sea stacks with two rope bridges between them. Everything here is
+    // two tiles wide at its narrowest, because a bridge one tile across is a
+    // bridge the first person standing on it closes: the audit walks this map
+    // taking each person out in turn and asking what it strands.
+    tiles: [
+      '~~~~~~~~oo~~~~~~',
+      '~~~~~oooooo~~~~~',
+      '~~~~oo!ooooo~~~~',
+      '~~~~oooooooo~~~~',
+      '~~~~oommmmmmmm~~',
+      '~~~~oommmmmmmm~~',
+      '~~~~oooo~~~~oooo',
+      '~~~~oooo~~~~oooo',
+      '~~~~~~~~~~~~oooo',
+      '~~~~~~~~~~~ooooo',
+      '~~~~~~~~~~~oojoo',
+      '~~~~~mmmmmmooooo',
+      '~~~~~mmmmmmooo~~',
+      '~~~oooooo~~~~~~~',
+      '~~ooooooooo~~~~~',
+      '~~ooooCoooo~~~~~',
+      '~~~oooooooo~~~~~',
+      '~~~~oooooo~~~~~~',
+      '~~~~~oooo~~~~~~~',
+      '~~~~~~oo~~~~~~~~',
+    ],
+    encounters: [
+      { beast: 'falconet', min: 24, max: 28, weight: 26 },
+      { beast: 'krakenling', min: 25, max: 29, weight: 24 },
+      { roamer: 'ironbornReaver', min: 24, max: 29, weight: 30 },
+    ],
+    warps: [
+      { x: 8, y: 0, to: 'ironCoast', tx: 11, ty: 28, dir: 'up' },
+      { x: 6, y: 19, to: 'pyke', tx: 11, ty: 1, dir: 'down' },
+    ],
+    signs: [
+      { x: 6, y: 2, text: 'THE BRIDGES OF PYKE\nWalk in the middle. The ropes are older than you are.' },
+    ],
+    npcs: [
+      { x: 13, y: 9, dir: 'down', sprite: 'ironborn', name: 'Theon Greyjoy', script: 'duel',
+        data: { duel: 'theonReturned' } },
+      { x: 4, y: 16, dir: 'right', sprite: 'smallfolk', name: 'Bridgekeeper', script: 'bridgeHint' },
+    ],
+    items: [
+      { x: 13, y: 10, item: 'greatNet', count: 1, flag: 'item_pykebridge_net' },
+    ],
+  },
+
+  pyke: makeTown({
+    // A castle on broken rock, walled by the sea itself.
+    roof: 'G', ridge: 'g', house: 'A', banner: 'v',
+    name: 'Pyke', music: 'town', ground: 'stone', wall: '~', floor: 'o',
+    dressing: [
+      [3, 1, '^'], [20, 1, '^'], [3, 18, '^'], [20, 18, '^'],
+      [2, 8, 'U'], [21, 11, 'U'], [4, 17, 'U'],
+      [19, 2, 'f'], [19, 3, 'f'],
+    ],
+    npcs: [
+      { x: 11, y: 11, dir: 'down', sprite: 'ironborn', name: 'Yara Greyjoy',
+        script: 'trainer', data: { trainer: 'gymGreyjoy' } },
+      { x: 14, y: 12, dir: 'left', sprite: 'ironborn', name: 'Balon Greyjoy',
+        script: 'duel', data: { duel: 'balon' } },
+      { x: 8, y: 17, dir: 'up', sprite: 'goodwife', name: 'Salt Wife', script: 'pykeLocal',
+        data: { line: 'Salt Wife: Rock wife or salt wife, the rock is the same. '
+          + 'Cold, and it does not care.' } },
+      { x: 16, y: 17, dir: 'up', sprite: 'child', name: 'Ironborn Boy', script: 'pykeLocal',
+        data: { line: 'Ironborn Boy: I am going to be a captain. I have not been on a boat.' } },
+      { x: 4, y: 8, dir: 'up', sprite: 'ironborn', name: 'Drowned Man', script: 'pykeLocal',
+        data: { line: 'Drowned Man: We drown them and then we bring them back. '
+          + 'Mostly we bring them back.' } },
+    ],
+    signs: [
+      { x: 11, y: 10, text: 'PYKE\nSeat of House Greyjoy.\nWe Do Not Sow.' },
+    ],
+    warps: [
+      { x: 11, y: 0, to: 'pykeBridge', tx: 6, ty: 18, dir: 'up' },
+      { x: 6, y: 6, to: 'maesterHallPyke', tx: 5, ty: 7, dir: 'up' },
+      { x: 17, y: 6, to: 'pykeForge', tx: 5, ty: 6, dir: 'up' },
+      { x: 7, y: 14, to: 'pykeKeep', tx: 7, ty: 12, dir: 'up' },
+      { x: 11, y: 19, to: 'lordsportDocks', tx: 11, ty: 2, dir: 'down' },
+    ],
+  }),
+
+  maesterHallPyke: maesterHall({
+    exitTo: 'pyke', exitX: 6, exitY: 7,
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap', 'snare', 'netTrap', 'sigilBanner'],
+    healerLine: 'Maester Wendamyr: Salt in everything, including the wounds. '
+      + 'Sit down and let me get at it.',
+    merchantLine: 'Steward: What we have, we took. What we sell, we took twice.',
+  }),
+
+  pykeForge: {
+    name: 'The Saltforge',
+    indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIIIIII',
+      'Ixx=a===l=lI',
+      'I=====KKK==I',
+      'I==========I',
+      'I=a==h==a==I',
+      'I==========I',
+      'I=T=F==F=T=I',
+      'IIIII__IIIII',
+    ],
+    warps: [
+      { x: 5, y: 7, to: 'pyke', tx: 17, ty: 7, dir: 'down' },
+      { x: 6, y: 7, to: 'pyke', tx: 17, ty: 7, dir: 'down' },
+    ],
+    npcs: [
+      { x: 5, y: 1, dir: 'down', sprite: 'ironborn', name: 'Saltsmith', script: 'smith',
+        data: {
+          line: 'Saltsmith: Everything here rusts. So I make it heavy enough that '
+            + 'it does not matter for a lifetime, and a lifetime here is short.',
+          stock: {
+            weapon: ['longsword', 'morningstar', 'warhammer', 'greatsword'],
+            armour: ['ringmail', 'scaleArmour', 'splintMail'],
+            shield: ['oakShield', 'ironboundShield', 'towerShield'],
+          },
+        } },
+      { x: 3, y: 5, dir: 'right', sprite: 'ironborn', name: 'Hammerhand', script: 'bellowsHand',
+        data: { line: 'Hammerhand: The iron price. You pay it, or somebody pays it for you.' } },
+    ],
+  },
+
+  pykeKeep: {
+    name: 'The Seastone Chair',
+    indoor: true, music: 'hall', ground: 'stone',
+    tiles: [
+      'IIIIIIIIIIIIIII',
+      'I=============I',
+      'I=====FXF=====I',
+      'I=============I',
+      'I=B=========B=I',
+      'I=============I',
+      'I===T=====T===I',
+      'I=============I',
+      'I=v=========v=I',
+      'I=============I',
+      'I=====KKK=====I',
+      'I=============I',
+      'IIIIII__IIIIIII',
+    ],
+    warps: [
+      { x: 6, y: 12, to: 'pyke', tx: 7, ty: 15, dir: 'down' },
+      { x: 7, y: 12, to: 'pyke', tx: 7, ty: 15, dir: 'down' },
+    ],
+    npcs: [
+      { x: 7, y: 3, dir: 'down', sprite: 'ironborn', name: 'Captain of the Iron Fleet',
+        script: 'duel', data: { duel: 'euron' } },
+      { x: 3, y: 6, dir: 'right', sprite: 'maester', name: 'Maester', script: 'healer',
+        data: { line: 'Maester: The Seastone Chair is not comfortable. It was never meant to be.' } },
+      { x: 10, y: 10, dir: 'left', sprite: 'merchant', name: 'Ship\'s Factor', script: 'shop',
+        data: { line: 'Factor: Rope, tar, salt beef, and things nobody will admit to.',
+          stock: ['maesterKit', 'poppyMilk', 'snare', 'netTrap', 'greatNet', 'warBanner'] } },
+    ],
+  },
+
+  // The harbour under Pyke: longships, a quay, and a way east.
+  lordsportDocks: {
+    name: 'Lordsport',
+    music: 'town', ground: 'stone',
+    tiles: [
+      '~~~~~~~~~~~~~~~~~~~~~~~~',
+      '~~~~~~~~~~~oo~~~~~~~~~~~',
+      '~~~~~~~~~~oooo~~~~~~~~~~',
+      '~ooooooooooooooooooooo~~',
+      '~oYYYo!ooooooooooYYYoo~~',
+      '~oHwHooooooooooooHwHoo~~',
+      '~ooooooooooooooooooooo~~',
+      '~oo___________________~~',
+      '~oo_~~~~~~~~~~~~~~~~~_~~',
+      '~oo_~~~~~~~~~~~~~~~~~_~~',
+      '~ooooooooooo_________~~~',
+      '~~~~~~~~~~~~~~~~~~~~~~~~',
+    ],
+    encounters: [
+      { roamer: 'ironbornReaver', min: 24, max: 29, weight: 30 },
+    ],
+    warps: [
+      { x: 11, y: 2, to: 'pyke', tx: 11, ty: 18, dir: 'up' },
+    ],
+    signs: [
+      { x: 6, y: 4, text: 'LORDSPORT\nThe fleet is out. It is always out.\nAsk the captain what a berth costs.' },
+    ],
+    npcs: [
+      { x: 4, y: 7, dir: 'down', sprite: 'ironborn', name: 'Harbourmaster', script: 'ship',
+        data: { line: 'Harbourmaster: Longships go where I say and come back when they like. '
+          + 'Name a port.' } },
+      { x: 18, y: 7, dir: 'down', sprite: 'merchant', name: 'Chandler', script: 'shop',
+        data: { line: 'Chandler: Everything a ship needs and nothing a house does.',
+          stock: ['maesterKit', 'poppyMilk', 'snare', 'netTrap', 'greatNet'] } },
+      { x: 9, y: 6, dir: 'down', sprite: 'smallfolk', name: 'Netmender', script: 'pykeLocal',
+        data: { line: 'Netmender: Mend a net, catch a fish. Mend a hundred, catch a hundred. '
+          + 'It is not complicated work.' } },
+    ],
+    items: [
+      { x: 20, y: 4, item: 'netTrap', count: 1, flag: 'item_lordsport_net' },
+    ],
+  },
+
+  // ========================================================== the Dreadfort ==
+  weepingWater: makeRoute({
+    seed: 0xD3AD, spurs: 5, river: 16,
+    name: 'The Weeping Water', ground: 'snow', wall: 'P', floor: 'S', grass: ';',
+    music: 'wild',
+    features: [
+      { type: 'ice', x: 3, y: 6, w: 5, h: 2 },
+      { type: 'ice', x: 15, y: 23, w: 5, h: 2 },
+      { type: 'rubble', x: 17, y: 8, w: 3, h: 2 },
+    ],
+    encounters: [
+      { roamer: 'manAtArms', min: 24, max: 29, weight: 30 },
+      { roamer: 'deserter', min: 23, max: 28, weight: 26 },
+      { roamer: 'poacher', min: 24, max: 28, weight: 20 },
+      { beast: 'wightling', min: 24, max: 29, weight: 20 },
+      { beast: 'direwolf', min: 24, max: 28, weight: 16 },
+    ],
+    warps: [
+      { x: 11, y: 0, to: 'dreadfort', tx: 11, ty: 18, dir: 'up' },
+      { x: 11, y: 29, to: 'winterfell', tx: 22, ty: 12, dir: 'down' },
+    ],
+    signs: [
+      { x: 9, y: 4, text: 'THE WEEPING WATER\nNorth-east to the Dreadfort.\nSomebody has crossed out "welcome".' },
+    ],
+    npcs: [
+      { x: 8, y: 11, dir: 'right', sprite: 'bolton', name: 'Steward Walton', script: 'trainer',
+        data: { trainer: 'boltonSteward' } },
+      { x: 14, y: 22, dir: 'left', sprite: 'bolton', name: 'Kennelmaster', script: 'duel',
+        data: { duel: 'reek' } },
+    ],
+    items: [
+      { x: 5, y: 9, item: 'direwolfPelt', count: 2, flag: 'item_weeping_pelt' },
+    ],
+  }),
+
+  dreadfort: makeTown({
+    roof: 'Z', ridge: 'z', house: 'A', banner: 'v',
+    name: 'The Dreadfort', music: 'town', ground: 'snow', wall: 'P', floor: 'S',
+    dressing: [
+      [3, 2, 'f'], [4, 2, 'f'], [19, 2, 'f'], [20, 2, 'f'],
+      [3, 17, 'U'], [20, 17, 'U'], [2, 9, 'F'], [21, 9, 'F'],
+    ],
+    npcs: [
+      { x: 11, y: 11, dir: 'down', sprite: 'bolton', name: 'Roose Bolton', script: 'trainer',
+        data: { trainer: 'rooseBolton' } },
+      { x: 15, y: 12, dir: 'left', sprite: 'bolton', name: 'Ramsay Bolton', script: 'duel',
+        data: { duel: 'ramsay' } },
+      { x: 8, y: 17, dir: 'up', sprite: 'smallfolk', name: 'Flayer', script: 'dreadfortLocal',
+        data: { line: 'Flayer: A flayed man holds no secrets. Neither do the ones who watched.' } },
+      { x: 16, y: 17, dir: 'up', sprite: 'goodwife', name: 'Kitchen Maid', script: 'dreadfortLocal',
+        data: { line: 'Kitchen Maid: Do not ask what is in the pie. Do not ask.' } },
+    ],
+    signs: [
+      { x: 11, y: 10, text: 'THE DREADFORT\nSeat of House Bolton.\nOur Blades are Sharp.' },
+    ],
+    warps: [
+      { x: 11, y: 19, to: 'weepingWater', tx: 11, ty: 1, dir: 'down' },
+      { x: 6, y: 6, to: 'maesterHallDreadfort', tx: 5, ty: 7, dir: 'up' },
+      { x: 17, y: 6, to: 'dreadfortForge', tx: 5, ty: 6, dir: 'up' },
+      { x: 7, y: 14, to: 'dreadfortKeep', tx: 7, ty: 12, dir: 'up' },
+    ],
+  }),
+
+  maesterHallDreadfort: maesterHall({
+    exitTo: 'dreadfort', exitX: 6, exitY: 7,
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap', 'kingsRansom', 'snare', 'warBanner'],
+    healerLine: 'Maester Uthor: I mend what the household breaks. I am busy.',
+    merchantLine: 'Steward: Take it and go. Lord Roose does not like people lingering.',
+  }),
+
+  dreadfortForge: {
+    name: 'The Flayed Forge',
+    indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIIIIII',
+      'Ixx=a===l=lI',
+      'I=====KKK==I',
+      'I==========I',
+      'I=a==h==a==I',
+      'I==========I',
+      'I=T=F==F=T=I',
+      'IIIII__IIIII',
+    ],
+    warps: [
+      { x: 5, y: 7, to: 'dreadfort', tx: 17, ty: 7, dir: 'down' },
+      { x: 6, y: 7, to: 'dreadfort', tx: 17, ty: 7, dir: 'down' },
+    ],
+    npcs: [
+      { x: 5, y: 1, dir: 'down', sprite: 'bolton', name: 'Bonewright', script: 'smith',
+        data: {
+          line: 'Bonewright: Sharp is a discipline. Everything else about this house '
+            + 'is a hobby.',
+          stock: {
+            weapon: ['bastardSword', 'greatsword', 'warhammer', 'direWarhammer'],
+            armour: ['splintMail', 'bandedMail', 'knightPlate'],
+            shield: ['ironboundShield', 'kiteShield', 'towerShield'],
+          },
+        } },
+      { x: 3, y: 5, dir: 'right', sprite: 'smallfolk', name: 'Apprentice', script: 'bellowsHand',
+        data: { line: 'Apprentice: I keep the fire. I do not go upstairs. Ever.' } },
+    ],
+  },
+
+  dreadfortKeep: {
+    name: 'The Dreadfort Hall',
+    indoor: true, music: 'hall', ground: 'stone',
+    tiles: [
+      'IIIIIIIIIIIIIII',
+      'I=============I',
+      'I=====FXF=====I',
+      'I=============I',
+      'I=v=========v=I',
+      'I=============I',
+      'I==T=======T==I',
+      'I=============I',
+      'I=B=========B=I',
+      'I=============I',
+      'I=====KKK=====I',
+      'I=============I',
+      'IIIIII__IIIIIII',
+    ],
+    warps: [
+      { x: 6, y: 12, to: 'dreadfort', tx: 7, ty: 15, dir: 'down' },
+      { x: 7, y: 12, to: 'dreadfort', tx: 7, ty: 15, dir: 'down' },
+    ],
+    npcs: [
+      { x: 4, y: 6, dir: 'right', sprite: 'maester', name: 'Maester', script: 'healer',
+        data: { line: 'Maester: I keep the ravens and I keep quiet. Both are a service.' } },
+      { x: 10, y: 10, dir: 'left', sprite: 'merchant', name: 'Steward', script: 'shop',
+        data: { line: 'Steward: The Dreadfort sells nothing it needs and needs very little.',
+          stock: ['maesterKit', 'poppyMilk', 'kingsRansom', 'warBanner', 'kingsguardBanner'] } },
+      { x: 7, y: 8, dir: 'down', sprite: 'bolton', name: 'Bastard\'s Man', script: 'duel',
+        data: { duel: 'ramsay' } },
+    ],
+  },
+
+  // =================================================== beyond the Wall =====
+  // The Wall was a wall against a rumour. This is the rumour: a forest that
+  // goes on past where the maps stop, a free folk host camped in it, and a
+  // hill with something standing on it that dragonglass is the only answer to.
+  hauntedForest: makeRoute({
+    seed: 0x1CE0, spurs: 6,
+    name: 'The Haunted Forest', ground: 'snow', wall: 'P', floor: 'S', grass: ';',
+    music: 'wild',
+    features: [
+      { type: 'ice', x: 4, y: 8, w: 6, h: 3 },
+      { type: 'ice', x: 14, y: 19, w: 5, h: 3 },
+      { type: 'rubble', x: 6, y: 24, w: 4, h: 2 },
+    ],
+    encounters: [
+      { roamer: 'wildlingRaider', min: 28, max: 33, weight: 30 },
+      { roamer: 'spearwife', min: 28, max: 33, weight: 26 },
+      { roamer: 'deserter', min: 27, max: 32, weight: 18 },
+      { beast: 'wightling', min: 28, max: 33, weight: 24 },
+      { beast: 'direwolf', min: 28, max: 32, weight: 20 },
+      { beast: 'bearhold', min: 29, max: 33, weight: 14 },
+    ],
+    warps: [
+      { x: 11, y: 29, to: 'beyondTheWall', tx: 11, ty: 1, dir: 'down' },
+      { x: 11, y: 0, to: 'fistOfTheFirstMen', tx: 11, ty: 20, dir: 'up' },
+    ],
+    signs: [
+      { x: 9, y: 26, text: 'A weirwood with a face cut into it.\nThe eyes have run, and not with sap.' },
+    ],
+    npcs: [
+      { x: 8, y: 8, dir: 'right', sprite: 'wildlingWoman', name: 'Val', script: 'trainer',
+        data: { trainer: 'spearwifeVal' } },
+      { x: 14, y: 15, dir: 'left', sprite: 'wildling', name: 'Styr', script: 'trainer',
+        data: { trainer: 'thennMagnar' } },
+      { x: 10, y: 22, dir: 'down', sprite: 'wildling', name: 'Mance Rayder', script: 'duel',
+        data: { duel: 'mance' } },
+    ],
+    items: [
+      { x: 5, y: 12, item: 'dragonglass', count: 4, flag: 'item_haunted_glass' },
+      { x: 16, y: 20, item: 'direwolfPelt', count: 3, flag: 'item_haunted_pelt' },
+    ],
+  }),
+
+  fistOfTheFirstMen: {
+    name: 'The Fist of the First Men',
+    music: 'wild', ground: 'snow',
+    tiles: [
+      'PPPPPPPPPPPPPPPPPPPPPPPP',
+      'PPPPPPCCCCCCCCCCPPPPPPPP',
+      'PPPPCCiiiiiiiiiiCCPPPPPP',
+      'PPPCCiiiiiiiiiiiiCCPPPPP',
+      'PPCCiiiiCCCCCCiiiiCCPPPP',
+      'PPCiiiiCCiiiiCCiiiiCPPPP',
+      'PPCiiiCCiiiiiiCCiiiCPPPP',
+      'PPCiiiCiiiiiiiiCiiiCPPPP',
+      'PPCiiiCiiiiiiiiCiiiCPPPP',
+      'PPCiiiCiiiiiiiiCiiiCPPPP',
+      'PPCiiiCCiiiiiiCCiiiCPPPP',
+      'PPCiiiiCCiiiiCCiiiiCPPPP',
+      'PPCCiiiiCCiiCCiiiiCCPPPP',
+      'PPPCCiiiiiiiiiiiiCCPPPPP',
+      'PPPPCCiiiiiiiiiiCCPPPPPP',
+      'PPPPPCCiiii!iiiCCPPPPPPP',
+      'PPPPPPCCiiiiiiCCPPPPPPPP',
+      'PPPPPPPCCiiiiCCPPPPPPPPP',
+      'PPPPPPPPCCiiCCPPPPPPPPPP',
+      'PPPPPPPPPPiiPPPPPPPPPPPP',
+      'PPPPPPPPPPPiPPPPPPPPPPPP',
+    ],
+    encounters: [
+      { beast: 'wightling', min: 32, max: 38, weight: 34 },
+      { beast: 'barrowlord', min: 34, max: 39, weight: 24 },
+      { beast: 'palewalker', min: 36, max: 40, weight: 10 },
+      { roamer: 'deserter', min: 32, max: 37, weight: 14 },
+    ],
+    warps: [
+      { x: 11, y: 20, to: 'hauntedForest', tx: 11, ty: 1, dir: 'down' },
+    ],
+    signs: [
+      { x: 11, y: 15, text: 'A ring of stones older than the Wall.\nThe bodies inside it are arranged in a spiral.' },
+    ],
+    npcs: [
+      { x: 11, y: 8, dir: 'down', sprite: 'whitewalker', name: 'The Night King',
+        script: 'duel', data: { duel: 'nightKing' } },
+      { x: 4, y: 8, dir: 'right', sprite: 'whitewalker', name: 'A Risen Man',
+        script: 'duel', data: { duel: 'wightWalker' } },
+      { x: 16, y: 8, dir: 'left', sprite: 'whitewalker', name: 'A Risen Man',
+        script: 'duel', data: { duel: 'wightWalker' } },
+      { x: 11, y: 13, dir: 'up', sprite: 'nightswatch', name: 'Jon Snow', script: 'duel',
+        data: { duel: 'jonSnow' } },
+    ],
+    items: [
+      { x: 4, y: 6, item: 'dragonglassDagger', count: 1, flag: 'item_fist_dagger' },
+      { x: 18, y: 6, item: 'valyrianShard', count: 2, flag: 'item_fist_shard' },
+    ],
+  },
+
+  // ============================================================ hideouts ====
+  // Somewhere off every long road there is a hole in the ground with people in
+  // it who did not expect company.
+  hollowHill: {
+    name: 'The Hollow Hill',
+    indoor: true, music: 'wild', ground: 'cave',
+    tiles: [
+      '@@@@@@@@@@@@@@@@@@@',
+      '@%%%%%%%%%%%%%%%%%@',
+      '@%%@@@%%%F%%%@@@%%@',
+      '@%%@@@%%%%%%%@@@%%@',
+      '@%%%%%%%%%%%%%%%%%@',
+      '@@@%%%@@@%%%@@@%%%@',
+      '@%%%%%@%%%%%@%%%%%@',
+      '@%%@%%@%%@%%@%%@%%@',
+      '@%%@%%%%%@%%%%%@%%@',
+      '@%%@@@%%@@@%%@@@%%@',
+      '@%%%%%%%%%%%%%%%%%@',
+      '@@@%%@@@%%%@@@%%@@@',
+      '@%%%%%%%@%%%%%%%%%@',
+      '@%%@@@%%@%%@@@%%%%@',
+      '@%%%%%%%%%%%%%%@%%@',
+      '@@@@@@@@%%@@@@@@@%@',
+      '@@@@@@@@%%@@@@@@@@@',
+    ],
+    encounters: [
+      { roamer: 'brotherhoodBowman', min: 24, max: 29, weight: 32 },
+      { roamer: 'bandit', min: 23, max: 28, weight: 26 },
+      { beast: 'emberwisp', min: 24, max: 28, weight: 18 },
+    ],
+    warps: [
+      { x: 8, y: 16, to: 'kingsroad', tx: 4, ty: 16, dir: 'down' },
+      { x: 9, y: 16, to: 'kingsroad', tx: 4, ty: 16, dir: 'down' },
+    ],
+    npcs: [
+      { x: 9, y: 3, dir: 'down', sprite: 'redPriest', name: 'Thoros of Myr', script: 'trainer',
+        data: { trainer: 'hollowBrother' } },
+      { x: 4, y: 8, dir: 'right', sprite: 'brotherhood', name: 'Beric Dondarrion',
+        script: 'duel', data: { duel: 'beric' } },
+      { x: 14, y: 12, dir: 'left', sprite: 'brotherhood', name: 'Lem Lemoncloak',
+        script: 'hideoutLocal', data: { line: 'Lem: We hang the ones who deserve it. '
+          + 'The list is longer than the rope.' } },
+    ],
+    signs: [
+      { x: 9, y: 2, text: 'A fire burning under a hill, and two hundred people around it.' },
+    ],
+    items: [
+      { x: 2, y: 1, item: 'ancestralBlade', count: 1, flag: 'item_hollow_blade' },
+      { x: 16, y: 1, item: 'kingsRansom', count: 2, flag: 'item_hollow_ransom' },
+    ],
+  },
+
+  stoneCrypt: {
+    name: 'The Roseroad Crypt',
+    indoor: true, music: 'wild', ground: 'cave',
+    tiles: [
+      '@@@@@@@@@@@@@@@',
+      '@%%%%%%%%%%%%%@',
+      '@%@@@%%%%%@@@%@',
+      '@%@@@%%%%%@@@%@',
+      '@%%%%%%F%%%%%%@',
+      '@@@%%@@@@@%%@@@',
+      '@%%%%@%%%@%%%%@',
+      '@%@%%@%%%@%%@%@',
+      '@%@%%%%%%%%%@%@',
+      '@%@@@%%@%%@@@%@',
+      '@%%%%%%@%%%%%%@',
+      '@@@@%%@@@%%@@@@',
+      '@%%%%%%%%%%%%%@',
+      '@@@@@@@%%@@@@@@',
+      '@@@@@@@%%@@@@@@',
+    ],
+    encounters: [
+      { roamer: 'gravedigger', min: 20, max: 25, weight: 30 },
+      { beast: 'wightling', min: 20, max: 25, weight: 26 },
+      { beast: 'sapling', min: 19, max: 24, weight: 18 },
+    ],
+    warps: [
+      { x: 7, y: 14, to: 'roseroad', dir: 'down', back: true },
+      { x: 8, y: 14, to: 'roseroad', dir: 'down', back: true },
+    ],
+    npcs: [
+      { x: 7, y: 3, dir: 'down', sprite: 'oldman', name: 'Gravedigger', script: 'hideoutLocal',
+        data: { line: 'Gravedigger: Big man came through. Did not say where he was going. '
+          + 'Left the helm, though.' } },
+      { x: 3, y: 8, dir: 'right', sprite: 'sellsword', name: 'Grave Robber', script: 'duel',
+        data: { duel: 'bronn' } },
+    ],
+    signs: [
+      { x: 7, y: 1, text: 'Names cut into the wall, all of them Tyrell, none of them recent.' },
+    ],
+    items: [
+      { x: 2, y: 1, item: 'castleForged', count: 1, flag: 'item_crypt_sword' },
+      { x: 12, y: 1, item: 'valyrianShard', count: 1, flag: 'item_crypt_shard' },
+    ],
   },
 
   kingsLanding: {
@@ -2276,8 +3273,9 @@ export const MAPS = {
       { x: 21, y: 19, dir: 'left', sprite: 'kingsguard', name: 'Ser Meryn Trant', script: 'duel',
         data: { duel: 'meryn' } },
       { x: 26, y: 20, dir: 'down', sprite: 'brotherhood', name: 'Recruiter', script: 'blackBrother' },
-      { x: 20, y: 30, dir: 'up', sprite: 'braavosi', name: 'Harbourmaster', script: 'bellowsHand',
-        data: { line: 'Nothing sails to Dragonstone from this quay. Try the one nobody advertises.' } },
+      { x: 20, y: 30, dir: 'up', sprite: 'braavosi', name: 'Harbourmaster', script: 'ship',
+        data: { line: 'Harbourmaster: Every hull on the Blackwater answers to this quay. '
+          + 'Name a port and I will find you a berth.' } },
       { x: 2, y: 18, dir: 'right', sprite: 'oldman', name: 'Bald Beggar', script: 'bellowsHand',
         data: { line: 'I remember when there were dragons over that hill. Nobody believes me and I do not blame them.' } },
       { x: 29, y: 11, dir: 'left', sprite: 'noble', name: 'Lord of the Small Council', script: 'bellowsHand',
@@ -2527,6 +3525,56 @@ for (const [id, map] of Object.entries(MAPS)) {
   prepare(map);
 }
 
+/*
+ * A door that puts you down on another door bounces you: you arrive, take one
+ * step in any direction, and the tile you left sends you straight back. Nudge
+ * any landing that has come to rest on a warp onto the ground beside it - in
+ * the direction you were walking if that works, and whatever is open if not.
+ */
+function landClear() {
+  for (const map of Object.values(MAPS)) {
+    for (const w of map.warps ?? []) {
+      const there = MAPS[w.to];
+      if (!there) continue;
+      const onADoor = (x, y) => (there.warps ?? []).some((d) => d.x === x && d.y === y);
+      if (!onADoor(w.tx, w.ty)) continue;
+      const AWAY = { down: [0, 1], up: [0, -1], left: [-1, 0], right: [1, 0] };
+      const tries = [AWAY[w.dir] ?? [0, 1], [0, 1], [0, -1], [1, 0], [-1, 0]];
+      for (const [dx, dy] of tries) {
+        const nx = w.tx + dx, ny = w.ty + dy;
+        const tile = there.grid[ny]?.[nx];
+        if (!tile || !STANDABLE.has(tile) || onADoor(nx, ny)) continue;
+        w.tx = nx; w.ty = ny;
+        break;
+      }
+    }
+  }
+}
+
+/*
+ * Doors go both ways.
+ *
+ * A carved road does not know where its own side doors ended up until it has
+ * been carved, so a cave cannot be written with the coordinate of the mouth it
+ * comes out of - somebody would have to read the generated map, copy a number
+ * out of it, and copy it again every time the seed changed. A warp marked
+ * `back` instead finds the door in the other map that leads here and lands on
+ * it. Arriving on a warp tile is safe: a warp fires when a step finishes on it,
+ * and being put down somewhere is not a step.
+ */
+for (const [id, map] of Object.entries(MAPS)) {
+  for (const w of map.warps ?? []) {
+    if (!w.back) continue;
+    const there = MAPS[w.to];
+    if (!there) throw new Error(`${id}: a way back to ${w.to}, which does not exist`);
+    const door = (there.warps ?? []).find((d) => d.to === id);
+    if (!door) throw new Error(`${id}: nothing in ${w.to} leads back here`);
+    w.tx = door.x;
+    w.ty = door.y;
+  }
+}
+landClear();
+
 export function getMap(id) {
   const map = MAPS[id];
   if (!map) throw new Error(`Unknown map: ${id}`);
@@ -2565,14 +3613,29 @@ export const REGIONS = {
   lannisport: 'The Westerlands', lannisportForge: 'The Westerlands',
   casterlyRock: 'The Westerlands', maesterHallLannisport: 'The Westerlands',
   roseroad: 'The Reach', highgarden: 'The Reach', highgardenArmoury: 'The Reach',
+  highgardenKeep: 'The Reach',
   maesterHallHighgarden: 'The Reach',
   princesPass: 'Dorne', sunspear: 'Dorne', sunspearArmoury: 'Dorne',
+  sunspearKeep: 'Dorne',
   maesterHallSunspear: 'Dorne',
   stormlands: 'The Stormlands', stormsEnd: 'The Stormlands',
+  stormsEndKeep: 'The Stormlands',
   stormsEndArmoury: 'The Stormlands', maesterHallStormsEnd: 'The Stormlands',
   kingsroad: 'The Crownlands', kingsLanding: 'The Crownlands',
+  mudGate: 'The Crownlands', fleaBottom: 'The Crownlands',
+  greatSept: 'The Crownlands', dragonpit: 'The Crownlands',
   klArmoury: 'The Crownlands', redKeep: 'The Crownlands',
   maesterHallKL: 'The Crownlands',
+  ironCoast: 'The Iron Islands', seaCave: 'The Iron Islands',
+  pykeBridge: 'The Iron Islands', pyke: 'The Iron Islands',
+  maesterHallPyke: 'The Iron Islands', pykeForge: 'The Iron Islands',
+  pykeKeep: 'The Iron Islands', lordsportDocks: 'The Iron Islands',
+  weepingWater: 'The North', dreadfort: 'The North',
+  maesterHallDreadfort: 'The North', dreadfortForge: 'The North',
+  dreadfortKeep: 'The North',
+  hauntedForest: 'Beyond the Wall', fistOfTheFirstMen: 'Beyond the Wall',
+  hollowHill: 'The Crownlands', stoneCrypt: 'The Reach',
+  illyriosManse: 'Pentos', templeOfRhllor: 'Volantis', greatPyramid: 'Meereen',
   dragonstone: 'Dragonstone', dragonmont: 'Dragonstone',
   dragonstoneArmoury: 'Dragonstone',
   maesterHallDragonstone: 'Dragonstone',

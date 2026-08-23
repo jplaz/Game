@@ -403,6 +403,18 @@ int main(void) {
       if (to < 0 || to >= MAP_COUNT) { bad("%s: a door leads to map %d", cur->name, to); continue; }
       if (!seen[to]) { seen[to] = 1; q[tail++] = to; }
     }
+    /* Not every way through the world is a door. Standing anywhere there is a
+       harbourmaster opens every berth on the passage list, which is the only
+       reason the Free Cities are on the cartridge at all - there is no road to
+       Braavos and there was never going to be one. */
+    for (i = 0; i < cur->npcCount; i++) {
+      if (!cur->npcs[i].sails) continue;
+      for (j = 0; j < PORT_COUNT; j++) {
+        int to = ports[j].map;
+        if (to < 0 || to >= MAP_COUNT) { bad("a berth at map %d, which is not a map", to); continue; }
+        if (!seen[to]) { seen[to] = 1; q[tail++] = to; }
+      }
+    }
   }
   for (i = 0; i < MAP_COUNT; i++) {
     if (seen[i]) reached++;

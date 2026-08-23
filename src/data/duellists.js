@@ -187,6 +187,79 @@ export const DUELLISTS = {
     after: 'Jon Snow: The war that matters is north of the Wall. Come find me when the chair bores you.',
   },
 
+  // ------------------------------------------------------- the Iron Islands ---
+  balon: {
+    name: 'Balon Greyjoy', sprite: 'ironborn', level: 30,
+    vigour: 290, might: 60, guard: 38, swiftness: 24, wind: 26,
+    house: 'greyjoy',
+    techniques: ['cleave', 'hook', 'crush', 'guard'],
+    beast: { species: 'krakenling', level: 30 },
+    reward: 3200, exp: 940, canYield: false, boss: true,
+    intro: 'Balon Greyjoy: My son came home soft. You came home armed. Which of you is the greater insult?',
+    defeat: 'Balon Greyjoy: The Seastone Chair keeps its own counsel. Sit in it if you dare.',
+    after: 'Balon Greyjoy: We do not sow. Remember that when you are hungry.',
+  },
+  theonReturned: {
+    name: 'Theon Greyjoy', sprite: 'ironborn', level: 26,
+    vigour: 240, might: 48, guard: 30, swiftness: 34, wind: 26,
+    house: 'greyjoy',
+    techniques: ['loose', 'quickCut', 'riposte', 'guard'],
+    reward: 2000, exp: 680, canYield: true,
+    intro: 'Theon Greyjoy: I know what I am. I would still rather you did not say it out loud.',
+    defeat: 'Theon Greyjoy: My name is Theon Greyjoy. That is all I have left and I am keeping it.',
+    after: 'Theon Greyjoy: My sister holds the fleet. She is better at this than I ever was.',
+  },
+
+  // ---------------------------------------------------------- the Dreadfort ---
+  reek: {
+    name: 'The Kennelmaster', sprite: 'bolton', level: 27,
+    vigour: 250, might: 54, guard: 34, swiftness: 28, wind: 24,
+    house: 'bolton',
+    techniques: ['hook', 'backstab', 'guard'],
+    beast: { species: 'winterfang', level: 27 },
+    reward: 2300, exp: 740, canYield: true,
+    intro: 'Kennelmaster: The girls have not been fed. You would do.',
+    defeat: 'Kennelmaster: Down. DOWN. Go on, get out.',
+    after: 'Kennelmaster: They are named after the last ones. There have been a lot of last ones.',
+  },
+
+  // --------------------------------------------------------- beyond the Wall ---
+  // The Wall is a wall against something. Until now the something was a line of
+  // dialogue: the free folk were up there and the dead were a rumour they kept
+  // repeating. These are the rumour.
+  mance: {
+    name: 'Mance Rayder', sprite: 'wildling', level: 32,
+    vigour: 310, might: 64, guard: 36, swiftness: 34, wind: 30,
+    house: 'freefolk',
+    techniques: ['cleave', 'slash', 'riposte', 'guard'],
+    beast: { species: 'bearhold', level: 32 },
+    reward: 3600, exp: 1100, canYield: true, boss: true,
+    loot: ['armour', 'boiledLeather'],
+    intro: 'Mance Rayder: I gathered a hundred thousand people who agree on nothing. You want to fight ME?',
+    defeat: 'Mance Rayder: All right. All right! Listen. I am not running from you. I am running from what is behind me.',
+    after: 'Mance Rayder: Take the dragonglass. It is the only thing up here that works.',
+  },
+  wightWalker: {
+    name: 'A Risen Man', sprite: 'whitewalker', level: 30,
+    vigour: 260, might: 58, guard: 26, swiftness: 30, wind: 24,
+    techniques: ['claw', 'grapple', 'headbutt'],
+    reward: 0, exp: 900, canYield: false,
+    intro: 'It was somebody. It gets up anyway.',
+    defeat: 'It comes apart, and stays apart.',
+    after: 'Whatever it was, it has stopped.',
+  },
+  nightKing: {
+    name: 'The Night King', sprite: 'whitewalker', level: 42,
+    vigour: 420, might: 84, guard: 56, swiftness: 38, wind: 34,
+    techniques: ['skewer', 'crush', 'grapple', 'guard'],
+    beast: { species: 'palewalker', level: 42 },
+    reward: 0, exp: 3000, canYield: false, boss: true,
+    loot: ['weapon', 'dragonglassDagger'],
+    intro: 'It does not speak. It raises one hand, and the cold comes in behind you.',
+    defeat: 'The ice goes out of the air all at once. Everything standing behind it falls down.',
+    after: 'The Fist is bare rock again, and very quiet.',
+  },
+
   // ---------------------------------------------------- King's Landing -----
   meryn: {
     name: 'Ser Meryn Trant', sprite: 'kingsguard', level: 27,

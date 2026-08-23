@@ -291,6 +291,96 @@ export const TRAINERS = {
       { species: 'heartwarden', level: 31 },
     ],
   },
+  // ------------------------------------------------------- the Iron Islands ---
+  // House Greyjoy held a seat with nobody in it: a sworn ironborn had eight
+  // sigils to chase and none of them their own. The Kraken is the ninth, and it
+  // is on Pyke where it belongs.
+  gymGreyjoy: {
+    name: 'Yara Greyjoy', sprite: 'ironborn', reward: 7000, leader: true, sigil: 'kraken',
+    intro: 'Yara Greyjoy: We do not sow. We do not ask. And we do not lose on our own rock. Come on.',
+    defeat: 'Yara Greyjoy: Paid in full, and in iron. The Kraken Sigil is yours. Do not lose it overboard.',
+    after: 'Yara Greyjoy: The fleet is mine and the sea is nobody\'s. Sail east if you want to see how far nobody\'s goes.',
+    house: 'greyjoy',
+    party: [
+      { species: 'krakenling', level: 28 },
+      { species: 'riverfry', level: 29 },
+      { species: 'deepmaw', level: 32 },
+    ],
+  },
+  drownedPriest: {
+    name: 'The Damphair', sprite: 'ironborn', sight: 4, reward: 2400,
+    intro: 'Aeron Greyjoy: What is dead may never die. You are not dead. That is your difficulty.',
+    defeat: 'Aeron Greyjoy: Rise harder. The sea is patient and I am not.',
+    after: 'Aeron Greyjoy: Salt and stone. Nothing else lasts on this rock.',
+    house: 'greyjoy',
+    party: [{ species: 'riverfry', level: 24 }, { species: 'krakenling', level: 26 }],
+  },
+  ironReaver: {
+    name: 'Reaver Dagmer', sprite: 'ironborn', sight: 4, reward: 2100,
+    intro: 'Dagmer: We pay the iron price. You are carrying the price.',
+    defeat: 'Dagmer: Paid, then. Cheaply.',
+    after: 'Dagmer: Longships out of Lordsport by dusk. Be on one or be off the rock.',
+    house: 'greyjoy',
+    party: [{ species: 'krakenling', level: 23 }, { species: 'silverfin', level: 25 }],
+  },
+
+  // ---------------------------------------------------------- the Dreadfort ---
+  boltonSteward: {
+    name: 'Steward Walton', sprite: 'bolton', sight: 4, reward: 2600,
+    intro: 'Walton: Lord Roose does not care for visitors. I care rather less.',
+    defeat: 'Walton: Go up, then. Wipe your boots.',
+    after: 'Walton: The kennels are through there. Do not go and look.',
+    house: 'bolton',
+    party: [{ species: 'wightling', level: 26 }, { species: 'winterfang', level: 27 }],
+  },
+  rooseBolton: {
+    name: 'Roose Bolton', sprite: 'bolton', reward: 6000,
+    intro: 'Roose Bolton: A quiet land, a quiet people. You are neither. Let us correct one of those.',
+    defeat: 'Roose Bolton: Well. That was louder than I would have chosen.',
+    after: 'Roose Bolton: My son is a problem I have not solved. Perhaps you will.',
+    house: 'bolton',
+    party: [
+      { species: 'wightling', level: 29 },
+      { species: 'winterfang', level: 31 },
+      { species: 'barrowlord', level: 33 },
+    ],
+  },
+
+  // ------------------------------------------------------ beyond the Wall ---
+  spearwifeVal: {
+    name: 'Val', sprite: 'wildlingWoman', sight: 4, reward: 2800,
+    intro: 'Val: You came north in that. Southerners.',
+    defeat: 'Val: You will still freeze. But slower.',
+    after: 'Val: Follow the ravens. They go where the dead are not.',
+    house: 'freefolk',
+    party: [{ species: 'snowpup', level: 27 }, { species: 'direwolf', level: 29 }],
+  },
+  thennMagnar: {
+    name: 'Styr, Magnar of Thenn', sprite: 'wildling', sight: 5, reward: 3400,
+    intro: 'Styr: Thenn does not raid. Thenn takes.',
+    defeat: 'Styr: Take it, then.',
+    after: 'Styr: The Fist is that way. Nothing living is on it.',
+    house: 'freefolk',
+    party: [{ species: 'bearcub', level: 29 }, { species: 'bearhold', level: 32 }],
+  },
+
+  // ----------------------------------------------------------- the hideouts ---
+  smugglerCaptain: {
+    name: 'Salladhor Saan', sprite: 'braavosi', sight: 4, reward: 3000,
+    intro: 'Salladhor Saan: A friend! Friends pay. You have not paid.',
+    defeat: 'Salladhor Saan: Take it, take it. Leave me the cave.',
+    after: 'Salladhor Saan: Everything in here was somebody else\'s first.',
+    house: 'greyjoy',
+    party: [{ species: 'silverfin', level: 24 }, { species: 'deepmaw', level: 27 }],
+  },
+  hollowBrother: {
+    name: 'Thoros of Myr', sprite: 'redPriest', sight: 4, reward: 3200,
+    intro: 'Thoros of Myr: The Brotherhood takes what it needs and nothing else. Today it needs your attention.',
+    defeat: 'Thoros of Myr: The Lord of Light has a sense of humour. Sit down and have a drink.',
+    after: 'Thoros of Myr: The night is dark. So is this cave. Mind the step.',
+    party: [{ species: 'emberwisp', level: 26 }, { species: 'pyremaw', level: 29 }],
+  },
+
   gymMartell: {
     name: 'Prince Oberyn', sprite: 'martell', reward: 8000, leader: true, sigil: 'viper',
     intro: 'Oberyn Martell: You have come a long way to be poisoned. Do not worry. I only do that on purpose.',

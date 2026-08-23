@@ -621,6 +621,57 @@ const painters = {
     rect(ctx, 7, 12, 2, 1, '#e8dcc0');
   },
 
+  // A plank bridge. Water runs under it, so the painter lays the river down
+  // first and then builds on top of it: a bridge tile dropped into a lake has
+  // to look like a bridge over a lake and not a plank floating in a pond.
+  bridge(ctx, frame, mask) {
+    painters.water(ctx, frame, mask);
+    // Deck.
+    rect(ctx, 0, 3, TILE, 10, '#8a6238');
+    rect(ctx, 0, 3, TILE, 1, '#ad7f4c');
+    rect(ctx, 0, 12, TILE, 1, '#5d3f22');
+    for (let x = 0; x < TILE; x += 4) rect(ctx, x, 3, 1, 10, '#6f4c29');
+    // Handrails either side, so the deck has a near edge and a far one.
+    rect(ctx, 0, 1, TILE, 2, '#6f4c29');
+    rect(ctx, 0, 1, TILE, 1, '#9a7043');
+    rect(ctx, 0, 13, TILE, 2, '#4a3018');
+    for (let x = 2; x < TILE; x += 7) {
+      rect(ctx, x, 0, 2, 4, '#7a5530');
+      rect(ctx, x, 12, 2, 4, '#5d3f22');
+    }
+  },
+
+  // A rope bridge over nothing at all - the Iron Islands hang these between
+  // sea stacks, and looking down off one is most of the point of Pyke.
+  ropeBridge(ctx, frame, mask) {
+    painters.openSky(ctx, frame, mask);
+    for (let x = 0; x < TILE; x += 5) {
+      rect(ctx, x, 5, 3, 6, '#8a6238');
+      rect(ctx, x, 5, 3, 1, '#ab8050');
+    }
+    rect(ctx, 0, 4, TILE, 1, '#c8b48c');       // the two ropes it hangs from
+    rect(ctx, 0, 11, TILE, 1, '#96866a');
+    for (let x = 1; x < TILE; x += 4) {
+      rect(ctx, x, 1, 1, 3, '#a89878');
+      rect(ctx, x, 12, 1, 3, '#7d6f56');
+    }
+  },
+
+  // Open sky, off the edge of a mountain or a sea stack. Solid, because you
+  // cannot walk on it, and moving, because otherwise a whole map edge of it
+  // reads as a wall painted blue.
+  openSky(ctx, frame) {
+    speckle(ctx, '#8fb6d8', [
+      { color: '#a3c6e2', chance: 0.1 },
+      { color: '#7ba4c8', chance: 0.14 },
+    ], 41);
+    const drift = frame ? 3 : 0;
+    for (const [x, y, w] of [[1, 3, 7], [9, 9, 6], [4, 12, 5]]) {
+      rect(ctx, (x + drift) % TILE, y, w, 2, '#c8dcee');
+      rect(ctx, (x + drift + 1) % TILE, y - 1, w - 2, 1, '#dceaf6');
+    }
+  },
+
   fence(ctx, _frame, _mask, ground = painters.grass) {
     ground(ctx);
     rect(ctx, 0, 6, TILE, 2, '#8a6a3e');
@@ -886,6 +937,9 @@ export const TILE_DEFS = {
   '*': { paint: painters.flowers, kind: 'floor', grounded: true, varies: true },
   'L': { paint: painters.ledge, kind: 'ledge', grounded: true },
   'f': { paint: painters.fence, kind: 'solid', grounded: true },
+  't': { paint: painters.bridge, kind: 'floor', frames: 2 },
+  'm': { paint: painters.ropeBridge, kind: 'floor', frames: 2 },
+  '^': { paint: painters.openSky, kind: 'solid', frames: 2 },
   '_': { paint: painters.floorWood, kind: 'floor' },
   '=': { paint: painters.floorStone, kind: 'floor' },
   'c': { paint: painters.carpet, kind: 'floor' },

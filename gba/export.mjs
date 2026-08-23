@@ -14,6 +14,10 @@ import { createServer } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
+// The berth list is plain data with nothing browser-shaped in it, so it is read
+// here rather than harvested out of the page.
+const { PORTS } = await import('../src/data/ports.js');
+
 const require = createRequire(import.meta.url);
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 
@@ -44,6 +48,18 @@ const MAP_IDS = [
   'highgardenKeep',
   'princesPass', 'sunspear', 'maesterHallSunspear', 'sunspearArmoury', 'sunspearKeep',
   'stormlands', 'stormsEnd', 'maesterHallStormsEnd', 'stormsEndArmoury', 'stormsEndKeep',
+  // The seventh kingdom. Greyjoy held a seat that was not on the cartridge.
+  'ironCoast', 'seaCave', 'pykeBridge', 'pyke', 'maesterHallPyke', 'pykeForge',
+  'pykeKeep', 'lordsportDocks',
+  // The Dreadfort, and the road to it.
+  'weepingWater', 'dreadfort', 'maesterHallDreadfort', 'dreadfortForge', 'dreadfortKeep',
+  // North of the Wall, where the story about the dead stops being a story.
+  'hauntedForest', 'fistOfTheFirstMen',
+  // Holes in the ground with people in them.
+  'hollowHill', 'stoneCrypt',
+  // And east, over the Narrow Sea.
+  'narrowSea', 'braavos', 'houseOfBlackAndWhite', 'pentos', 'illyriosManse',
+  'volantis', 'templeOfRhllor', 'meereen', 'greatPyramid',
 ];
 
 // What the cartridge's hardware will hold.
@@ -237,8 +253,6 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   // Where a sworn sword of each house walks out of their own gate. Every one of
   // these is a tile some door already lands you on, so it is walkable ground
   // that the audit has already checked rather than a coordinate picked by eye.
-  // The ironborn have no Pyke on the cartridge; they hold Moat Cailin instead,
-  // which is where they take hold in the story anyway.
   // `level` is what you begin at, and it is not the same for everybody. The
   // ground around a seat decides it: the weakest fighter within one door of
   // Winterfell is level three, and of Casterly Rock, twenty-seven. Starting a
@@ -257,7 +271,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     lannister: { map: 'lannisport',  x: 9,  y: 15, dir: 0, level: 5 },
     tully:     { map: 'riverrun',    x: 10, y: 17, dir: 1, level: 5 },
     targaryen: { map: 'dragonstone', x: 11, y: 18, dir: 1, level: 5 },
-    greyjoy:   { map: 'moatCailin',  x: 11, y: 18, dir: 1, level: 5 },
+    greyjoy:   { map: 'pyke',        x: 11, y: 18, dir: 1, level: 5 },
     arryn:     { map: 'theEyrie',    x: 14, y: 9,  dir: 0, level: 5 },
     tyrell:    { map: 'highgarden',  x: 14, y: 9,  dir: 0, level: 5 },
     martell:   { map: 'sunspear',    x: 14, y: 9,  dir: 0, level: 5 },
@@ -347,7 +361,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       techs: techSlots(b.techs),
       reward: 12 + level * 6,
       exp: 18 + level * 9,
-      mortal: 1,
+      mortal: 1, dead: sprite === 'whitewalker' ? 1 : 0,
       intro: `${name} squares up.`,
       defeat: `${name} goes down and does not get up.`,
     };
@@ -366,6 +380,11 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       id, kind, name: def.name, price: def.price ?? 0, heal: heal ?? 0,
       might: def.might ?? 0, guard: def.guard ?? 0, swiftness: def.swiftness ?? 0,
       hold: def.hold ?? 0,
+      /* Obsidian, or Valyrian steel, which is obsidian's cleverer cousin: the
+         two things in the world that cut the dead. Read off the name rather
+         than flagged by hand, so a new dragonglass weapon works the day it is
+         written. */
+      obsidian: /dragonglass|valyrian|ancestral/i.test(id) ? 1 : 0,
       techs: def.techniques ?? [],
     });
     return at;
@@ -446,6 +465,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       tame: NEVER_TAMED.includes(id) ? 0 : 1,
       into: grow ? beastSlot.get(grow.into) : 255,
       growAt: grow ? grow.at : 0,
+      /* Something that was already dead when it got up. Steel is nearly no use
+         against these and obsidian takes them apart, the same as it does for
+         the Walkers who raise them. */
+      dead: sp.archetype === 'wight' || /wight|barrowlord|palewalker|ghostfang/i.test(id) ? 1 : 0,
       w: 64, h: 64, frames: [read(big)],
     };
   });
@@ -464,7 +487,8 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
      house is a different route through the same world rather than the same
      route with a different colour on the status card. */
   const LEADER_ORDER = ['gymStark', 'gymTully', 'gymArryn', 'gymTyrell', 'gymLannister',
-                        'gymMartell', 'gymBaratheon', 'gymTargaryen', 'gymThrone'];
+                        'gymGreyjoy', 'gymMartell', 'gymBaratheon', 'gymTargaryen',
+                        'gymThrone'];
 
   /* How hard the road is here.
    *
@@ -592,6 +616,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
             techs: techSlots(named.techniques),
             reward: named.reward, exp: named.exp,
             mortal: named.canYield === false ? 0 : 1,
+            /* One of the dead. Steel is nearly useless against these; obsidian
+               takes them apart. It is the reason to walk the Haunted Forest
+               picking dragonglass up off the ground. */
+            dead: sprite === 'whitewalker' ? 1 : 0,
             intro: named.intro, defeat: named.defeat,
           }
         : roadFighter(n.name ?? 'Stranger', sprite, level);
@@ -637,6 +665,9 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         // fight him at all.
         challenges: /^(duel|gym|trainer)/i.test(n.script ?? '')
           && !/hint/i.test(n.script ?? '') ? 1 : 0,
+        /* A harbourmaster is not a shopkeeper: speaking to one opens the
+           passage list rather than a counter. */
+        sails: /^(ship|harbour)/i.test(n.script ?? '') ? 1 : 0,
       };
     });
 
@@ -660,6 +691,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
           might: made.might, guard: made.guard, swiftness: made.swiftness,
           techs: techSlots(made.techniques),
           reward: made.reward, exp: made.exp, mortal: 1,
+          dead: made.sprite === 'whitewalker' ? 1 : 0,
           intro: made.intro, defeat: made.defeat,
         }),
       });
@@ -1058,7 +1090,7 @@ L.push('typedef struct {');
 L.push('  const char *name;');
 L.push('  const u16 *pal; const u32 *tiles;');
 L.push('  u8 hp, atk, def, spe;   /* what it is made of, before its level */');
-L.push('  u8 tech[4], hold, tame, into, growAt;');
+L.push('  u8 tech[4], hold, tame, into, growAt, dead;');
 L.push('} Beast;');
 L.push('static const Beast beasts[BEAST_COUNT] = {');
 harvest.beasts.forEach((b, i) => {
@@ -1068,7 +1100,7 @@ harvest.beasts.forEach((b, i) => {
   const t = [...t3, t3[0]];
   L.push(`  { ${cstr(b.name)}, beastpal_${i}, beasttiles_${i},`);
   L.push(`    ${b.hp}, ${b.atk}, ${b.def}, ${b.spe},`);
-  L.push(`    { ${t.join(', ')} }, ${b.hold}, ${b.tame}, ${b.into}, ${b.growAt} },`);
+  L.push(`    { ${t.join(', ')} }, ${b.hold}, ${b.tame}, ${b.into}, ${b.growAt}, ${b.dead} },`);
 });
 L.push('};');
 L.push(`#define EGG_COUNT ${harvest.eggs.length}`);
@@ -1108,7 +1140,7 @@ L.push('#define WARE_EGG    6    /* carried until it is not an egg any more */')
 L.push('typedef struct {');
 L.push('  const char *name;');
 L.push('  u16 price, heal;');
-L.push('  u8 kind, might, guard, tier, hold;');
+L.push('  u8 kind, might, guard, tier, hold, obsidian;');
 L.push('  s8 swiftness;');
 L.push('  u8 tech[3], techCount;');
 L.push('} Ware;');
@@ -1121,7 +1153,7 @@ L.push('static const Ware wares[WARE_COUNT] = {');
   for (const w of harvest.wares) {
     const techs = (w.techs ?? []).map((id) => techSlotOf(id)).filter((n) => n >= 0).slice(0, 3);
     L.push(`  { ${cstr(w.name)}, ${w.price}, ${Math.min(9999, w.heal)}, ${kindOf[w.kind]},`);
-    L.push(`    ${w.might}, ${w.guard}, ${LOOK[w.id] ?? 0}, ${w.hold ?? 0}, ${w.swiftness},`);
+    L.push(`    ${w.might}, ${w.guard}, ${LOOK[w.id] ?? 0}, ${w.hold ?? 0}, ${w.obsidian ?? 0}, ${w.swiftness},`);
     L.push(`    { ${[...techs, 0, 0, 0].slice(0, 3).join(', ')} }, ${techs.length} },`);
   }
 }
@@ -1206,14 +1238,14 @@ L.push('');
 L.push(`#define DUELLIST_COUNT ${harvest.duellists.length}`);
 L.push('typedef struct {');
 L.push('  const char *name;');
-L.push('  u16 vigour; u8 level, might, guard, swiftness, mortal, fixed;');
+L.push('  u16 vigour; u8 level, might, guard, swiftness, mortal, fixed, dead;');
 L.push('  u8 tech[4];');
 L.push('  u16 reward, exp;');
 L.push('  const char *intro, *defeat;');
 L.push('} Duellist;');
 L.push('static const Duellist duellists[DUELLIST_COUNT] = {');
 for (const d of harvest.duellists) {
-  L.push(`  { ${cstr(d.name)}, ${d.vigour}, ${d.level}, ${d.might}, ${d.guard}, ${d.swiftness}, ${d.mortal}, ${d.fixed ?? 0},`);
+  L.push(`  { ${cstr(d.name)}, ${d.vigour}, ${d.level}, ${d.might}, ${d.guard}, ${d.swiftness}, ${d.mortal}, ${d.fixed ?? 0}, ${d.dead ?? 0},`);
   L.push(`    { ${d.techs.join(', ')} }, ${d.reward}, ${d.exp},`);
   L.push(`    ${cstr(d.intro)}, ${cstr(d.defeat)} },`);
 }
@@ -1239,7 +1271,22 @@ L.push(`#define MAP_COUNT ${harvest.maps.length}`);
   L.push('};');
   /* What each rung of that ladder is worth. Nine evenly spaced steps from a
      first fight you can take at ten to a last one that expects everything. */
-  L.push('static const u8 leaderLevel[LEADER_COUNT] = { 10, 13, 17, 21, 25, 29, 33, 37, 42 };');
+  L.push('static const u8 leaderLevel[LEADER_COUNT] = { 9, 12, 15, 19, 22, 26, 30, 34, 38, 43 };');
+  L.push('');
+  /* Where a ship will take you, and what the captain wants for it. A port that
+     is not on the cartridge is not a port. */
+  {
+    const berths = PORTS.filter((p) => MAP_IDS.includes(p.map));
+    L.push(`#define PORT_COUNT ${berths.length}`);
+    L.push('typedef struct { const char *name; u8 map, x, y, dir; u16 fare; } Port;');
+    L.push('static const Port ports[PORT_COUNT] = {');
+    for (const p of berths) {
+      const dir = ['down', 'up', 'left', 'right'].indexOf(p.dir ?? 'down');
+      L.push(`  { ${cstr(p.name)}, ${MAP_IDS.indexOf(p.map)}, ${p.x}, ${p.y}, `
+        + `${dir < 0 ? 0 : dir}, ${p.fare} },`);
+    }
+    L.push('};');
+  }
   L.push('');
   L.push('/* How hard the ground is on every map, measured from each house seat in');
   L.push('   turn: level three at your own gate and level forty-four at the far end');
@@ -1257,7 +1304,7 @@ L.push('typedef struct { u16 duellist; u8 bank; } Ambush;');
 L.push('typedef struct { u8 beast, level; } Wild;');
 L.push('typedef struct { u8 x, y, ware; u16 gold; } Chest;');
 L.push('typedef struct {');
-L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges;');
+L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sails;');
 L.push('  u16 duellist;');
 L.push('  const char *name, *line;');
 L.push('} Npc;');
@@ -1342,7 +1389,7 @@ harvest.maps.forEach((map, i) => {
       name = n.name.startsWith(spoken[1]) ? n.name : spoken[1];
       line = spoken[2];
     }
-    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.duellist},`);
+    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.duellist},`);
     L.push(`    ${cstr(name)}, ${cstr(line.trim())} },`);
   }
   if (!map.npcs.length) L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');

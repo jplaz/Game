@@ -773,6 +773,29 @@ export const SCRIPTS = {
     await say(npc.data?.line ?? `${npc.name} keeps one hand on a knife the whole time.`);
   },
 
+  // ------------------------------------------------- inns and common houses --
+  /** The innkeep: a bed, a meal, and a counter with remedies on it. */
+  async innkeep({ say, npc, healParty }) {
+    await say(npc.data?.line ?? 'Innkeep: Bed, board, and mind the step.');
+    healParty?.();
+    await say('You eat, you sleep, and you wake up in one piece.');
+  },
+
+  /** Somebody in the taproom who has been here a while. */
+  async taproom({ say, npc }) {
+    await say(npc.data?.line ?? 'They raise a cup at you and go back to it.');
+  },
+
+  /** The woman who runs the common house. */
+  async houseKeeper({ say, npc }) {
+    await say(npc.data?.line ?? 'She looks you over and decides you can afford it.');
+  },
+
+  /** And whoever else is in it, which is where the town's news lives. */
+  async houseTalk({ say, npc }) {
+    await say(npc.data?.line ?? `${npc.name} has better things to do.`);
+  },
+
   // ------------------------------------------------------------ Gold Road --
   async goldRoadHint({ say }) {
     await say('Miner: The barrow-cave west of the road goes deeper than anyone has mapped.');

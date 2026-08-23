@@ -35,7 +35,9 @@ int hostFramesLeft;
 /* The world is sixty maps now and the last two seats are behind a warren and a
    ferry nobody advertises, so a run that plays the whole ladder needs longer
    than one that walked thirty-eight rooms. */
-#define FRAME_CAP 1800000
+/* A hundred and eight maps is a bigger sweep than eighty-six was. */
+#define FRAME_CAP 2600000
+static int frameCap = FRAME_CAP;
 #define GOAL_FRAMES 3000            /* how long one errand may take before it counts as stuck */
 #define MAX_DUELS 40
 
@@ -61,7 +63,7 @@ static void finding(const char *fmt, ...) {
 
 static int frameNo;
 static int mapSeen[MAP_COUNT];
-static int portsSeen, sailed;
+static int portsSeen, sailed, talesSeen, crownRun;
 static int npcTalked[MAP_COUNT][MAX_CROWD];
 static int signRead[MAP_COUNT][8];
 static int npcStuck[MAP_COUNT][MAX_CROWD];
@@ -86,7 +88,7 @@ static void checkSound(void) {
 static void checkFrame(void) {
   int i;
   checkSound();
-  if (scene < 0 || scene > SCENE_PORT) finding("scene is %d, which is not a scene", scene);
+  if (scene < 0 || scene > SCENE_TALE) finding("scene is %d, which is not a scene", scene);
   /* Nothing is standing anywhere yet on the screens that come before the
      world, and there is no map to be standing on. */
   if (scene == SCENE_TITLE || scene == SCENE_HOUSE || scene == SCENE_NAME) return;
@@ -238,6 +240,12 @@ static unsigned tap(unsigned key) {
 /* Whether a map still owes the tester anything. */
 static int mapDone(int m) {
   int i;
+  /* The Red Keep is shut until nine seats have bent to you, and the two white
+     cloaks on the stair will say so all day. Counting it as unfinished sent the
+     tester to that door and left it there: two and a half million frames stood
+     on one tile in King's Landing being told no. It owes nothing until it can
+     be opened. */
+  if (m == THRONE_MAP && countSigils() < LEADER_COUNT - 1) return 1;
   if (!mapSeen[m]) return 0;
   for (i = 0; i < maps[m].npcCount && i < MAX_CROWD; i++) {
     if (m == worldId && !crowdAlive[i]) continue;      /* dead and dealt with */
@@ -391,7 +399,20 @@ static int findCover(int *gx, int *gy) {
 static void pickLadderGoal(void) {
   int at = nextRung(), lead, want, who, i;
   if (at < 0) {                                      /* nine sigils: finished */
-    printf("      the realm is yours: nine sigils at level %d, %d gold\n",
+    /* Every sigil taken. For an ordinary climb that is the end of the errand -
+       but the last act begins after the last sigil, not with it, so a crown run
+       keeps going until the chair has actually been sat in. */
+    if (crownRun && you.story < 3) {
+      /* Beaten by the thing behind the throne. Walk back up and try it again,
+         which is what the game now lets a player do. */
+      int back = worldId == THRONE_MAP ? -1 : warpTowardMap(THRONE_MAP);
+      if (back >= 0) { goalKind = GOAL_WARP; goalIndex = back; return; }
+      if (worldId == THRONE_MAP) {
+        int door = warpTowardMap(THRONE_GATE_MAP);
+        if (door >= 0) { goalKind = GOAL_WARP; goalIndex = door; return; }
+      }
+    }
+    printf("      the realm is yours: ten sigils at level %d, %d gold\n",
       you.level, you.gold);
     hostFramesLeft = 0;
     return;
@@ -403,7 +424,10 @@ static void pickLadderGoal(void) {
     /* One trip to a counter for each rung, armed when the rung changes rather
        than whenever the purse grows. Arming it on money turned the forge door
        into a revolving one - in, buy nothing, out, in again, forever. */
-    wantShop = 1;
+    /* The crown run is already carrying one of everything, so it has no
+       errand at a counter - and sending it shopping sent it to the far end
+       of the Stormlands instead of up the hill it was standing at. */
+    wantShop = !crownRun;
     printf("    rung %d  %-22s at %-18s wants about %2d\n",
       at + 1, leaders[lead].name, leaders[lead].seat, want);
   }
@@ -414,7 +438,13 @@ static void pickLadderGoal(void) {
   grindMode = 0;
   if (you.level + 1 < want) {
     int here = groundBy[you.house][worldId];
-    if (here + 8 >= you.level && findCover(&grindX, &grindY)) {
+    /* Grass with nothing in it is not a place to level up. King's Landing has
+       cover all over it and no encounter rows at all - the capital is the one
+       map whose crowd is so large there was no object memory left for roamers -
+       so a run that went there to earn its ninth sigil stood in a hedge for
+       nine million frames with six hundred thousand gold and level thirty-six. */
+    if (here + 8 >= you.level && (world->ambushCount || world->wildCount)
+        && findCover(&grindX, &grindY)) {
       grindMode = 1;
       goalKind = GOAL_SIGN; goalIndex = 0;            /* borrow "walk to a tile" */
       return;
@@ -755,6 +785,10 @@ void hostFrame(void) {
       else if (craftPick != best) keys = tap(craftPick < best ? KEY_DOWN : KEY_UP);
       else { keys = tap(KEY_A); if (keys) crafted++; }
     }
+  } else if (scene == SCENE_TALE) {
+    /* The last act reads itself. Nothing to decide, so hold A and let it. */
+    talesSeen++;
+    keys = tap(KEY_A);
   } else if (scene == SCENE_PORT) {
     /* A harbourmaster has just offered a berth. Take one to somewhere the run
        has not been - it is the only road to the Free Cities and there is no
@@ -900,7 +934,8 @@ void hostFrame(void) {
       }
       if (grindMode) {
         /* Walk the grass and fight whatever comes out of it. */
-        if (!findCover(&grindX, &grindY)) {
+        if (!(world->ambushCount || world->wildCount)
+            || !findCover(&grindX, &grindY)) {
           printf("      stopped: nothing to fight in %s and still short of the "
                  "next rung (level %d)\n", world->name, you.level);
           hostFramesLeft = 0;
@@ -1059,7 +1094,7 @@ void hostFrame(void) {
       frameNo, world ? world->name : "-", scene, duelPhase, windowOpen,
       typeDone, lineAt, lineCount, shift, spotted, hero.px >> 4, hero.py >> 4);
   }
-  if (frameNo > FRAME_CAP) {
+  if (frameNo > frameCap) {
     finding("the playthrough ran out of frames in %s: scene %d, goal %d/%d, "
             "stage %d, %d frames on it, window %d, phase %d, at %d,%d",
             world->name, scene, goalKind, goalIndex, goalStage, goalFrames,
@@ -1075,6 +1110,40 @@ int main(int argc, char **argv) {
   REG_KEYINPUT = 0x03FF;
   /* With SAVED set, the cartridge is switched on with a record already on it,
      which is the only way to see the title's other two entries. */
+  /* CROWN=1: the last act, on its own.
+     The wandering sweep never collects nine sigils and the directed climb is a
+     day and a half of frames, so neither of them ever reaches the end of the
+     story - which meant the whole of it was written and none of it had ever
+     run. This starts a game one door from the Red Keep with the nine seats
+     already bent, so the gate, the queen, her champion, the chair and the
+     crowning are all played through in a couple of minutes. */
+  if (getenv("CROWN")) {
+    Record r;
+    unsigned k;
+    int i;
+    titleWant = 0;                              /* take the record up */
+    for (k = 0; k < sizeof r; k++) ((unsigned char *)&r)[k] = 0;
+    r.magic = RECORD_MAGIC;
+    r.house = (u8)house;
+    r.level = 44;
+    r.worldId = (u8)THRONE_GATE_MAP;
+    r.dir = 0;
+    r.x = (u8)THRONE_GATE_X; r.y = (u8)THRONE_GATE_Y;
+    r.sigils = (u16)((1u << (LEADER_COUNT - 1)) - 1u);   /* nine of ten */
+    r.beastKind = 255;
+    r.haven = 255;
+    r.exp = (unsigned)expForLevel(44);
+    r.gold = 40000; r.hp = 9999; r.kills = 200;
+    /* Dressed for it: the best of everything the road can hand over. */
+    for (i = 0; i < WARE_COUNT; i++) if (wares[i].kind != WARE_STUFF) r.bag[i] = 1;
+    r.sum = tally(&r);
+    for (k = 0; k < sizeof r; k++) hostSram[k] = ((unsigned char *)&r)[k];
+    crownRun = 1;
+    /* Nine sigils in hand means the ladder has exactly one rung left, so the
+       directed climb walks straight at it instead of wandering the capital. */
+    ladderMode = 1;
+  }
+
   if (getenv("SAVED")) {
     Record r;
     titleWant = atoi(getenv("SAVED")) - 1;      /* 1 continue, 2 new, 3 forget */
@@ -1100,6 +1169,7 @@ int main(int argc, char **argv) {
     for (k = 0; k < sizeof r; k++) hostSram[k] = ((unsigned char *)&r)[k];
   }
   hostFramesLeft = FRAME_CAP + 8;
+  if (getenv("FRAMES")) { frameCap = atoi(getenv("FRAMES")); hostFramesLeft = frameCap + 8; }
   wantHouse = house;
   if (getenv("SEED")) seed = (unsigned)atoi(getenv("SEED"));
   if (getenv("STORY")) { storyEvery = atoi(getenv("STORY")); storyFor = storyEvery * 40; }
@@ -1111,6 +1181,14 @@ int main(int argc, char **argv) {
 
   for (i = 0; i < MAP_COUNT; i++) {
     if (mapSeen[i]) seenMaps++;
+    /* The throne room is meant to be shut. A wandering run does not collect
+       nine sigils, so not reaching it is the game working rather than a fault -
+       the LADDER run is what proves that door opens. */
+    else if (i == THRONE_MAP && countSigils() < LEADER_COUNT - 1) seenMaps++;
+    /* A directed climb goes where the ladder sends it and nowhere else, so
+       what it did not visit is not a fault in the world. Only the wandering
+       sweep is a coverage check. */
+    else if (ladderMode) seenMaps += 0;
     else finding("%s is never reachable on foot", maps[i].name);
     totalNpcs += maps[i].npcCount;
     totalSigns += maps[i].signCount;
@@ -1139,6 +1217,10 @@ int main(int argc, char **argv) {
   }
   printf("  status card    opened %d times\n", statusChecks);
   printf("  passage list   opened %d times, sailed %d\n", portsSeen, sailed);
+  printf("  the last act   %d pages read, story at %d\n", talesSeen, you.story);
+  if (crownRun && you.story < 3) {
+    finding("the last act stopped at stage %d: the chair was never taken", you.story);
+  }
   printf("  spotted on the road %d times\n", spottings);
   printf("  menus / pouch / stalls  %d / %d / %d, bought %d things, saved %d times\n",
     menusSeen, bagsSeen, shopsSeen, bought, records);

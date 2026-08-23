@@ -82,6 +82,8 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
   const M = 'M';       // and both are crowned with battlements
   const F = 'Z';       // a forge roofs in tarred board, never in thatch
   const f = 'z';
+  const Y = 'Y';       // and the common houses are thatched, everywhere
+  const y = 'y';
   const P = 'p';       // and a maester's hall is limewashed, wherever it stands
   const V = banner;
 
@@ -108,6 +110,19 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
     row(W, fill(6), '-', fill(3), '-', fill(11), W),
     row(W, fill(2), '-'.repeat(18), fill(2), W),
     row(W, fill(10), '-', fill(11), W),
+    /* Below the keep, the part of a town people actually live in.
+       Every settlement in this game had a maester, a smith and a lord, and
+       nowhere at all that anybody went in the evening. Two thatched common
+       houses face each other across the road here: the inn, the brothel and
+       the only news there is. The town grows southward to hold them, so every
+       door already written down is exactly where it was. */
+    row(W, fill(2), y.repeat(5), fill(3), '-', fill(2), y.repeat(5), fill(4), W),
+    row(W, fill(2), Y.repeat(5), fill(3), '-', fill(2), Y.repeat(5), fill(4), W),
+    row(W, fill(2), Y.repeat(5), fill(3), '-', fill(2), Y.repeat(5), fill(4), W),
+    row(W, fill(2), H, 'w', 'D', 'w', H, fill(3), '-', fill(2), H, 'w', 'D', 'w', H, fill(4), W),
+    row(W, fill(4), '-', fill(5), '-', fill(4), '-', fill(6), W),
+    row(W, fill(2), '-'.repeat(18), fill(2), W),
+    row(W, fill(10), '-', fill(11), W),
     row(W, fill(10), '-', fill(11), W),
     W.repeat(11) + '-' + W.repeat(12),
   ];
@@ -127,7 +142,8 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
   /* A door with nothing behind it is worse than a wall: the player walks up to
      it, presses A, and the game says nothing at all. Towns that have no room to
      spare behind a given building get a shuttered window there instead. */
-  const SHUT = { hall: [6, 6], forge: [17, 6], keep: [7, 14] };
+  const SHUT = { hall: [6, 6], forge: [17, 6], keep: [7, 14],
+                 inn: [5, 21], house: [16, 21] };
   for (const which of shut) {
     const at = SHUT[which];
     if (at) grid[at[1]][at[0]] = 'w';
@@ -142,8 +158,10 @@ export const TOWN = {
   hallDoor: [6, 6], hallStand: [6, 7],
   shopDoor: [17, 6], shopStand: [17, 7],
   keepDoor: [7, 14], keepStand: [7, 15],
+  innDoor: [5, 21], innStand: [5, 22],
+  houseDoor: [16, 21], houseStand: [16, 22],
   north: [11, 0], northStand: [11, 1],
-  south: [11, 19], southStand: [11, 18],
+  south: [11, 26], southStand: [11, 25],
 };
 
 /**
@@ -557,6 +575,107 @@ function cityGrid() {
   for (const [x, y] of [[13, 4], [13, 6], [18, 5], [18, 7], [12, 8], [19, 3]]) put(x, y, ',');
 
   return g.map((r) => r.join(''));
+}
+
+
+/* ---------------------------------------------------------------- rooms ---
+ *
+ * What is behind the two doors at the bottom of every town.
+ *
+ * A settlement in this game used to be a maester, a smith and a lord, and
+ * nowhere at all that anybody went in the evening - which is the one thing
+ * every place in Westeros has and this world had none of. Each town now has an
+ * inn and a common house, generated from these two plans so that adding a town
+ * adds both without anybody typing another room.
+ *
+ * They are not scenery. The innkeep sells food and mends you; the taproom has
+ * somebody in it worth listening to and somebody in it worth fighting; and what
+ * the smallfolk say in them is where the regional colour of this game actually
+ * lives.
+ */
+const INN_TILES = [
+  'IIIIIIIIIIIIII',
+  'Ih=========N=I',
+  'I==KKKKKK====I',
+  'I============I',
+  'I=T=T=T==b=b=I',
+  'I=T=T=T======I',
+  'I============I',
+  'I=T=T=T==b=b=I',
+  'I=T=T=T======I',
+  'I=====F=F====I',
+  'I============I',
+  'IIIIII__IIIIII',
+];
+
+const HOUSE_TILES = [
+  'IIIIIIIIIIIIII',
+  'Ic==========cI',
+  'I=cccccccccc=I',
+  'I=cBc=F=cBc==I',
+  'I=cccccccccc=I',
+  'I==KKK===b=b=I',
+  'I============I',
+  'I=b=b====b=b=I',
+  'I============I',
+  'I=F=======F==I',
+  'I============I',
+  'IIIIII__IIIIII',
+];
+
+/**
+ * An inn: a fire, a counter, tables, and beds upstairs that are drawn on the
+ * same floor because a cartridge map has one storey.
+ */
+function makeInn({ town, name, region, keeper, keeperLine, drinkerLine,
+                   fighter, fighterLine, stock }) {
+  return {
+    name, indoor: true, music: 'town', ground: 'stone',
+    tiles: INN_TILES,
+    warps: [
+      { x: 6, y: 11, to: town, dir: 'down', back: true },
+      { x: 7, y: 11, to: town, dir: 'down', back: true },
+    ],
+    npcs: [
+      { x: 4, y: 1, dir: 'down', sprite: 'goodwife', name: keeper, script: 'innkeep',
+        data: { line: keeperLine, stock } },
+      { x: 4, y: 6, dir: 'up', sprite: 'smallfolk', name: 'Drinker', script: 'taproom',
+        data: { line: drinkerLine } },
+      { x: 10, y: 3, dir: 'left', sprite: 'sellsword', name: fighter, script: 'duel',
+        data: { duel: fighterLine } },
+    ],
+    signs: [
+      { x: 12, y: 1, text: `${region.toUpperCase()}\nA raven post, a fire and a bed.\nAsk at the counter.` },
+    ],
+  };
+}
+
+/**
+ * And the common house across the road: warmer, louder, and where anyone who
+ * knows anything about this town is sitting.
+ */
+function makeCommonHouse({ town, name, region, madam, madamLine, voices }) {
+  return {
+    name, indoor: true, music: 'town', ground: 'stone',
+    tiles: HOUSE_TILES,
+    warps: [
+      { x: 6, y: 11, to: town, dir: 'down', back: true },
+      { x: 7, y: 11, to: town, dir: 'down', back: true },
+    ],
+    npcs: [
+      { x: 2, y: 5, dir: 'right', sprite: 'goodwife', name: madam, script: 'houseKeeper',
+        data: { line: madamLine } },
+      { x: 10, y: 1, dir: 'down', sprite: 'girl', name: voices[0].who, script: 'houseTalk',
+        data: { line: voices[0].line } },
+      { x: 3, y: 8, dir: 'right', sprite: 'smallfolk', name: voices[1].who, script: 'houseTalk',
+        data: { line: voices[1].line } },
+      { x: 10, y: 8, dir: 'left', sprite: 'noble', name: voices[2].who, script: 'houseTalk',
+        data: { line: voices[2].line } },
+    ],
+    signs: [
+      { x: 1, y: 1, text: `A red lamp in the window and nobody’s name over the door.\n${region} has one of these in every town.` },
+    ],
+  };
 }
 
 export const MAPS = {
@@ -1037,7 +1156,7 @@ export const MAPS = {
     ],
     warps: [
       { x: 11, y: 29, to: 'riverlands', tx: 18, ty: 12, dir: 'down' },
-      { x: 11, y: 0, to: 'theEyrie', tx: 11, ty: 18, dir: 'up' },
+      { x: 11, y: 0, to: 'theEyrie', tx: 11, ty: 25, dir: 'up' },
     ],
     signs: [
       { x: 8, y: 21, text: 'THE BLOODY GATE\n"You may not pass."\nSomeone has scratched: "unless"' },
@@ -1061,7 +1180,9 @@ export const MAPS = {
     roof: 'G', ridge: 'g',
     name: 'The Eyrie', ground: 'stone', wall: 'C', floor: 'o', music: 'town',
     warps: [
-      { x: 11, y: 19, to: 'bloodyGate', tx: 11, ty: 1, dir: 'down' },
+      { x: 5, y: 21, to: 'theEyrieInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 16, y: 21, to: 'theEyrieHouse', tx: 6, ty: 10, dir: 'up' },
+      { x: 11, y: 26, to: 'bloodyGate', tx: 11, ty: 1, dir: 'down' },
       { x: 6, y: 6, to: 'maesterHallEyrie', tx: 5, ty: 7, dir: 'up' },
       { x: 17, y: 6, to: 'eyrieArmoury', tx: 5, ty: 6, dir: 'up' },
       { x: 7, y: 14, to: 'eyrieKeep', tx: 7, ty: 8, dir: 'up' },
@@ -1174,9 +1295,11 @@ export const MAPS = {
     roof: 'Y', ridge: 'y',
     name: 'Highgarden', ground: 'grass', music: 'town',
     warps: [
+      { x: 5, y: 21, to: 'highgardenInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 16, y: 21, to: 'highgardenHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 7, y: 14, to: 'highgardenKeep', tx: 7, ty: 8, dir: 'up' },
       { x: 11, y: 0, to: 'roseroad', tx: 11, ty: 28, dir: 'up' },
-      { x: 11, y: 19, to: 'princesPass', tx: 11, ty: 1, dir: 'down' },
+      { x: 11, y: 26, to: 'princesPass', tx: 11, ty: 1, dir: 'down' },
       { x: 6, y: 6, to: 'maesterHallHighgarden', tx: 5, ty: 7, dir: 'up' },
       { x: 17, y: 6, to: 'highgardenArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
@@ -1256,7 +1379,7 @@ export const MAPS = {
       { beast: 'crabcrag', min: 31, max: 35, weight: 12 },
     ],
     warps: [
-      { x: 11, y: 0, to: 'highgarden', tx: 11, ty: 18, dir: 'up' },
+      { x: 11, y: 0, to: 'highgarden', tx: 11, ty: 25, dir: 'up' },
       { x: 11, y: 29, to: 'sunspear', tx: 11, ty: 1, dir: 'down' },
     ],
     signs: [
@@ -1280,6 +1403,8 @@ export const MAPS = {
     roof: 'Q', ridge: 'q',
     name: 'Sunspear', ground: 'sand', wall: 'C', floor: 's', music: 'town',
     warps: [
+      { x: 5, y: 21, to: 'sunspearInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 16, y: 21, to: 'sunspearHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 7, y: 14, to: 'sunspearKeep', tx: 7, ty: 8, dir: 'up' },
       { x: 11, y: 0, to: 'princesPass', tx: 11, ty: 28, dir: 'up' },
       { x: 6, y: 6, to: 'maesterHallSunspear', tx: 5, ty: 7, dir: 'up' },
@@ -1392,6 +1517,8 @@ export const MAPS = {
     roof: 'G', ridge: 'g',
     name: "Storm's End", ground: 'grass', wall: 'C', music: 'town',
     warps: [
+      { x: 5, y: 21, to: 'stormsEndInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 16, y: 21, to: 'stormsEndHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 7, y: 14, to: 'stormsEndKeep', tx: 7, ty: 8, dir: 'up' },
       { x: 11, y: 0, to: 'stormlands', tx: 11, ty: 28, dir: 'up' },
       { x: 6, y: 6, to: 'maesterHallStormsEnd', tx: 5, ty: 7, dir: 'up' },
@@ -1458,7 +1585,9 @@ export const MAPS = {
     roof: 'Z', ridge: 'z',
     name: 'Dragonstone', ground: 'stone', wall: 'C', floor: 'o', music: 'battleBoss',
     warps: [
-      { x: 11, y: 19, to: 'mudGate', tx: 9, ty: 7, dir: 'down' },
+      { x: 5, y: 21, to: 'dragonstoneInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 16, y: 21, to: 'dragonstoneHouse', tx: 6, ty: 10, dir: 'up' },
+      { x: 11, y: 26, to: 'mudGate', tx: 9, ty: 7, dir: 'down' },
       { x: 6, y: 6, to: 'maesterHallDragonstone', tx: 5, ty: 7, dir: 'up' },
       { x: 7, y: 14, to: 'dragonmont', tx: 8, ty: 14, dir: 'up' },
       { x: 17, y: 6, to: 'dragonstoneArmoury', tx: 5, ty: 6, dir: 'up' },
@@ -2379,7 +2508,9 @@ export const MAPS = {
     ],
     signs: [{ x: 13, y: 10, text: 'THE TITAN OF BRAAVOS STANDS BEHIND YOU. IT IS THE ONLY THING THAT DOES.' }],
     warps: [
-      { x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { x: 5, y: 21, to: 'braavosInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 16, y: 21, to: 'braavosHouse', tx: 6, ty: 10, dir: 'up' },
+      { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
       { x: 6, y: 6, to: 'houseOfBlackAndWhite', tx: 7, ty: 10, dir: 'up' },
     ],
   }),
@@ -2429,7 +2560,9 @@ export const MAPS = {
     ],
     signs: [{ x: 13, y: 10, text: 'PENTOS. NO WALLS WORTH THE NAME, AND NO NEED OF THEM YET.' }],
     warps: [
-      { x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { x: 5, y: 21, to: 'pentosInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 16, y: 21, to: 'pentosHouse', tx: 6, ty: 10, dir: 'up' },
+      { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
       { x: 7, y: 14, to: 'illyriosManse', tx: 7, ty: 10, dir: 'up' },
     ],
   }),
@@ -2454,7 +2587,9 @@ export const MAPS = {
     ],
     signs: [{ x: 13, y: 10, text: 'THE LONG BRIDGE. BUILT BY VALYRIA. NOBODY LEFT KNOWS HOW.' }],
     warps: [
-      { x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { x: 5, y: 21, to: 'volantisInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 16, y: 21, to: 'volantisHouse', tx: 6, ty: 10, dir: 'up' },
+      { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
       { x: 7, y: 14, to: 'templeOfRhllor', tx: 7, ty: 10, dir: 'up' },
     ],
   }),
@@ -2479,7 +2614,9 @@ export const MAPS = {
     ],
     signs: [{ x: 13, y: 10, text: 'THE GREAT PYRAMID OF MEEREEN. A DRAGON QUEEN SITS AT THE TOP OF IT.' }],
     warps: [
-      { x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { x: 5, y: 21, to: 'meereenInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 16, y: 21, to: 'meereenHouse', tx: 6, ty: 10, dir: 'up' },
+      { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
       { x: 7, y: 14, to: 'greatPyramid', tx: 7, ty: 12, dir: 'up' },
     ],
   }),
@@ -2793,11 +2930,13 @@ export const MAPS = {
       { x: 11, y: 10, text: 'PYKE\nSeat of House Greyjoy.\nWe Do Not Sow.' },
     ],
     warps: [
+      { x: 5, y: 21, to: 'pykeInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 16, y: 21, to: 'pykeHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 11, y: 0, to: 'pykeBridge', tx: 6, ty: 18, dir: 'up' },
       { x: 6, y: 6, to: 'maesterHallPyke', tx: 5, ty: 7, dir: 'up' },
       { x: 17, y: 6, to: 'pykeForge', tx: 5, ty: 6, dir: 'up' },
       { x: 7, y: 14, to: 'pykeKeep', tx: 7, ty: 12, dir: 'up' },
-      { x: 11, y: 19, to: 'lordsportDocks', tx: 11, ty: 2, dir: 'down' },
+      { x: 11, y: 26, to: 'lordsportDocks', tx: 11, ty: 2, dir: 'down' },
     ],
   }),
 
@@ -2899,7 +3038,7 @@ export const MAPS = {
       { roamer: 'ironbornReaver', min: 24, max: 29, weight: 30 },
     ],
     warps: [
-      { x: 11, y: 2, to: 'pyke', tx: 11, ty: 18, dir: 'up' },
+      { x: 11, y: 2, to: 'pyke', tx: 11, ty: 25, dir: 'up' },
     ],
     signs: [
       { x: 6, y: 4, text: 'LORDSPORT\nThe fleet is out. It is always out.\nAsk the captain what a berth costs.' },
@@ -2938,7 +3077,7 @@ export const MAPS = {
       { beast: 'direwolf', min: 24, max: 28, weight: 16 },
     ],
     warps: [
-      { x: 11, y: 0, to: 'dreadfort', tx: 11, ty: 18, dir: 'up' },
+      { x: 11, y: 0, to: 'dreadfort', tx: 11, ty: 25, dir: 'up' },
       { x: 11, y: 29, to: 'winterfell', tx: 22, ty: 12, dir: 'down' },
     ],
     signs: [
@@ -2976,7 +3115,9 @@ export const MAPS = {
       { x: 11, y: 10, text: 'THE DREADFORT\nSeat of House Bolton.\nOur Blades are Sharp.' },
     ],
     warps: [
-      { x: 11, y: 19, to: 'weepingWater', tx: 11, ty: 1, dir: 'down' },
+      { x: 5, y: 21, to: 'dreadfortInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 16, y: 21, to: 'dreadfortHouse', tx: 6, ty: 10, dir: 'up' },
+      { x: 11, y: 26, to: 'weepingWater', tx: 11, ty: 1, dir: 'down' },
       { x: 6, y: 6, to: 'maesterHallDreadfort', tx: 5, ty: 7, dir: 'up' },
       { x: 17, y: 6, to: 'dreadfortForge', tx: 5, ty: 6, dir: 'up' },
       { x: 7, y: 14, to: 'dreadfortKeep', tx: 7, ty: 12, dir: 'up' },
@@ -3329,7 +3470,7 @@ export const MAPS = {
     ],
     warps: [
       { x: 18, y: 4, to: 'fleaBottom', tx: 20, ty: 13, dir: 'up' },
-      { x: 9, y: 6, to: 'dragonstone', tx: 11, ty: 18, dir: 'up' },
+      { x: 9, y: 6, to: 'dragonstone', tx: 11, ty: 25, dir: 'up' },
     ],
     signs: [
       { x: 13, y: 12, text: 'THE MUD GATE\nA ferryman who does not give his name.\nHe will take you to the island, and he will not talk about it.' },
@@ -3482,6 +3623,205 @@ export const MAPS = {
   },
 
   // ----------------------------------------- the Red Keep: the final climb --
+  // ----------------------------------------- inns and common houses -----
+  theEyrieInn: makeInn({
+    town: 'theEyrie', name: 'The Gates of the Moon', region: 'The Vale',
+    keeper: 'Mya Stone', keeperLine: 'Mya Stone: I take mules up that mountain and I bring them back. That is more than most men here manage.',
+    drinkerLine: 'Drinker: Six hundred steps and they built an inn at the top. Somebody understood something.',
+    fighter: 'Hedge Knight', fighterLine: 'bronn',
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap'],
+  }),
+
+  theEyrieHouse: makeCommonHouse({
+    town: 'theEyrie', name: 'The Blue Lamp', region: 'The Vale',
+    madam: 'Marei', madamLine: 'Marei: Up here the wind does the talking. Nobody minds a room with no window.',
+    voices: [
+      { who: 'Falconer', line: 'Falconer: The birds go where I send them and come back knowing things. I do not ask.' },
+      { who: 'Stone Mason', line: 'Stone Mason: Six hundred steps. I cut two hundred of them and my father cut the rest.' },
+      { who: 'Lord’s Cousin', line: 'Lord’s Cousin: As high as honour, they say. Nobody says how far the fall is.' },
+    ],
+  }),
+
+  highgardenInn: makeInn({
+    town: 'highgarden', name: 'The Rose and Thorn', region: 'The Reach',
+    keeper: 'Goodwife Tarly', keeperLine: 'Goodwife Tarly: Bread, small beer and a bed with nothing living in it. That is the whole menu.',
+    drinkerLine: 'Drinker: The Reach feeds the realm. The realm sends a thank-you note about once a century.',
+    fighter: 'Tourney Knight', fighterLine: 'bronn',
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap'],
+  }),
+
+  highgardenHouse: makeCommonHouse({
+    town: 'highgarden', name: 'The Gilded Bower', region: 'The Reach',
+    madam: 'Alerie', madamLine: 'Alerie: Growing strong, my lord. Everybody grows strong here. It is the soil.',
+    voices: [
+      { who: 'Rose Girl', line: 'Rose Girl: The Queen of Thorns knows what happens in this room before it happens.' },
+      { who: 'Vintner', line: 'Vintner: Arbor gold at the front and Arbor gold at the back, and they are not the same wine.' },
+      { who: 'Second Son', line: 'Second Son: I have four older brothers. I am extremely good at cards.' },
+    ],
+  }),
+
+  sunspearInn: makeInn({
+    town: 'sunspear', name: 'The Shaded Court', region: 'Dorne',
+    keeper: 'Areo’s Widow', keeperLine: 'Areo’s Widow: Sit in the shade. Drink the strong red. Nobody hurries in Dorne.',
+    drinkerLine: 'Drinker: The heat is not the problem. The heat is honest. It is the shade you want to watch.',
+    fighter: 'Sand Steed Rider', fighterLine: 'bronn',
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap'],
+  }),
+
+  sunspearHouse: makeCommonHouse({
+    town: 'sunspear', name: 'The Water Gardens', region: 'Dorne',
+    madam: 'Ellaria', madamLine: 'Ellaria: In Dorne we do not pretend. It saves everybody a great deal of time.',
+    voices: [
+      { who: 'Spear Maiden', line: 'Spear Maiden: Unbowed, unbent, unbroken. Also unmarried, and that is my own business.' },
+      { who: 'Orphan of the Greenblood', line: 'Orphan: We live on the water. Nobody owns the water, whatever they write down.' },
+      { who: 'Salty Dornishman', line: 'Salty Dornishman: Dorne was never conquered. We simply married everybody who tried.' },
+    ],
+  }),
+
+  stormsEndInn: makeInn({
+    town: 'stormsEnd', name: 'The Broken Anchor', region: 'The Stormlands',
+    keeper: 'Widow Errol', keeperLine: 'Widow Errol: The roof has held four hundred years. Sit anywhere. It will hold tonight.',
+    drinkerLine: 'Drinker: Ours is the fury. Mine is mostly at the weather.',
+    fighter: 'Storm Knight', fighterLine: 'bronn',
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap'],
+  }),
+
+  stormsEndHouse: makeCommonHouse({
+    town: 'stormsEnd', name: 'The Storm’s Rest', region: 'The Stormlands',
+    madam: 'Bess', madamLine: 'Bess: When it blows like this nobody goes home. That is not my doing, it is the wind’s.',
+    voices: [
+      { who: 'Smuggler', line: 'Smuggler: Onions. That is all I brought in. Ask anybody.' },
+      { who: 'Rain-Soaked Guard', line: 'Guard: Two shifts on that wall and I have forgotten what dry feels like.' },
+      { who: 'Maester’s Boy', line: 'Maester’s Boy: He says the storms here are older than the castle. I say the castle agrees.' },
+    ],
+  }),
+
+  dragonstoneInn: makeInn({
+    town: 'dragonstone', name: 'The Black Sail', region: 'Dragonstone',
+    keeper: 'Fisher’s Wife', keeperLine: 'Fisher’s Wife: Fish, black bread, and whatever the mountain has coughed up this week.',
+    drinkerLine: 'Drinker: The stone here is warm at the bottom. Nobody has ever explained that to my satisfaction.',
+    fighter: 'Dragonstone Man', fighterLine: 'bronn',
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap'],
+  }),
+
+  dragonstoneHouse: makeCommonHouse({
+    town: 'dragonstone', name: 'The Smoking Glass', region: 'Dragonstone',
+    madam: 'Kyra', madamLine: 'Kyra: The red woman burns things on the beach and everybody watches. We are the quieter entertainment.',
+    voices: [
+      { who: 'Glass Candler', line: 'Glass Candler: Obsidian off the Dragonmont. It cuts things nothing else touches.' },
+      { who: 'Ferryman', line: 'Ferryman: Nobody advertises the crossing. That is the arrangement.' },
+      { who: 'Old Valyrian', line: 'Old Valyrian: My family came here before the Doom. We have been waiting ever since.' },
+    ],
+  }),
+
+  braavosInn: makeInn({
+    town: 'braavos', name: 'The Ship', region: 'Braavos',
+    keeper: 'Meralyn', keeperLine: 'Meralyn: Eat. Drink. Do not ask what the Titan is for, everybody asks and nobody likes the answer.',
+    drinkerLine: 'Drinker: Valar morghulis. Valar dohaeris. And valar pay for their own wine.',
+    fighter: 'Bravo', fighterLine: 'syrio',
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap'],
+  }),
+
+  braavosHouse: makeCommonHouse({
+    town: 'braavos', name: 'The Happy Port', region: 'Braavos',
+    madam: 'The Sailor’s Wife', madamLine: 'The Sailor’s Wife: I only lie with men who marry me. I have been married a great many times.',
+    voices: [
+      { who: 'Lanna', line: 'Lanna: The Iron Bank owns everything here except this room, and they are working on it.' },
+      { who: 'Mummer', line: 'Mummer: We do the whole history of Westeros in an hour. It is mostly people falling over.' },
+      { who: 'Keyholder', line: 'Keyholder: Braavos has no lords. It has men who behave exactly like lords and are called something else.' },
+    ],
+  }),
+
+  pentosInn: makeInn({
+    town: 'pentos', name: 'The Cheesemonger', region: 'Pentos',
+    keeper: 'Vala', keeperLine: 'Vala: Everything here is honeyed, spiced or both. That includes the conversation.',
+    drinkerLine: 'Drinker: Pentos has a prince. Every year they ask him if the harvest was good. It had better have been.',
+    fighter: 'Sellsword', fighterLine: 'bronn',
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap'],
+  }),
+
+  pentosHouse: makeCommonHouse({
+    town: 'pentos', name: 'The Silk House', region: 'Pentos',
+    madam: 'Doreah', madamLine: 'Doreah: I was taught in the pleasure houses of Lys. Pentos is a step down and it pays better.',
+    voices: [
+      { who: 'Spice Girl', line: 'Spice Girl: Illyrio buys everything. Cheese, silk, kings. Mostly in that order.' },
+      { who: 'Dothraki', line: 'Dothraki: A man who walks is a man with nothing under him. You all walk.' },
+      { who: 'Magister', line: 'Magister: We have no walls. We simply pay whoever brings an army. It is cheaper than walls.' },
+    ],
+  }),
+
+  volantisInn: makeInn({
+    town: 'volantis', name: 'The Long Bridge', region: 'Volantis',
+    keeper: 'Kinvara’s Cousin', keeperLine: 'Kinvara’s Cousin: The fire is lit, the pot is on and the night is dark. Sit down.',
+    drinkerLine: 'Drinker: The bridge has been standing a thousand years and I still walk in the middle of it.',
+    fighter: 'Tiger Cloak', fighterLine: 'bronn',
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap'],
+  }),
+
+  volantisHouse: makeCommonHouse({
+    town: 'volantis', name: 'The Merling King', region: 'Volantis',
+    madam: 'Sunset', madamLine: 'Sunset: Old Volantis, they call it. Old is a polite word for what it is.',
+    voices: [
+      { who: 'Slave’s Daughter', line: 'Slave’s Daughter: You can tell what a man does by his cheek. Mine is a teardrop. That is a slave.' },
+      { who: 'Elephant Voter', line: 'Elephant Voter: Tigers want war, elephants want trade. The elephants have won every year of my life.' },
+      { who: 'Widow of the Waterfront', line: 'Widow: Nobody leaves Volantis on my river without me knowing why.' },
+    ],
+  }),
+
+  meereenInn: makeInn({
+    town: 'meereen', name: 'The Broken Pyramid', region: 'Meereen',
+    keeper: 'Missandei’s Aunt', keeperLine: 'Missandei’s Aunt: The Queen has views about what may be sold. Food is still allowed.',
+    drinkerLine: 'Drinker: They freed us. Nobody has yet explained what we are supposed to eat.',
+    fighter: 'Pit Fighter', fighterLine: 'greyWorm',
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap'],
+  }),
+
+  meereenHouse: makeCommonHouse({
+    town: 'meereen', name: 'The Fighting Pits', region: 'Meereen',
+    madam: 'Rhaella', madamLine: 'Rhaella: The pits are shut and everybody misses them and nobody will say so.',
+    voices: [
+      { who: 'Freedman', line: 'Freedman: I was a bedslave. Now I am a man with no work. Both are complicated.' },
+      { who: 'Harpy’s Man', line: 'Harpy’s Man: The Sons come at night. You did not hear that from me.' },
+      { who: 'Ghiscari Noble', line: 'Ghiscari Noble: Old Ghis was an empire when Valyria was a village. We remember.' },
+    ],
+  }),
+
+  pykeInn: makeInn({
+    town: 'pyke', name: 'The Drowned Man', region: 'The Iron Islands',
+    keeper: 'Gwin', keeperLine: 'Gwin: Fish, ale, and a roof that mostly stays on. That is the whole of it.',
+    drinkerLine: 'Drinker: What is dead may never die. What is drowned mostly does, whatever the priest says.',
+    fighter: 'Reaver', fighterLine: 'bronn',
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap'],
+  }),
+
+  pykeHouse: makeCommonHouse({
+    town: 'pyke', name: 'The Salt Wife', region: 'The Iron Islands',
+    madam: 'Esgred', madamLine: 'Esgred: Rock wife or salt wife, we all end up looking at the same sea.',
+    voices: [
+      { who: 'Captain’s Girl', line: 'Captain’s Girl: He pays the iron price for everything except me. That took some arranging.' },
+      { who: 'Netmender', line: 'Netmender: Mend a net, catch a fish. Mend a hundred, catch a hundred. Simple work.' },
+      { who: 'Thrall', line: 'Thrall: They took me off a green shore. I have stopped counting the years.' },
+    ],
+  }),
+
+  dreadfortInn: makeInn({
+    town: 'dreadfort', name: 'The Flayed Man', region: 'The North',
+    keeper: 'Goodwife Ryswell', keeperLine: 'Goodwife Ryswell: Eat what is put in front of you and do not ask about it. Truly.',
+    drinkerLine: 'Drinker: Quiet land, quiet people. That is what Lord Roose says. He says it a lot.',
+    fighter: 'Bolton Man', fighterLine: 'bronn',
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap'],
+  }),
+
+  dreadfortHouse: makeCommonHouse({
+    town: 'dreadfort', name: 'The Kennel Row', region: 'The North',
+    madam: 'Myranda', madamLine: 'Myranda: Everyone here is very careful. It gets tiring. Be careless with me.',
+    voices: [
+      { who: 'Kennel Girl', line: 'Kennel Girl: The girls are named after the last ones. There have been a lot of last ones.' },
+      { who: 'Steward’s Son', line: 'Steward’s Son: I keep the accounts. I have learned to write very small numbers.' },
+      { who: 'Northman', line: 'Northman: The North remembers. The Dreadfort remembers differently and writes it down.' },
+    ],
+  }),
+
   redKeep: {
     name: 'The Red Keep',
     indoor: true,
@@ -3662,6 +4002,14 @@ export const REGIONS = {
   dragonstoneArmoury: 'Dragonstone',
   maesterHallDragonstone: 'Dragonstone',
 };
+
+/* Every inn and common house sits in the town it opens off. */
+for (const town of Object.keys(REGIONS)) {
+  if (REGIONS[`${town}Inn`] === undefined && MAPS[`${town}Inn`]) {
+    REGIONS[`${town}Inn`] = REGIONS[town];
+    REGIONS[`${town}House`] = REGIONS[town];
+  }
+}
 
 /** The region a map belongs to, or an empty string if it has none. */
 export function regionOf(key) {

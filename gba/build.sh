@@ -82,6 +82,16 @@ for t in 1 2 3; do
   SAVED=$t SEED=5 ./playtest 3 | sed -n '/swore to/p;/nothing went wrong/p'
 done
 
+# And the last act, which neither the sweep nor the climb ever reaches: the
+# wandering run never collects nine sigils, and a full ladder climb is more
+# frames than any test budget. This starts one door from the Red Keep with the
+# nine seats already bent and plays the ending through - the gate, the queen,
+# her champion, the chair and the crowning - for two houses, because the writing
+# differs by the house you swore to.
+for h in 0 8; do
+  CROWN=1 FRAMES=900000 SEED=7 ./playtest $h | sed -n '/the last act/p;/nothing went wrong/p;/thing to look at/,$p'
+done
+
 # hosttest still walks one fixed route, as a second opinion.
 clang $HOSTFLAGS -o hosttest hosttest.c
 ./hosttest /tmp > /dev/null

@@ -1042,6 +1042,9 @@ typedef struct {
      the way home to your own seat, which by the middle of the game was a walk
      of twenty doors and the single most tiresome thing in the game. */
   int haven, havenX, havenY;
+  /* How far through the last act you are. 0 nothing yet, 1 the raven has come,
+     2 you have stood in the throne room, 3 the chair is yours. */
+  u8 story;
 } You;
 
 #define WORN_WEAPON worn[WARE_WEAPON]
@@ -1908,16 +1911,60 @@ static int scaleTo(int v, int from, int to) {
   return from > 0 ? (int)udiv((u32)v * (u32)to, (u32)from) : v;
 }
 
+/*
+ * Meeting the player where they are.
+ *
+ * Difficulty used to be a property of the ground alone: level three at your own
+ * gate and forty-four at the far end of the world, whoever you were and however
+ * you had played. Walk two doors the wrong way at level twelve and everything
+ * on the road was a wall; come back at forty and everything was furniture. And
+ * the sigil-holders were worse, because their ladder is fixed: arrive at a seat
+ * three rungs early and the fight was not hard, it was arithmetic with a
+ * foregone answer.
+ *
+ * So the ground still says how hard a place OUGHT to be, and it still decides
+ * which way the difference runs - the far end of the world is still the far end
+ * of the world - but the number is pulled three quarters of the way toward you
+ * and then held inside a band you can actually fight in. A road near your own
+ * seat stays easier than you. A road at the other end stays harder. Neither is
+ * ever a wall, and neither is ever furniture.
+ */
+static int nearYou(int ground, int floorAt, int over) {
+  int want = ground;
+  /* Never a wall: nothing in the world is ever more than `over` levels above
+     you, whatever the ground says. */
+  if (want > (int)you.level + over) want = (int)you.level + over;
+  /* But only lift it off the floor where the story needs a fight to be a fight.
+     Lifting everything toward you was the first attempt and it was worse than
+     the problem: it turned the gentle ground round your own seat into a real
+     fight too, so every road anywhere was the same slog and there was nowhere
+     left to go and simply be better than the people on it. */
+  if (floorAt >= 0 && want < (int)you.level + floorAt) want = (int)you.level + floorAt;
+  if (want < 2) want = 2;
+  if (want > 60) want = 60;
+  return want;
+}
+
 static int levelOf(int duellist) {
   const Duellist *d = &duellists[duellist];
   int lead = leaderFor(duellist);
-  int lv;
-  if (lead >= 0) return leaderLevel[rungOf[lead]];
-  if (d->fixed) return d->level;
-  lv = (int)d->level + shiftHere();
-  if (lv < 2) lv = 2;
-  if (lv > 50) lv = 50;
-  return lv;
+  if (lead >= 0) {
+    /* A sigil-holder is always a harder fight than you are having anywhere
+       else, and never an impossible one: one to six levels over you, in the
+       order the ladder puts them, so the ninth is still worse than the first. */
+    /* A sigil-holder is never a cliff - six levels over you at the very most,
+       so arriving early is a hard fight rather than an impossible one. But no
+       floor: what the ladder says is what they are, and if you have gone away
+       and come back stronger than that, you are stronger than that. Holding
+       them one level above you whatever you did made every seat the same fight
+       forever and took away the oldest answer in the genre, which is to go and
+       level up and come back. */
+    return nearYou(leaderLevel[rungOf[lead]], -1, 6);
+  }
+  /* Somebody the story knows by name keeps their own weight - they are meant to
+     be a step up - but not a cliff: eight over you at the very most. */
+  if (d->fixed) return nearYou((int)d->level, -1, 8);
+  return nearYou((int)d->level + shiftHere(), -1, 5);
 }
 
 static int foeLevel, foePurse;
@@ -2383,7 +2430,8 @@ static void paintStatus(void) {
   {
     int at = nextRung();
     if (at < 0) {
-      drawText(16, 105, "Nine sigils. The realm is yours.", C_GOLD);
+      drawText(16, 105, you.story >= 3 ? "The Iron Throne is yours. Holding it is the rest."
+                                       : "Every sigil taken. The Red Keep is open.", C_GOLD);
     } else {
       const Leader *l = &leaders[atRung[at]];
       copyString(scratch, "Next: ", sizeof scratch);
@@ -2426,7 +2474,7 @@ typedef struct {
   u16 sigils, pad3;
   u8 beastKind, beastLevel, eggWins, tamed;
   u16 beastExp, pad4;
-  u8 haven, havenX, havenY, pad5;
+  u8 haven, havenX, havenY, story;
   u8 emptied[MAP_COUNT][8];
   u32 exp, gold, hp, kills;
   u8 bag[WARE_COUNT];
@@ -2462,6 +2510,7 @@ static void keepRecord(void) {
   record.beastKind = you.beast.kind;
   record.beastLevel = you.beast.level;
   record.beastExp = you.beast.exp;
+  record.story = you.story;
   record.eggWins = you.eggWins;
   record.tamed = you.tamed;
   record.haven = (u8)(you.haven < 0 ? 255 : you.haven);
@@ -2515,6 +2564,7 @@ static void takeUpRecord(void) {
   you.beast.kind = record.beastKind;
   you.beast.level = record.beastLevel;
   you.beast.exp = record.beastExp;
+  you.story = record.story;
   you.beast.hp = you.beast.kind == 255
     ? 0 : beastVigour(you.beast.kind, you.beast.level);
   you.eggWins = record.eggWins;
@@ -3063,6 +3113,7 @@ static void paintTitle(void) {
 #define SCENE_NAME 8
 #define SCENE_CRAFT 9
 #define SCENE_PORT 10
+#define SCENE_TALE 11
 
 static int scene;
 
@@ -3126,6 +3177,17 @@ static void beginGame(void) {
   openWindow(0, scratch);
 }
 
+static int taleWaiting = -1, taleWaitingThen;  /* told once the duel lets go */
+static int taleAt = -1;         /* which tale is playing, or -1 */
+static int talePage;            /* and which page of it */
+static int taleThen;            /* what to do when the last page turns over */
+
+#define AFTER_NOTHING 0
+#define AFTER_CHAMPION 1        /* Ser Gregor draws the moment the page turns */
+#define AFTER_CROWN 2           /* and the crowning follows the sitting down  */
+
+static void startTale(int which, int then);
+
 static void endDuel(void) {
   scene = SCENE_WORLD;
   /* The yard borrows eleven of the world's palette entries and used to hand
@@ -3139,6 +3201,13 @@ static void endDuel(void) {
   loadActors();
   PAL_BG[0] = bg_pal[0];
   REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
+  /* Anything the story wanted to say about that fight says it now, with the
+     yard put away and the world back on the screen behind it. */
+  if (taleWaiting >= 0) {
+    int which = taleWaiting, then = taleWaitingThen;
+    taleWaiting = -1;
+    startTale(which, then);
+  }
 }
 
 static void youFell(void) {
@@ -3375,6 +3444,14 @@ static void tookAlive(const char *said) {
 static void theyFell(void) {
   int won = expFrom(foeLevel, you.level);
   sfxWon();
+  /* The last thing between anybody and the chair has just stopped being in the
+     way. What follows is not a fight, so it does not belong here - it belongs
+     the moment the yard comes down. */
+  if (foeId == THRONE_CHAMPION && you.story < 3) {
+    you.story = 3;
+    taleWaiting = TALE_THRONE;
+    taleWaitingThen = AFTER_CROWN;
+  }
   you.gold += foePurse;
   you.exp += won;
   if (foeSlot >= 0) beaten[worldId][foeSlot] = 1;
@@ -3409,6 +3486,17 @@ static void theyFell(void) {
       int held;
       sigils |= (u16)(1 << lead);
       held = countSigils();
+      /* The two turns of the last act that a fight can bring about: the ninth
+         sigil is what makes the realm write to you, and the tenth is what
+         wakes the thing standing behind the chair. */
+      if (lead == LEADER_COUNT - 1) {
+        taleWaiting = TALE_CHAMPION;
+        taleWaitingThen = AFTER_CHAMPION;
+      } else if (held == LEADER_COUNT - 1 && you.story < 1) {
+        you.story = 1;
+        taleWaiting = TALE_SUMMONS;
+        taleWaitingThen = AFTER_NOTHING;
+      }
       sfxRank();
       appendString(scratch, "  You take the ", sizeof scratch);
       appendString(scratch, leaders[lead].sigil, sizeof scratch);
@@ -3663,6 +3751,124 @@ static void paintDuelGround(void) {
   REG_BG0VOFS = 0;
 }
 
+/* ---------------------------------------------------------- the last act --
+ *
+ * The one part of this game that is told rather than walked. A page is a sky, a
+ * silhouette and some writing: the sky goes down on the world layer in flat
+ * bands the way a duel yard does, the silhouette is drawn on the text layer in
+ * one dark tone so it reads against any of them, and the writing types itself
+ * into a window at the bottom.
+ *
+ * It borrows the duel's tiles and the duel's eleven palette slots, because the
+ * only time a tale plays there is no map on the screen to want them.
+ */
+/* Flat bands of one sky, edge to edge. The duel yard's painter draws ground
+   under its horizon; a tale wants the whole screen in one weather. */
+static void paintTaleSky(int which) {
+  int i, w, ty, tx;
+  const u16 *sky = SKIES[which < 6 ? which : 0];
+  for (i = 0; i < 11; i++) {
+    PAL_BG[DUEL_PAL + i] = sky[i];
+    for (w = 0; w < 16; w++) {
+      VRAM_BG_CHR[(DUEL_BAND + i) * 16 + w] = 0x01010101u * (u32)(DUEL_PAL + i);
+    }
+  }
+  for (ty = 0; ty < 64; ty++) {
+    int band = ty < 20 ? (ty >> 1) + 1 : 10;
+    volatile u16 *rowBase = VRAM_BG_MAP + ((ty >> 5) << 11) + ((ty & 31) << 5);
+    for (tx = 0; tx < 64; tx++) {
+      volatile u16 *cell = rowBase + ((tx >> 5) << 10) + (tx & 31);
+      *cell = (u16)(DUEL_BAND + (band > 10 ? 10 : band));
+    }
+  }
+  REG_BG0HOFS = 0;
+  REG_BG0VOFS = 0;
+}
+
+/* The silhouettes. Blocked out rather than drawn: at this size a shape that
+   reads at a glance beats a shape with detail in it, and the throne is nine
+   hundred swords whichever way you cut it. */
+static void markThrone(int cx, int cy) {
+  int i;
+  fillRect(cx - 26, cy + 26, 52, 6, C_DEEP);              /* the dais         */
+  fillRect(cx - 20, cy - 4, 40, 30, C_DEEP);              /* the seat itself  */
+  for (i = 0; i < 11; i++) {                              /* blades, fanned   */
+    int lean = (i - 5) * 3;
+    int high = 30 - (i - 5) * (i - 5);
+    fillRect(cx - 2 + lean * 2, cy - 4 - high, 3, high, C_DEEP);
+    fillRect(cx - 2 + lean * 2, cy - 4 - high, 3, 2, C_EDGE);
+  }
+  fillRect(cx - 20, cy - 4, 40, 3, C_EDGE);               /* the lit top edge */
+  fillRect(cx - 20, cy + 12, 40, 2, C_EDGE);
+}
+
+static void markRaven(int cx, int cy) {
+  fillRect(cx - 5, cy - 6, 10, 16, C_DEEP);               /* body             */
+  fillRect(cx - 3, cy - 12, 7, 7, C_DEEP);                /* head             */
+  fillRect(cx + 4, cy - 10, 5, 3, C_DEEP);                /* beak             */
+  fillRect(cx - 28, cy - 10, 24, 7, C_DEEP);              /* wings, spread    */
+  fillRect(cx + 4, cy - 10, 24, 7, C_DEEP);
+  fillRect(cx - 28, cy - 10, 24, 2, C_EDGE);
+  fillRect(cx + 4, cy - 10, 24, 2, C_EDGE);
+  fillRect(cx - 3, cy + 10, 6, 12, C_DEEP);               /* tail             */
+}
+
+static void markCrown(int cx, int cy) {
+  int i;
+  fillRect(cx - 26, cy + 6, 52, 10, C_DEEP);              /* the band         */
+  fillRect(cx - 26, cy + 6, 52, 3, C_EDGE);
+  for (i = 0; i < 5; i++) {                               /* five points      */
+    int x = cx - 24 + i * 12;
+    int h = (i == 2) ? 22 : (i == 1 || i == 3) ? 16 : 11;
+    fillRect(x, cy + 6 - h, 6, h, C_DEEP);
+    fillRect(x, cy + 6 - h, 6, 2, C_EDGE);
+  }
+}
+
+static void markWall(int cx, int cy) {
+  int i;
+  fillRect(cx - 60, cy - 30, 120, 60, C_DEEP);
+  for (i = 0; i < 7; i++) fillRect(cx - 60 + i * 18, cy - 30, 3, 60, C_EDGE);
+  fillRect(cx - 60, cy - 30, 120, 3, C_EDGE);
+  fillRect(cx - 8, cy + 10, 16, 20, C_CLEAR);            /* the tunnel        */
+}
+
+static void markFire(int cx, int cy) {
+  int i;
+  for (i = 0; i < 5; i++) {
+    int x = cx - 32 + i * 16, h = 20 + ((i * 7) % 17);
+    fillRect(x, cy + 16 - h, 10, h, C_DEEP);
+    fillRect(x + 2, cy + 16 - h + 3, 6, h - 6, C_EDGE);
+  }
+  fillRect(cx - 36, cy + 14, 72, 5, C_DEEP);
+}
+
+static void paintTalePage(void) {
+  const Page *p = &talePages[tales[taleAt].first + talePage];
+  const char *body = p->byHouse ? p->byHouse[you.house] : p->body;
+  paintTaleSky(p->sky);
+  clearRows(0, TXT_H);
+  switch (p->mark) {
+    case 1: markThrone(TXT_W / 2, 44); break;
+    case 2: markRaven(TXT_W / 2, 42); break;
+    case 3: markCrown(TXT_W / 2, 40); break;
+    case 4: markWall(TXT_W / 2, 40); break;
+    case 5: markFire(TXT_W / 2, 40); break;
+    default: break;
+  }
+  openWindowAt(p->title, body, 80, 8);
+}
+
+static void startTale(int which, int then) {
+  taleAt = which;
+  talePage = 0;
+  taleThen = then;
+  scene = SCENE_TALE;
+  layoutTextRows(TEXT_PLAY);
+  clearPage();
+  paintTalePage();
+}
+
 /* ------------------------------------------------------------ drawing on -- */
 /* A fight does not simply appear. The screen cracks white twice, falls to
    black, and comes up again in the yard — which is what the handhelds do, and
@@ -3877,9 +4083,11 @@ static void ambush(void) {
   int beastish = world->wildCount && (!world->ambushCount || (int)roll(100) < 45);
   if (beastish) {
     const Wild *w = &world->wilds[roll(world->wildCount)];
-    int lv = (int)w->level + shiftHere();
+    /* An animal out of the grass meets you where you are, the same as a person
+       on the road does. A wolf four levels over you is a fight; a wolf twenty
+       over you is a wall you walked into by turning left. */
     wildWanted = w->beast;
-    wildLevel = lv < 2 ? 2 : (lv > 50 ? 50 : lv);
+    wildLevel = nearYou((int)w->level + shiftHere(), -1, 4);
     callToArms(-1, 0, -1);
     return;
   }
@@ -4122,6 +4330,7 @@ int main(void) {
         /* You are sent out of the yard with your bare hands and one remedy.
            Everything you fight in, you take off somebody. */
         { int k; for (k = 0; k < WARE_KINDS; k++) you.worn[k] = 0; }
+        you.story = 0;
         you.bag[START_POTION] = 1;
         reckonTechniques();
         PAL_BG[TXT_BANK * 16 + C_HOUSE] = houses[you.house].colour;
@@ -4270,6 +4479,28 @@ int main(void) {
         layoutTextRows(TEXT_PLAY);
         openWindow(0, said);
         afterWindow = shopStall + 1;
+      }
+    } else if (scene == SCENE_TALE) {
+      if (hit(KEY_A) || hit(KEY_B)) {
+        if (!advanceWindow()) {
+          if (++talePage < tales[taleAt].count) {
+            paintTalePage();
+          } else {
+            int then = taleThen;
+            taleAt = -1;
+            scene = SCENE_WORLD;
+            taleThen = AFTER_NOTHING;
+            if (then == AFTER_CROWN) {
+              startTale(TALE_CROWNED, AFTER_NOTHING);
+            } else {
+              enterMap(worldId, hero.px >> 4, hero.py >> 4, hero.dir);
+              layoutTextRows(TEXT_PLAY);
+              if (then == AFTER_CHAMPION) callToArms(THRONE_CHAMPION, 0, -1);
+            }
+          }
+        }
+      } else {
+        tickWindow(held(KEY_A));
       }
     } else if (scene == SCENE_PORT) {
       int was = portPick;
@@ -4451,7 +4682,38 @@ int main(void) {
         if (!hero.walk) hopping = 0;
         if (!hero.walk) {
           const Warp *warp = warpAt(hero.px >> 4, hero.py >> 4);
-          if (warp) enterMap(warp->to, warp->tx, warp->ty, hero.dir);
+          /* The Red Keep is shut. It was a room you could walk into at level
+             eight and lose in, which made the end of the game a door rather
+             than an end: the Kingsguard hold the stair until nine seats have
+             bent to you, and they say so. */
+          if (warp && warp->to == THRONE_MAP && countSigils() < LEADER_COUNT - 1) {
+            int short_by = (LEADER_COUNT - 1) - countSigils();
+            copyString(scratch, "Two white cloaks put the flat of a hand on your chest. "
+                                "\"Nine seats. You have ", sizeof scratch);
+            appendNumber(scratch, countSigils(), sizeof scratch);
+            appendString(scratch, ". Come back when you are ", sizeof scratch);
+            appendNumber(scratch, short_by, sizeof scratch);
+            appendString(scratch, " closer.\"", sizeof scratch);
+            openWindow("The Kingsguard", scratch);
+          } else if (warp) {
+            int wasStory = you.story;
+            enterMap(warp->to, warp->tx, warp->ty, hero.dir);
+            /* And the first time you do climb it, the hall is worth a look
+               before anybody in it says anything. */
+            if (worldId == THRONE_MAP && wasStory < 2) {
+              you.story = 2;
+              startTale(TALE_GATE, AFTER_NOTHING);
+            } else if (worldId == THRONE_MAP && wasStory == 2
+                       && haveSigil(LEADER_COUNT - 1)) {
+              /* The queen is beaten and the chair is not yours, which means the
+                 thing behind it put you down. It is not standing on any map -
+                 nobody can walk up to it - so without this the last fight in
+                 the game could be lost exactly once and then never fought
+                 again, and the story simply stopped there forever. It is
+                 waiting in the same shadow every time you come back up. */
+              startTale(TALE_CHAMPION, AFTER_CHAMPION);
+            }
+          }
           else if (world->ambushCount && coverAt(hero.px >> 4, hero.py >> 4)
                    && roll(100) < 12) ambush();
           else if (coverAt(hero.px >> 4, hero.py >> 4) && roll(100) < 4) findInGrass();

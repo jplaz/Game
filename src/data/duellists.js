@@ -260,6 +260,21 @@ export const DUELLISTS = {
     after: 'The Fist is bare rock again, and very quiet.',
   },
 
+  // ------------------------------------------------- behind the Iron Throne ---
+  // What is standing in the shadow when the queen goes down. The last thing
+  // between anybody and the chair, and the reason nobody has taken it.
+  throneChampion: {
+    name: 'Ser Gregor Clegane', sprite: 'mountain', level: 45,
+    vigour: 520, might: 96, guard: 62, swiftness: 18, wind: 40,
+    house: 'lannister',
+    techniques: ['cleave', 'crush', 'sweep', 'guard'],
+    reward: 0, exp: 4000, canYield: false, boss: true,
+    loot: ['armour', 'castellanPlate'],
+    intro: 'It does not speak. It has not spoken in some time.',
+    defeat: 'It goes down the way a building goes down: slowly, and then all at once.',
+    after: 'Whatever was in there stopped some while ago. This is only the last of it.',
+  },
+
   // ---------------------------------------------------- King's Landing -----
   meryn: {
     name: 'Ser Meryn Trant', sprite: 'kingsguard', level: 27,

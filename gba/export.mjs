@@ -60,6 +60,12 @@ const MAP_IDS = [
   // And east, over the Narrow Sea.
   'narrowSea', 'braavos', 'houseOfBlackAndWhite', 'pentos', 'illyriosManse',
   'volantis', 'templeOfRhllor', 'meereen', 'greatPyramid',
+  // Two doors at the bottom of every town: the inn, and the house with the red
+  // lamp over the door. Somewhere for the smallfolk to actually be.
+  'theEyrieInn', 'theEyrieHouse', 'highgardenInn', 'highgardenHouse', 'sunspearInn', 'sunspearHouse',
+  'stormsEndInn', 'stormsEndHouse', 'dragonstoneInn', 'dragonstoneHouse', 'braavosInn', 'braavosHouse',
+  'pentosInn', 'pentosHouse', 'volantisInn', 'volantisHouse', 'meereenInn', 'meereenHouse',
+  'pykeInn', 'pykeHouse', 'dreadfortInn', 'dreadfortHouse',
 ];
 
 // What the cartridge's hardware will hold.
@@ -104,6 +110,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const { ITEMS } = await import('/src/data/items.js');
   const { WEAPONS, ARMOUR, SHIELDS, HELMS, GLOVES } = await import('/src/data/gear.js');
   const { HOUSES, SWEARABLE } = await import('/src/data/houses.js');
+  const { TALES, TALE_ORDER, TALE_HOUSES } = await import('/src/data/tale.js');
   const { MATERIALS, MATERIAL_IDS, SPOILS, FORAGE, RECIPES, SNARES, EGG_ITEMS } =
     await import('/src/data/craft.js');
   const { SPECIES } = await import('/src/data/species.js');
@@ -482,8 +489,40 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     wins: e.wins,
   }));
 
+  /* The last act. The per-house lines are indexed by the cartridge with
+     you.house, so the order here has to be the order the houses are exported
+     in - checked rather than assumed, because getting it wrong would give a
+     Stark the Greyjoy ending and nothing would ever say so. */
+  for (let i = 0; i < SWEARABLE.length; i++) {
+    if (SWEARABLE[i] !== TALE_HOUSES[i]) {
+      throw new Error(`the last act lists houses in a different order: `
+        + `${TALE_HOUSES[i]} where ${SWEARABLE[i]} belongs`);
+    }
+  }
+  const tales = TALE_ORDER.map((id) => ({
+    id, name: TALES[id].name,
+    pages: TALES[id].pages.map((p) => ({
+      sky: p.sky ?? 0, mark: p.mark ?? 0, title: p.title, body: p.body,
+      byHouse: p.byHouse ?? null,
+    })),
+  }));
+
+  /* The story calls this one by name; no map has him standing on it, so he has
+     to be pushed into the table by hand or he would not be in the cartridge. */
+  const throneChampion = pushDuellist({
+    fixed: 1,
+    name: DUELLISTS.throneChampion.name, level: DUELLISTS.throneChampion.level,
+    vigour: DUELLISTS.throneChampion.vigour, might: DUELLISTS.throneChampion.might,
+    guard: DUELLISTS.throneChampion.guard, swiftness: DUELLISTS.throneChampion.swiftness,
+    techs: techSlots(DUELLISTS.throneChampion.techniques),
+    reward: DUELLISTS.throneChampion.reward, exp: DUELLISTS.throneChampion.exp,
+    mortal: 0, dead: 0,
+    intro: DUELLISTS.throneChampion.intro, defeat: DUELLISTS.throneChampion.defeat,
+  });
+
   const out = { maps: [], houses, techniques, learned, duellists, wares, forSale,
-                recipes, spoils, forage, beasts, eggs, leaders: [], actors: null };
+                recipes, spoils, forage, beasts, eggs, tales, throneChampion,
+                leaders: [], actors: null };
 
   /* The spine of the game, in the order it is meant to be walked. Nine seats,
      nine sigils; the cartridge rotates this so that your own liege is the last
@@ -1167,6 +1206,17 @@ L.push('static const Ware wares[WARE_COUNT] = {');
 }
 L.push('};');
 L.push('');
+L.push(`#define THRONE_CHAMPION ${harvest.throneChampion}`);
+L.push(`#define THRONE_MAP ${MAP_IDS.indexOf('redKeep')}`);
+/* The tile the Red Keep's door is on, so a test can start one step from it. */
+{
+  const kl = harvest.maps[MAP_IDS.indexOf('kingsLanding')];
+  const door = kl.warps.find((w) => w.to === 'redKeep');
+  if (!door) throw new Error('nothing in the capital leads to the Red Keep');
+  L.push(`#define THRONE_GATE_MAP ${MAP_IDS.indexOf('kingsLanding')}`);
+  L.push(`#define THRONE_GATE_X ${door.x}`);
+  L.push(`#define THRONE_GATE_Y ${door.y + 1}`);
+}
 L.push(`#define START_WEAPON ${harvest.wares.findIndex((w) => w.id === 'ironSword')}`);
 /* The floor under a player who has been beaten with nothing in their hands. */
 L.push(`#define FLOOR_WEAPON ${harvest.wares.findIndex((w) => w.id === 'huntingKnife')}`);
@@ -1261,6 +1311,43 @@ L.push('};');
 L.push('');
 
 // The nine seats, and how far every road is from every one of them.
+// ------------------------------------------------------------- the last act --
+// Five sequences, nineteen pages. The pages that read differently for each
+// house carry a table indexed by the house you swore to; the rest carry one
+// line and a null where that table would be.
+{
+  let pageAt = 0;
+  const rows = [];
+  const tales = [];
+  for (const t of harvest.tales) {
+    const first = pageAt;
+    for (const p of t.pages) {
+      if (p.byHouse) {
+        L.push(`static const char *const houseLines_${pageAt}[HOUSE_COUNT] = {`);
+        for (const line of p.byHouse) L.push(`  ${cstr(line)},`);
+        L.push('};');
+      }
+      rows.push(`  { ${p.sky}, ${p.mark}, ${cstr(p.title)}, ${cstr(p.body)}, `
+        + `${p.byHouse ? `houseLines_${pageAt}` : '0'} },`);
+      pageAt++;
+    }
+    tales.push(`  { ${cstr(t.name)}, ${first}, ${t.pages.length} },`);
+  }
+  L.push('typedef struct { u8 sky, mark; const char *title, *body;');
+  L.push('                 const char *const *byHouse; } Page;');
+  L.push(`static const Page talePages[${pageAt}] = {`);
+  L.push(...rows);
+  L.push('};');
+  L.push(`#define TALE_COUNT ${tales.length}`);
+  L.push('typedef struct { const char *name; u8 first, count; } Tale;');
+  L.push('static const Tale tales[TALE_COUNT] = {');
+  L.push(...tales);
+  L.push('};');
+  /* The order they fire in, by name, so the cartridge can say which is which. */
+  harvest.tales.forEach((t, i) => L.push(`#define TALE_${t.id.toUpperCase()} ${i}`));
+  L.push('');
+}
+
 L.push(`#define MAP_COUNT ${harvest.maps.length}`);
 {
   const order = [...harvest.leaders].sort((a, b) => a.order - b.order);

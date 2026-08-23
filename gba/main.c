@@ -2832,6 +2832,23 @@ static void describeWare(int at, int inPouch) {
   if (inPouch && !worn(at)) appendString(scratch, "   A to take it up", sizeof scratch);
 }
 
+/* Whether the pouch was opened standing at somebody's counter. */
+static int atCounter;
+
+/* What a counter will give you for something you are carrying.
+ *
+ * You could buy and never sell, so a pouch filled up with everything you had
+ * ever taken off anybody and there was nothing to do with any of it. Half the
+ * asking price, which is what anybody gets for second-hand steel, and nothing
+ * at all for what you are wearing - a counter will not buy the shirt off your
+ * back while you are standing in it. */
+static int wareWorth(int at) {
+  const Ware *w = &wares[at];
+  if (!you.bag[at] || worn(at)) return 0;
+  if (w->kind == WARE_STUFF) return 6 + wares[at].tier * 20;
+  return w->price >> 1;
+}
+
 static void paintBag(void) {
   int have = carrying(), top = listTop(bagPick, have), i;
   clearRows(0, TXT_H);
@@ -2862,6 +2879,16 @@ static void paintBag(void) {
     int at = nthCarried(bagPick);
     describeWare(at, 1);
     drawText(14, TXT_H - 18, scratch, C_DIM);
+    /* At a counter the pouch is also where you sell, so it says what this is
+       worth and which button takes it. */
+    if (atCounter && have) {
+      int worth = wareWorth(at);
+      copyString(scratch, worth ? "SELECT: sell for " : "SELECT: they will not take that",
+        sizeof scratch);
+      if (worth) appendNumber(scratch, worth, sizeof scratch);
+      drawText(TXT_W - 14 - textWidth(scratch), TXT_H - 18, scratch,
+        worth ? C_GOLD : C_DIM);
+    }
   }
 }
 
@@ -2960,12 +2987,19 @@ static int keepBeast(int which, int level) {
   return 1;
 }
 
+/* Why the last thing you reached for did nothing, if it did nothing. */
+static const char *wareBalked;
+
 static int useWare(int at) {
   int max = vigourFor(you.level), heal;
+  wareBalked = 0;
   if (!you.bag[at]) return 0;
   if (wares[at].kind != WARE_POTION) return wearWare(at);
   heal = wares[at].heal >= 9999 ? max : wares[at].heal;
-  if (you.hp >= max) return 0;
+  if (you.hp >= max) {
+    wareBalked = "There is nothing wrong with you. Keep it for when there is.";
+    return 0;
+  }
   you.hp += heal;
   if (you.hp > max) you.hp = max;
   you.bag[at]--;
@@ -3151,10 +3185,12 @@ static void paintShop(void) {
   {
     describeWare(stall->ware[shopPick], 0);
     drawText(14, TXT_H - 30, scratch, C_DIM);
-    /* Nobody would ever have found this by pressing buttons at a counter. */
-    drawText(14, TXT_H - 18, shopStall
-      ? "SELECT: forge something out of what you carry"
-      : "SELECT: have something brewed from what you carry", C_GOLD);
+    /* Nobody would ever have found any of this by pressing buttons at a
+       counter, so the counter says it outright. */
+    drawText(14, TXT_H - 18, "A: buy    START: sell", C_GOLD);
+    copyString(scratch, shopStall ? "SELECT: forge" : "SELECT: brew",
+      sizeof scratch);
+    drawText(TXT_W - 14 - textWidth(scratch), TXT_H - 18, scratch, C_GOLD);
   }
 }
 
@@ -3283,6 +3319,19 @@ static const char *buyWare(int at) {
      out of curiosity does not replace a good sword. */
   return how == TOOK_WORN ? "You put it on there and then."
                           : "Wrapped and handed over. Yours is still the better.";
+}
+
+static const char *sellWare(int at) {
+  int worth = wareWorth(at);
+  if (worn(at)) return "You are wearing that. Take it off first, or do not.";
+  if (!worth) return "Nobody will give you anything for that.";
+  you.bag[at]--;
+  you.gold += worth;
+  copyString(scratch, "Sold. ", sizeof scratch);
+  appendNumber(scratch, worth, sizeof scratch);
+  appendString(scratch, " gold, and no questions about where it came from.",
+    sizeof scratch);
+  return scratch;
 }
 
 /* ------------------------------------------------------------- the menu --- */
@@ -3816,12 +3865,19 @@ static void tickSpoils(void) {
   shownExp += 1 + (you.exp - shownExp) / 20;
   if (shownExp > you.exp) shownExp = you.exp;
   if (you.level < 50 && shownExp >= next) {
+    int wasMax = mine.maxHp;
     you.level++;
     mine.maxHp = vigourFor(you.level);
     mine.might = mightFor(you.level);
     mine.guard = guardFor(you.level);
     mine.swiftness = swiftFor(you.level);
-    you.hp = mine.maxHp;
+    /* Levelling used to put you back to full, and at the bottom of the game you
+       level after nearly every fight - so you began almost every duel whole, no
+       matter what the last one cost, and a remedy could never do anything
+       because you were never hurt when you reached for one. Growing gives you
+       the difference it added and nothing else. */
+    you.hp += mine.maxHp - wasMax;
+    if (you.hp > mine.maxHp) you.hp = mine.maxHp;
     mine.hp = you.hp;
     sfxRank();
     reckonTechniques();
@@ -3833,7 +3889,7 @@ static void tickSpoils(void) {
     appendNumber(scratch, mine.guard, sizeof scratch);
     appendString(scratch, ", swiftness ", sizeof scratch);
     appendNumber(scratch, mine.swiftness, sizeof scratch);
-    appendString(scratch, ", and whole again.", sizeof scratch);
+    appendString(scratch, ".", sizeof scratch);
     {
       int taught = learnedAt(you.level);
       if (taught >= 0) {
@@ -4824,10 +4880,31 @@ int main(void) {
           layoutTextRows(TEXT_DUEL);
           paintDuelPlates();
           paintDuelMenu();
+        } else if (atCounter) {
+          atCounter = 0;
+          scene = SCENE_SHOP;
+          layoutTextRows(TEXT_TOP);
+          paintShop();
         } else {
           scene = SCENE_MENU;
           layoutTextRows(TEXT_TOP);
           paintMenu();
+        }
+      } else if (hit(KEY_SELECT) && have && atCounter) {
+        int at = nthCarried(bagPick);
+        const char *said = sellWare(at);
+        sfxRank();
+        if (bagPick >= carrying() && bagPick) bagPick--;
+        if (!carrying()) {
+          atCounter = 0;
+          scene = SCENE_SHOP;
+          clearPage();
+          layoutTextRows(TEXT_TOP);
+          paintShop();
+          openWindow(0, said);
+        } else {
+          paintBag();
+          showPlate(said);
         }
       } else if (hit(KEY_A) && have) {
         int at = nthCarried(bagPick);
@@ -4854,6 +4931,15 @@ int main(void) {
           scene = SCENE_WORLD;
           layoutTextRows(TEXT_PLAY);
           openWindow(0, "Better. Not good, but better.");
+        } else if (wareBalked) {
+          /* It did nothing, and used to do nothing silently - which from the
+             other side of the screen is indistinguishable from a remedy that
+             is broken. */
+          clearPage();
+          scene = bagInDuel ? SCENE_DUEL : SCENE_WORLD;
+          layoutTextRows(bagInDuel ? TEXT_DUEL : TEXT_PLAY);
+          if (bagInDuel) { paintDuelPlates(); duelSay(0, wareBalked); }
+          else openWindow(0, wareBalked);
         } else {
           paintBag();
         }
@@ -4923,6 +5009,17 @@ int main(void) {
     } else if (scene == SCENE_SHOP) {
       const Stall *stall = &stalls[shopStall];
       int was = shopPick;
+      if (hit(KEY_START)) {
+        /* Over to your own side of the counter, where things can be sold. */
+        scene = SCENE_BAG;
+        bagInDuel = 0;
+        atCounter = 1;
+        bagPick = 0;
+        clearPage();
+        layoutTextRows(TEXT_TOP);
+        paintBag();
+        continue;
+      }
       if (hit(KEY_UP) && shopPick > 0) shopPick--;
       if (hit(KEY_DOWN) && shopPick < stall->count - 1) shopPick++;
       if (shopPick != was) { sfxPick(); paintShop(); }

@@ -982,6 +982,92 @@ int main(void) {
     you.lead = 0;
   }
 
+  /* --- health, remedies and the counter ------------------------------------ */
+  /* Three complaints that a wandering run will never catch, because the tester
+     never notices that it is always whole: levelling used to heal you to full,
+     which meant almost every duel began at full health and a remedy could never
+     find anything to mend. These check the three directly. */
+  {
+    int at = -1, i2, before, maxAt5;
+    /* Growing gives you the difference in your maximum and nothing more. */
+    you.level = 5;
+    maxAt5 = vigourFor(5);
+    mine.maxHp = maxAt5;
+    you.hp = maxAt5 / 4;
+    you.exp = expForLevel(6);
+    shownExp = expForLevel(6) - 1;
+    before = you.hp;
+    windowOpen = 0;
+    tickSpoils();
+    if (you.level != 6) bad("enough experience did not take a level");
+    if (you.hp >= vigourFor(6)) {
+      bad("levelling still heals you to full (%d of %d)", you.hp, vigourFor(6));
+    }
+    if (you.hp != before + (vigourFor(6) - maxAt5)) {
+      bad("levelling gave %d health, not the %d it added to your maximum",
+        you.hp - before, vigourFor(6) - maxAt5);
+    }
+
+    /* A remedy mends you when you are hurt, and says so when you are not. */
+    for (i2 = 0; i2 < WARE_COUNT; i2++) {
+      if (wares[i2].kind == WARE_POTION && wares[i2].heal > 0
+          && wares[i2].heal < 9999) { at = i2; break; }
+    }
+    if (at < 0) {
+      bad("there is no remedy on the cartridge that mends anything");
+    } else {
+      you.level = 20;
+      you.bag[at] = 2;
+      you.hp = 10;
+      if (!useWare(at)) bad("a remedy would not go down on a hurt man");
+      if (you.hp != 10 + wares[at].heal) {
+        bad("%s mended %d, not the %d it promises", wares[at].name,
+          you.hp - 10, wares[at].heal);
+      }
+      if (you.bag[at] != 1) bad("drinking a remedy did not use one up");
+      you.hp = vigourFor(you.level);
+      wareBalked = 0;
+      if (useWare(at)) bad("a remedy went down on a man with nothing wrong");
+      if (!wareBalked) bad("a remedy that did nothing said nothing about why");
+      if (you.bag[at] != 1) bad("a remedy that did nothing was still used up");
+      you.bag[at] = 0;
+    }
+
+    /* A counter buys back, at half, and will not take what you are standing in. */
+    at = -1;
+    for (i2 = 0; i2 < WARE_COUNT; i2++) {
+      if (wares[i2].kind == WARE_WEAPON && wares[i2].price > 1) { at = i2; break; }
+    }
+    if (at < 0) {
+      bad("there is no weapon with a price on it");
+    } else {
+      int purse;
+      for (i2 = 0; i2 < WARE_KINDS; i2++) you.worn[i2] = 0;
+      you.bag[at] = 1;
+      you.gold = 100;
+      purse = you.gold;
+      if (wareWorth(at) != wares[at].price / 2) {
+        bad("%s sells for %d, not half of %d", wares[at].name, wareWorth(at),
+          wares[at].price);
+      }
+      if (!sellWare(at)) bad("selling said nothing");
+      if (you.bag[at]) bad("something sold is still in the pouch");
+      if (you.gold != purse + wares[at].price / 2) {
+        bad("selling paid %d, not %d", you.gold - purse, wares[at].price / 2);
+      }
+      /* And again, wearing it. */
+      you.bag[at] = 1;
+      you.WORN_WEAPON = (u8)(at + 1);
+      if (wareWorth(at)) bad("a counter offered to buy the sword out of your hand");
+      you.gold = purse;
+      sellWare(at);
+      if (!you.bag[at]) bad("a counter took the sword out of your hand");
+      if (you.gold != purse) bad("worn gear was paid for anyway");
+      you.WORN_WEAPON = 0;
+      you.bag[at] = 0;
+    }
+  }
+
   /* --- the record, written and read back ---------------------------------- */
   {
     int ok = 1;

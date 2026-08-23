@@ -915,6 +915,11 @@ export const SCRIPTS = {
     await say('Lady Arryn: Do not ask me for knights. Ask me for a bed and I might say yes.');
   },
 
+  /** Somebody with nothing to do but say the one line written on them. */
+  async bellowsHand({ say, npc }) {
+    await say(npc?.data?.line ?? 'They have nothing to say to you.');
+  },
+
   async eyrieHint({ say }) {
     await say('Guard: Sky cells have three walls and a very persuasive fourth side.');
     await say('Guard: WIND creatures nest all over the mountain. Bring something that throws stones.');
@@ -1101,4 +1106,21 @@ export const SCRIPTS = {
     }
     await overworld.holdCourt();
   },
+  // ------------------------------------------------- the other eight seats ---
+  // Five of these were written out longhand and the differences between them
+  // were the name and the parting gift. One shape, nine seats: say your piece,
+  // fight, hand over the sigil.
+  ...Object.fromEntries(['gymArryn', 'gymTyrell', 'gymMartell', 'gymBaratheon', 'gymTargaryen']
+    .map((id) => [id, async function ({ say, setFlag, flag }) {
+      const def = TRAINERS[id];
+      if (flag(`trainer_${id}`)) { await say(def.after); return; }
+      await say(def.intro);
+      const outcome = await overworld.startAmbush(trainerAsDuellist(id));
+      if (outcome === 'won') {
+        setFlag(`trainer_${id}`);
+        await say(def.after);
+        giveItem('kingsRansom', 1);
+        await say("You also received a King's Ransom.");
+      }
+    }])),
 };

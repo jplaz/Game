@@ -391,6 +391,38 @@ const painters = {
   roofThatch(ctx, _frame, mask) { roofBody(ctx, mask, THATCH, THATCH_RIDGE, THATCH_EAVE, THATCH_KEY); },
   roofThatchCap(ctx, _frame, mask) { roofCap(ctx, mask, painters.roofThatch, THATCH_KEY); },
 
+  /* A forge chimney, standing above the ridge of the smithy roof.
+     Every town's trade buildings were the same daub-and-timber house with the
+     same roof, so a blacksmith was indistinguishable from a granary until you
+     had walked up and opened the door. A stone stack with smoke coming out of
+     it says "forge" from the far side of the square, which is the whole job. */
+  chimney(ctx, frame, _mask, ground = painters.grass) {
+    ground(ctx);
+    // The stack: coursed stone, lit down the left, in shadow down the right.
+    rect(ctx, 5, 7, 6, TILE - 7, '#5b5b5f');
+    rect(ctx, 5, 7, 4, TILE - 7, '#75757d');
+    rect(ctx, 5, 7, 1, TILE - 7, '#93939c');
+    rect(ctx, 10, 7, 1, TILE - 7, '#3a3a3f');
+    for (let y = 9; y < TILE; y += 3) rect(ctx, 5, y, 6, 1, '#535359');
+    // A corbelled cap, a course proud of the stack on both sides.
+    rect(ctx, 4, 5, 8, 3, '#6e6e76');
+    rect(ctx, 4, 5, 8, 1, '#93939c');
+    rect(ctx, 4, 7, 8, 1, '#3a3a3f');
+    // The flue, dark, with the fire below showing in it.
+    rect(ctx, 6, 5, 4, 2, '#241f1c');
+    rect(ctx, 6, 6, 4, 1, '#100e0e');
+    // Smoke, drifting east and thinning as it goes. Pale rather than stone
+    // grey, or it reads as more chimney: two frames, so a working forge is the
+    // one moving thing on a quiet street.
+    const drift = frame ? 1 : 0;
+    rect(ctx, 6 + drift, 2, 4, 3, '#dfe4ee');
+    rect(ctx, 7 + drift, 1, 4, 2, '#dfe4ee');
+    rect(ctx, 6 + drift, 4, 4, 1, '#93939c');
+    rect(ctx, 10 + drift, 0, 4, 2, '#dfe4ee');
+    rect(ctx, 10 + drift, 2, 3, 1, '#93939c');
+    rect(ctx, 13 - drift, 0, 3, 1, '#93939c');
+  },
+
   door(ctx) {
     painters.wall(ctx, 0, 0);
     // The frame: dressed stone jambs and a lintel, standing a little proud of
@@ -667,6 +699,7 @@ export const TILE_DEFS = {
   'y': { paint: painters.roofThatchCap, kind: 'solid', autotile: true },
   'D': { paint: painters.door, kind: 'floor' },
   'w': { paint: painters.window, kind: 'solid' },
+  'n': { paint: painters.chimney, kind: 'solid', frames: 2, grounded: true },
   '!': { paint: painters.sign, kind: 'solid', grounded: true },
   '*': { paint: painters.flowers, kind: 'floor', grounded: true, varies: true },
   'L': { paint: painters.ledge, kind: 'ledge', grounded: true },

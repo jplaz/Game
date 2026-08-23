@@ -34,7 +34,14 @@ const MAP_IDS = [
   'theEyrie', 'maesterHallEyrie', 'eyrieArmoury', 'eyrieKeep',
   'goldRoad', 'lannisport', 'maesterHallLannisport', 'lannisportForge', 'casterlyRock',
   'kingsroad', 'kingsLanding', 'maesterHallKL', 'klArmoury',
-  'dragonstone', 'maesterHallDragonstone', 'dragonstoneArmoury',
+  'dragonstone', 'maesterHallDragonstone', 'dragonstoneArmoury', 'dragonmont',
+  'redKeep',
+  // The south. Three more seats to begin at, three more leaders holding a
+  // sigil, and somewhere to go once the Kingsroad runs out.
+  'roseroad', 'highgarden', 'maesterHallHighgarden', 'highgardenArmoury',
+  'highgardenKeep',
+  'princesPass', 'sunspear', 'maesterHallSunspear', 'sunspearArmoury', 'sunspearKeep',
+  'stormlands', 'stormsEnd', 'maesterHallStormsEnd', 'stormsEndArmoury', 'stormsEndKeep',
 ];
 
 // What the cartridge's hardware will hold.
@@ -185,6 +192,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     tully:     { map: 'riverrun',    x: 10, y: 17, dir: 1, level: 5 },
     targaryen: { map: 'dragonstone', x: 11, y: 18, dir: 1, level: 5 },
     greyjoy:   { map: 'moatCailin',  x: 11, y: 18, dir: 1, level: 5 },
+    arryn:     { map: 'theEyrie',    x: 14, y: 9,  dir: 0, level: 5 },
+    tyrell:    { map: 'highgarden',  x: 14, y: 9,  dir: 0, level: 5 },
+    martell:   { map: 'sunspear',    x: 14, y: 9,  dir: 0, level: 5 },
+    baratheon: { map: 'stormsEnd',   x: 14, y: 9,  dir: 0, level: 5 },
   };
   for (const h of houses) {
     const seat = SEAT_START[h.id];
@@ -219,6 +230,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   function pushDuellist(record) {
     record.intro = unprefix(record.intro, record.name);
     record.defeat = unprefix(record.defeat, record.name);
+    record.fixed = record.fixed ? 1 : 0;
     const key = record.name + '|' + record.level;
     if (duellistIndex.has(key)) return duellistIndex.get(key);
     const at = duellists.length;
@@ -260,7 +272,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       guard: Math.round(s.guard * b.g),
       swiftness: Math.round(s.swiftness * b.s),
       techs: techSlots(b.techs),
-      reward: 20 + level * 14,
+      reward: 12 + level * 6,
       exp: 18 + level * 9,
       mortal: 1,
       intro: `${name} squares up.`,
@@ -299,7 +311,16 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     armourer: wares.map((w, i) => (w.kind !== 'potion' ? i : -1)).filter((i) => i >= 0),
   };
 
-  const out = { maps: [], houses, techniques, learned, duellists, wares, forSale, actors: null };
+  const out = { maps: [], houses, techniques, learned, duellists, wares, forSale,
+                leaders: [], actors: null };
+
+  /* The spine of the game, in the order it is meant to be walked. Nine seats,
+     nine sigils; the cartridge rotates this so that your own liege is the last
+     one you fight rather than the first, which is why swearing to a different
+     house is a different route through the same world rather than the same
+     route with a different colour on the status card. */
+  const LEADER_ORDER = ['gymStark', 'gymTully', 'gymArryn', 'gymTyrell', 'gymLannister',
+                        'gymMartell', 'gymBaratheon', 'gymTargaryen', 'gymThrone'];
 
   /* How hard the road is here.
    *
@@ -316,19 +337,39 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
    * the world getting harder the further you go from it. Named characters keep
    * their own numbers, so the people worth being frightened of stay frightening
    * wherever they happen to stand. */
-  const seats = houses.map((h) => h.start.map).filter((id) => mapIds.includes(id));
-  const stride = new Map(seats.map((id) => [id, 0]));
-  const queue = [...seats];
-  while (queue.length) {
-    const at = queue.shift();
-    const here = stride.get(at);
-    for (const w of (MAPS[at]?.warps ?? [])) {
-      if (!mapIds.includes(w.to) || stride.has(w.to)) continue;
-      stride.set(w.to, here + 1);
-      queue.push(w.to);
+  function walkFrom(fromIds) {
+    const seen = new Map(fromIds.map((id) => [id, 0]));
+    const queue = [...fromIds];
+    while (queue.length) {
+      const at = queue.shift();
+      const here = seen.get(at);
+      for (const w of (MAPS[at]?.warps ?? [])) {
+        if (!mapIds.includes(w.to) || seen.has(w.to)) continue;
+        seen.set(w.to, here + 1);
+        queue.push(w.to);
+      }
     }
+    return seen;
   }
+
+  /* And whose seat you count from is the player's, not the world's.
+   *
+   * One table of distances shared by everybody meant the world was laid out
+   * around whichever seat happened to be nearest, so a Targaryen who never
+   * left Dragonstone found the same gentle ground a Stark found at Winterfell
+   * and then hit a wall the moment either of them travelled - and a Lannister
+   * woke up surrounded by people twenty levels above them. Each house gets its
+   * own table: nought at your own seat, and everything harder the further you
+   * walk from it, whoever you are. The numbers baked into the cartridge use the
+   * northern table, and the cartridge shifts every nameless person on the road
+   * by the difference between that and yours. */
+  const strideBy = {};
+  for (const h of houses) {
+    strideBy[h.id] = mapIds.includes(h.start.map) ? walkFrom([h.start.map]) : new Map();
+  }
+  const stride = strideBy[houses[0].id];
   out.stride = Object.fromEntries(stride);
+  out.strideBy = houses.map((h) => mapIds.map((id) => Math.min(60, strideBy[h.id].get(id) ?? 20)));
 
   for (const id of mapIds) {
     const map = MAPS[id];
@@ -352,18 +393,31 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       }
     }
 
+    /* How hard this ground is, in the northern reckoning. The cartridge shifts
+       it to whichever seat the player actually started from. */
+    const roadLevel = Math.max(3, Math.min(44, 3 + (stride.get(id) ?? 8) * 3));
+
     const npcs = (map.npcs ?? []).map((n) => {
       const sprite = n.sprite ?? 'smallfolk';
       // Anyone the browser game already has numbers for fights with those
       // numbers: a named duellist directly, a trainer through the same
       // conversion the browser uses when they draw on you in person.
-      const named = n.data?.duel ? DUELLISTS[n.data.duel]
+      /* Several people are written with `duel: 'hedgeKnight'` and the like,
+         which names a roamer rather than one of the cast. Those were quietly
+         falling through to a generic body with generic numbers, so a sworn
+         brother of the Watch and a Dornish spear fought identically. */
+      const named = n.data?.duel
+        ? (DUELLISTS[n.data.duel]
+           ?? (ROAMERS[n.data.duel] ? makeRoamer(n.data.duel, roadLevel, (l) => l[0]) : null))
         : (n.data?.trainer && TRAINERS[n.data.trainer] ? trainerAsDuellist(n.data.trainer)
         : null);
-      const level = named?.level
-        ?? Math.max(3, Math.min(34, 3 + (stride.get(id) ?? 8) * 3));
+      const level = named?.level ?? roadLevel;
       const fighter = named
         ? {
+            /* Somebody the story knows by name keeps their own numbers
+               wherever they stand. Everybody else is dressed by the road. */
+            fixed: n.data?.duel && DUELLISTS[n.data.duel] ? 1
+              : n.data?.trainer && TRAINERS[n.data.trainer] ? 1 : 0,
             name: named.name, level: named.level,
             vigour: named.vigour, might: named.might,
             guard: named.guard, swiftness: named.swiftness,
@@ -387,6 +441,14 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         : /smith|forge|armour/i.test(n.script ?? '') ? 2 : 0;
       const sight = n.data?.trainer && TRAINERS[n.data.trainer]
         ? Math.min(5, TRAINERS[n.data.trainer].sight ?? 0) : 0;
+      if (n.data?.trainer && TRAINERS[n.data.trainer]?.leader) {
+        const def = TRAINERS[n.data.trainer];
+        out.leaders.push({
+          id: n.data.trainer, order: LEADER_ORDER.indexOf(n.data.trainer),
+          duellist: pushDuellist(fighter), house: def.house ?? '',
+          sigil: def.sigil ?? '', name: def.name, seat: MAPS[id].name, map: id,
+        });
+      }
       return {
         x: n.x, y: n.y, dir: actors.DIRECTIONS.indexOf(n.dir ?? 'down'), said,
         name: n.name ?? '', script: n.script ?? '', sprite, trade, sight,
@@ -400,6 +462,13 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         // and neither will a child or a septa.
         heals: /healer|maester/i.test(n.script ?? '') || /Maester/.test(n.name ?? '') ? 1 : 0,
         fights: ['child', 'girl', 'septa', 'maester', 'whitewalker'].includes(sprite) ? 0 : 1,
+        // Somebody whose whole purpose is to fight you draws when you speak to
+        // them. Challenging was bound to SELECT, which is not a button anybody
+        // presses at a lord standing in his own hall: a house leader would say
+        // his piece and then stand there, and that read as not being allowed to
+        // fight him at all.
+        challenges: /^(duel|gym|trainer)/i.test(n.script ?? '')
+          && !/hint/i.test(n.script ?? '') ? 1 : 0,
       };
     });
 
@@ -408,7 +477,12 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     const ambushes = [];
     for (const row of map.encounters ?? []) {
       if (!row.roamer || !ROAMERS[row.roamer]) continue;
-      const level = Math.max(2, Math.round((row.min + row.max) / 2));
+      /* Who is on this road comes from the encounter table; how hard they are
+         does not. Those numbers were written for a game that always began at
+         Winterfell, so the Dragonmont was full of level forties and a Targaryen
+         who started there walked out of the gate into them. Distance decides,
+         the same as it does for everybody standing still. */
+      const level = Math.max(2, roadLevel + (ambushes.length % 3) - 1);
       const made = makeRoamer(row.roamer, level, (list) => list[0]);
       ambushes.push({
         actor: actorFor(made.sprite, made.sprite),
@@ -867,26 +941,55 @@ L.push('');
 L.push(`#define DUELLIST_COUNT ${harvest.duellists.length}`);
 L.push('typedef struct {');
 L.push('  const char *name;');
-L.push('  u16 vigour; u8 level, might, guard, swiftness, mortal;');
+L.push('  u16 vigour; u8 level, might, guard, swiftness, mortal, fixed;');
 L.push('  u8 tech[4];');
 L.push('  u16 reward, exp;');
 L.push('  const char *intro, *defeat;');
 L.push('} Duellist;');
 L.push('static const Duellist duellists[DUELLIST_COUNT] = {');
 for (const d of harvest.duellists) {
-  L.push(`  { ${cstr(d.name)}, ${d.vigour}, ${d.level}, ${d.might}, ${d.guard}, ${d.swiftness}, ${d.mortal},`);
+  L.push(`  { ${cstr(d.name)}, ${d.vigour}, ${d.level}, ${d.might}, ${d.guard}, ${d.swiftness}, ${d.mortal}, ${d.fixed ?? 0},`);
   L.push(`    { ${d.techs.join(', ')} }, ${d.reward}, ${d.exp},`);
   L.push(`    ${cstr(d.intro)}, ${cstr(d.defeat)} },`);
 }
 L.push('};');
 L.push('');
 
+// The nine seats, and how far every road is from every one of them.
+L.push(`#define MAP_COUNT ${harvest.maps.length}`);
+{
+  const order = [...harvest.leaders].sort((a, b) => a.order - b.order);
+  if (order.some((l) => l.order < 0)) {
+    throw new Error(`leader missing from the ladder: ${order.filter((l) => l.order < 0).map((l) => l.id).join(', ')}`);
+  }
+  L.push(`#define LEADER_COUNT ${order.length}`);
+  L.push('typedef struct { u16 duellist; u8 house, map; const char *sigil, *name, *seat; } Leader;');
+  L.push('static const Leader leaders[LEADER_COUNT] = {');
+  for (const l of order) {
+    const house = harvest.houses.findIndex((h) => h.id === l.house);
+    const at = MAP_IDS.indexOf(l.map);
+    L.push(`  { ${l.duellist}, ${house < 0 ? 255 : house}, ${at}, ${cstr(l.sigil)}, `
+      + `${cstr(l.name)}, ${cstr(l.seat)} },`);
+  }
+  L.push('};');
+  /* What each rung of that ladder is worth. Nine evenly spaced steps from a
+     first fight you can take at ten to a last one that expects everything. */
+  L.push('static const u8 leaderLevel[LEADER_COUNT] = { 10, 14, 18, 22, 26, 30, 34, 38, 44 };');
+  L.push('');
+  L.push('/* Doors walked from each house seat: the difficulty of the whole world,');
+  L.push('   measured from wherever this particular player woke up. */');
+  L.push('static const u8 strideBy[HOUSE_COUNT][MAP_COUNT] = {');
+  for (const row of harvest.strideBy) L.push(`  { ${row.join(', ')} },`);
+  L.push('};');
+  L.push('');
+}
+
 // Maps.
 L.push('typedef struct { u8 x, y, to, tx, ty; } Warp;');
 L.push('typedef struct { u8 x, y; const char *text; } Sign;');
 L.push('typedef struct { u16 duellist; u8 bank; } Ambush;');
 L.push('typedef struct {');
-L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight;');
+L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges;');
 L.push('  u16 duellist;');
 L.push('  const char *name, *line;');
 L.push('} Npc;');
@@ -955,7 +1058,7 @@ harvest.maps.forEach((map, i) => {
       name = n.name.startsWith(spoken[1]) ? n.name : spoken[1];
       line = spoken[2];
     }
-    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.duellist},`);
+    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.duellist},`);
     L.push(`    ${cstr(name)}, ${cstr(line.trim())} },`);
   }
   if (!map.npcs.length) L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');
@@ -963,7 +1066,6 @@ harvest.maps.forEach((map, i) => {
   L.push('');
 });
 
-L.push(`#define MAP_COUNT ${harvest.maps.length}`);
 L.push('static const Map maps[MAP_COUNT] = {');
 harvest.maps.forEach((map, i) => {
   L.push(`  { ${cstr(map.name)}, ${map.width}, ${map.height}, ${map.bank.length}, tiles_${i},`);

@@ -110,7 +110,8 @@ export const HOUSES = {
 export const HOUSE_IDS = Object.keys(HOUSES);
 
 /** The houses you may swear to at the start, in the order they are offered. */
-export const SWEARABLE = ['stark', 'lannister', 'tully', 'targaryen', 'greyjoy'];
+export const SWEARABLE = ['stark', 'tully', 'arryn', 'tyrell', 'lannister',
+                          'martell', 'baratheon', 'targaryen', 'greyjoy'];
 
 /**
  * Which house a person on the road belongs to, read from how they are dressed.

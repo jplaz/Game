@@ -47,8 +47,8 @@ clang $HOSTFLAGS -o audit audit.c
 # and checks on every frame that the game has not put itself somewhere
 # impossible. Five houses, five different rolls of the dice.
 clang $HOSTFLAGS -o playtest playtest.c
-for h in 0 1 2 3 4; do
-  SEED=$((h * 104729 + 7)) ./playtest "$h" | sed -n '2,12p'
+for h in 0 1 2 3 4 5 6 7 8; do
+  SEED=$((h * 104729 + 7)) ./playtest "$h" | sed -n '2,13p'
 done
 
 # The pictures in shots/ come from the playthrough rather than from a written

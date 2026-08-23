@@ -672,6 +672,17 @@ int main(int argc, char **argv) {
   printf("  ended          level %d, %d gold, %d/%d health, in %s\n",
     you.level, you.gold, you.hp, vigourFor(you.level), world ? world->name : "(nowhere)");
   printf("  swore to       %s\n", houses[you.house].full);
+  /* The spine, and whether a player walking the world the way this one does
+     actually finds it. Nine sigils is the whole game; a run that ends holding
+     none of them has not been playing it. */
+  {
+    int i;
+    printf("  sigils         %d of %d:", countSigils(), LEADER_COUNT);
+    for (i = 0; i < LEADER_COUNT; i++) {
+      printf(" %s%s", leaders[atRung[i]].sigil, haveSigil(atRung[i]) ? "*" : "-");
+    }
+    printf("\n");
+  }
   printf("  status card    opened %d times\n", statusChecks);
   printf("  spotted on the road %d times\n", spottings);
   printf("  menus / pouch / stalls  %d / %d / %d, bought %d things, saved %d times\n",

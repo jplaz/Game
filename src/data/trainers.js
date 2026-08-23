@@ -248,7 +248,7 @@ export const TRAINERS = {
     party: [{ species: 'skytalon', level: 37 }, { species: 'deepmaw', level: 38 }],
   },
   gymThrone: {
-    name: 'Queen Cersei', sprite: 'cersei', reward: 12000, leader: true, sigil: 'stag',
+    name: 'Queen Cersei', sprite: 'cersei', reward: 12000, leader: true, sigil: 'crown',
     intro: 'Cersei Lannister: Everyone who climbs this stair wants the chair. Nobody who has sat in it does.',
     defeat: 'Cersei Lannister: My beasts are finished. I am not. Draw your steel.',
     after: 'Cersei Lannister: The realm is yours to hold. Holding is the hard part. Nobody warned me either.',
@@ -259,6 +259,72 @@ export const TRAINERS = {
       { species: 'dornspine', level: 41 },
       { species: 'skytalon', level: 41 },
       { species: 'crownstag', level: 44 },
+    ],
+  },
+
+  // ------------------------------------------------- the other eight seats ---
+  // Four leaders held sigils and five great houses had none, so a player who
+  // swore to Targaryen or Martell had nobody of their own to measure themselves
+  // against. Every seat in the game now has somebody sitting in it who will
+  // fight you for their sigil.
+  gymArryn: {
+    name: 'Bronze Yohn Royce', sprite: 'arryn', reward: 5200, leader: true, sigil: 'falcon',
+    intro: 'Yohn Royce: Runes older than the Andals on this armour, and every one of them still works. Come on then.',
+    defeat: 'Yohn Royce: The bronze held. I did not. Take the Falcon Sigil and my respect with it.',
+    after: 'Yohn Royce: The Vale is closed to armies and open to travellers. Stay the second sort.',
+    house: 'arryn',
+    party: [
+      { species: 'falconet', level: 24 },
+      { species: 'skytalon', level: 25 },
+      { species: 'crownstag', level: 27 },
+    ],
+  },
+  gymTyrell: {
+    name: 'Lord Randyll Tarly', sprite: 'tyrell', reward: 6400, leader: true, sigil: 'rose',
+    intro: 'Randyll Tarly: I have no patience for pageantry and less for wandering swords. Draw or leave.',
+    defeat: 'Randyll Tarly: Well struck. I do not say that twice a year. The Rose Sigil is yours.',
+    after: 'Randyll Tarly: The Reach feeds the realm and the realm forgets it. Go south. Dorne forgets nothing.',
+    house: 'tyrell',
+    party: [
+      { species: 'sapling', level: 27 },
+      { species: 'fawnhart', level: 28 },
+      { species: 'heartwarden', level: 31 },
+    ],
+  },
+  gymMartell: {
+    name: 'Prince Oberyn', sprite: 'martell', reward: 8000, leader: true, sigil: 'viper',
+    intro: 'Oberyn Martell: You have come a long way to be poisoned. Do not worry. I only do that on purpose.',
+    defeat: 'Oberyn Martell: Ha! Faster than you look. The Viper Sigil, and a drink, and no hard feelings.',
+    after: 'Oberyn Martell: Dorne was never conquered. Remember that when the Stormlands try to tell you how it is done.',
+    house: 'martell',
+    party: [
+      { species: 'sandviper', level: 32 },
+      { species: 'deepmaw', level: 33 },
+      { species: 'dornspine', level: 36 },
+    ],
+  },
+  gymBaratheon: {
+    name: 'Stannis Baratheon', sprite: 'baratheon', reward: 9500, leader: true, sigil: 'stag',
+    intro: 'Stannis Baratheon: I am not interested in what you deserve. Show me what you can hold.',
+    defeat: 'Stannis Baratheon: Then you can hold it. The Stag Sigil is yours by right and I do not begrudge it.',
+    after: 'Stannis Baratheon: Dragonstone next. The girl across the water has more fire than sense, and more of it than either of us.',
+    house: 'baratheon',
+    party: [
+      { species: 'crownstag', level: 34 },
+      { species: 'crabcrag', level: 35 },
+      { species: 'tuskrend', level: 38 },
+    ],
+  },
+  gymTargaryen: {
+    name: 'Daenerys Targaryen', sprite: 'targaryen', reward: 11000, leader: true, sigil: 'dragon',
+    intro: 'Daenerys Targaryen: Everyone who wants the realm comes to this island first. Most of them do not leave it.',
+    defeat: 'Daenerys Targaryen: Fire and blood, and you walked through both. The Dragon Sigil is yours.',
+    after: 'Daenerys Targaryen: There is one chair left and somebody unworthy is in it. Go and take it off them.',
+    house: 'targaryen',
+    party: [
+      { species: 'emberwisp', level: 38 },
+      { species: 'scaleflight', level: 39 },
+      { species: 'pyremaw', level: 42 },
     ],
   },
 

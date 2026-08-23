@@ -198,7 +198,12 @@ static void checkFits(const char *what, const char *s, int rows) {
    and leaves what you have left in *hp. The cartridge's own arithmetic. */
 static int duelOnce(int level, int who, int *hp) {
   const Duellist *d = &duellists[who];
-  Kit k = kitOf(who, d->level);
+  /* Whatever the cartridge would make of them where the player is standing:
+     a leader on their rung, a named face at their own number, and everybody
+     else shifted to the road you actually walked in on. Reading the baked
+     numbers instead was reading a different game. */
+  int lv = levelOf(who);
+  Kit k = kitOf(who, lv);
   u8 piece[3];
   int j2, turn, first;
 
@@ -211,9 +216,11 @@ static int duelOnce(int level, int who, int *hp) {
   mine.tech = myTechs;
   mine.defending = 0;
 
-  theirs.name = d->name; theirs.level = d->level;
-  theirs.maxHp = theirs.hp = d->vigour;
-  theirs.might = d->might; theirs.guard = d->guard; theirs.swiftness = d->swiftness;
+  theirs.name = d->name; theirs.level = lv;
+  theirs.maxHp = theirs.hp = scaleTo(d->vigour, d->level, lv);
+  theirs.might = scaleTo(d->might, d->level, lv);
+  theirs.guard = scaleTo(d->guard, d->level, lv);
+  theirs.swiftness = scaleTo(d->swiftness, d->level, lv);
   theirs.tech = d->tech;
   theirs.defending = 0;
   /* Weapon and mail only, the way the cartridge fights them: the shield is on
@@ -257,11 +264,13 @@ static int winRate(int level, int who, int tries) {
   u8 wasWeapon = you.weapon, wasArmour = you.armour, wasShield = you.shield;
   const Duellist *d = &duellists[who];
 
+  int lv = levelOf(who);
+
   you.level = level;
   reckonTechniques();
   for (t = 0; t < tries; t++) {
     int turn, first;
-    Kit k = kitOf(who, d->level);
+    Kit k = kitOf(who, lv);
     u8 piece[3];
     int j2;
 
@@ -273,9 +282,11 @@ static int winRate(int level, int who, int tries) {
     mine.tech = myTechs;
     mine.defending = 0;
 
-    theirs.name = d->name; theirs.level = d->level;
-    theirs.maxHp = theirs.hp = d->vigour;
-    theirs.might = d->might; theirs.guard = d->guard; theirs.swiftness = d->swiftness;
+    theirs.name = d->name; theirs.level = lv;
+    theirs.maxHp = theirs.hp = scaleTo(d->vigour, d->level, lv);
+    theirs.might = scaleTo(d->might, d->level, lv);
+    theirs.guard = scaleTo(d->guard, d->level, lv);
+    theirs.swiftness = scaleTo(d->swiftness, d->level, lv);
     theirs.tech = d->tech;
     theirs.defending = 0;
     piece[0] = k.arm; piece[1] = k.mail; piece[2] = k.shield;
@@ -659,6 +670,12 @@ int main(void) {
     int near[MAP_COUNT], start = h->startMap, wins = 0, fights = 0, best = 0, lowest = 99;
     int j2, k;
     u8 wasW = you.weapon, wasA = you.armour, wasS = you.shield;
+    int wasHouse = you.house, wasWorld = worldId;
+    /* Ask the question as this house, not as the North. Difficulty is measured
+       from the player's own seat now, so reading the baked numbers here was
+       asking whether a Dornishman could survive Winterfell's arithmetic while
+       standing in Sunspear. */
+    you.house = m; layLadder();
     for (j2 = 0; j2 < MAP_COUNT; j2++) near[j2] = (j2 == start);
     for (j2 = 0; j2 < MAP_COUNT; j2++) {
       for (k = 0; k < maps[j2].warpCount; k++) {
@@ -670,12 +687,12 @@ int main(void) {
     you.weapon = 0; you.armour = 0; you.shield = 0;
     for (j2 = 0; j2 < MAP_COUNT; j2++) {
       if (!near[j2]) continue;
+      worldId = j2;
       for (k = 0; k < maps[j2].npcCount; k++) {
-        int rate;
+        int rate, at;
         if (!maps[j2].npcs[k].fights) continue;
-        if (duellists[maps[j2].npcs[k].duellist].level < lowest) {
-          lowest = duellists[maps[j2].npcs[k].duellist].level;
-        }
+        at = levelOf(maps[j2].npcs[k].duellist);
+        if (at < lowest) lowest = at;
         rate = winRate(h->startLevel, maps[j2].npcs[k].duellist, 200);
         if (rate > best) best = rate;
         wins += rate; fights++;
@@ -694,9 +711,10 @@ int main(void) {
         int gentle = 0, j3, k3;
         for (j3 = 0; j3 < MAP_COUNT; j3++) {
           if (!near[j3]) continue;
+          worldId = j3;
           for (k3 = 0; k3 < maps[j3].npcCount; k3++) {
             if (maps[j3].npcs[k3].fights
-                && duellists[maps[j3].npcs[k3].duellist].level <= 8) gentle++;
+                && levelOf(maps[j3].npcs[k3].duellist) <= 8) gentle++;
           }
         }
         if (gentle < 2) {
@@ -711,6 +729,7 @@ int main(void) {
           h->name, maps[start].name, best);
       }
     }
+    you.house = wasHouse; worldId = wasWorld; layLadder();
   }
 
   /* --- and does it stay a fight afterwards? ------------------------------- */

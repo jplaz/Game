@@ -974,6 +974,11 @@ static u8 beaten[MAP_COUNT][MAX_CROWD];            /* the appearance of the hous
 /* Who has been killed, so the road stays as you left it. */
 static u8 slain[MAP_COUNT][MAX_CROWD];
 
+/* Who has already pressed something into your hand. Kept in the record as well,
+   or a save and a reload would be a way to be given it all over again. */
+static u8 gifted[MAP_COUNT][MAX_CROWD];
+
+
 /* --------------------------------------------------------------- the you --- */
 
 #define NAME_MAX 10
@@ -988,6 +993,55 @@ typedef struct {
 } You;
 
 static You you;
+
+/* --------------------------------------------------------------- sigils ---
+   Nine seats, nine people sitting in them, and one bit each. This is the spine
+   of the game: without it a player could wander the whole of Westeros without
+   ever being told what they were meant to be doing, which is exactly what the
+   game did.
+
+   The order is not the same for everybody. Your own liege is the eighth fight
+   rather than the first, so swearing to House Martell is a different route
+   through the same world instead of the same route in orange. */
+static u16 sigils;
+static u8 atRung[LEADER_COUNT];   /* who stands on each rung of your ladder */
+static u8 rungOf[LEADER_COUNT];   /* and which rung each of them stands on */
+
+static void layLadder(void) {
+  int i, n = 0, mine = -1;
+  /* The throne is the last fight for everybody, so it is not looked at here -
+     which also settles House Lannister, who would otherwise find two of their
+     own on the ladder and neither of them last. */
+  for (i = 0; i < LEADER_COUNT - 1; i++) {
+    if (leaders[i].house == (u8)you.house) { mine = i; break; }
+  }
+  for (i = 0; i < LEADER_COUNT - 1; i++) if (i != mine) atRung[n++] = (u8)i;
+  if (mine >= 0) atRung[n++] = (u8)mine;
+  atRung[n++] = (u8)(LEADER_COUNT - 1);
+  for (i = 0; i < LEADER_COUNT; i++) rungOf[atRung[i]] = (u8)i;
+}
+
+/* Which of the nine this duellist is, or -1 for anybody else on the road. */
+static int leaderFor(int duellist) {
+  int i;
+  for (i = 0; i < LEADER_COUNT; i++) if (leaders[i].duellist == (u16)duellist) return i;
+  return -1;
+}
+
+static int haveSigil(int lead) { return (sigils >> lead) & 1; }
+
+static int countSigils(void) {
+  int i, n = 0;
+  for (i = 0; i < LEADER_COUNT; i++) n += haveSigil(i);
+  return n;
+}
+
+/* The lowest rung nobody has taken yet: what the status card tells you to do. */
+static int nextRung(void) {
+  int i;
+  for (i = 0; i < LEADER_COUNT; i++) if (!haveSigil(atRung[i])) return i;
+  return -1;
+}
 
 /* What you are wearing decides which of the four bodies is resident. */
 static int lookOf(void) {
@@ -1029,7 +1083,7 @@ static int swiftFor(int level) {
    keeps it worth beating the same rank twice. */
 
 #define KIT_NONE 255
-#define KIT_CEILING 3000    /* what the dearest thing on any body may cost */
+#define KIT_CEILING 3600    /* what the dearest thing on any body may cost */
 
 /* A weapon, a mail, a shield and maybe something to drink: everybody on the
    road is dressed the way you are, out of the same list you are, and fights in
@@ -1495,7 +1549,14 @@ static void appendNumber(char *dst, int n, int room) {
   char digits[12];
   int at = 0, i = 0;
   if (n < 0) { appendString(dst, "-", room); n = -n; }
-  do { digits[at++] = (char)('0' + n % 10); n /= 10; } while (n);
+  /* Quotient and remainder of the same pair is a call to __aeabi_uidivmod,
+     which is in libgcc and there is no libgcc here. One divide, then subtract
+     it back out. */
+  do {
+    u32 q = udiv((u32)n, 10);
+    digits[at++] = (char)('0' + (u32)n - q * 10);
+    n = (int)q;
+  } while (n);
   while (dst[i]) i++;
   while (at && i < room - 1) dst[i++] = digits[--at];
   dst[i] = 0;
@@ -1688,11 +1749,47 @@ static int fxStar(void) {
   return 1 + gone / 3;
 }
 
+/* ------------------------------------------------- how hard they fight ----
+   The numbers baked into the cartridge were measured walking out of Winterfell,
+   because something had to be. Everybody who is nobody in particular is shifted
+   from that to the road you are actually on: three levels a door, counted from
+   your own seat rather than the northern one. A Targaryen who has never left
+   Dragonstone meets Dragonstone people; a Stark who walks all the way there
+   meets the same people twenty levels higher, because they walked twenty doors.
+
+   The nine sigil-holders are not on that scale at all. They are a ladder, and
+   which rung each of them is on depends on the order your house fights them
+   in - so the first leader is always a fight you can take, and your own liege
+   is always nearly the last. */
+static int shiftHere(void) {
+  return 3 * ((int)strideBy[you.house][worldId] - (int)strideBy[0][worldId]);
+}
+
+static int scaleTo(int v, int from, int to) {
+  return from > 0 ? (int)udiv((u32)v * (u32)to, (u32)from) : v;
+}
+
+static int levelOf(int duellist) {
+  const Duellist *d = &duellists[duellist];
+  int lead = leaderFor(duellist);
+  int lv;
+  if (lead >= 0) return leaderLevel[rungOf[lead]];
+  if (d->fixed) return d->level;
+  lv = (int)d->level + shiftHere();
+  if (lv < 2) lv = 2;
+  if (lv > 50) lv = 50;
+  return lv;
+}
+
+static int foeLevel, foePurse;
+
 static void beginDuel(int duellist, int bank, int slot) {
   foeSlot = slot;
   foeBank = bank;
   foeId = duellist;
   foeDef = &duellists[duellist];
+  foeLevel = levelOf(duellist);
+  foePurse = scaleTo(foeDef->reward, foeDef->level, foeLevel);
 
   mine.name = you.name[0] ? you.name : houses[you.house].name;
   mine.level = you.level;
@@ -1706,11 +1803,11 @@ static void beginDuel(int duellist, int bank, int slot) {
   mine.defending = 0;
 
   theirs.name = foeDef->name;
-  theirs.level = foeDef->level;
-  theirs.hp = theirs.maxHp = foeDef->vigour;
-  theirs.might = foeDef->might;
-  theirs.guard = foeDef->guard;
-  theirs.swiftness = foeDef->swiftness;
+  theirs.level = foeLevel;
+  theirs.hp = theirs.maxHp = scaleTo(foeDef->vigour, foeDef->level, foeLevel);
+  theirs.might = scaleTo(foeDef->might, foeDef->level, foeLevel);
+  theirs.guard = scaleTo(foeDef->guard, foeDef->level, foeLevel);
+  theirs.swiftness = scaleTo(foeDef->swiftness, foeDef->level, foeLevel);
   theirs.tech = foeDef->tech;
   theirs.defending = 0;
 
@@ -1719,7 +1816,7 @@ static void beginDuel(int duellist, int bank, int slot) {
      it: the sword that is hurting you is the sword you are about to own, and
      the next person up the road has a better one. */
   {
-    Kit k = kitOf(duellist, foeDef->level);
+    Kit k = kitOf(duellist, foeLevel);
     int i;
     u8 piece[3];
     /* They fight in their weapon and their mail. The shield is slung across
@@ -2032,8 +2129,32 @@ static void paintStatus(void) {
   appendNumber(scratch, you.kills, sizeof scratch);
   drawText(16, 77, scratch, C_DIM);
 
+  copyString(scratch, "Sigils ", sizeof scratch);
+  appendNumber(scratch, countSigils(), sizeof scratch);
+  appendString(scratch, " of ", sizeof scratch);
+  appendNumber(scratch, LEADER_COUNT, sizeof scratch);
+  drawText(130, 77, scratch, C_HOUSE);
+
   fillRect(16, 90, TXT_W - 32, 1, C_EDGE);
-  drawText(16, 94, "SELECT draws on whoever you face", C_GOLD);
+  /* What to do next, in words, on the one screen a lost player will open. The
+     game had a spine and never mentioned it, which is the same as not having
+     one. */
+  {
+    int at = nextRung();
+    if (at < 0) {
+      drawText(16, 94, "Nine sigils. The realm is yours.", C_GOLD);
+    } else {
+      const Leader *l = &leaders[atRung[at]];
+      copyString(scratch, "Next: ", sizeof scratch);
+      appendString(scratch, l->name, sizeof scratch);
+      drawText(16, 94, scratch, C_GOLD);
+      copyString(scratch, "at ", sizeof scratch);
+      appendString(scratch, l->seat, sizeof scratch);
+      appendString(scratch, ", about level ", sizeof scratch);
+      appendNumber(scratch, leaderLevel[at], sizeof scratch);
+      drawText(16, 107, scratch, C_DIM);
+    }
+  }
 }
 
 /* ------------------------------------------------------------ the record -- */
@@ -2057,10 +2178,12 @@ typedef struct {
   u8 house, level, worldId, dir;
   u8 x, y, weapon, armour;
   u8 shield, pad0, pad1, pad2;
+  u16 sigils, pad3;
   u32 exp, gold, hp, kills;
   u8 bag[WARE_COUNT];
   char name[NAME_MAX + 1];
   u8 slain[MAP_COUNT][MAX_CROWD];
+  u8 gifted[MAP_COUNT][MAX_CROWD];
   u32 sum;
 } Record;
 
@@ -2088,13 +2211,17 @@ static void keepRecord(void) {
   record.weapon = you.weapon;
   record.armour = you.armour;
   record.shield = you.shield;
+  record.sigils = sigils;
   record.exp = (u32)you.exp;
   record.gold = (u32)you.gold;
   record.hp = (u32)you.hp;
   record.kills = (u32)you.kills;
   for (i = 0; i < WARE_COUNT; i++) record.bag[i] = you.bag[i];
   for (i = 0; i <= NAME_MAX; i++) record.name[i] = you.name[i];
-  for (m = 0; m < MAP_COUNT; m++) for (k = 0; k < MAX_CROWD; k++) record.slain[m][k] = slain[m][k];
+  for (m = 0; m < MAP_COUNT; m++) for (k = 0; k < MAX_CROWD; k++) {
+    record.slain[m][k] = slain[m][k];
+    record.gifted[m][k] = gifted[m][k];
+  }
   record.sum = tally(&record);
 
   p = (const u8 *)&record;
@@ -2129,9 +2256,14 @@ static void takeUpRecord(void) {
   you.weapon = record.weapon;
   you.armour = record.armour;
   you.shield = record.shield;
+  sigils = record.sigils;
+  layLadder();
   for (i = 0; i < WARE_COUNT; i++) you.bag[i] = record.bag[i];
   for (i = 0; i <= NAME_MAX; i++) you.name[i] = record.name[i];
-  for (m = 0; m < MAP_COUNT; m++) for (k = 0; k < MAX_CROWD; k++) slain[m][k] = record.slain[m][k];
+  for (m = 0; m < MAP_COUNT; m++) for (k = 0; k < MAX_CROWD; k++) {
+    slain[m][k] = record.slain[m][k];
+    gifted[m][k] = record.gifted[m][k];
+  }
   reckonTechniques();
 }
 
@@ -2141,6 +2273,7 @@ static void takeUpRecord(void) {
 
 static int menuPick, bagPick, shopPick, shopStall, bagInDuel;
 static int afterWindow;
+static int afterDuel = -1;   /* the slot to draw on once their line is read */
 
 static int carrying(void) {
   int i, n = 0;
@@ -2251,7 +2384,7 @@ static int takeWare(int at) {
     return TOOK_KEPT;
   }
   if (you.bag[at]) {
-    you.gold += w->price >> 3;      /* scrap, not the asking price */
+    you.gold += w->price >> 4;      /* scrap, not the asking price */
     return TOOK_SOLD;
   }
   you.bag[at]++;
@@ -2425,6 +2558,8 @@ static void enterWorld(int map, int x, int y, int dir) {
    that starts the game. */
 static void beginGame(void) {
   const House *h = &houses[you.house];
+  sigils = 0;
+  layLadder();
   enterWorld(h->startMap, h->startX, h->startY, h->startDir);
   REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
   copyString(scratch, you.name, sizeof scratch);
@@ -2434,6 +2569,21 @@ static void beginGame(void) {
                         "Everything you fight in, you will take off somebody who "
                         "tried to stop you. Look in the long grass as well: "
                         "people lose things there.", sizeof scratch);
+  /* And where they are going. Nine seats, nine sigils, and the first of them
+     named out loud, because a player who is not told what the game is about
+     will decide it is about nothing. */
+  {
+    int at = nextRung();
+    if (at >= 0) {
+      const Leader *l = &leaders[atRung[at]];
+      appendString(scratch, "  Nine seats hold a sigil. Take all nine and the "
+                            "realm is yours to argue over. Start with ", sizeof scratch);
+      appendString(scratch, l->name, sizeof scratch);
+      appendString(scratch, ", at ", sizeof scratch);
+      appendString(scratch, l->seat, sizeof scratch);
+      appendString(scratch, ".", sizeof scratch);
+    }
+  }
   openWindow(0, scratch);
 }
 
@@ -2485,7 +2635,7 @@ static void youFell(void) {
    pouch too, and onto you if it is dearer than what you had, because nobody
    walks past a better sword to go and find a menu. */
 static void takeTheirKit(void) {
-  Kit k = kitOf(foeId, foeDef->level);
+  Kit k = kitOf(foeId, foeLevel);
   u8 piece[3];
   int i, took = 0, worn = 0, scrap = 0;
 
@@ -2501,7 +2651,7 @@ static void takeTheirKit(void) {
     if (piece[i] == KIT_NONE) continue;
     w = &wares[piece[i]];
     how = takeWare(piece[i]);
-    if (how == TOOK_SOLD) { scrap += w->price >> 3; continue; }
+    if (how == TOOK_SOLD) { scrap += w->price >> 4; continue; }
     if (took) appendString(scratch, took > 1 ? ", and " : ", ", sizeof scratch);
     else appendString(scratch, "  Off them you take ", sizeof scratch);
     appendString(scratch, w->name, sizeof scratch);
@@ -2580,9 +2730,9 @@ static void findInGrass(void) {
    passes stops it long enough to say what that rung bought. Only then do you
    walk away. */
 static void theyFell(void) {
-  int won = expFrom(foeDef->level, you.level);
+  int won = expFrom(foeLevel, you.level);
   sfxWon();
-  you.gold += foeDef->reward;
+  you.gold += foePurse;
   you.exp += won;
   if (foeSlot >= 0) beaten[worldId][foeSlot] = 1;
   if (foeDef->mortal) {
@@ -2599,10 +2749,29 @@ static void theyFell(void) {
   duelPhase = DUEL_SPOILS;
   copyString(scratch, foeDef->defeat, sizeof scratch);
   appendString(scratch, "  You take ", sizeof scratch);
-  appendNumber(scratch, foeDef->reward, sizeof scratch);
+  appendNumber(scratch, foePurse, sizeof scratch);
   appendString(scratch, " gold and ", sizeof scratch);
   appendNumber(scratch, won, sizeof scratch);
   appendString(scratch, " experience.", sizeof scratch);
+  /* And if that was one of the nine, the sigil goes on your banner. It is the
+     only thing in the game that is not gold or steel, and it is the only thing
+     that says how far through it you are. */
+  {
+    int lead = leaderFor(foeId);
+    if (lead >= 0 && !haveSigil(lead)) {
+      int held;
+      sigils |= (u16)(1 << lead);
+      held = countSigils();
+      sfxRank();
+      appendString(scratch, "  You take the ", sizeof scratch);
+      appendString(scratch, leaders[lead].sigil, sizeof scratch);
+      appendString(scratch, " Sigil. That is ", sizeof scratch);
+      appendNumber(scratch, held, sizeof scratch);
+      appendString(scratch, " of ", sizeof scratch);
+      appendNumber(scratch, LEADER_COUNT, sizeof scratch);
+      appendString(scratch, ".", sizeof scratch);
+    }
+  }
   takeTheirKit();
   duelSay(0, scratch);
 }
@@ -2812,8 +2981,56 @@ static void tryTalk(void) {
         "Sit. There. Whole again, and no charge to a sworn sword of a great house.");
       return;
     }
-    openWindow(npc->name, npc->line);
+    /* Everybody has something for somebody who stops to speak to them, once.
+       The road was full of people who said a line and gave nothing, so there
+       was no reason to talk to any of them twice, or often once. What they give
+       is what they would have: a smallfolk a handful of coin, a maester
+       something to drink, and now and then somebody has a piece of kit they no
+       longer need. */
+    copyString(scratch, npc->line, sizeof scratch);
+    if (!gifted[worldId][who]) {
+      int rank = duellists[npc->duellist].level;
+      int roll100 = (int)roll(100);
+      gifted[worldId][who] = 1;
+      if (npc->heals || roll100 < 22) {
+        int p = rank / 16;
+        int remedy = p > 3 ? 3 : p;
+        takeWare(remedy);
+        appendString(scratch, "  They press a ", sizeof scratch);
+        appendString(scratch, wares[remedy].name, sizeof scratch);
+        appendString(scratch, " on you.", sizeof scratch);
+      } else if (roll100 < 30) {
+        /* Something off a shelf they have no use for any more. Deliberately
+           behind the curve: a gift should be a nudge, never a shortcut past
+           the smith. */
+        int budget = 80 + rank * 40, best = -1, i;
+        int kind = roll100 < 26 ? WARE_WEAPON : WARE_ARMOUR;
+        if (budget > KIT_CEILING) budget = KIT_CEILING;
+        for (i = 0; i < WARE_COUNT; i++) {
+          if (wares[i].kind != kind || wares[i].price > budget) continue;
+          if (best < 0 || wares[i].price > wares[best].price) best = i;
+        }
+        if (best >= 0) {
+          int how = takeWare(best);
+          appendString(scratch, "  They dig out a ", sizeof scratch);
+          appendString(scratch, wares[best].name, sizeof scratch);
+          appendString(scratch, how == TOOK_WORN ? " and make you put it on."
+                                                 : " and press it on you.", sizeof scratch);
+        }
+      } else {
+        int coin = 5 + rank * 2 + (int)roll(1 + rank);
+        you.gold += coin;
+        appendString(scratch, "  They press ", sizeof scratch);
+        appendNumber(scratch, coin, sizeof scratch);
+        appendString(scratch, " gold into your hand.", sizeof scratch);
+      }
+    }
+    openWindow(npc->name, scratch);
     if (npc->trade) { afterWindow = npc->trade; }
+    /* Somebody whose whole purpose is to fight you draws once they have said
+       their piece. SELECT still challenges anybody at all; this is so that a
+       lord in his own hall does not simply stand there after speaking. */
+    if (npc->challenges && npc->fights && !beaten[worldId][who]) afterDuel = who;
     return;
   }
   {
@@ -3302,14 +3519,25 @@ int main(void) {
     } else {
       /* The world. */
       if (windowOpen) {
-        if ((hit(KEY_A) || hit(KEY_B)) && !advanceWindow() && afterWindow) {
-          shopStall = afterWindow - 1;
-          afterWindow = 0;
-          shopPick = 0;
-          scene = SCENE_SHOP;
-          clearPage();
-          layoutTextRows(TEXT_TOP);
-          paintShop();
+        /* One press, one page. Only the press that reads the last page of what
+           somebody said does anything else. */
+        if (hit(KEY_A) || hit(KEY_B)) {
+          if (!advanceWindow()) {
+            if (afterDuel >= 0) {
+              int who = afterDuel;
+              afterDuel = -1;
+              afterWindow = 0;
+              callToArms(world->npcs[who].duellist, world->npcs[who].bank, who);
+            } else if (afterWindow) {
+              shopStall = afterWindow - 1;
+              afterWindow = 0;
+              shopPick = 0;
+              scene = SCENE_SHOP;
+              clearPage();
+              layoutTextRows(TEXT_TOP);
+              paintShop();
+            }
+          }
         }
       } else if (spotted >= 0) {
         /* Nothing to do but wait for them. */

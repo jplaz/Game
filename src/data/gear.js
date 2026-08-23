@@ -126,6 +126,31 @@ export const TECHNIQUES = {
     name: 'Headbutt', power: 78, accuracy: 75, stamina: 3,
     desc: 'Desperate, and it hurts you too. Sometimes it is what there is.',
   },
+
+  // --- the middle of the ladder --------------------------------------------
+  // Added with the weapons that teach them, and appended here for the same
+  // reason the bare-hand moves are: the export numbers techniques by the order
+  // of this table, so anything inserted higher up would silently re-point every
+  // weapon above it.
+  feint: {
+    name: 'Feint', power: 60, accuracy: 100, stamina: 2, highCrit: true,
+    desc: 'Show them one line and take another. Cheap, certain, and it finds gaps.',
+  },
+  harry: {
+    name: 'Harry', power: 40, accuracy: 100, stamina: 1, priority: 2,
+    effect: { hits: [2, 3] },
+    desc: 'Two or three quick ones before they have set their feet.',
+  },
+  overhand: {
+    name: 'Overhand', power: 88, accuracy: 88, stamina: 3,
+    effect: { guardBreak: true }, chance: 0.3,
+    desc: 'Down through the collarbone. Shields do not like it.',
+  },
+  whirl: {
+    name: 'Whirl', power: 108, accuracy: 78, stamina: 5,
+    effect: { bleed: true }, chance: 0.3,
+    desc: 'Both hands, all the way round, and whatever is standing there wears it.',
+  },
 };
 
 /**
@@ -156,10 +181,20 @@ export const WEAPONS = {
     techniques: ['quickCut'], tier: 0,
     desc: 'Better than nothing, and not by much.',
   },
+  cudgel: {
+    name: 'Oaken Cudgel', might: 3, swiftness: 0, price: 120,
+    techniques: ['grapple', 'headbutt'], tier: 0,
+    desc: 'A shaped length of oak. Every village has a barrel of them by the door.',
+  },
   huntingKnife: {
     name: 'Hunting Knife', might: 6, swiftness: 3, price: 250,
     techniques: ['quickCut', 'backstab'], tier: 1,
     desc: 'For skinning, mostly. It will do for worse.',
+  },
+  sellswordBlade: {
+    name: "Sellsword's Blade", might: 9, swiftness: 1, price: 450,
+    techniques: ['slash', 'feint'], tier: 1,
+    desc: 'Notched, re-hilted twice, and it has been paid for in three languages.',
   },
   ironSword: {
     name: 'Iron Sword', might: 12, swiftness: 0, price: 700,
@@ -176,6 +211,26 @@ export const WEAPONS = {
     techniques: ['loose', 'volley'], tier: 1,
     desc: 'Ash and horn. Reach is its own kind of armour.',
   },
+  longsword: {
+    name: 'Longsword', might: 16, swiftness: 0, price: 1300,
+    techniques: ['slash', 'thrust', 'feint'], tier: 2,
+    desc: 'A hand and a half of grip. What a household guard is issued.',
+  },
+  arakh: {
+    name: 'Dothraki Arakh', might: 17, swiftness: 4, price: 1500,
+    techniques: ['quickCut', 'slash', 'harry'], tier: 2,
+    desc: 'A curved horse-sword out of the grass. Made for cutting on the move.',
+  },
+  morningstar: {
+    name: 'Morningstar', might: 20, swiftness: -3, price: 1700,
+    techniques: ['crush', 'hook'], tier: 2,
+    desc: 'A flanged head on a haft. Nothing about it is subtle and nothing needs to be.',
+  },
+  halberd: {
+    name: 'Halberd', might: 24, swiftness: -2, price: 2000,
+    techniques: ['lunge', 'hook', 'overhand'], tier: 2,
+    desc: 'Axe, spike and hook on six feet of ash. Three weapons and a fence post.',
+  },
   castleForged: {
     name: 'Castle-Forged Blade', might: 20, swiftness: 1, price: 2200,
     techniques: ['slash', 'thrust', 'riposte'], tier: 2,
@@ -190,6 +245,21 @@ export const WEAPONS = {
     name: 'Boar Spear', might: 21, swiftness: 3, price: 2400,
     techniques: ['lunge', 'skewer'], tier: 2,
     desc: 'A crossbar below the head, so what you stab cannot walk up the shaft.',
+  },
+  greatsword: {
+    name: 'Greatsword', might: 31, swiftness: -6, price: 3600,
+    techniques: ['whirl', 'cleave', 'overhand'], tier: 3,
+    desc: 'Carried across the back because no belt will hold it. Swung with the hips.',
+  },
+  dragonboneBow: {
+    name: 'Dragonbone Bow', might: 27, swiftness: 5, price: 4200,
+    techniques: ['loose', 'volley', 'harry'], tier: 3,
+    desc: 'Black bone, lighter than yew and stiffer than horn. Draws like a whisper.',
+  },
+  ancestralBlade: {
+    name: 'Ancestral Blade', might: 34, swiftness: 2, price: 9800, tier: 3,
+    techniques: ['thrust', 'riposte', 'overhand'],
+    desc: 'A great house sword with four hundred years of names cut into the ricasso.',
   },
   valyrian: {
     name: 'Valyrian Steel', might: 38, swiftness: 4, price: 0, unique: true,
@@ -209,6 +279,10 @@ export const ARMOUR = {
     name: 'Roughspun', guard: 0, swiftness: 0, price: 0, tier: 0,
     desc: 'Wool and hope.',
   },
+  furCloak: {
+    name: 'Fur Cloak', guard: 4, swiftness: 0, price: 180, tier: 1,
+    desc: 'Wolf over the shoulders. It will not stop steel, but it stops a lot of nights.',
+  },
   gambeson: {
     name: 'Gambeson', guard: 8, swiftness: -1, price: 400, tier: 1,
     desc: 'Quilted linen. Turns a glancing cut and soaks up rain.',
@@ -216,6 +290,10 @@ export const ARMOUR = {
   boiledLeather: {
     name: 'Boiled Leather', guard: 14, swiftness: -2, price: 900, tier: 1,
     desc: 'Hardened in wax. What most men-at-arms actually own.',
+  },
+  studdedBrigandine: {
+    name: 'Studded Brigandine', guard: 18, swiftness: -3, price: 1300, tier: 2,
+    desc: 'Steel plates riveted between two skins of canvas. The rivets are the fashion.',
   },
   ringmail: {
     name: 'Ringmail', guard: 22, swiftness: -4, price: 1900, tier: 2,
@@ -225,9 +303,17 @@ export const ARMOUR = {
     name: 'Scale Armour', guard: 28, swiftness: -5, price: 3000, tier: 2,
     desc: 'Overlapping steel scales on leather. Northern make.',
   },
+  splintMail: {
+    name: 'Splinted Mail', guard: 33, swiftness: -6, price: 3900, tier: 3,
+    desc: 'Iron splints laced down the limbs over a mail coat. A half-step short of harness.',
+  },
   knightPlate: {
     name: "Knight's Plate", guard: 38, swiftness: -8, price: 5200, tier: 3,
     desc: 'Full harness. You will not be quick, and you will not need to be.',
+  },
+  dragonscaleMail: {
+    name: 'Dragonscale Mail', guard: 42, swiftness: -6, price: 9000, tier: 3,
+    desc: 'Scales off something that was not a fish, sewn onto a coat by somebody very patient.',
   },
   kingsguardPlate: {
     name: 'White Plate', guard: 44, swiftness: -6, price: 0, unique: true, tier: 3,
@@ -238,17 +324,33 @@ export const ARMOUR = {
 /** Shields. Enable Shield Bash and add flat guard. */
 export const SHIELDS = {
   none: { name: 'No Shield', guard: 0, swiftness: 0, price: 0, tier: 0, desc: 'Both hands free.' },
+  hideTarge: {
+    name: 'Hide Targe', guard: 3, swiftness: 0, price: 150, tier: 1,
+    desc: 'Boiled hide stretched over a withy hoop. It is what you can afford.',
+  },
   buckler: {
     name: 'Buckler', guard: 5, swiftness: 0, price: 350, tier: 1,
     desc: 'A steel fist-shield. Small, fast, better than air.',
+  },
+  heaterShield: {
+    name: 'Heater Shield', guard: 8, swiftness: -1, price: 700, tier: 1,
+    desc: 'A flat-topped kite cut down for a man on foot. Plain, painted, everywhere.',
   },
   oakShield: {
     name: 'Oak Shield', guard: 12, swiftness: -2, price: 1100, tier: 2,
     desc: 'Planked oak with an iron rim, painted with somebody\'s sigil.',
   },
+  ironboundShield: {
+    name: 'Iron-Bound Shield', guard: 16, swiftness: -3, price: 1700, tier: 2,
+    desc: 'Oak banded edge to edge in iron. Heavy on the arm and very hard to split.',
+  },
   towerShield: {
     name: 'Tower Shield', guard: 20, swiftness: -5, price: 2600, tier: 3,
     desc: 'A wall you can carry. Slow, and nearly impossible to get past.',
+  },
+  ironwoodTower: {
+    name: 'Ironwood Tower', guard: 26, swiftness: -6, price: 4400, tier: 3,
+    desc: 'Ironwood banded in steel. It does not splinter, and it does not move.',
   },
 };
 

@@ -278,6 +278,11 @@ export const WEAPONS = {
     techniques: ['lunge', 'skewer'], tier: 2,
     desc: 'A crossbar below the head, so what you stab cannot walk up the shaft.',
   },
+  bastardSword: {
+    name: 'Bastard Sword', might: 23, swiftness: -1, price: 1750,
+    techniques: ['slash', 'thrust', 'overhand'], tier: 2,
+    desc: 'Too long for one hand and too short for two, which is the whole idea.',
+  },
   greatsword: {
     name: 'Greatsword', might: 31, swiftness: -6, price: 3600,
     techniques: ['whirl', 'cleave', 'overhand'], tier: 3,
@@ -292,6 +297,11 @@ export const WEAPONS = {
     name: 'Ancestral Blade', might: 34, swiftness: 2, price: 9800, tier: 3,
     techniques: ['thrust', 'riposte', 'overhand'],
     desc: 'A great house sword with four hundred years of names cut into the ricasso.',
+  },
+  direWarhammer: {
+    name: 'Warhammer of the North', might: 35, swiftness: -7, price: 0, unique: true,
+    techniques: ['crush', 'sweep', 'whirl'], tier: 3,
+    desc: 'Ironwood haft, dragonglass wedge. It was made for something that does not bleed.',
   },
   valyrian: {
     name: 'Valyrian Steel', might: 38, swiftness: 4, price: 0, unique: true,
@@ -335,6 +345,10 @@ export const ARMOUR = {
     name: 'Scale Armour', guard: 28, swiftness: -5, price: 3000, tier: 2,
     desc: 'Overlapping steel scales on leather. Northern make.',
   },
+  bandedMail: {
+    name: 'Banded Mail', guard: 25, swiftness: -4, price: 2300, tier: 2,
+    desc: 'Overlapping hoops of iron on a leather carcass. Cheap for what it turns.',
+  },
   splintMail: {
     name: 'Splinted Mail', guard: 33, swiftness: -6, price: 3900, tier: 3,
     desc: 'Iron splints laced down the limbs over a mail coat. A half-step short of harness.',
@@ -346,6 +360,10 @@ export const ARMOUR = {
   dragonscaleMail: {
     name: 'Dragonscale Mail', guard: 42, swiftness: -6, price: 9000, tier: 3,
     desc: 'Scales off something that was not a fish, sewn onto a coat by somebody very patient.',
+  },
+  castellanPlate: {
+    name: "Castellan's Plate", guard: 46, swiftness: -9, price: 0, unique: true,
+    desc: 'Fluted, blackened and fitted to one man. Somebody had to be measured for this.',
   },
   kingsguardPlate: {
     name: 'White Plate', guard: 44, swiftness: -6, price: 0, unique: true, tier: 3,
@@ -379,6 +397,10 @@ export const SHIELDS = {
   towerShield: {
     name: 'Tower Shield', guard: 20, swiftness: -5, price: 2600, tier: 3,
     desc: 'A wall you can carry. Slow, and nearly impossible to get past.',
+  },
+  kiteShield: {
+    name: 'Kite Shield', guard: 18, swiftness: -4, price: 2000, tier: 2,
+    desc: 'Long enough to cover a leg, which is where most people are actually hit.',
   },
   ironwoodTower: {
     name: 'Ironwood Tower', guard: 26, swiftness: -6, price: 4400, tier: 3,

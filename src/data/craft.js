@@ -135,6 +135,11 @@ export const RECIPES = [
   { at: 'forge', makes: 'dragonscaleMail',   gold: 5400, needs: [['dragonglass', 6], ['boiledHide', 8], ['valyrianShard', 1]] },
   { at: 'forge', makes: 'valyrian',          gold: 9000, needs: [['valyrianShard', 5], ['dragonglass', 4], ['fireblood', 1]] },
   { at: 'forge', makes: 'kingsguardPlate',   gold: 8000, needs: [['valyrianShard', 3], ['ironScrap', 22], ['boiledHide', 10]] },
+  { at: 'forge', makes: 'castellanPlate',    gold: 11000, needs: [['valyrianShard', 4], ['ironScrap', 26], ['direwolfPelt', 4]] },
+  { at: 'forge', makes: 'direWarhammer',     gold: 12000, needs: [['dragonglass', 8], ['valyrianShard', 2], ['ashHaft', 10]] },
+  { at: 'forge', makes: 'bastardSword',      gold: 1700, needs: [['ironScrap', 10], ['ashHaft', 2]] },
+  { at: 'forge', makes: 'bandedMail',        gold: 2100, needs: [['ironScrap', 11], ['boiledHide', 4]] },
+  { at: 'forge', makes: 'kiteShield',        gold: 1800, needs: [['ashHaft', 6], ['ironScrap', 6], ['boiledHide', 3]] },
 
   // --------------------------------------------------------- the maester ---
   { at: 'brew', makes: 'maesterKit',  gold: 30,  needs: [['greenbriar', 1]] },

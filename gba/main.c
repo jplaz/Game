@@ -1007,6 +1007,9 @@ static u8 beaten[MAP_COUNT][MAX_CROWD];            /* the appearance of the hous
 /* Who has been killed, so the road stays as you left it. */
 static u8 slain[MAP_COUNT][MAX_CROWD];
 
+/* Which chests you have had the lid up on. */
+static u8 emptied[MAP_COUNT][8];
+
 /* Who has already pressed something into your hand. Kept in the record as well,
    or a save and a reload would be a way to be given it all over again. */
 static u8 gifted[MAP_COUNT][MAX_CROWD];
@@ -1031,6 +1034,10 @@ typedef struct {
   Kept beast;
   u8 eggWins;                     /* fights won since you picked the egg up */
   u8 tamed;                       /* how many you have taken alive */
+  /* Where somebody last put you back together. Going down used to send you all
+     the way home to your own seat, which by the middle of the game was a walk
+     of twenty doors and the single most tiresome thing in the game. */
+  int haven, havenX, havenY;
 } You;
 
 static You you;
@@ -1040,17 +1047,25 @@ static You you;
    browser game keeps six numbers for a creature and this game fights with four,
    so these are the four, worked out at whatever level the animal happens to be
    the way every handheld game has done it: a base, doubled, scaled by level. */
+/* Measured against a person of the same level rather than out of thin air. The
+   first pass scaled a browser stat straight into this game's numbers and a
+   direwolf at fourteen hit for two: the thing the player most wanted to use was
+   the weakest thing in the world. A base of fifty-five is an average animal, so
+   an average animal fights like an average person of its level and a direwolf
+   fights rather better. */
 static int beastVigour(int b, int lv) {
-  return (int)udiv((u32)(beasts[b].hp * 2 + 30) * (u32)lv, 50) + lv + 12;
+  return (int)udiv((u32)(30 + lv * 9) * (u32)beasts[b].hp, 55);
 }
 static int beastMight(int b, int lv) {
-  return (int)udiv((u32)(beasts[b].atk * 2) * (u32)lv, 100) + 6;
+  /* A person's own arm before any steel is in it: an animal carries nothing, so
+     it is measured against the bare figure and not against a man in plate. */
+  return (int)udiv((u32)(10 + lv * 3) * (u32)beasts[b].atk, 55) + 4;
 }
 static int beastGuard(int b, int lv) {
-  return (int)udiv((u32)(beasts[b].def * 2) * (u32)lv, 100) + 5;
+  return (int)udiv((u32)(6 + lv * 2) * (u32)beasts[b].def, 55) + 3;
 }
 static int beastSwift(int b, int lv) {
-  return (int)udiv((u32)(beasts[b].spe * 2) * (u32)lv, 100) + 5;
+  return (int)udiv((u32)(10 + lv * 2) * (u32)beasts[b].spe, 60) + 2;
 }
 
 /* What it takes to raise one a rung. Flatter than yours: a beast you took at
@@ -1632,10 +1647,28 @@ static void appendNumber(char *dst, int n, int room) {
 
 /* Damage: might against guard, softened so no single blow ends a duel. The
    browser's formula, folded into whole numbers. */
+/* Whether this blow is the right one for what is in front of you.
+   Returns 1 when it tells, -1 when it barely marks them, 0 otherwise.
+
+   This is the piece the fighting was missing. Every technique was a number, so
+   the only choice was the biggest number and every duel was the same duel. A
+   weight answers plate; a point answers somebody quick in leather; an edge is
+   the honest middle. You can see which you are facing before you swing, because
+   armoured people are drawn wearing it. */
+static int biteTells(const Fighter *d, const Tech *t) {
+  int bare = 6 + d->level * 2;
+  if (t->bite == 1) return d->guard >= bare + 14 ? 1 : (d->guard <= bare + 3 ? -1 : 0);
+  if (t->bite == 2) return d->guard <= bare + 4 ? 1 : (d->guard >= bare + 16 ? -1 : 0);
+  return 0;
+}
+
 static int computeDamage(const Fighter *a, const Fighter *d, const Tech *t, int *crit) {
-  int dmg;
+  int dmg, tells;
   if (!t->power) return 0;
   dmg = (int)udiv((u32)(t->power * a->might * 11), (u32)(15 * (d->guard + 55)));
+  tells = biteTells(d, t);
+  if (tells > 0) dmg = dmg * 15 / 10;
+  else if (tells < 0) dmg = dmg * 7 / 10;
   *crit = (int)roll(100) < (t->highCrit ? 15 : 6);
   if (*crit) dmg = dmg * 18 / 10;
   if (d->defending) dmg >>= 1;
@@ -2047,6 +2080,16 @@ static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
   appendString(scratch, crit ? " clean through it. " : ". ", sizeof scratch);
   appendNumber(scratch, dmg, sizeof scratch);
   appendString(scratch, " damage.", sizeof scratch);
+  {
+    int tells = biteTells(target, t);
+    if (tells > 0) {
+      appendString(scratch, t->bite == 1 ? "  Steel is no help against weight."
+                                         : "  Straight through the gap.", sizeof scratch);
+    } else if (tells < 0) {
+      appendString(scratch, t->bite == 1 ? "  Nothing there to break."
+                                         : "  The point turns on the plate.", sizeof scratch);
+    }
+  }
   duelSay(0, scratch);
   paintDuelPlates();          /* the bars in it still show the old figures */
   return target->hp <= 0;
@@ -2335,6 +2378,8 @@ typedef struct {
   u16 sigils, pad3;
   u8 beastKind, beastLevel, eggWins, tamed;
   u16 beastExp, pad4;
+  u8 haven, havenX, havenY, pad5;
+  u8 emptied[MAP_COUNT][8];
   u32 exp, gold, hp, kills;
   u8 bag[WARE_COUNT];
   char name[NAME_MAX + 1];
@@ -2373,6 +2418,10 @@ static void keepRecord(void) {
   record.beastExp = you.beast.exp;
   record.eggWins = you.eggWins;
   record.tamed = you.tamed;
+  record.haven = (u8)(you.haven < 0 ? 255 : you.haven);
+  record.havenX = (u8)you.havenX;
+  record.havenY = (u8)you.havenY;
+  for (m = 0; m < MAP_COUNT; m++) for (k = 0; k < 8; k++) record.emptied[m][k] = emptied[m][k];
   record.exp = (u32)you.exp;
   record.gold = (u32)you.gold;
   record.hp = (u32)you.hp;
@@ -2426,6 +2475,10 @@ static void takeUpRecord(void) {
     ? 0 : beastVigour(you.beast.kind, you.beast.level);
   you.eggWins = record.eggWins;
   you.tamed = record.tamed;
+  you.haven = record.haven == 255 ? -1 : record.haven;
+  you.havenX = record.havenX;
+  you.havenY = record.havenY;
+  for (m = 0; m < MAP_COUNT; m++) for (k = 0; k < 8; k++) emptied[m][k] = record.emptied[m][k];
   for (i = 0; i < WARE_COUNT; i++) you.bag[i] = record.bag[i];
   for (i = 0; i <= NAME_MAX; i++) you.name[i] = record.name[i];
   for (m = 0; m < MAP_COUNT; m++) for (k = 0; k < MAX_CROWD; k++) {
@@ -2919,6 +2972,8 @@ static void beginGame(void) {
   you.beast.exp = 0;
   you.eggWins = 0;
   you.tamed = 0;
+  you.haven = -1;
+  { int m, k; for (m = 0; m < MAP_COUNT; m++) for (k = 0; k < 8; k++) emptied[m][k] = 0; }
   layLadder();
   enterWorld(h->startMap, h->startX, h->startY, h->startDir);
   REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
@@ -2949,6 +3004,10 @@ static void beginGame(void) {
 
 static void endDuel(void) {
   scene = SCENE_WORLD;
+  /* The yard borrows eleven of the world's palette entries and used to hand
+     none of them back, so every colour between two hundred and two hundred and
+     ten was a piece of sky until you next walked through a door. */
+  copyPalettes();
   clearPage();
   layoutTextRows(TEXT_PLAY);
   loadWorldTiles();
@@ -2978,14 +3037,19 @@ static void youFell(void) {
      means a player with nothing who cannot win a fight has no way back in;
      this is the floor under that, and it is only ever laid once. */
   {
-    /* Somebody carries you home, and home is your own house's seat. */
-    const House *h = &houses[you.house];
-    enterMap(h->startMap, h->startX, h->startY, h->startDir);
+    /* Somebody carries you to the last maester who put you back together, and
+       failing that to your own house's seat. Walking twenty doors back from
+       Winterfell every time you lost a fight in Dorne was the least fun thing
+       in the game. */
+    int where = you.haven >= 0 ? you.haven : houses[you.house].startMap;
+    int wx = you.haven >= 0 ? you.havenX : houses[you.house].startX;
+    int wy = you.haven >= 0 ? you.havenY : houses[you.house].startY;
+    enterMap(where, wx, wy, 0);
+    copyString(scratch, "You go down. You wake in ", sizeof scratch);
+    appendString(scratch, maps[where].name, sizeof scratch);
+    appendString(scratch, ", wounds dressed and a third of your purse gone.",
+      sizeof scratch);
   }
-  copyString(scratch, "You go down. You wake at ", sizeof scratch);
-  appendString(scratch, maps[houses[you.house].startMap].name, sizeof scratch);
-  appendString(scratch, " with your wounds dressed, a third of your purse gone, "
-                        "and a good deal of road to walk again.", sizeof scratch);
   if (bare) {
     takeWare(FLOOR_WEAPON);
     appendString(scratch, "  Somebody has left a Hunting Knife on the chest by "
@@ -3394,22 +3458,76 @@ static const u16 SKIES[6][11] = {
     RGB15(13,12,10), RGB15(10,9,8) },
 };
 
+/* One eight-by-eight of ground, speckled between the two courses so the floor of
+   a duel is a floor and not two flat stripes. `spread` is how much of the lighter
+   colour is in it, which is how the ground fades away towards the horizon. */
+static void groundTile(int tile, int dark, int mid, int light, int spread) {
+  int y, x;
+  for (y = 0; y < 8; y++) {
+    u32 word = 0;
+    for (x = 0; x < 8; x++) {
+      /* A fixed, cheap hash. The same yard every time, which is what stops the
+         ground crawling about while you are standing on it. */
+      int h = ((x * 7 + y * 13 + tile * 29) * 2654435761u) >> 24 & 31;
+      int c = h < spread ? light : (h < spread + 12 ? mid : dark);
+      word |= (u32)c << (x * 4);
+    }
+    VRAM_BG_CHR[tile * 16 + y * 2] = word;
+    VRAM_BG_CHR[tile * 16 + y * 2 + 1] = 0;
+  }
+  /* Four bits a pixel is two pixels a byte and eight pixels a row: one word per
+     row of the tile, and the second word of each pair is the far half. */
+  for (y = 0; y < 8; y++) {
+    u32 word = 0;
+    for (x = 0; x < 8; x++) {
+      int h = ((x * 7 + y * 13 + tile * 29 + 977) * 2654435761u) >> 24 & 31;
+      int c = h < spread ? light : (h < spread + 12 ? mid : dark);
+      word |= (u32)c << (x * 4);
+    }
+    VRAM_BG_CHR[tile * 16 + y * 2 + 1] = word;
+  }
+}
+
 static void paintDuelGround(void) {
   int i, w, ty, tx;
   const u16 *sky = SKIES[world->scene < 6 ? world->scene : 0];
+  /* Eight bands of sky, then the ground in three depths. The two courses the
+     yard used to be drawn in were flat colour laid in stripes all the way to
+     the bottom of the screen, which read as a test card rather than as ground. */
   for (i = 0; i < 11; i++) {
     PAL_BG[DUEL_PAL + i] = sky[i];
     for (w = 0; w < 16; w++) {
       VRAM_BG_CHR[(DUEL_BAND + i) * 16 + w] = 0x01010101u * (u32)(DUEL_PAL + i);
     }
   }
+  /* A dark line where the ground meets the sky, and a lighter tone to speckle
+     the earth with, both worked out from the two courses the scene already has. */
+  PAL_BG[DUEL_PAL + 11] = (u16)(((sky[10] & 0x1F) >> 1)
+    | ((((sky[10] >> 5) & 0x1F) >> 1) << 5) | ((((sky[10] >> 10) & 0x1F) >> 1) << 10));
+  {
+    int r = (sky[9] & 0x1F), g = (sky[9] >> 5) & 0x1F, b = (sky[9] >> 10) & 0x1F;
+    r += (31 - r) >> 2; g += (31 - g) >> 2; b += (31 - b) >> 2;
+    PAL_BG[DUEL_PAL + 12] = (u16)(r | (g << 5) | (b << 10));
+  }
+  /* Three courses of ground: bright and open at your feet, thinning away into
+     the haze at the horizon. Palette entries 9, 10, 11 and 12 of the scene. */
+  groundTile(DUEL_BAND + 12, DUEL_PAL + 10, DUEL_PAL + 9, DUEL_PAL + 12, 6);
+  groundTile(DUEL_BAND + 13, DUEL_PAL + 10, DUEL_PAL + 9, DUEL_PAL + 12, 5);
+  groundTile(DUEL_BAND + 14, DUEL_PAL + 11, DUEL_PAL + 10, DUEL_PAL + 9, 4);
   for (ty = 0; ty < 64; ty++) {
-    /* Nine bands of sky over the top nine rows, then the ground. */
-    int band = ty < 8 ? ty + 1 : (ty & 1) ? 9 : 10;
-    volatile u16 *rowBase = VRAM_BG_MAP + ((ty >> 5) << 11) + ((ty & 31) << 5);
-    for (tx = 0; tx < 64; tx++) {
-      volatile u16 *cell = rowBase + ((tx >> 5) << 10) + (tx & 31);
-      *cell = (u16)(DUEL_BAND + band);
+    int band;
+    if (ty < 8) band = ty + 1;                 /* the sky, eight rows of it     */
+    else if (ty == 8) band = 14;               /* the far bank, dark and hazy   */
+    else if (ty < 11) band = 13;               /* the middle distance           */
+    else band = 12;                            /* and the ground you stand on   */
+    {
+      volatile u16 *rowBase = VRAM_BG_MAP + ((ty >> 5) << 11) + ((ty & 31) << 5);
+      for (tx = 0; tx < 64; tx++) {
+        volatile u16 *cell = rowBase + ((tx >> 5) << 10) + (tx & 31);
+        /* Flip alternate columns only. Flipping on both axes made a chequer,
+           which is a pattern rather than a texture. */
+        *cell = (u16)((DUEL_BAND + band) | ((tx & 1) ? 0x0400 : 0));
+      }
     }
   }
   REG_BG0HOFS = 0;
@@ -3471,10 +3589,63 @@ static int facing(void) {
   return who;
 }
 
+/* ---------------------------------------------------------------- chests ---
+   Something you walk up to and open, rather than a tile you happen to tread on
+   and a line you may not have read. There is always something in one, and the
+   further from anywhere it is the better that something is. */
+static int chestFacing(int x, int y) {
+  int i;
+  for (i = 0; i < world->chestCount && i < 8; i++) {
+    if (world->chests[i].x == x && world->chests[i].y == y) return i;
+  }
+  return -1;
+}
+
+static void openChest(int which) {
+  const Chest *c = &world->chests[which];
+  if (emptied[worldId][which]) {
+    openWindow(0, "The lid is already up, and you were thorough.");
+    return;
+  }
+  emptied[worldId][which] = 1;
+  sfxRank();
+  copyString(scratch, "The lid comes up.", sizeof scratch);
+  if (c->gold) {
+    you.gold += c->gold;
+    appendString(scratch, "  ", sizeof scratch);
+    appendNumber(scratch, c->gold, sizeof scratch);
+    appendString(scratch, " gold, in a bag that has been there a while.", sizeof scratch);
+  }
+  if (c->ware != 255) {
+    int how = takeWare(c->ware);
+    appendString(scratch, "  And a ", sizeof scratch);
+    appendString(scratch, wares[c->ware].name, sizeof scratch);
+    appendString(scratch, how == TOOK_WORN ? ", which you put on there and then."
+               : how == TOOK_SOLD ? ", which is worth nothing to you but scrap."
+                                  : ", wrapped in oilcloth.", sizeof scratch);
+  }
+  /* And whatever a body this far out would have been carrying. */
+  {
+    int band = 0, i;
+    int here = groundBy[you.house][worldId];
+    while (band < SPOIL_BANDS - 1 && here > spoils[band].upTo) band++;
+    i = spoils[band].drop[roll(SPOIL_WIDE)];
+    takeWare(i);
+    appendString(scratch, "  Underneath it, ", sizeof scratch);
+    appendString(scratch, wares[i].name, sizeof scratch);
+    appendString(scratch, ".", sizeof scratch);
+  }
+  openWindow(0, scratch);
+}
+
 static void tryTalk(void) {
   int fx = (hero.px >> 4) + DIR_X[hero.dir];
   int fy = (hero.py >> 4) + DIR_Y[hero.dir];
   int who = facing();
+  {
+    int box = chestFacing(fx, fy);
+    if (box >= 0) { openChest(box); return; }
+  }
   if (who >= 0) {
     const Npc *npc = &world->npcs[who];
     /* Face whoever spoke to you; it is rude not to. */
@@ -3487,11 +3658,19 @@ static void tryTalk(void) {
       crowd[who].walk = 0;
     }
     crowd[who].dir = (u8)(hero.dir ^ 1);
-    if (npc->heals && you.hp < vigourFor(you.level)) {
-      you.hp = vigourFor(you.level);
-      openWindow(npc->name,
-        "Sit. There. Whole again, and no charge to a sworn sword of a great house.");
-      return;
+    if (npc->heals) {
+      /* And this is where they will carry you if you go down somewhere else. */
+      you.haven = worldId;
+      you.havenX = (hero.px >> 4);
+      you.havenY = (hero.py >> 4);
+      if (you.hp < vigourFor(you.level)) {
+        you.hp = vigourFor(you.level);
+        if (you.beast.kind != 255) you.beast.hp = beastVigour(you.beast.kind, you.beast.level);
+        openWindow(npc->name,
+          "Sit. There. Whole again, and no charge to a sworn sword of a great "
+          "house. If you go down out there, they will bring you back here.");
+        return;
+      }
     }
     /* Everybody has something for somebody who stops to speak to them, once.
        The road was full of people who said a line and gave nothing, so there

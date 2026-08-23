@@ -995,8 +995,18 @@ int main(int argc, char **argv) {
     unsigned k;
     for (k = 0; k < sizeof r; k++) ((unsigned char *)&r)[k] = 0;
     r.magic = RECORD_MAGIC;
-    r.house = 2; r.level = 14; r.worldId = 6; r.dir = 0;
-    r.x = 10; r.y = 8; r.weapon = 3; r.armour = 2; r.shield = 1;
+    /* Built from the house's own starting seat rather than from a map number
+       and a pair of coordinates typed in by hand: map six stopped being the map
+       it was the moment the world grew, and the resumed game woke up inside a
+       wall with nowhere to walk. */
+    r.house = 2;
+    r.level = 14;
+    r.worldId = houses[2].startMap;
+    r.dir = houses[2].startDir;
+    r.x = houses[2].startX; r.y = houses[2].startY;
+    r.weapon = 3; r.armour = 2; r.shield = 1;
+    r.beastKind = 255;                          /* nothing at your heel */
+    r.haven = 255;
     r.exp = (unsigned)expForLevel(14) + 40;
     r.gold = 1180; r.hp = 140; r.kills = 9;
     r.sum = tally(&r);

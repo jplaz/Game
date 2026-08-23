@@ -501,6 +501,51 @@ const painters = {
     rect(ctx, 1, 14, 14, 1, '#938a78');
   },
 
+  /* A chest. Not a decoration: there is something in every one of them, and the
+     lid stays up once you have had it. */
+  chest(ctx, _frame, _mask, ground = painters.grass) {
+    ground(ctx);
+    rect(ctx, 1, 4, 14, 11, '#2c2013');          // the body, in shadow
+    rect(ctx, 2, 5, 12, 9, '#6a4a2a');
+    rect(ctx, 2, 5, 12, 1, '#8a6438');
+    rect(ctx, 2, 12, 12, 2, '#4a3722');
+    rect(ctx, 1, 2, 14, 4, '#2c2013');           // the lid
+    rect(ctx, 2, 3, 12, 3, '#8a5f33');
+    rect(ctx, 2, 3, 12, 1, '#b9884c');
+    // Iron bands and a lockplate.
+    rect(ctx, 4, 2, 2, 12, '#3a3a3f');
+    rect(ctx, 10, 2, 2, 12, '#3a3a3f');
+    rect(ctx, 4, 3, 1, 11, '#75757d');
+    rect(ctx, 10, 3, 1, 11, '#75757d');
+    rect(ctx, 6, 6, 4, 4, '#3a3a3f');
+    rect(ctx, 7, 7, 2, 2, '#c8a24a');
+    rect(ctx, 1, 14, 14, 2, '#1a1410');          // and what it stands in
+  },
+
+  /* A raven post over a maester's hall: the same silhouette in every town, so
+     the place that patches you up can be found from across a square the way the
+     forge can be found by its chimney. */
+  ravenPost(ctx, frame, _mask, ground = painters.grass) {
+    ground(ctx);
+    rect(ctx, 7, 4, 2, 12, '#4a3722');           // the post
+    rect(ctx, 7, 4, 1, 12, '#6b5334');
+    rect(ctx, 3, 5, 10, 2, '#4a3722');           // the crossbar
+    rect(ctx, 3, 5, 10, 1, '#6b5334');
+    rect(ctx, 3, 7, 1, 2, '#3a2c1c');
+    rect(ctx, 12, 7, 1, 2, '#3a2c1c');
+    // Two birds on it, and one of them shifts.
+    const hop = frame ? 1 : 0;
+    rect(ctx, 3, 1 + hop, 3, 4, '#100e0e');
+    rect(ctx, 2, 2 + hop, 2, 2, '#100e0e');
+    rect(ctx, 5, 2 + hop, 1, 1, '#f0a830');
+    rect(ctx, 10, 1, 3, 4, '#100e0e');
+    rect(ctx, 12, 2, 2, 2, '#100e0e');
+    rect(ctx, 9, 2, 1, 1, '#f0a830');
+    // A maester's chain hung from the bar, which is the sign itself.
+    const metal = ['#c8c8d0', '#c8a24a', '#a8763c', '#8ca0b8'];
+    for (let i = 0; i < 4; i++) rect(ctx, 6 + i, 8 + (i & 1), 2, 2, metal[i]);
+  },
+
   door(ctx) {
     painters.wall(ctx, 0, 0);
     // The frame: dressed stone jambs and a lintel, standing a little proud of
@@ -832,6 +877,8 @@ export const TILE_DEFS = {
   'D': { paint: painters.door, kind: 'floor' },
   'w': { paint: painters.window, kind: 'solid' },
   'n': { paint: painters.chimney, kind: 'solid', frames: 2, grounded: true },
+  'j': { paint: painters.chest, kind: 'solid', grounded: true },
+  'u': { paint: painters.ravenPost, kind: 'solid', frames: 2, grounded: true },
   'k': { paint: painters.signSmith, kind: 'solid' },
   'e': { paint: painters.signMaester, kind: 'solid' },
   'p': { paint: painters.wallPale, kind: 'solid', autotile: true },

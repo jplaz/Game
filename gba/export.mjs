@@ -277,6 +277,13 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       power: TECHNIQUES[id].power, accuracy: TECHNIQUES[id].accuracy,
       defend: TECHNIQUES[id].effect?.defend ? 1 : 0,
       highCrit: TECHNIQUES[id].highCrit ? 1 : 0,
+      /* How the blow arrives, which is the whole of why one technique is worth
+         choosing over another: something heavy is what you answer plate with,
+         and something with a point is what you answer a fast man in leather
+         with. 0 an edge, 1 a weight, 2 a point. */
+      bite: ['crush', 'sweep', 'headbutt', 'gore', 'shieldBash', 'grapple'].includes(id) ? 1
+          : ['thrust', 'lunge', 'skewer', 'backstab', 'loose', 'volley', 'harry',
+             'bite', 'claw'].includes(id) ? 2 : 0,
     }));
   const techSlot = new Map(techniques.map((t, i) => [t.id, i]));
   // What levelling teaches, in the order it teaches it.
@@ -530,9 +537,13 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     const cover = [];
     const ledge = [];
     const counter = [];
+    /* Every pickup the browser game puts on the ground becomes a chest here:
+       a thing you walk up to and open, rather than a tile you happen to tread
+       on and a line of text you may not have read. */
+    const chestAt = new Set((map.items ?? []).map((it) => `${it.x},${it.y}`));
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        const char = map.grid[y][x] ?? '.';
+        const char = chestAt.has(`${x},${y}`) ? 'j' : (map.grid[y][x] ?? '.');
         const canvas = tileCanvas(char, 0, maskFor(map, char, x, y),
           map.ground ?? 'grass', pixels.variantFor(x, y, 4));
         cells.push(read(canvas));
@@ -697,6 +708,16 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     out.maps.push({
       id, name: map.name, width, height, cells, solid, cover, ledge, counter,
       npcs, ambushes, wilds,
+      chests: (map.items ?? []).map((it) => ({
+        x: it.x, y: it.y,
+        /* What is in it: the thing the map names if this game has such a thing,
+           otherwise the road decides, which is what makes a chest at the far end
+           of the world worth the walk. */
+        ware: wareIndex.get(`potion:${it.item}`) ?? wareIndex.get(`weapon:${it.item}`)
+          ?? wareIndex.get(`armour:${it.item}`) ?? wareIndex.get(`shield:${it.item}`)
+          ?? wareIndex.get(`stuff:${it.item}`) ?? 255,
+        gold: 40 + roadLevel * 22,
+      })),
       /* Nests: the one place in the world a given egg is ever found. */
       nest: (NESTS[id] ?? []).map((it) => wareIndex.get(`egg:${it}`))
         .filter((n) => n !== undefined)[0] ?? 255,
@@ -1155,10 +1176,10 @@ L.push('');
 
 // Techniques.
 L.push(`#define TECH_COUNT ${harvest.techniques.length}`);
-L.push('typedef struct { const char *name; u8 power, accuracy, defend, highCrit; } Tech;');
+L.push('typedef struct { const char *name; u8 power, accuracy, defend, highCrit, bite; } Tech;');
 L.push('static const Tech techniques[TECH_COUNT] = {');
 for (const t of harvest.techniques) {
-  L.push(`  { ${cstr(t.name)}, ${t.power}, ${t.accuracy}, ${t.defend}, ${t.highCrit} },`);
+  L.push(`  { ${cstr(t.name)}, ${t.power}, ${t.accuracy}, ${t.defend}, ${t.highCrit}, ${t.bite} },`);
 }
 L.push('};');
 L.push('');
@@ -1234,6 +1255,7 @@ L.push('typedef struct { u8 x, y, to, tx, ty; } Warp;');
 L.push('typedef struct { u8 x, y; const char *text; } Sign;');
 L.push('typedef struct { u16 duellist; u8 bank; } Ambush;');
 L.push('typedef struct { u8 beast, level; } Wild;');
+L.push('typedef struct { u8 x, y, ware; u16 gold; } Chest;');
 L.push('typedef struct {');
 L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges;');
 L.push('  u16 duellist;');
@@ -1257,6 +1279,7 @@ L.push('  const Sign *signs; u8 signCount;');
 L.push('  const Npc  *npcs;  u8 npcCount;');
 L.push('  const Ambush *ambushes; u8 ambushCount;');
 L.push('  const Wild *wilds; u8 wildCount;');
+L.push('  const Chest *chests; u8 chestCount;');
 L.push('  u8 nest;              /* the egg that is found here, or 255 */');
 L.push('} Map;');
 L.push('');
@@ -1304,6 +1327,11 @@ harvest.maps.forEach((map, i) => {
   for (const w of map.wilds) L.push(`  { ${w.beast}, ${w.level} },`);
   if (!map.wilds.length) L.push('  { 0, 0 },');
   L.push('};');
+  if (map.chests.length > 8) throw new Error(`${map.id} has ${map.chests.length} chests; the record holds 8`);
+  L.push(`static const Chest chests_${i}[${Math.max(1, map.chests.length)}] = {`);
+  for (const c of map.chests) L.push(`  { ${c.x}, ${c.y}, ${c.ware}, ${c.gold} },`);
+  if (!map.chests.length) L.push('  { 255, 255, 255, 0 },');
+  L.push('};');
 
   L.push(`static const Npc npcs_${i}[${Math.max(1, map.npcs.length)}] = {`);
   for (const n of map.npcs) {
@@ -1328,7 +1356,8 @@ harvest.maps.forEach((map, i) => {
   L.push(`    entries_${i}, solid_${i}, cover_${i}, ledge_${i}, counter_${i}, ${map.frost}, ${map.scene}, residents_${i}, ${map.residents.length},`);
   L.push(`    warps_${i}, ${map.liveWarps}, signs_${i}, ${map.signs.length},`);
   L.push(`    npcs_${i}, ${map.npcs.length}, ambushes_${i}, ${map.ambushes.length},`);
-  L.push(`    wilds_${i}, ${map.wilds.length}, ${map.nest} },`);
+  L.push(`    wilds_${i}, ${map.wilds.length}, chests_${i}, ${map.chests.length},`);
+  L.push(`    ${map.nest} },`);
 });
 L.push('};');
 L.push('');

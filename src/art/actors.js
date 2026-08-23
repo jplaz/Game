@@ -190,6 +190,29 @@ function paintTorso(ctx, m, p, outfit, dir) {
     rect(ctx, x - 2, top + 1, 2, bottom - top - 3, p.cloakDark);
     rect(ctx, x + w, top + 1, 2, bottom - top - 3, p.cloakDark);
   }
+  /* Seen from behind, a cloak is the whole of somebody: it hangs off both
+     shoulders, folds down the spine and swings at the hem. Drawn as a flat
+     rectangle it read as a piece of card, which is what the player was looking
+     at for the whole of every duel. */
+  if (dir === 'up') {
+    const cw = outfit.cape ? w + 4 : w;
+    const cx = centred(cw);
+    if (outfit.cape) {
+      rect(ctx, cx - 1, top + 1, cw + 2, bottom - top - 1, OUTLINE);
+      rect(ctx, cx, top + 1, cw, bottom - top - 2, p.cloakDark);
+      rect(ctx, cx + 1, top + 1, cw - 2, bottom - top - 3, p.cloak);
+    }
+    // Two folds down the back, and the light off the left shoulder.
+    rect(ctx, cx + 1, top + 2, 1, bottom - top - 5, lit(p.cloak));
+    rect(ctx, centred(1), top + 2, 1, bottom - top - 5, p.cloakDark);
+    rect(ctx, cx + cw - 3, top + 3, 1, bottom - top - 6, deep(p.cloak));
+    // The hem, catching the light along its edge.
+    rect(ctx, cx + 1, bottom - 3, cw - 2, 1, deep(p.cloak));
+    rect(ctx, cx + 1, bottom - 2, cw - 2, 1, p.cloakDark);
+    // A belt or a baldric across it, so the back is not one flat field.
+    rect(ctx, cx, top + Math.round((bottom - top) * 0.55), cw, 2, p.boots);
+    rect(ctx, cx, top + Math.round((bottom - top) * 0.55), cw, 1, p.legs);
+  }
 
   // A collar, so facing reads at a glance. It used to run the whole length of
   // the torso, which on a floor-length gown is a white stripe from the throat
@@ -281,6 +304,20 @@ function paintHead(ctx, m, p, hair, dir) {
     rect(ctx, x + 1, y + 1, w - 2, hair.cap, p.hair);
     rect(ctx, x, y + 3, w, Math.max(1, hair.cap - 2), p.hair);
     rect(ctx, x + 2, y + 1, w - 4, 2, p.hairLight);
+  }
+  /* From behind, the whole head is hair, and a flat block of it is the worst
+     sprite in the game - it is on screen for every fight in it. Light the
+     crown, shade the far side, and put a neck under it. */
+  if (dir === 'up') {
+    rect(ctx, x + 1, y + 1, w - 2, 2, p.hairLight);
+    rect(ctx, x + 2, y, w - 4, 1, p.hairLight);
+    rect(ctx, x + w - 3, y + 2, 2, h - 5, OUTLINE);
+    rect(ctx, x + w - 3, y + 2, 1, h - 5, p.hair);
+    rect(ctx, x, y + 2, 1, h - 5, p.hairLight);
+    // The nape, and the neck below it.
+    rect(ctx, x + 2, y + h - 4, w - 4, 2, OUTLINE);
+    rect(ctx, centred(4), y + h - 2, 4, 2, p.skinDark);
+    rect(ctx, centred(4), y + h - 2, 4, 1, p.skin);
   }
   if (hair.sides) {
     rect(ctx, x, y + 3, 2, hair.sides, p.hair);

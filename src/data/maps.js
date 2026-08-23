@@ -82,7 +82,7 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
   const tiles = [
     W.repeat(11) + '-' + W.repeat(12),
     row(W, fill(10), '-', fill(11), W),
-    row(W, fill(10), '-', g, g, 'n', fill(8), W),
+    row(W, fill(2), 'u', fill(7), '-', g, g, 'n', fill(8), W),
     row(W, fill(2), t.repeat(6), fill(2), '-', fill(2), f.repeat(6), fill(3), W),
     row(W, fill(2), R.repeat(6), fill(2), '-', fill(2), F.repeat(6), fill(3), W),
     row(W, fill(2), R.repeat(6), fill(2), '-', fill(2), F.repeat(6), fill(3), W),

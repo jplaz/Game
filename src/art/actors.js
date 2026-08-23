@@ -49,22 +49,24 @@ const pale = (hex) => toneShift(hex, 0.32);
 // proportionally larger head; heavy builds are wider in the shoulder and
 // shorter in the leg.
 const BUILDS = {
-  // Slimmer, and standing up straighter. A head eleven pixels across on a
-  // sixteen-pixel sprite is two thirds of the width of the whole person, which
-  // is a doll rather than a man. These are cut to a different rule: the head is
-  // narrower than the shoulders, the shoulders are narrower than the sprite, and
-  // the legs are two separate legs with daylight between them. `legGap` is that
-  // daylight - the transparent channel between the two outlined legs - and not,
-  // as it used to be, a spacing that left the two outlines touching and the
-  // bottom third of everybody in the game a single black brick.
-  man:   { headY: 4, headH: 9,  headW: 8,  torsoY: 14, torsoH: 10, torsoW: 8,
-           legY: 24, legH: 7, legW: 2, legGap: 4, armW: 2, shoulder: 0 },
-  woman: { headY: 5, headH: 8,  headW: 7,  torsoY: 14, torsoH: 10, torsoW: 7,
-           legY: 24, legH: 7, legW: 2, legGap: 4, armW: 2, shoulder: -1 },
-  child: { headY: 9, headH: 8,  headW: 7,  torsoY: 18, torsoH: 7,  torsoW: 7,
+  // Short, and narrow through the body.
+  //
+  // This has been cut down twice. The first pass took the head off a doll and
+  // made a person; the second took the length out of them. A figure that fills
+  // all thirty-two rows of the sprite is a figure as tall as two floor tiles,
+  // which is why everybody looked like they were on stilts and why the legs
+  // and the coat read as slabs - there was simply too much of them. Everybody
+  // now stands about twenty-three pixels tall inside a thirty-two pixel frame,
+  // with their feet at the bottom of it and daylight above their head, and the
+  // body is seven or eight pixels across instead of ten.
+  man:   { headY: 8,  headH: 8, headW: 8, torsoY: 17, torsoH: 8, torsoW: 7,
+           legY: 25, legH: 6, legW: 2, legGap: 4, armW: 2, shoulder: 0 },
+  woman: { headY: 9,  headH: 7, headW: 7, torsoY: 17, torsoH: 8, torsoW: 6,
            legY: 25, legH: 6, legW: 2, legGap: 4, armW: 2, shoulder: -1 },
-  heavy: { headY: 4, headH: 9,  headW: 9,  torsoY: 14, torsoH: 10, torsoW: 9,
-           legY: 24, legH: 7, legW: 3, legGap: 4, armW: 2, shoulder: 1 },
+  child: { headY: 12, headH: 7, headW: 7, torsoY: 20, torsoH: 5, torsoW: 6,
+           legY: 26, legH: 5, legW: 2, legGap: 3, armW: 2, shoulder: -1 },
+  heavy: { headY: 8,  headH: 8, headW: 9, torsoY: 17, torsoH: 8, torsoW: 9,
+           legY: 25, legH: 6, legW: 3, legGap: 4, armW: 2, shoulder: 1 },
 };
 
 const centred = (w) => Math.round((ACTOR_W - w) / 2);
@@ -82,14 +84,14 @@ const LEG_STEPS = [
 // Hems come up with the shorter torso, so there is leg to see. A tunic that
 // reaches the ankle on a slim figure is a nightshirt.
 const OUTFITS = {
-  tunic:    { skirt: 0, hem: 24, belt: true },
-  leathers: { skirt: 0, hem: 24, belt: true, studs: true },
-  cloak:    { skirt: 0, hem: 24, cape: true },
+  tunic:    { skirt: 0, hem: 25, belt: true },
+  leathers: { skirt: 0, hem: 25, belt: true, studs: true },
+  cloak:    { skirt: 0, hem: 25, cape: true },
   robe:     { skirt: 0, hem: 31, long: true },      // covers the legs entirely
-  gown:     { skirt: 5, hem: 31, long: true },      // flares out to the floor
-  rags:     { skirt: 0, hem: 25, ragged: true },
-  mail:     { skirt: 2, hem: 26, rings: true, belt: true },
-  plate:    { skirt: 1, hem: 26, plated: true, pauldrons: true },
+  gown:     { skirt: 4, hem: 31, long: true },      // flares out to the floor
+  rags:     { skirt: 0, hem: 26, ragged: true },
+  mail:     { skirt: 2, hem: 27, rings: true, belt: true },
+  plate:    { skirt: 1, hem: 27, plated: true, pauldrons: true },
 };
 
 // ------------------------------------------------------------ hairstyles ---
@@ -98,8 +100,8 @@ const HAIR = {
   // pulled over the eyes.
   short: { cap: 3, sides: 3, back: 0 },
   crop:  { cap: 2, sides: 2, back: 0 },
-  long:  { cap: 3, sides: 8, back: 0 },
-  braid: { cap: 3, sides: 7, back: 0, tail: true },
+  long:  { cap: 3, sides: 7, back: 0 },
+  braid: { cap: 3, sides: 6, back: 0, tail: true },
   bun:   { cap: 3, sides: 3, back: 0, bun: true },
   bald:  { cap: 0, sides: 0, back: 0 },
   hood:  { cap: 0, sides: 0, back: 0, hood: true },
@@ -276,15 +278,19 @@ function paintArms(ctx, m, p, outfit, torso, dir) {
   const nearFill = Math.max(3, torso.x - armW + 1);
   const farFill = Math.min(ACTOR_W - armW - 3, torso.x + torso.w - 1);
 
+  // A sleeve is the same cloth as the coat. Painting the arms in the shadow
+  // tone made them read as two black bars down the sides of everybody, which is
+  // most of why the body looked twice as wide as it is: the torso showing
+  // between them was four pixels of light in eleven pixels of dark.
   rect(ctx, nearFill - 1, top, 1, h + 1, OUTLINE);
   rect(ctx, nearFill, top + h, armW, 1, OUTLINE);
-  rect(ctx, nearFill, top, armW, h, p.cloakDark);
+  rect(ctx, nearFill, top, armW, h, p.cloak);
   rect(ctx, nearFill, top, 1, h, lit(p.cloak));      // light down the near sleeve
 
   rect(ctx, farFill + armW, top, 1, h + 1, OUTLINE);
   rect(ctx, farFill, top + h, armW, 1, OUTLINE);
-  rect(ctx, farFill, top, armW, h, p.cloakDark);
-  rect(ctx, farFill + armW - 1, top, 1, h, deep(p.cloak));
+  rect(ctx, farFill, top, armW, h, p.cloak);
+  rect(ctx, farFill + armW - 1, top, 1, h, p.cloakDark);
 
   if (dir === 'down') {
     rect(ctx, nearFill, handY, armW, 2, p.skin);
@@ -385,8 +391,8 @@ function paintHead(ctx, m, p, hair, dir) {
     rect(ctx, x + w - 2, y, 3, 3, p.hair);
   }
   if (hair.tail && dir !== 'up') {
-    rect(ctx, x - 2, y + 5, 2, 10, OUTLINE);
-    rect(ctx, x - 2, y + 6, 2, 8, p.hair);
+    rect(ctx, x - 2, y + 4, 2, 9, OUTLINE);
+    rect(ctx, x - 2, y + 5, 2, 7, p.hair);
   }
 
   if (dir === 'up') return;

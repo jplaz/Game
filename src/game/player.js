@@ -5,7 +5,7 @@
 // share, so neither style of play locks you out of the other.
 
 import { game, setPlayerRestorer } from './state.js';
-import { gear, technique } from '../data/gear.js';
+import { gear, technique, GEAR_SLOTS } from '../data/gear.js';
 import { ACTOR_PALETTES } from '../art/actors.js';
 
 export const MAX_PLAYER_LEVEL = 50;
@@ -35,7 +35,8 @@ export function baseStats(level) {
 
 export function equipped(slot) {
   const id = game.state.player.equipment?.[slot];
-  const fallback = { weapon: 'fists', armour: 'roughspun', shield: 'none' }[slot];
+  const fallback = { weapon: 'fists', armour: 'roughspun', shield: 'none',
+                     helm: 'bareHead', gloves: 'bareHands' }[slot];
   try {
     return gear(slot, id ?? fallback);
   } catch {
@@ -47,16 +48,18 @@ export function equipped(slot) {
 export function playerStats() {
   const p = game.state.player;
   const base = baseStats(p.level);
-  const weapon = equipped('weapon');
-  const armour = equipped('armour');
-  const shield = equipped('shield');
+  /* Five slots now, not three. A helm and a pair of gauntlets are the two
+     pieces of kit a man of this age would never have gone without and the game
+     had no room for; they add guard the way a coat does, and past the kettle
+     hat they start costing you the ability to see what is coming. */
+  const worn = GEAR_SLOTS.map((slot) => equipped(slot));
+  const sum = (key) => worn.reduce((n, g) => n + (g[key] ?? 0), 0);
 
   return {
     vigour: base.vigour,
-    might: base.might + weapon.might,
-    guard: base.guard + armour.guard + shield.guard,
-    swiftness: Math.max(1, base.swiftness + (weapon.swiftness ?? 0)
-      + (armour.swiftness ?? 0) + (shield.swiftness ?? 0)),
+    might: base.might + sum('might'),
+    guard: base.guard + sum('guard'),
+    swiftness: Math.max(1, base.swiftness + sum('swiftness')),
     wind: base.wind,
   };
 }
@@ -132,7 +135,7 @@ export function ownedGear(slot) {
 
 export function giveGear(slot, id) {
   const p = game.state.player;
-  p.gearOwned = p.gearOwned ?? { weapon: [], armour: [], shield: [] };
+  p.gearOwned = p.gearOwned ?? Object.fromEntries(GEAR_SLOTS.map((s) => [s, []]));
   p.gearOwned[slot] = p.gearOwned[slot] ?? [];
   if (!p.gearOwned[slot].includes(id)) p.gearOwned[slot].push(id);
 }

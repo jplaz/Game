@@ -102,7 +102,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const { DUELLISTS, ROAMERS, makeRoamer } = await import('/src/data/duellists.js');
   const { TRAINERS, trainerAsDuellist } = await import('/src/data/trainers.js');
   const { ITEMS } = await import('/src/data/items.js');
-  const { WEAPONS, ARMOUR, SHIELDS } = await import('/src/data/gear.js');
+  const { WEAPONS, ARMOUR, SHIELDS, HELMS, GLOVES } = await import('/src/data/gear.js');
   const { HOUSES, SWEARABLE } = await import('/src/data/houses.js');
   const { MATERIALS, MATERIAL_IDS, SPOILS, FORAGE, RECIPES, SNARES, EGG_ITEMS } =
     await import('/src/data/craft.js');
@@ -397,11 +397,14 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   for (const [id, def] of Object.entries(WEAPONS)) if (def.price) ware(id, def, 'weapon');
   for (const [id, def] of Object.entries(ARMOUR)) if (def.price) ware(id, def, 'armour');
   for (const [id, def] of Object.entries(SHIELDS)) if (def.price) ware(id, def, 'shield');
+  for (const [id, def] of Object.entries(HELMS)) if (def.price) ware(id, def, 'helm');
+  for (const [id, def] of Object.entries(GLOVES)) if (def.price) ware(id, def, 'gloves');
   /* And the things a recipe makes that nobody sells: they still have to exist
      as wares, or there is nothing for the forge to hand you. */
   for (const r of RECIPES) {
     const from = WEAPONS[r.makes] ? ['weapon', WEAPONS] : ARMOUR[r.makes] ? ['armour', ARMOUR]
-               : SHIELDS[r.makes] ? ['shield', SHIELDS] : null;
+               : SHIELDS[r.makes] ? ['shield', SHIELDS] : HELMS[r.makes] ? ['helm', HELMS]
+               : GLOVES[r.makes] ? ['gloves', GLOVES] : null;
     if (from && !wareIndex.has(`${from[0]}:${r.makes}`)) ware(r.makes, from[1][r.makes], from[0]);
   }
   /* Materials are wares too - they live in the same pouch and the same record -
@@ -425,7 +428,8 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
 
   /* The recipe book, in ware numbers. */
   const wareOf = (id) => {
-    for (const k of ['weapon', 'armour', 'shield', 'potion', 'stuff', 'snare', 'egg']) {
+    for (const k of ['weapon', 'armour', 'shield', 'helm', 'gloves',
+                     'potion', 'stuff', 'snare', 'egg']) {
       if (wareIndex.has(`${k}:${id}`)) return wareIndex.get(`${k}:${id}`);
     }
     throw new Error(`recipe makes ${id}, which is not a ware`);
@@ -747,6 +751,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
            of the world worth the walk. */
         ware: wareIndex.get(`potion:${it.item}`) ?? wareIndex.get(`weapon:${it.item}`)
           ?? wareIndex.get(`armour:${it.item}`) ?? wareIndex.get(`shield:${it.item}`)
+          ?? wareIndex.get(`helm:${it.item}`) ?? wareIndex.get(`gloves:${it.item}`)
           ?? wareIndex.get(`stuff:${it.item}`) ?? 255,
         gold: 40 + roadLevel * 22,
       })),
@@ -1137,6 +1142,9 @@ L.push('#define WARE_SHIELD 3');
 L.push('#define WARE_STUFF  4    /* what a recipe is made of; never on a counter */');
 L.push('#define WARE_SNARE  5    /* thrown over an animal to take it alive */');
 L.push('#define WARE_EGG    6    /* carried until it is not an egg any more */');
+L.push('#define WARE_HELM   7');
+L.push('#define WARE_GLOVES 8');
+L.push('#define WARE_KINDS  9    /* how many kinds there are, worn or not */');
 L.push('typedef struct {');
 L.push('  const char *name;');
 L.push('  u16 price, heal;');
@@ -1147,7 +1155,7 @@ L.push('} Ware;');
 L.push('static const Ware wares[WARE_COUNT] = {');
 {
   const kindOf = { potion: 0, weapon: 1, armour: 2, shield: 3, stuff: 4,
-                   snare: 5, egg: 6 };
+                   snare: 5, egg: 6, helm: 7, gloves: 8 };
   // Which of the four looks a piece of armour puts you in.
   const LOOK = { gambeson: 0, boiledLeather: 1, ringmail: 2, scaleArmour: 2, knightPlate: 3 };
   for (const w of harvest.wares) {

@@ -668,9 +668,7 @@ void hostFrame(void) {
       int best = -1, i;
       for (i = 0; i < stall->count; i++) {
         int at = stall->ware[i];
-        int had = wares[at].kind == WARE_WEAPON ? you.weapon
-                : wares[at].kind == WARE_ARMOUR ? you.armour
-                : wares[at].kind == WARE_SHIELD ? you.shield : 0;
+        int had = wares[at].kind < WARE_KINDS ? you.worn[wares[at].kind] : 0;
         if (wares[at].kind == WARE_POTION) { if (you.bag[at] >= 4) continue; }
         else if (wares[at].kind == WARE_SNARE) { if (you.bag[at] >= 3) continue; }
         else if (had && wares[had - 1].price >= wares[at].price) continue;
@@ -941,9 +939,9 @@ void hostFrame(void) {
       printf("      took it at level %2d after %3d fights and %6d frames"
              "  |  %-18s %-18s %s  |  %d gold\n",
         you.level, ladderFights, frameNo - ladderFrames,
-        you.weapon ? wares[you.weapon - 1].name : "bare hands",
-        you.armour ? wares[you.armour - 1].name : "roughspun",
-        you.shield ? wares[you.shield - 1].name : "no shield", you.gold);
+        you.WORN_WEAPON ? wares[you.WORN_WEAPON - 1].name : "bare hands",
+        you.WORN_ARMOUR ? wares[you.WORN_ARMOUR - 1].name : "roughspun",
+        you.WORN_SHIELD ? wares[you.WORN_SHIELD - 1].name : "no shield", you.gold);
       ladderFrames = frameNo;
       ladderFights = 0;
       doorsThisRung = 0;
@@ -1066,9 +1064,12 @@ int main(int argc, char **argv) {
   { int n = 0, k; for (k = 0; k < WARE_COUNT; k++) if (you.bag[k]) { printf("%s x%d  ", wares[k].name, you.bag[k]); n++; }
     if (!n) printf("nothing"); printf("\n"); }
   printf("  wearing        %s, %s, %s\n",
-    you.weapon ? wares[you.weapon - 1].name : "bare hands",
-    you.armour ? wares[you.armour - 1].name : "roughspun",
-    you.shield ? wares[you.shield - 1].name : "no shield");
+    you.WORN_WEAPON ? wares[you.WORN_WEAPON - 1].name : "bare hands",
+    you.WORN_ARMOUR ? wares[you.WORN_ARMOUR - 1].name : "roughspun",
+    you.WORN_SHIELD ? wares[you.WORN_SHIELD - 1].name : "no shield");
+  printf("  on head/hands %s, %s\n",
+    you.WORN_HELM ? wares[you.WORN_HELM - 1].name : "nothing",
+    you.WORN_GLOVES ? wares[you.WORN_GLOVES - 1].name : "bare hands");
   printf("  techniques     ");
   for (i = 0; i < 4; i++) printf("%s x%d  ", techniques[myTechs[i]].name, techUsed[i]);
   printf("\n");

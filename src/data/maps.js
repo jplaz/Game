@@ -686,6 +686,8 @@ export const MAPS = {
           stock: {
             weapon: ['huntingKnife', 'ironSword', 'woodAxe'],
             armour: ['gambeson', 'boiledLeather'],
+            helm: ['paddedCoif', 'mailCoif', 'nasalHelm'],
+            gloves: ['leatherGloves', 'paddedGloves', 'mailMittens'],
             shield: ['buckler'],
           },
         } },
@@ -916,6 +918,8 @@ export const MAPS = {
           stock: {
             weapon: ['ironSword', 'castleForged', 'warhammer'],
             armour: ['ringmail', 'scaleArmour', 'knightsPlate'],
+            helm: ['nasalHelm', 'kettleHat', 'bascinet'],
+            gloves: ['mailMittens', 'splintedGauntlets'],
             shield: ['oakShield', 'towerShield'],
           },
         } },
@@ -953,6 +957,8 @@ export const MAPS = {
           stock: {
             weapon: ['ironSword', 'woodAxe', 'huntingBow', 'castleForged'],
             armour: ['boiledLeather', 'ringmail'],
+            helm: ['nasalHelm', 'kettleHat', 'bascinet'],
+            gloves: ['mailMittens', 'splintedGauntlets'],
             shield: ['buckler', 'oakShield'],
           },
         } },
@@ -1101,6 +1107,8 @@ export const MAPS = {
           stock: {
             weapon: ['castleForged', 'boarSpear', 'huntingBow'],
             armour: ['ringmail', 'scaleArmour'],
+            helm: ['nasalHelm', 'kettleHat', 'bascinet'],
+            gloves: ['mailMittens', 'splintedGauntlets'],
             shield: ['oakShield'],
           },
         } },
@@ -1213,6 +1221,8 @@ export const MAPS = {
           stock: {
             weapon: ['castleForged', 'warhammer', 'boarSpear'],
             armour: ['scaleArmour', 'knightPlate'],
+            helm: ['bascinet', 'greatHelm', 'sallet', 'armet'],
+            gloves: ['splintedGauntlets', 'plateGauntlets'],
             shield: ['oakShield', 'towerShield'],
           },
         } },
@@ -1317,6 +1327,8 @@ export const MAPS = {
           stock: {
             weapon: ['boarSpear', 'huntingKnife', 'castleForged'],
             armour: ['boiledLeather', 'scaleArmour'],
+            helm: ['nasalHelm', 'kettleHat', 'bascinet'],
+            gloves: ['mailMittens', 'splintedGauntlets'],
             shield: ['buckler', 'oakShield'],
           },
         } },
@@ -1426,6 +1438,8 @@ export const MAPS = {
           stock: {
             weapon: ['warhammer', 'castleForged', 'woodAxe'],
             armour: ['ringmail', 'scaleArmour', 'knightPlate'],
+            helm: ['bascinet', 'greatHelm', 'sallet', 'armet'],
+            gloves: ['splintedGauntlets', 'plateGauntlets'],
             shield: ['oakShield', 'towerShield'],
           },
         } },
@@ -1760,6 +1774,8 @@ export const MAPS = {
           stock: {
             weapon: ['huntingKnife', 'ironSword', 'boarSpear'],
             armour: ['gambeson', 'boiledLeather', 'ringmail'],
+            helm: ['nasalHelm', 'kettleHat', 'bascinet'],
+            gloves: ['mailMittens', 'splintedGauntlets'],
             shield: ['buckler', 'oakShield'],
           },
         } },
@@ -1798,6 +1814,8 @@ export const MAPS = {
           stock: {
             weapon: ['ironSword', 'woodAxe', 'huntingBow', 'castleForged'],
             armour: ['boiledLeather', 'ringmail', 'scaleArmour'],
+            helm: ['nasalHelm', 'kettleHat', 'bascinet'],
+            gloves: ['mailMittens', 'splintedGauntlets'],
             shield: ['oakShield', 'towerShield'],
           },
         } },
@@ -2816,6 +2834,8 @@ export const MAPS = {
           stock: {
             weapon: ['longsword', 'morningstar', 'warhammer', 'greatsword'],
             armour: ['ringmail', 'scaleArmour', 'splintMail'],
+            helm: ['bascinet', 'greatHelm', 'sallet', 'armet'],
+            gloves: ['splintedGauntlets', 'plateGauntlets'],
             shield: ['oakShield', 'ironboundShield', 'towerShield'],
           },
         } },
@@ -2995,6 +3015,8 @@ export const MAPS = {
           stock: {
             weapon: ['bastardSword', 'greatsword', 'warhammer', 'direWarhammer'],
             armour: ['splintMail', 'bandedMail', 'knightPlate'],
+            helm: ['bascinet', 'greatHelm', 'sallet', 'armet'],
+            gloves: ['splintedGauntlets', 'plateGauntlets'],
             shield: ['ironboundShield', 'kiteShield', 'towerShield'],
           },
         } },

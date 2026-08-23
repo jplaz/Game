@@ -283,7 +283,7 @@ static int duelOnce(int level, int who, int *hp) {
 static int winRate(int level, int who, int tries) {
   int wins = 0, t;
   int wasLevel = you.level;
-  u8 wasWeapon = you.weapon, wasArmour = you.armour, wasShield = you.shield;
+  u8 wasWeapon = you.WORN_WEAPON, wasArmour = you.WORN_ARMOUR, wasShield = you.WORN_SHIELD;
   const Duellist *d = &duellists[who];
 
   int lv = levelOf(who);
@@ -341,7 +341,7 @@ static int winRate(int level, int who, int tries) {
     if (theirs.hp <= 0 && mine.hp > 0) wins++;
   }
   you.level = wasLevel;
-  you.weapon = wasWeapon; you.armour = wasArmour; you.shield = wasShield;
+  you.WORN_WEAPON = wasWeapon; you.WORN_ARMOUR = wasArmour; you.WORN_SHIELD = wasShield;
   reckonTechniques();
   return wins * 100 / tries;
 }
@@ -766,7 +766,7 @@ int main(void) {
     const House *h = &houses[m];
     int near[MAP_COUNT], start = h->startMap, wins = 0, fights = 0, best = 0, lowest = 99;
     int j2, k;
-    u8 wasW = you.weapon, wasA = you.armour, wasS = you.shield;
+    u8 wasW = you.WORN_WEAPON, wasA = you.WORN_ARMOUR, wasS = you.WORN_SHIELD;
     int wasHouse = you.house, wasWorld = worldId;
     /* Ask the question as this house, not as the North. Difficulty is measured
        from the player's own seat now, so reading the baked numbers here was
@@ -781,7 +781,7 @@ int main(void) {
       }
     }
     /* Bare-handed, the way everybody actually starts. */
-    you.weapon = 0; you.armour = 0; you.shield = 0;
+    you.WORN_WEAPON = 0; you.WORN_ARMOUR = 0; you.WORN_SHIELD = 0;
     for (j2 = 0; j2 < MAP_COUNT; j2++) {
       if (!near[j2]) continue;
       worldId = j2;
@@ -795,7 +795,7 @@ int main(void) {
         wins += rate; fights++;
       }
     }
-    you.weapon = wasW; you.armour = wasA; you.shield = wasS;
+    you.WORN_WEAPON = wasW; you.WORN_ARMOUR = wasA; you.WORN_SHIELD = wasS;
     if (fights) {
       /* The average is dragged about by whoever the hardest person nearby
          happens to be, and that is not the question. The question is whether
@@ -841,13 +841,13 @@ int main(void) {
     int a;
     for (a = 0; a < 5; a++) {
       int lv = AT[a], run;
-      u8 wasW = you.weapon, wasA = you.armour, wasS = you.shield;
+      u8 wasW = you.WORN_WEAPON, wasA = you.WORN_ARMOUR, wasS = you.WORN_SHIELD;
       Kit k = kitOf(lv * 7, lv);
-      you.weapon = k.arm == KIT_NONE ? 0 : (u8)(k.arm + 1);
-      you.armour = k.mail == KIT_NONE ? 0 : (u8)(k.mail + 1);
-      you.shield = k.shield == KIT_NONE ? 0 : (u8)(k.shield + 1);
+      you.WORN_WEAPON = k.arm == KIT_NONE ? 0 : (u8)(k.arm + 1);
+      you.WORN_ARMOUR = k.mail == KIT_NONE ? 0 : (u8)(k.mail + 1);
+      you.WORN_SHIELD = k.shield == KIT_NONE ? 0 : (u8)(k.shield + 1);
       run = runLength(lv, 300);
-      you.weapon = wasW; you.armour = wasA; you.shield = wasS;
+      you.WORN_WEAPON = wasW; you.WORN_ARMOUR = wasA; you.WORN_SHIELD = wasS;
       note("at level %d, in what a level %d carries, you get through %d fights "
            "of your own standing before somebody puts you down", lv, lv, run);
       if (run < 3) bad("level %d is a wall: %d fights in a row before you go down", lv, run);
@@ -951,13 +951,14 @@ int main(void) {
     hero.px = 5 * 16; hero.py = 7 * 16; hero.dir = 2;
     you.house = 2; you.level = 23; you.exp = 41000; you.gold = 7654;
     you.hp = 99; you.kills = 41;
-    you.weapon = 6; you.armour = 12; you.shield = 17;
+    you.WORN_WEAPON = 6; you.WORN_ARMOUR = 12; you.WORN_SHIELD = 17;
+    you.WORN_HELM = 21; you.WORN_GLOVES = 25;
     for (i = 0; i < WARE_COUNT; i++) you.bag[i] = (u8)(i * 3 % 7);
     for (i = 0; i < MAP_COUNT; i++) for (j = 0; j < MAX_CROWD; j++) slain[i][j] = (u8)((i + j) & 1);
     keepRecord();
 
     you.house = 0; you.level = 1; you.exp = 0; you.gold = 0; you.hp = 1; you.kills = 0;
-    you.weapon = you.armour = you.shield = 0;
+    for (i = 0; i < WARE_KINDS; i++) you.worn[i] = 0;
     for (i = 0; i < WARE_COUNT; i++) you.bag[i] = 0;
     for (i = 0; i < MAP_COUNT; i++) for (j = 0; j < MAX_CROWD; j++) slain[i][j] = 0;
 
@@ -966,7 +967,7 @@ int main(void) {
       takeUpRecord();
       if (you.house != 2 || you.level != 23 || you.exp != 41000 || you.gold != 7654
           || you.hp != 99 || you.kills != 41
-          || you.weapon != 6 || you.armour != 12 || you.shield != 17
+          || you.WORN_WEAPON != 6 || you.WORN_ARMOUR != 12 || you.WORN_SHIELD != 17
           || record.worldId != 3 || record.x != 5 || record.y != 7 || record.dir != 2) {
         bad("the record does not come back the way it went in");
       }

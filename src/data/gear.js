@@ -313,6 +313,52 @@ export const WEAPONS = {
     techniques: ['quickCut', 'backstab'], tier: 2,
     desc: 'Obsidian worked to an edge. Cold things come apart on it.',
   },
+  // --- more of what a man of this age would actually be carrying -----------
+  quarterstaff: {
+    name: 'Quarterstaff', might: 5, swiftness: 2, price: 200,
+    techniques: ['sweep', 'headbutt'], tier: 0,
+    desc: 'Six feet of ash. In the right hands it beats a sword and everybody knows it.',
+  },
+  sickle: {
+    name: 'Reaping Hook', might: 7, swiftness: 2, price: 320,
+    techniques: ['quickCut', 'hook'], tier: 0,
+    desc: 'It was for barley this morning.',
+  },
+  handAxe: {
+    name: 'Hand Axe', might: 10, swiftness: 1, price: 520,
+    techniques: ['cleave', 'quickCut'], tier: 1,
+    desc: 'A wood axe with the haft cut down. Every longship carries a barrel of them.',
+  },
+  mace: {
+    name: 'Flanged Mace', might: 14, swiftness: -1, price: 950,
+    techniques: ['crush', 'shieldBash'], tier: 1,
+    desc: 'Six steel flanges. It does not need to cut anything to end an argument.',
+  },
+  warPick: {
+    name: 'War Pick', might: 18, swiftness: 0, price: 1350,
+    techniques: ['skewer', 'crush'], tier: 2,
+    desc: 'A beak of hardened steel, made for the one thing plate cannot do: dent.',
+  },
+  flail: {
+    name: 'Flail', might: 22, swiftness: -2, price: 1900,
+    techniques: ['crush', 'sweep'], tier: 2,
+    desc: 'A head on a chain. Dangerous to everyone present, including you.',
+  },
+  poleaxe: {
+    name: 'Poleaxe', might: 28, swiftness: -3, price: 3200,
+    techniques: ['cleave', 'crush', 'hook'], tier: 3,
+    desc: 'Axe, hammer and spike on one haft. What knights actually killed each other with.',
+  },
+  crossbow: {
+    name: 'Crossbow', might: 24, swiftness: -2, price: 2900,
+    techniques: ['loose', 'skewer'], tier: 2,
+    desc: 'Slow to wind and it does not care what you are wearing.',
+  },
+  dornishSpear: {
+    name: 'Dornish Spear', might: 25, swiftness: 2, price: 3000,
+    techniques: ['skewer', 'thrust', 'sweep'], tier: 3,
+    desc: 'Twelve feet of ash and a leaf of steel. Reach is a weapon on its own.',
+  },
 };
 
 /** Armour. Guard reduces incoming damage; weight costs swiftness. */
@@ -369,6 +415,27 @@ export const ARMOUR = {
     name: 'White Plate', guard: 44, swiftness: -6, price: 0, unique: true, tier: 3,
     desc: 'Enamelled white, gold-chased. Worn by seven men at a time and no others.',
   },
+  // --- and the coats between the ones that were already here ---------------
+  hideJerkin: {
+    name: 'Hide Jerkin', guard: 2, swiftness: 0, price: 90, tier: 0,
+    desc: 'Untanned skin with the hair still on it. Better than a shirt.',
+  },
+  paddedJack: {
+    name: 'Padded Jack', guard: 6, swiftness: 0, price: 260, tier: 0,
+    desc: 'Thirty layers of linen stitched through. What a levy is issued and keeps.',
+  },
+  mailShirt: {
+    name: 'Mail Shirt', guard: 11, swiftness: -1, price: 620, tier: 1,
+    desc: 'A short hauberk to the hip. Half of what a knight wears and a quarter of the price.',
+  },
+  lamellar: {
+    name: 'Lamellar', guard: 20, swiftness: -2, price: 1600, tier: 2,
+    desc: 'Laced plates in rows, eastern work. Light for what it turns.',
+  },
+  halfPlate: {
+    name: 'Half-Plate', guard: 35, swiftness: -5, price: 4400, tier: 3,
+    desc: 'Breast, back and arms in solid steel, and mail everywhere else.',
+  },
 };
 
 /** Shields. Enable Shield Bash and add flat guard. */
@@ -406,10 +473,126 @@ export const SHIELDS = {
     name: 'Ironwood Tower', guard: 26, swiftness: -6, price: 4400, tier: 3,
     desc: 'Ironwood banded in steel. It does not splinter, and it does not move.',
   },
+  roundShield: {
+    name: 'Round Shield', guard: 7, swiftness: 0, price: 480, tier: 1,
+    desc: 'Limewood with a steel boss. What men have carried since there were men.',
+  },
+  targe: {
+    name: 'Steel Targe', guard: 14, swiftness: -1, price: 1400, tier: 2,
+    desc: 'A small steel disc strapped to the forearm. Made for pushing a blade aside.',
+  },
+  scutum: {
+    name: 'Wall Shield', guard: 23, swiftness: -6, price: 3400, tier: 3,
+    desc: 'Curved, shoulder to shin, and you cannot do anything else while holding it.',
+  },
 };
 
-export const GEAR_SLOTS = ['weapon', 'armour', 'shield'];
-const TABLES = { weapon: WEAPONS, armour: ARMOUR, shield: SHIELDS };
+/**
+ * What goes on your head.
+ *
+ * A man in mail with nothing on his head is a man who has forgotten the most
+ * expensive lesson in the world. Helms are their own slot: they add guard the
+ * way armour does, and past the kettle hat they start costing you the ability
+ * to see what is coming, which is what the swiftness penalty is.
+ */
+export const HELMS = {
+  bareHead: {
+    name: 'Bare Head', guard: 0, swiftness: 0, price: 0, tier: 0,
+    desc: 'Your own hair, and an optimistic attitude.',
+  },
+  leatherCap: {
+    name: 'Leather Cap', guard: 2, swiftness: 0, price: 90, tier: 0,
+    desc: 'A boiled cap with a chinstrap. It will turn a stick.',
+  },
+  paddedCoif: {
+    name: 'Padded Coif', guard: 4, swiftness: 0, price: 220, tier: 1,
+    desc: 'Quilted linen over the skull and down the neck. Worn under everything else.',
+  },
+  mailCoif: {
+    name: 'Mail Coif', guard: 7, swiftness: -1, price: 520, tier: 1,
+    desc: 'Rings from crown to collarbone. Stops an edge, does nothing for a hammer.',
+  },
+  nasalHelm: {
+    name: 'Nasal Helm', guard: 10, swiftness: -1, price: 850, tier: 1,
+    desc: 'A steel cone with a bar down the nose. Ugly, cheap and it works.',
+  },
+  kettleHat: {
+    name: 'Kettle Hat', guard: 13, swiftness: -1, price: 1200, tier: 2,
+    desc: 'A wide steel brim. Made for men in a ditch being shot at from above.',
+  },
+  bascinet: {
+    name: 'Bascinet', guard: 17, swiftness: -2, price: 1900, tier: 2,
+    desc: 'A pointed skull with an aventail hanging off it. Everything glances.',
+  },
+  greatHelm: {
+    name: 'Great Helm', guard: 22, swiftness: -4, price: 2800, tier: 2,
+    desc: 'A bucket with a cross cut in the front. You can see almost nothing and survive almost anything.',
+  },
+  sallet: {
+    name: 'Sallet', guard: 25, swiftness: -3, price: 3600, tier: 3,
+    desc: 'A long tail over the neck and a slit you can actually see out of.',
+  },
+  armet: {
+    name: 'Armet', guard: 30, swiftness: -4, price: 5200, tier: 3,
+    desc: 'Hinged cheeks that close on the jaw. The best head a smith can make.',
+  },
+  dragonscaleHelm: {
+    name: 'Dragonscale Helm', guard: 36, swiftness: -3, price: 0, tier: 3,
+    desc: 'Obsidian scale over a steel skull. Nobody sells this. It is made.',
+  },
+  kingsguardHelm: {
+    name: 'Kingsguard Helm', guard: 40, swiftness: -4, price: 0, tier: 3,
+    desc: 'White enamel and a golden crest. Seven men have ever worn one.',
+  },
+};
+
+/**
+ * And what goes on your hands. Gauntlets are the cheapest guard in the game
+ * early and the difference between holding a greatsword and dropping it late,
+ * which is why the good ones give a little might as well as a little guard.
+ */
+export const GLOVES = {
+  bareHands: {
+    name: 'Bare Hands', guard: 0, might: 0, swiftness: 0, price: 0, tier: 0,
+    desc: 'Calluses. They count for something and not for much.',
+  },
+  woolMitts: {
+    name: 'Wool Mitts', guard: 1, might: 0, swiftness: 0, price: 60, tier: 0,
+    desc: 'Warm. That is the entire argument for them.',
+  },
+  leatherGloves: {
+    name: 'Leather Gloves', guard: 3, might: 1, swiftness: 0, price: 180, tier: 0,
+    desc: 'Riding gloves. You will stop tearing your palms open on the grip.',
+  },
+  paddedGloves: {
+    name: 'Padded Gloves', guard: 5, might: 1, swiftness: 0, price: 380, tier: 1,
+    desc: 'Quilted across the back of the hand, where everybody actually gets hit.',
+  },
+  mailMittens: {
+    name: 'Mail Mittens', guard: 8, might: 2, swiftness: -1, price: 720, tier: 1,
+    desc: 'Rings sewn onto leather. You can still hold a rein. Barely.',
+  },
+  splintedGauntlets: {
+    name: 'Splinted Gauntlets', guard: 12, might: 3, swiftness: -1, price: 1400, tier: 2,
+    desc: 'Steel strips riveted along the fingers. A punch from these is a weapon.',
+  },
+  plateGauntlets: {
+    name: 'Plate Gauntlets', guard: 17, might: 4, swiftness: -2, price: 2600, tier: 2,
+    desc: 'Articulated lames over every knuckle. You can catch a blade in these and keep the hand.',
+  },
+  dragonscaleGrips: {
+    name: 'Dragonscale Grips', guard: 22, might: 6, swiftness: -1, price: 0, tier: 3,
+    desc: 'Obsidian flakes set into the knuckles. Not sold anywhere at any price.',
+  },
+  kingsguardGauntlets: {
+    name: 'Kingsguard Gauntlets', guard: 26, might: 7, swiftness: -2, price: 0, tier: 3,
+    desc: 'White leather and gold lames. Made to be seen from the far end of a hall.',
+  },
+};
+
+export const GEAR_SLOTS = ['weapon', 'armour', 'helm', 'gloves', 'shield'];
+const TABLES = { weapon: WEAPONS, armour: ARMOUR, helm: HELMS,
+                 gloves: GLOVES, shield: SHIELDS };
 
 export function gear(slot, id) {
   const table = TABLES[slot];

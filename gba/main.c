@@ -1028,7 +1028,11 @@ typedef struct {
   int house;
   int level, exp, hp, gold;
   int kills;
-  u8 weapon, armour, shield;      /* a ware index plus one; nothing is 0 */
+  /* What you have on, one slot per kind of thing: a ware index plus one, and
+     nothing is 0. It used to be three named fields, which meant that adding a
+     helm and a pair of gauntlets meant editing every line in the file that
+     added a number up. */
+  u8 worn[WARE_KINDS];
   u8 bag[WARE_COUNT];
   char name[NAME_MAX + 1];        /* what people call you */
   Kept beast;
@@ -1039,6 +1043,12 @@ typedef struct {
      of twenty doors and the single most tiresome thing in the game. */
   int haven, havenX, havenY;
 } You;
+
+#define WORN_WEAPON worn[WARE_WEAPON]
+#define WORN_ARMOUR worn[WARE_ARMOUR]
+#define WORN_SHIELD worn[WARE_SHIELD]
+#define WORN_HELM   worn[WARE_HELM]
+#define WORN_GLOVES worn[WARE_GLOVES]
 
 static You you;
 
@@ -1123,26 +1133,30 @@ static int nextRung(void) {
 
 /* What you are wearing decides which of the four bodies is resident. */
 static int lookOf(void) {
-  return you.armour ? wares[you.armour - 1].tier : 0;
+  return you.WORN_ARMOUR ? wares[you.WORN_ARMOUR - 1].tier : 0;
 }
 
 /* Health rises faster than it used to. A fight that lasts five or six exchanges
    is a fight; one that ends in two is a coin toss, and a coin toss is not fun. */
 static int vigourFor(int level) { return 30 + level * 9; }
 
-static int mightFor(int level) {
-  return 10 + level * 3 + (you.weapon ? wares[you.weapon - 1].might : 0);
+/* What everything you have on adds up to. Five slots read the same way, so a
+   sixth would be a line in the ware table and nothing here. */
+static int sumWorn(int which) {
+  int k, total = 0;
+  for (k = 0; k < WARE_KINDS; k++) {
+    const Ware *w;
+    if (!you.worn[k]) continue;
+    w = &wares[you.worn[k] - 1];
+    total += which == 0 ? w->might : which == 1 ? w->guard : w->swiftness;
+  }
+  return total;
 }
-static int guardFor(int level) {
-  return 6 + level * 2
-    + (you.armour ? wares[you.armour - 1].guard : 0)
-    + (you.shield ? wares[you.shield - 1].guard : 0);
-}
+
+static int mightFor(int level) { return 10 + level * 3 + sumWorn(0); }
+static int guardFor(int level) { return 6 + level * 2 + sumWorn(1); }
 static int swiftFor(int level) {
-  int s = 10 + level * 2;
-  if (you.weapon) s += wares[you.weapon - 1].swiftness;
-  if (you.armour) s += wares[you.armour - 1].swiftness;
-  if (you.shield) s += wares[you.shield - 1].swiftness;
+  int s = 10 + level * 2 + sumWorn(2);
   return s < 1 ? 1 : s;
 }
 
@@ -1168,7 +1182,7 @@ static int swiftFor(int level) {
    all of it. That symmetry is the whole balance of the thing - if they carried
    one piece and you wore three, beating them would arm you past them within an
    afternoon and the road south would be a walk. */
-typedef struct { u8 arm, mail, shield, remedy; } Kit;
+typedef struct { u8 arm, mail, shield, helm, gloves, remedy; } Kit;
 
 static u32 kitHash(int who) {
   u32 h = (u32)(who + 1) * 2654435761u;
@@ -1225,6 +1239,12 @@ static Kit kitOf(int who, int level) {
   k.arm    = kitPiece(rot(h, 3),  WARE_WEAPON, budget, 8);
   k.mail   = kitPiece(rot(h, 9),  WARE_ARMOUR, budget, 5);
   k.shield = kitPiece(rot(h, 17), WARE_SHIELD, budget, 3);
+  /* And the two pieces everybody in this age actually wore and the game had no
+     room for. They are cheap, so they turn up early and often, which is exactly
+     right: a helm is the first thing anybody buys and the last thing they
+     take off. */
+  k.helm   = kitPiece(rot(h, 11), WARE_HELM,   budget, 4);
+  k.gloves = kitPiece(rot(h, 27), WARE_GLOVES, budget, 3);
   k.remedy = KIT_NONE;
   /* One in eight is carrying something to drink. More than that and you can
      out-drink any duel, which is the same as not being able to lose one. */
@@ -1260,16 +1280,16 @@ static void reckonTechniques(void) {
   /* Your weapon teaches the first two slots. What you have learned by standing
      takes the third, so climbing visibly changes how you fight instead of
      moving two numbers you cannot see. */
-  if (you.weapon) {
-    const Ware *w = &wares[you.weapon - 1];
+  if (you.WORN_WEAPON) {
+    const Ware *w = &wares[you.WORN_WEAPON - 1];
     for (i = 0; i < w->techCount && n < 2; i++) myTechs[n++] = w->tech[i];
   } else {
     while (n < 2) { myTechs[n] = player_techs[n]; n++; }
   }
   if (mine >= 0) {
     myTechs[2] = (u8)mine;
-  } else if (you.weapon) {
-    const Ware *w = &wares[you.weapon - 1];
+  } else if (you.WORN_WEAPON) {
+    const Ware *w = &wares[you.WORN_WEAPON - 1];
     /* Nothing learned yet: a third blade technique if the weapon has one,
        otherwise swordplay anybody picks up. */
     myTechs[2] = (u8)(w->techCount > 2 ? w->tech[2] : armed_techs[2]);
@@ -1937,7 +1957,7 @@ static void readyYourself(void) {
   mine.tech = myTechs;
   mine.defending = 0;
   mine.dead = 0;
-  mine.obsidian = you.weapon && wares[you.weapon - 1].obsidian;
+  mine.obsidian = you.WORN_WEAPON && wares[you.WORN_WEAPON - 1].obsidian;
   beastActed = 0;
   /* And whatever is at your heel, if the other side is not itself an animal -
      there is only room in object memory for two of them at once. */
@@ -2014,7 +2034,7 @@ static void beginDuel(int duellist, int bank, int slot) {
   {
     Kit k = kitOf(duellist, foeLevel);
     int i;
-    u8 piece[3];
+    u8 piece[5];
     /* They fight in their weapon and their mail. The shield is slung across
        their back until it is not their fight any more, which is where you get
        it from - and it is the one edge a scavenger has over everybody on the
@@ -2027,7 +2047,9 @@ static void beginDuel(int duellist, int bank, int slot) {
        without going down. Half of them have it up now; you still take it off
        them either way. */
     piece[2] = (kitHash(duellist) & 1) ? k.shield : KIT_NONE;
-    for (i = 0; i < 3; i++) {
+    /* The helm and the gauntlets are always on. Nobody carries a helm. */
+    piece[3] = k.helm; piece[4] = k.gloves;
+    for (i = 0; i < 5; i++) {
       const Ware *w;
       if (piece[i] == KIT_NONE) continue;
       w = &wares[piece[i]];
@@ -2395,8 +2417,12 @@ extern unsigned char hostSram[65536];              /* the harness's stand-in */
 typedef struct {
   u32 magic;
   u8 house, level, worldId, dir;
-  u8 x, y, weapon, armour;
-  u8 shield, pad0, pad1, pad2;
+  u8 x, y, pad0, pad1;
+  /* What you had on. One byte per kind of thing, which is how it is held in
+     memory too, so a helm and a pair of gauntlets did not need a new record
+     format - the two slots that were padding are what they went into. */
+  u8 worn[WARE_KINDS];
+  u8 pad2, pad3b, pad4b;
   u16 sigils, pad3;
   u8 beastKind, beastLevel, eggWins, tamed;
   u16 beastExp, pad4;
@@ -2431,9 +2457,7 @@ static void keepRecord(void) {
   record.dir = hero.dir;
   record.x = (u8)(hero.px >> 4);
   record.y = (u8)(hero.py >> 4);
-  record.weapon = you.weapon;
-  record.armour = you.armour;
-  record.shield = you.shield;
+  { int k; for (k = 0; k < WARE_KINDS; k++) record.worn[k] = you.worn[k]; }
   record.sigils = sigils;
   record.beastKind = you.beast.kind;
   record.beastLevel = you.beast.level;
@@ -2485,9 +2509,7 @@ static void takeUpRecord(void) {
   you.gold = (int)record.gold;
   you.hp = (int)record.hp;
   you.kills = (int)record.kills;
-  you.weapon = record.weapon;
-  you.armour = record.armour;
-  you.shield = record.shield;
+  { int k; for (k = 0; k < WARE_KINDS; k++) you.worn[k] = record.worn[k]; }
   sigils = record.sigils;
   layLadder();
   you.beast.kind = record.beastKind;
@@ -2541,7 +2563,9 @@ static void showGold(int y) {
 }
 
 static int worn(int at) {
-  return you.weapon == at + 1 || you.armour == at + 1 || you.shield == at + 1;
+  int k;
+  for (k = 0; k < WARE_KINDS; k++) if (you.worn[k] == at + 1) return 1;
+  return 0;
 }
 
 /* One line about a thing, into scratch, for whichever list is showing it. The
@@ -2578,6 +2602,22 @@ static void describeWare(int at, int inPouch) {
   if (w->swiftness) {
     appendString(scratch, "  Swiftness ", sizeof scratch);
     appendNumber(scratch, w->swiftness, sizeof scratch);
+  }
+  /* With five slots to fill, the useful thing to know standing over a helm is
+     not what it is worth on its own - it is whether it beats the one on your
+     head. */
+  if (w->kind < WARE_KINDS && (w->kind == WARE_WEAPON || w->kind == WARE_ARMOUR
+      || w->kind == WARE_SHIELD || w->kind == WARE_HELM || w->kind == WARE_GLOVES)) {
+    if (worn(at)) {
+      appendString(scratch, "   On you now.", sizeof scratch);
+    } else if (you.worn[w->kind]) {
+      const Ware *had = &wares[you.worn[w->kind] - 1];
+      int step = (w->might + w->guard) - (had->might + had->guard);
+      appendString(scratch, "   ", sizeof scratch);
+      appendString(scratch, step > 0 ? "Better than your " : step < 0 ? "Worse than your "
+                                                                     : "Same as your ", sizeof scratch);
+      appendString(scratch, had->name, sizeof scratch);
+    }
   }
   if (inPouch && !worn(at)) appendString(scratch, "   A to take it up", sizeof scratch);
 }
@@ -2621,10 +2661,11 @@ static void paintBag(void) {
 static int wearWare(int at) {
   const Ware *w = &wares[at];
   if (!you.bag[at] || worn(at)) return 0;
-  if (w->kind == WARE_WEAPON) { you.weapon = (u8)(at + 1); reckonTechniques(); }
-  else if (w->kind == WARE_ARMOUR) { you.armour = (u8)(at + 1); loadPlayerBody(); }
-  else if (w->kind == WARE_SHIELD) you.shield = (u8)(at + 1);
-  else return 0;
+  if (w->kind == WARE_WEAPON) { you.WORN_WEAPON = (u8)(at + 1); reckonTechniques(); }
+  else if (w->kind == WARE_ARMOUR) { you.WORN_ARMOUR = (u8)(at + 1); loadPlayerBody(); }
+  else if (w->kind == WARE_SHIELD || w->kind == WARE_HELM || w->kind == WARE_GLOVES) {
+    you.worn[w->kind] = (u8)(at + 1);
+  } else return 0;
   return 1;
 }
 
@@ -2654,8 +2695,7 @@ static int takeWare(int at) {
   }
   you.bag[at]++;
   {
-    int had = w->kind == WARE_WEAPON ? you.weapon
-            : w->kind == WARE_ARMOUR ? you.armour : you.shield;
+    int had = w->kind < WARE_KINDS ? you.worn[w->kind] : 0;
     if (!had || wares[had - 1].price < w->price) { wearWare(at); return TOOK_WORN; }
   }
   return TOOK_KEPT;
@@ -2867,8 +2907,7 @@ static void paintShop(void) {
   for (i = 0; i < LIST_ROWS && top + i < stall->count; i++) {
     int at = stall->ware[top + i];
     int y = 22 + i * 11;
-    int mine = (wares[at].kind == WARE_POTION) ? 0
-      : (you.weapon == at + 1 || you.armour == at + 1 || you.shield == at + 1);
+    int mine = (wares[at].kind == WARE_POTION) ? 0 : worn(at);
     if (top + i == shopPick) drawCursor(14, y + 1, C_GOLD);
     drawText(24, y, wares[at].name,
       mine ? C_DIM : (top + i == shopPick ? C_GOLD : C_INK));
@@ -3112,7 +3151,7 @@ static void youFell(void) {
      who has just put you on the floor is still willing to do it again. */
   you.hp = vigourFor(you.level);
   you.gold -= you.gold / 3;
-  bare = !you.weapon;
+  bare = !you.WORN_WEAPON;
   endDuel();
   /* Somebody carries you home. It costs you a third of your purse and the
      ground you had covered, which is enough of a lesson.
@@ -3149,16 +3188,17 @@ static void youFell(void) {
    walks past a better sword to go and find a menu. */
 static void takeTheirKit(void) {
   Kit k = kitOf(foeId, foeLevel);
-  u8 piece[3];
+  u8 piece[5];
   int i, took = 0, worn = 0, scrap = 0;
 
   piece[0] = k.arm; piece[1] = k.mail; piece[2] = k.shield;
+  piece[3] = k.helm; piece[4] = k.gloves;
 
   /* You take the lot. They were dressed out of the same list you are, and if
      you only took a piece at a time you would fall a rank behind everybody you
      beat and never climb back. Whatever beats what you have goes straight on;
      whatever you have already is stripped for what the metal is worth. */
-  for (i = 0; i < 3; i++) {
+  for (i = 0; i < 5; i++) {
     const Ware *w;
     int how;
     if (piece[i] == KIT_NONE) continue;
@@ -4081,9 +4121,7 @@ int main(void) {
         you.hp = vigourFor(you.level);
         /* You are sent out of the yard with your bare hands and one remedy.
            Everything you fight in, you take off somebody. */
-        you.weapon = 0;
-        you.armour = 0;
-        you.shield = 0;
+        { int k; for (k = 0; k < WARE_KINDS; k++) you.worn[k] = 0; }
         you.bag[START_POTION] = 1;
         reckonTechniques();
         PAL_BG[TXT_BANK * 16 + C_HOUSE] = houses[you.house].colour;

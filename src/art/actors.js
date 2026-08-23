@@ -39,22 +39,32 @@ function toneShift(hex, amount) {
 const lit = (hex) => toneShift(hex, 0.13);
 const dim = (hex) => toneShift(hex, -0.22);
 const deep = (hex) => toneShift(hex, -0.4);
+/* Trousers and boots are painted near-black in the palettes, which is the
+   right colour for cloth and the wrong colour next to a near-black keyline.
+   This is the tone they are actually drawn in. */
+const pale = (hex) => toneShift(hex, 0.32);
 
 // ----------------------------------------------------------------- builds --
 // Every measurement the painter needs. Children are shorter with a
 // proportionally larger head; heavy builds are wider in the shoulder and
 // shorter in the leg.
 const BUILDS = {
-  // Broader in the shoulder and thicker in the leg than they were. A head this
-  // size on a narrow body reads as a doll; the body has to carry it.
-  man:   { headY: 5, headH: 11, headW: 11, torsoY: 16, torsoH: 11, torsoW: 12,
-           legY: 25, legH: 6, legW: 4, legGap: 6, armW: 3, shoulder: 0 },
-  woman: { headY: 6, headH: 10, headW: 10, torsoY: 16, torsoH: 11, torsoW: 11,
-           legY: 25, legH: 6, legW: 4, legGap: 5, armW: 2, shoulder: -1 },
-  child: { headY: 9, headH: 10, headW: 10, torsoY: 19, torsoH: 8, torsoW: 9,
-           legY: 26, legH: 5, legW: 3, legGap: 5, armW: 2, shoulder: -1 },
-  heavy: { headY: 4, headH: 11, headW: 12, torsoY: 15, torsoH: 13, torsoW: 14,
-           legY: 27, legH: 4, legW: 4, legGap: 7, armW: 4, shoulder: 1 },
+  // Slimmer, and standing up straighter. A head eleven pixels across on a
+  // sixteen-pixel sprite is two thirds of the width of the whole person, which
+  // is a doll rather than a man. These are cut to a different rule: the head is
+  // narrower than the shoulders, the shoulders are narrower than the sprite, and
+  // the legs are two separate legs with daylight between them. `legGap` is that
+  // daylight - the transparent channel between the two outlined legs - and not,
+  // as it used to be, a spacing that left the two outlines touching and the
+  // bottom third of everybody in the game a single black brick.
+  man:   { headY: 4, headH: 9,  headW: 8,  torsoY: 14, torsoH: 10, torsoW: 8,
+           legY: 24, legH: 7, legW: 2, legGap: 4, armW: 2, shoulder: 0 },
+  woman: { headY: 5, headH: 8,  headW: 7,  torsoY: 14, torsoH: 10, torsoW: 7,
+           legY: 24, legH: 7, legW: 2, legGap: 4, armW: 2, shoulder: -1 },
+  child: { headY: 9, headH: 8,  headW: 7,  torsoY: 18, torsoH: 7,  torsoW: 7,
+           legY: 25, legH: 6, legW: 2, legGap: 4, armW: 2, shoulder: -1 },
+  heavy: { headY: 4, headH: 9,  headW: 9,  torsoY: 14, torsoH: 10, torsoW: 9,
+           legY: 24, legH: 7, legW: 3, legGap: 4, armW: 2, shoulder: 1 },
 };
 
 const centred = (w) => Math.round((ACTOR_W - w) / 2);
@@ -69,24 +79,28 @@ const LEG_STEPS = [
 
 // --------------------------------------------------------------- outfits ---
 // Each outfit decides how much leg shows and what shape the torso takes.
+// Hems come up with the shorter torso, so there is leg to see. A tunic that
+// reaches the ankle on a slim figure is a nightshirt.
 const OUTFITS = {
-  tunic:    { skirt: 0, hem: 25, belt: true },
-  leathers: { skirt: 0, hem: 25, belt: true, studs: true },
-  cloak:    { skirt: 0, hem: 25, cape: true },
+  tunic:    { skirt: 0, hem: 24, belt: true },
+  leathers: { skirt: 0, hem: 24, belt: true, studs: true },
+  cloak:    { skirt: 0, hem: 24, cape: true },
   robe:     { skirt: 0, hem: 31, long: true },      // covers the legs entirely
   gown:     { skirt: 5, hem: 31, long: true },      // flares out to the floor
-  rags:     { skirt: 0, hem: 26, ragged: true },
-  mail:     { skirt: 2, hem: 27, rings: true, belt: true },
-  plate:    { skirt: 1, hem: 27, plated: true, pauldrons: true },
+  rags:     { skirt: 0, hem: 25, ragged: true },
+  mail:     { skirt: 2, hem: 26, rings: true, belt: true },
+  plate:    { skirt: 1, hem: 26, plated: true, pauldrons: true },
 };
 
 // ------------------------------------------------------------ hairstyles ---
 const HAIR = {
-  short: { cap: 5, sides: 4, back: 0 },
-  crop:  { cap: 3, sides: 2, back: 0 },
-  long:  { cap: 5, sides: 11, back: 0 },
-  braid: { cap: 5, sides: 9, back: 0, tail: true },
-  bun:   { cap: 5, sides: 3, back: 0, bun: true },
+  // Cut down with the head. A cap four rows deep on a nine-row head is a hat
+  // pulled over the eyes.
+  short: { cap: 3, sides: 3, back: 0 },
+  crop:  { cap: 2, sides: 2, back: 0 },
+  long:  { cap: 3, sides: 8, back: 0 },
+  braid: { cap: 3, sides: 7, back: 0, tail: true },
+  bun:   { cap: 3, sides: 3, back: 0, bun: true },
   bald:  { cap: 0, sides: 0, back: 0 },
   hood:  { cap: 0, sides: 0, back: 0, hood: true },
   helm:  { cap: 0, sides: 0, back: 0, helm: true },
@@ -97,27 +111,38 @@ const HAIR = {
 function paintLegs(ctx, m, p, outfit, step, dir) {
   if (outfit.long) return;                        // a robe or gown hides them
   const swing = LEG_STEPS[step % LEG_STEPS.length];
-  // Two legs spaced evenly about the centre line, the gap set by the build.
-  const inner = centred(m.legGap);
+
+  // Two legs with daylight between them. The channel has to survive `keyline`,
+  // which rings anything solid in one pixel of near-black from both sides: a
+  // two-pixel gap is entirely eaten and the legs weld back into one black brick,
+  // which is what they had been doing. So the inner edges are left for the
+  // keyline to draw, and `legGap` is measured between the two trouser legs
+  // themselves - four pixels, of which the keyline takes two and two stay open.
+  const span = m.legW * 2 + m.legGap + 2;
+  const left = centred(span) + 1;
   const legs = [
-    { x: inner - m.legW + 1, dy: swing.left },
-    { x: inner + m.legGap - 1, dy: swing.right },
+    { x: left, dy: swing.left, outer: -1 },
+    { x: left + m.legW + m.legGap, dy: swing.right, outer: m.legW },
   ];
 
   for (const leg of legs) {
     const h = m.legH + leg.dy;
-    rect(ctx, leg.x - 1, m.legY, m.legW + 2, h + 1, OUTLINE);
-    rect(ctx, leg.x, m.legY, m.legW, h - 1, p.legs);
-    // A leg is a cylinder, not a stripe. The shaded side borrows the boot
-    // colour rather than deriving a new one: a sprite gets fifteen colours in
-    // total and there is nothing to spare for a trouser leg.
-    rect(ctx, leg.x + m.legW - 1, m.legY, 1, h - 1, p.boots);
-    rect(ctx, leg.x, m.legY + h - 1, m.legW, 2, p.boots);
+    const shin = h - 2;                          // what is trouser, above the boot
+    rect(ctx, leg.x + leg.outer, m.legY, 1, h + 1, OUTLINE);
+    rect(ctx, leg.x, m.legY + h, m.legW, 1, OUTLINE);
+    // The trouser is drawn a shade up from the palette colour, because the
+    // palette leg colour and the keyline are near enough the same darkness that
+    // a leg painted in it disappears into its own outline.
+    rect(ctx, leg.x, m.legY, m.legW, shin, pale(p.legs));
+    rect(ctx, leg.x + m.legW - 1, m.legY, 1, shin, p.legs);
+    // The boot, and a line where the trouser ends and the leather starts.
+    rect(ctx, leg.x, m.legY + shin, m.legW, 2, p.boots);
+    rect(ctx, leg.x, m.legY + shin, m.legW - 1, 1, dim(p.legs));
   }
 }
 
 function paintTorso(ctx, m, p, outfit, dir) {
-  const w = m.torsoW + (outfit.pauldrons ? 2 : 0);
+  const w = m.torsoW + (outfit.pauldrons ? 1 : 0);
   const x = centred(w);
   const top = m.torsoY;
   const bottom = outfit.hem;
@@ -125,7 +150,7 @@ function paintTorso(ctx, m, p, outfit, dir) {
   // Silhouette, then fill inside it.
   rect(ctx, x - 1, top, w + 2, bottom - top, OUTLINE);
   rect(ctx, x, top, w, bottom - top - 1, p.cloakDark);
-  rect(ctx, x, top, w, Math.max(2, (bottom - top) * 0.7), p.cloak);
+  rect(ctx, x, top, w, Math.max(2, (bottom - top) * 0.82), p.cloak);
 
   // Shoulders are not square. Knocking the top two corners off is most of what
   // turns a coloured rectangle into somebody standing there.
@@ -146,7 +171,9 @@ function paintTorso(ctx, m, p, outfit, dir) {
   // A gown or robe widens toward the floor - but never past the edge of the
   // sprite, or the hem runs off into the next tile as a solid band.
   if (outfit.skirt) {
-    const room = Math.max(0, Math.floor((ACTOR_W - 2 - w) / 2));
+    // Two pixels of margin either side, always: a flare that runs to the edge
+    // of the sprite is a black bar joining this person to the one beside them.
+    const room = Math.max(0, Math.floor((ACTOR_W - 6 - w) / 2));
     for (let i = 1; i <= outfit.skirt; i++) {
       const flare = Math.min(room, Math.round((i / outfit.skirt) * (outfit.skirt + 1)));
       const y = bottom - outfit.skirt + i - 1;
@@ -195,7 +222,7 @@ function paintTorso(ctx, m, p, outfit, dir) {
      rectangle it read as a piece of card, which is what the player was looking
      at for the whole of every duel. */
   if (dir === 'up') {
-    const cw = outfit.cape ? w + 4 : w;
+    const cw = outfit.cape ? Math.min(w + 2, ACTOR_W - 4) : w;
     const cx = centred(cw);
     if (outfit.cape) {
       rect(ctx, cx - 1, top + 1, cw + 2, bottom - top - 1, OUTLINE);
@@ -237,17 +264,31 @@ function paintArms(ctx, m, p, outfit, torso, dir) {
   if (dir === 'left' || dir === 'right') {
     // Profile: one arm, forward.
     rect(ctx, torso.x + torso.w - 2, top + 1, armW + 1, h, OUTLINE);
-    rect(ctx, torso.x + torso.w - 1, top + 2, armW - 1, h - 2, p.cloakDark);
-    rect(ctx, torso.x + torso.w - 1, handY, armW - 1, 2, p.skin);
+    rect(ctx, torso.x + torso.w - 1, top + 2, armW, h - 2, p.cloakDark);
+    rect(ctx, torso.x + torso.w - 1, handY, armW, 2, p.skin);
     return;
   }
-  rect(ctx, torso.x - armW, top, armW + 1, h + 1, OUTLINE);
-  rect(ctx, torso.x - armW + 1, top + 1, armW - 1, h - 1, p.cloakDark);
-  rect(ctx, torso.x + torso.w - 1, top, armW + 1, h + 1, OUTLINE);
-  rect(ctx, torso.x + torso.w, top + 1, armW - 1, h - 1, p.cloakDark);
+
+  // An arm used to be a three-pixel box of keyline with one pixel of sleeve
+  // inside it, which is why everybody in the game had two black bars down their
+  // sides. It is now one column of keyline on the outside and sleeve for the
+  // rest, so the arm reads as an arm and the silhouette stops being a slab.
+  const nearFill = Math.max(3, torso.x - armW + 1);
+  const farFill = Math.min(ACTOR_W - armW - 3, torso.x + torso.w - 1);
+
+  rect(ctx, nearFill - 1, top, 1, h + 1, OUTLINE);
+  rect(ctx, nearFill, top + h, armW, 1, OUTLINE);
+  rect(ctx, nearFill, top, armW, h, p.cloakDark);
+  rect(ctx, nearFill, top, 1, h, lit(p.cloak));      // light down the near sleeve
+
+  rect(ctx, farFill + armW, top, 1, h + 1, OUTLINE);
+  rect(ctx, farFill, top + h, armW, 1, OUTLINE);
+  rect(ctx, farFill, top, armW, h, p.cloakDark);
+  rect(ctx, farFill + armW - 1, top, 1, h, deep(p.cloak));
+
   if (dir === 'down') {
-    rect(ctx, torso.x - armW + 1, handY, armW - 1, 2, p.skin);
-    rect(ctx, torso.x + torso.w, handY, armW - 1, 2, p.skin);
+    rect(ctx, nearFill, handY, armW, 2, p.skin);
+    rect(ctx, farFill, handY, armW, 2, p.skin);
   }
 }
 
@@ -268,17 +309,27 @@ function paintHead(ctx, m, p, hair, dir) {
   rect(ctx, x + w - 2, y + 3, 2, h - 6, shadeColor);
   rect(ctx, x + 2, y + h - 3, w - 4, 1, shadeColor);
 
+  if (dir !== 'up') {
+    rect(ctx, centred(4), y + h - 1, 4, 2, p.skinDark);
+    rect(ctx, centred(4), y + h - 1, 3, 1, p.skin);
+  }
+
   if (hair.hood) {
-    // A hood swallows the whole head and leaves a shadowed face.
-    rect(ctx, x - 1, y, w + 2, h - 3, p.cloakDark);
+    // A hood swallows the whole head. The opening is the bottom half of it, so
+    // there is a face in the shadow rather than a shadow where a face was.
+    rect(ctx, x - 1, y, w + 2, h, p.cloakDark);
+    rect(ctx, x, y, w, 1, deep(p.cloak));
     rect(ctx, x, y + 1, w, 3, p.cloak);
+    rect(ctx, x + 1, y + 1, w - 3, 1, lit(p.cloak));
     if (dir !== 'up') {
-      rect(ctx, x + 2, y + 5, w - 4, h - 8, '#1a1a22');
-      rect(ctx, x + 3, y + 7, 2, 2, p.eyeGlow ?? '#8fa2d8');
-      rect(ctx, x + w - 5, y + 7, 2, 2, p.eyeGlow ?? '#8fa2d8');
+      rect(ctx, x + 1, y + 4, w - 2, h - 5, '#1a1a22');
+      const glow = p.eyeGlow ?? '#8fa2d8';
+      rect(ctx, x + 2, y + 5, 2, 2, glow);
+      rect(ctx, x + w - 4, y + 5, 2, 2, glow);
     }
     return;
   }
+
   if (hair.helm) {
     // A helm is a dome of steel, not a white bar. Lit across the crown, its own
     // colour down the middle, shadowed under the brow, with the corners knocked
@@ -292,6 +343,12 @@ function paintHead(ctx, m, p, hair, dir) {
     rect(ctx, x + w - 1, y + 2, 1, h - 7, deep(steel));
     // The brow band, and the shadow it throws over the face beneath.
     rect(ctx, x - 1, y + h - 5, w + 2, 2, p.cloakDark);
+    if (dir === 'up') {
+      // From behind, everything below the brow band is aventail, not a bare
+      // neck: a helm with a strip of skin under it reads as a man in a bucket.
+      rect(ctx, x, y + h - 3, w, 3, p.cloakDark);
+      rect(ctx, x + 1, y + h - 3, w - 3, 1, steel);
+    }
     if (dir !== 'up') {
       rect(ctx, x + 2, y + 6, w - 4, 3, OUTLINE);        // visor slit
       rect(ctx, centred(2), y + 4, 2, h - 8, steel);     // nasal bar
@@ -308,7 +365,7 @@ function paintHead(ctx, m, p, hair, dir) {
   /* From behind, the whole head is hair, and a flat block of it is the worst
      sprite in the game - it is on screen for every fight in it. Light the
      crown, shade the far side, and put a neck under it. */
-  if (dir === 'up') {
+  if (dir === 'up' && hair.cap) {
     rect(ctx, x + 1, y + 1, w - 2, 2, p.hairLight);
     rect(ctx, x + 2, y, w - 4, 1, p.hairLight);
     rect(ctx, x + w - 3, y + 2, 2, h - 5, OUTLINE);
@@ -334,23 +391,24 @@ function paintHead(ctx, m, p, hair, dir) {
 
   if (dir === 'up') return;
 
+  /* Two pixels of eye, halfway down the face. Three tall and two wide with a
+     white bar over them, on a head this size, is not a pair of eyes - it is a
+     moustache, and that is what everybody in the game was wearing. */
   if (dir === 'down') {
-    const eyeY = y + Math.round(h * 0.55);
-    rect(ctx, x + 2, eyeY, 2, 3, OUTLINE);
-    rect(ctx, x + w - 4, eyeY, 2, 3, OUTLINE);
-    rect(ctx, x + 2, eyeY, 2, 1, '#ffffff');
-    rect(ctx, x + w - 4, eyeY, 2, 1, '#ffffff');
-    rect(ctx, centred(2), y + h - 3, 2, 1, p.skinDark);
+    const eyeY = y + h - 4;
+    rect(ctx, x + 1, eyeY, 2, 2, OUTLINE);
+    rect(ctx, x + w - 3, eyeY, 2, 2, OUTLINE);
+    rect(ctx, x + 1, eyeY, 1, 1, '#f4f4f8');
+    rect(ctx, x + w - 3, eyeY, 1, 1, '#f4f4f8');
     return;
   }
-  // Profile: one eye and a nose breaking the right-hand edge.
-  const eyeY = y + Math.round(h * 0.55);
-  rect(ctx, x + w - 4, eyeY, 2, 3, OUTLINE);
-  rect(ctx, x + w - 4, eyeY, 2, 1, '#ffffff');
-  rect(ctx, x + w, eyeY - 1, 2, 3, OUTLINE);
-  rect(ctx, x + w, eyeY - 1, 1, 2, p.skin);
-  rect(ctx, x + w - 4, y + h - 3, 3, 1, p.skinDark);
-  if (hair.sides) rect(ctx, x, y + 3, 4, hair.sides, p.hair);
+  // Profile: one eye, and the nose breaking the line of the face.
+  const eyeY = y + h - 4;
+  rect(ctx, x + w - 4, eyeY, 2, 2, OUTLINE);
+  rect(ctx, x + w - 4, eyeY, 1, 1, '#f4f4f8');
+  rect(ctx, x + w, eyeY, 1, 2, OUTLINE);
+  rect(ctx, x + w, eyeY, 1, 1, p.skin);
+  if (hair.sides) rect(ctx, x, y + 2, 3, hair.sides, p.hair);
 }
 
 // -------------------------------------------------------- worn equipment ---

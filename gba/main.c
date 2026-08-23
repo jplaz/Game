@@ -366,7 +366,7 @@ static void tickSound(void) {
 #define TXT_H (TXT_ROWS * 8)
 #define TXT_TILES (TXT_COLS * TXT_ROWS)
 
-static u8 pageTiles[TXT_TILES][32];
+static u8 pageTiles[TXT_TILES][32] __attribute__((aligned(4)));
 static int dirtyLo = TXT_TILES, dirtyHi = -1;
 
 static void touch(int tile) {
@@ -384,9 +384,64 @@ static void plot(int x, int y, u8 colour) {
   touch(tile);
 }
 
+/*
+ * A block of one colour, a tile at a time.
+ *
+ * This used to call plot() once per pixel, and plot() is a bounds check, a
+ * multiply, two shifts and a read-modify-write of one nibble. Clearing the page
+ * for a menu is two hundred and forty by a hundred and twelve of those - nearly
+ * twenty-seven thousand calls, which on a sixteen megahertz ARM7 is something
+ * like two and a half frames. That is why opening the pouch stuttered and why
+ * every cursor move stuttered again: the menu was being redrawn from scratch
+ * each time and the redraw did not fit in a frame.
+ *
+ * The page is stored as 4bpp tiles, so eight pixels of one colour on one row of
+ * one tile is four identical bytes. Whole tiles are filled four bytes a row and
+ * only the ragged edges go through plot(). A full-page clear is four hundred
+ * and twenty tiles instead of twenty-seven thousand pixels.
+ */
 static void fillRect(int x, int y, int w, int h, u8 colour) {
-  int iy, ix;
-  for (iy = y; iy < y + h; iy++) for (ix = x; ix < x + w; ix++) plot(ix, iy, colour);
+  int x1, y1, ty, tx, tyEnd, txEnd;
+  u8 pair;
+  if (w <= 0 || h <= 0) return;
+  if (x < 0) { w += x; x = 0; }
+  if (y < 0) { h += y; y = 0; }
+  x1 = x + w; y1 = y + h;
+  if (x1 > TXT_W) x1 = TXT_W;
+  if (y1 > TXT_H) y1 = TXT_H;
+  if (x >= x1 || y >= y1) return;
+  pair = (u8)(colour | (colour << 4));
+  tyEnd = (y1 - 1) >> 3;
+  txEnd = (x1 - 1) >> 3;
+
+  for (ty = y >> 3; ty <= tyEnd; ty++) {
+    int rowTop = ty << 3;
+    int ry0 = y > rowTop ? y - rowTop : 0;
+    int ry1 = y1 < rowTop + 8 ? y1 - rowTop : 8;
+    for (tx = x >> 3; tx <= txEnd; tx++) {
+      int colLeft = tx << 3;
+      int rx0 = x > colLeft ? x - colLeft : 0;
+      int rx1 = x1 < colLeft + 8 ? x1 - colLeft : 8;
+      int at = ty * TXT_COLS + tx, j;
+      u8 *tile = pageTiles[at];
+      if (rx0 == 0 && rx1 == 8) {
+        for (j = ry0; j < ry1; j++) {
+          u8 *p = tile + (j << 2);
+          p[0] = pair; p[1] = pair; p[2] = pair; p[3] = pair;
+        }
+      } else {
+        for (j = ry0; j < ry1; j++) {
+          u8 *p = tile + (j << 2);
+          int i;
+          for (i = rx0; i < rx1; i++) {
+            if (i & 1) p[i >> 1] = (u8)((p[i >> 1] & 0x0F) | (colour << 4));
+            else      p[i >> 1] = (u8)((p[i >> 1] & 0xF0) | colour);
+          }
+        }
+      }
+      touch(at);
+    }
+  }
 }
 
 static void clearPage(void) {
@@ -397,16 +452,21 @@ static void clearPage(void) {
 
 static void clearRows(int y, int h) { fillRect(0, y, TXT_W, h, C_CLEAR); }
 
+static void applyLayout(void);
+
 static void flushPage(void) {
   int i, w;
+  /* Both halves of the text layer land together, in the blank between frames:
+     the shape of it and what is written on it. */
+  applyLayout();
   if (dirtyHi < dirtyLo) return;
   for (i = dirtyLo; i <= dirtyHi; i++) {
-    const u8 *src = pageTiles[i];
+    /* Four-byte aligned by declaration, so a row of a tile is already a word:
+       assembling each one out of four bytes and three shifts was work done
+       twice, once here and once by whatever wrote the pixels. */
+    const u32 *src = (const u32 *)(const void *)pageTiles[i];
     volatile u32 *out = VRAM_TXT_CHR + (i + 1) * 8;      /* tile 0 stays blank */
-    for (w = 0; w < 32; w += 4) {
-      *out++ = (u32)src[w] | ((u32)src[w + 1] << 8)
-             | ((u32)src[w + 2] << 16) | ((u32)src[w + 3] << 24);
-    }
+    for (w = 0; w < 8; w++) out[w] = src[w];
   }
   dirtyLo = TXT_TILES; dirtyHi = -1;
 }
@@ -494,8 +554,21 @@ static void drawFrame(int x, int y, int w, int h) {
 #define TEXT_DUEL 2
 #define TEXT_TOP 3
 
-static void layoutTextRows(int mode) {
-  int ty, tx;
+/* Which shape the text layer is in, and when it changes.
+ *
+ * This wrote a thousand and twenty-four map entries straight into video memory
+ * the moment it was called, which is nearly always somewhere in the middle of a
+ * frame being displayed - so opening the pouch visibly rearranged the screen
+ * half way down it. The change is held and laid down in the blank between
+ * frames instead, with the tiles it belongs to. */
+static int layoutWant = -1;
+
+static void layoutTextRows(int mode) { layoutWant = mode; }
+
+static void applyLayout(void) {
+  int ty, tx, mode = layoutWant;
+  if (mode < 0) return;
+  layoutWant = -1;
   for (ty = 0; ty < 32; ty++) {
     for (tx = 0; tx < 32; tx++) {
       int buf = -1;

@@ -674,11 +674,14 @@ int main(void) {
     int remedies = 0, pieces = 0;
     for (i = 0; i < DUELLIST_COUNT; i++) {
       Kit k = kitOf(i, duellists[i].level);
-      u8 piece[3];
+      u8 piece[5];
       int j2, has = 0;
       piece[0] = k.arm; piece[1] = k.mail; piece[2] = k.shield;
-      for (j2 = 0; j2 < 3; j2++) {
-        static const int WANT[3] = { WARE_WEAPON, WARE_ARMOUR, WARE_SHIELD };
+      piece[3] = k.helm; piece[4] = k.gloves;
+      for (j2 = 0; j2 < 5; j2++) {
+        static const int WANT[5] = { WARE_WEAPON, WARE_ARMOUR, WARE_SHIELD,
+                                     WARE_HELM, WARE_GLOVES };
+        static const char *CALLED[5] = { "weapon", "mail", "shield", "helm", "pair of gloves" };
         if (piece[j2] == KIT_NONE) continue;
         if (piece[j2] >= WARE_COUNT) {
           bad("%s carries ware %d", duellists[i].name, piece[j2]);
@@ -686,7 +689,7 @@ int main(void) {
         }
         if (wares[piece[j2]].kind != WANT[j2]) {
           bad("%s carries a %s where a %s belongs", duellists[i].name,
-            wares[piece[j2]].name, j2 == 0 ? "weapon" : j2 == 1 ? "mail" : "shield");
+            wares[piece[j2]].name, CALLED[j2]);
         }
         if (wares[piece[j2]].price > dearest) {
           dearest = wares[piece[j2]].price; dearestAt = i; dearestWare = piece[j2];
@@ -926,7 +929,7 @@ int main(void) {
       for (j2 = 0; j2 < stalls[1].count; j2++) if (stalls[1].ware[j2] == i) listed = 1;
       if (listed) bad("%s is on a counter at no price", w->name);
     }
-    if (w->kind > WARE_EGG) bad("%s is a kind of thing that does not exist", w->name);
+    if (w->kind >= WARE_KINDS) bad("%s is a kind of thing that does not exist", w->name);
     if (w->kind == WARE_POTION && !w->heal) bad("%s heals nothing", w->name);
     if (w->kind == WARE_ARMOUR && w->tier > 3) bad("%s puts you in body %d", w->name, w->tier);
     for (j = 0; j < w->techCount; j++) {

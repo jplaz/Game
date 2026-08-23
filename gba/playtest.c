@@ -61,6 +61,7 @@ static void finding(const char *fmt, ...) {
 
 static int frameNo;
 static int mapSeen[MAP_COUNT];
+static int portsSeen, sailed;
 static int npcTalked[MAP_COUNT][MAX_CROWD];
 static int signRead[MAP_COUNT][8];
 static int npcStuck[MAP_COUNT][MAX_CROWD];
@@ -85,7 +86,7 @@ static void checkSound(void) {
 static void checkFrame(void) {
   int i;
   checkSound();
-  if (scene < 0 || scene > SCENE_CRAFT) finding("scene is %d, which is not a scene", scene);
+  if (scene < 0 || scene > SCENE_PORT) finding("scene is %d, which is not a scene", scene);
   /* Nothing is standing anywhere yet on the screens that come before the
      world, and there is no map to be standing on. */
   if (scene == SCENE_TITLE || scene == SCENE_HOUSE || scene == SCENE_NAME) return;
@@ -244,6 +245,28 @@ static int mapDone(int m) {
   }
   for (i = 0; i < maps[m].signCount && i < 8; i++) if (!signRead[m][i]) return 0;
   return 1;
+}
+
+/* Whether there is a road from here to there at all - doors only, no ships.
+   The tester will pay a fare to reach somewhere it cannot walk to and will not
+   pay one to reach somewhere it can, which is what stops it spending a whole
+   playthrough sailing back and forth between three ports on the same coast. */
+static int walkableTo(int want) {
+  int from[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, i;
+  for (i = 0; i < MAP_COUNT; i++) from[i] = 0;
+  from[worldId] = 1;
+  q[tail++] = worldId;
+  while (head < tail) {
+    int m = q[head++];
+    if (m == want) return 1;
+    for (i = 0; i < maps[m].warpCount; i++) {
+      int to = maps[m].warps[i].to;
+      if (from[to]) continue;
+      from[to] = 1;
+      q[tail++] = to;
+    }
+  }
+  return 0;
 }
 
 /* The door to take from here to get nearer to a map that still owes something.
@@ -432,6 +455,29 @@ static void pickLadderGoal(void) {
   hostFramesLeft = 0;
 }
 
+/* Is there anywhere across the water that still owes something, and can the
+   fare be paid? */
+static int portOwesWork(void) {
+  int i, j;
+  for (i = 0; i < PORT_COUNT; i++) {
+    int m = ports[i].map;
+    if (m == worldId || (int)ports[i].fare > you.gold) continue;
+    if (walkableTo(m)) continue;
+    if (!mapDone(m)) return 1;
+    for (j = 0; j < maps[m].warpCount; j++) if (!mapDone(maps[m].warps[j].to)) return 1;
+  }
+  return 0;
+}
+
+/* The harbourmaster on this map, if there is one. Worth speaking to more than
+   once: the passage list is a road, and a road does not stop existing because
+   you have walked down it. */
+static int sailorHere(void) {
+  int i;
+  for (i = 0; i < crowdCount; i++) if (world->npcs[i].sails && crowdAlive[i]) return i;
+  return -1;
+}
+
 /* The next thing worth doing on this map, or nothing left to do. */
 static void pickGoal(void) {
   int i;
@@ -457,7 +503,16 @@ static void pickGoal(void) {
     if (signRead[worldId][i]) continue;
     goalKind = GOAL_SIGN; goalIndex = i; return;
   }
-  /* Everything here is done: head for wherever still owes something. */
+  /* Everything here is done. If the only unfinished ground is across water,
+     go and find whoever sells passage; otherwise take a door. */
+  if (portOwesWork()) {
+    i = sailorHere();
+    /* Not clearing npcTalked: the goal is set here directly, and clearing it
+       counted the same conversation again every time - which is how a sweep
+       came back having spoken to two hundred and sixty-four of two hundred
+       and fifty-five people. */
+    if (i >= 0) { goalKind = GOAL_NPC; goalIndex = i; return; }
+  }
   i = warpTowardWork();
   if (i >= 0) { goalKind = GOAL_WARP; goalIndex = i; }
 }
@@ -700,6 +755,39 @@ void hostFrame(void) {
       else if (craftPick != best) keys = tap(craftPick < best ? KEY_DOWN : KEY_UP);
       else { keys = tap(KEY_A); if (keys) crafted++; }
     }
+  } else if (scene == SCENE_PORT) {
+    /* A harbourmaster has just offered a berth. Take one to somewhere the run
+       has not been - it is the only road to the Free Cities and there is no
+       walking there - and otherwise stay ashore.
+
+       Without this branch the tester stood on the King's Landing quay with the
+       passage list open for one and three quarter million frames: seven maps
+       seen in a whole playthrough, and every house ending up in the capital
+       because that is where it was standing when the frames ran out. */
+    int want = -1, i, j;
+    portsSeen++;
+    /* Somewhere there is no road to, that still owes something.
+       "Somewhere new" was not enough: a city across the sea is a dead end on
+       the door graph, so sailing there once, walking out through the sea gate
+       and never opening the one door in it left four rooms unvisited for a
+       whole sweep. "Anywhere unfinished" was too much: three of the berths are
+       on the same coast and the tester spent the run sailing between them
+       rather than walking. It is both - and only once this map is finished,
+       because leaving in the middle of somewhere is how the first one
+       happened. */
+    for (i = 0; i < PORT_COUNT && want < 0; i++) {
+      int m = ports[i].map;
+      if (m == worldId || (int)ports[i].fare > you.gold) continue;
+      if (walkableTo(m)) continue;
+      if (!mapDone(m)) { want = i; continue; }
+      for (j = 0; j < maps[m].warpCount; j++) {
+        if (!mapDone(maps[m].warps[j].to)) { want = i; break; }
+      }
+    }
+    (void)j;
+    if (want < 0) keys = tap(KEY_B);
+    else if (portPick != want) keys = tap(portPick < want ? KEY_DOWN : KEY_UP);
+    else { keys = tap(KEY_A); if (keys) { sailed++; goalKind = GOAL_NONE; } }
   } else if (scene == SCENE_DUEL) {
     if (wasScene != SCENE_DUEL) {
       if (foeBeast >= 0) wildsMet++;
@@ -1002,7 +1090,8 @@ int main(int argc, char **argv) {
     r.worldId = houses[2].startMap;
     r.dir = houses[2].startDir;
     r.x = houses[2].startX; r.y = houses[2].startY;
-    r.weapon = 3; r.armour = 2; r.shield = 1;
+    r.worn[WARE_WEAPON] = 3; r.worn[WARE_ARMOUR] = 2; r.worn[WARE_SHIELD] = 1;
+    r.worn[WARE_HELM] = 4; r.worn[WARE_GLOVES] = 5;
     r.beastKind = 255;                          /* nothing at your heel */
     r.haven = 255;
     r.exp = (unsigned)expForLevel(14) + 40;
@@ -1049,6 +1138,7 @@ int main(int argc, char **argv) {
     printf("\n");
   }
   printf("  status card    opened %d times\n", statusChecks);
+  printf("  passage list   opened %d times, sailed %d\n", portsSeen, sailed);
   printf("  spotted on the road %d times\n", spottings);
   printf("  menus / pouch / stalls  %d / %d / %d, bought %d things, saved %d times\n",
     menusSeen, bagsSeen, shopsSeen, bought, records);

@@ -724,10 +724,44 @@ static void placeBigObject(int slot, int x, int y, int tile, int bank) {
   oam[slot * 4 + 3] = 0;
 }
 
+/* An animal, sixty-four pixels square, which is one object on this hardware.
+   Two of them fit in object memory during a duel and nowhere else: the foe goes
+   in the last resident appearance's room, and yours goes in the room the
+   player's walking frames leave empty while nobody is walking. */
+#define FOE_BEAST_TILE 832
+#define FOE_BEAST_BANK 12
+#define MY_BEAST_TILE  64
+#define MY_BEAST_BANK  13
+
+static void placeBeast(int slot, int x, int y, int tile, int bank) {
+  if (x < -64 || x > SCREEN_W || y < -64 || y > SCREEN_H) { oam[slot * 4] = 0x0200; return; }
+  oam[slot * 4 + 0] = (u16)(y & 0xFF);                        /* square */
+  oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0xC000);            /* size 3 => 64x64 */
+  oam[slot * 4 + 2] = (u16)(tile | (1 << 10) | (bank << 12));
+  oam[slot * 4 + 3] = 0;
+}
+
+static void loadBeastArt(int which, int tile, int bank) {
+  volatile u32 *dst = VRAM_OBJ + tile * 8;
+  const u32 *src = beasts[which].tiles;
+  int i;
+  for (i = 0; i < BEAST_TILES * 8; i++) dst[i] = src[i];
+  for (i = 0; i < 16; i++) PAL_OBJ[bank * 16 + i] = beasts[which].pal[i];
+}
+
 /* The bubble that pops over somebody the moment they see you. Four character
    tiles at the top of object memory, written once at start-up. */
 #define SPOT_TILE 896
 #define SPOT_BANK 13
+
+/* The bubble and the star share a palette bank, and a duel borrows it for your
+   own beast, so putting it back is a named thing rather than three lines copied
+   into whichever function last needed them. */
+static void spotPalette(void) {
+  PAL_OBJ[SPOT_BANK * 16 + 1] = RGB15(3, 3, 5);
+  PAL_OBJ[SPOT_BANK * 16 + 2] = RGB15(31, 31, 31);
+  PAL_OBJ[SPOT_BANK * 16 + 3] = RGB15(31, 27, 12);
+}
 
 static const char *const SPOT_ART[16] = {
   "................",
@@ -763,8 +797,7 @@ static void buildBubble(void) {
       else out[at] = (u8)((out[at] & 0xF0) | v);
     }
   }
-  PAL_OBJ[SPOT_BANK * 16 + 1] = RGB15(3, 3, 5);
-  PAL_OBJ[SPOT_BANK * 16 + 2] = RGB15(31, 31, 31);
+  spotPalette();
 }
 
 /* The star that breaks over somebody the moment a blow lands. Four frames,
@@ -802,7 +835,7 @@ static void buildSpark(void) {
       }
     }
   }
-  PAL_OBJ[SPOT_BANK * 16 + 3] = RGB15(31, 27, 12);
+  spotPalette();
 }
 
 /* Weather. One eight by eight tile with a two by two dot in the middle of it,
@@ -983,6 +1016,11 @@ static u8 gifted[MAP_COUNT][MAX_CROWD];
 
 #define NAME_MAX 10
 
+/* What follows you about. One at a time: a beast you took alive or hatched, and
+   it grows with you rather than being a thing you own. `kind` is 255 for
+   nobody, which is how everybody starts. */
+typedef struct { u8 kind, level; u16 exp; int hp; } Kept;
+
 typedef struct {
   int house;
   int level, exp, hp, gold;
@@ -990,9 +1028,34 @@ typedef struct {
   u8 weapon, armour, shield;      /* a ware index plus one; nothing is 0 */
   u8 bag[WARE_COUNT];
   char name[NAME_MAX + 1];        /* what people call you */
+  Kept beast;
+  u8 eggWins;                     /* fights won since you picked the egg up */
+  u8 tamed;                       /* how many you have taken alive */
 } You;
 
 static You you;
+
+/* --------------------------------------------------------------- beasts ---
+   An animal is not carrying anything, so what it is made of is all it is. The
+   browser game keeps six numbers for a creature and this game fights with four,
+   so these are the four, worked out at whatever level the animal happens to be
+   the way every handheld game has done it: a base, doubled, scaled by level. */
+static int beastVigour(int b, int lv) {
+  return (int)udiv((u32)(beasts[b].hp * 2 + 30) * (u32)lv, 50) + lv + 12;
+}
+static int beastMight(int b, int lv) {
+  return (int)udiv((u32)(beasts[b].atk * 2) * (u32)lv, 100) + 6;
+}
+static int beastGuard(int b, int lv) {
+  return (int)udiv((u32)(beasts[b].def * 2) * (u32)lv, 100) + 5;
+}
+static int beastSwift(int b, int lv) {
+  return (int)udiv((u32)(beasts[b].spe * 2) * (u32)lv, 100) + 5;
+}
+
+/* What it takes to raise one a rung. Flatter than yours: a beast you took at
+   six should be worth having at thirty, not left behind by the second town. */
+static int beastExpFor(int lv) { return lv <= 1 ? 0 : lv * lv * lv; }
 
 /* --------------------------------------------------------------- sigils ---
    Nine seats, nine people sitting in them, and one bit each. This is the spine
@@ -1640,6 +1703,14 @@ static void paintDuelPlates(void) {
 static int topPick;
 static const char *const DUEL_TOP_ITEMS[4] = { "Fight", "Pouch", "Guard", "Flee" };
 
+/* Guard is already the fourth technique on the Fight menu, so the third slot up
+   here was doing nothing that could not be done one press deeper. It is what
+   you set on them, once you have something to set. */
+static const char *topItem(int i) {
+  if (i == 2 && you.beast.kind != 255) return beasts[you.beast.kind].name;
+  return DUEL_TOP_ITEMS[i];
+}
+
 static void paintFrameOnly(void) {
   clearRows(DUEL_WINDOW_TOP, DUEL_WINDOW_ROWS * 8);
   drawFrame(3, DUEL_WINDOW_TOP + 1, TXT_W - 6, DUEL_WINDOW_ROWS * 8 - 2);
@@ -1652,7 +1723,7 @@ static void paintDuelTop(void) {
     int x = 24 + (i & 1) * 112;
     int y = DUEL_WINDOW_TOP + 10 + (i >> 1) * 16;
     if (i == topPick) drawCursor(x - 11, y + 1, C_GOLD);
-    drawText(x, y, DUEL_TOP_ITEMS[i], i == topPick ? C_GOLD : C_INK);
+    drawText(x, y, topItem(i), i == topPick ? C_GOLD : C_INK);
   }
 }
 
@@ -1787,15 +1858,31 @@ static int levelOf(int duellist) {
 }
 
 static int foeLevel, foePurse;
+static int foeBeast = -1;        /* which animal you are facing, or -1 for a person */
+static int beastActed;           /* whether yours has already gone in this duel */
+static int beastSwinging;        /* and whether it is the one swinging right now */
+static int wildWanted = -1, wildLevel;   /* the animal a shift is carrying in */
 
-static void beginDuel(int duellist, int bank, int slot) {
-  foeSlot = slot;
-  foeBank = bank;
-  foeId = duellist;
-  foeDef = &duellists[duellist];
-  foeLevel = levelOf(duellist);
-  foePurse = scaleTo(foeDef->reward, foeDef->level, foeLevel);
+/* The screen the fight is fought on, once both sides are built. */
+static void openTheDuel(const char *intro) {
+  duelOver = 0;
+  duelMenu = 0;
+  topPick = 0;
+  duelPhase = 0;
+  fxLeft = 0;
+  beastSwinging = 0;
+  sinkMine = sinkTheirs = 0;
+  shownMine = mine.hp;
+  shownTheirs = theirs.hp;
+  shownExp = you.exp;
+  clearPage();
+  layoutTextRows(TEXT_DUEL);
+  paintDuelPlates();
+  duelSay(theirs.name, intro);
+}
 
+/* You, as you walk into it. The same whoever is on the other side. */
+static void readyYourself(void) {
   mine.name = you.name[0] ? you.name : houses[you.house].name;
   mine.level = you.level;
   mine.maxHp = vigourFor(you.level);
@@ -1806,6 +1893,52 @@ static void beginDuel(int duellist, int bank, int slot) {
   reckonTechniques();
   mine.tech = myTechs;
   mine.defending = 0;
+  beastActed = 0;
+  /* And whatever is at your heel, if the other side is not itself an animal -
+     there is only room in object memory for two of them at once. */
+  if (you.beast.kind != 255 && foeBeast < 0) {
+    loadBeastArt(you.beast.kind, MY_BEAST_TILE, MY_BEAST_BANK);
+  }
+}
+
+/* An animal out of the long grass. It carries nothing, it is worth nothing at a
+   counter, and it is the only thing in the game you can end a fight by keeping
+   rather than by killing. */
+static void beginWild(int which, int level) {
+  foeSlot = -1;
+  foeBank = 0;
+  foeId = -1;
+  foeDef = 0;
+  foeBeast = which;
+  foeLevel = level < 2 ? 2 : level;
+  foePurse = 6 + foeLevel * 4;
+
+  theirs.name = beasts[which].name;
+  theirs.level = foeLevel;
+  theirs.hp = theirs.maxHp = beastVigour(which, foeLevel);
+  theirs.might = beastMight(which, foeLevel);
+  theirs.guard = beastGuard(which, foeLevel);
+  theirs.swiftness = beastSwift(which, foeLevel);
+  theirs.tech = beasts[which].tech;
+  theirs.defending = 0;
+  loadBeastArt(which, FOE_BEAST_TILE, FOE_BEAST_BANK);
+  readyYourself();
+  copyString(scratch, "A ", sizeof scratch);
+  appendString(scratch, beasts[which].name, sizeof scratch);
+  appendString(scratch, " comes out of the grass with its head down.", sizeof scratch);
+  openTheDuel(scratch);
+}
+
+static void beginDuel(int duellist, int bank, int slot) {
+  foeSlot = slot;
+  foeBank = bank;
+  foeId = duellist;
+  foeBeast = -1;
+  foeDef = &duellists[duellist];
+  foeLevel = levelOf(duellist);
+  foePurse = scaleTo(foeDef->reward, foeDef->level, foeLevel);
+
+  readyYourself();
 
   theirs.name = foeDef->name;
   theirs.level = foeLevel;
@@ -1856,19 +1989,7 @@ static void beginDuel(int duellist, int bank, int slot) {
     if (theirs.swiftness < 1) theirs.swiftness = 1;
   }
 
-  duelOver = 0;
-  duelMenu = 0;
-  topPick = 0;
-  duelPhase = 0;
-  fxLeft = 0;
-  sinkMine = sinkTheirs = 0;
-  shownMine = mine.hp;
-  shownTheirs = theirs.hp;
-  shownExp = you.exp;
-  clearPage();
-  layoutTextRows(TEXT_DUEL);
-  paintDuelPlates();
-  duelSay(theirs.name, foeDef->intro);
+  openTheDuel(foeDef->intro);
 }
 
 #ifdef HOST_TEST
@@ -2156,24 +2277,36 @@ static void paintStatus(void) {
   appendNumber(scratch, LEADER_COUNT, sizeof scratch);
   drawText(130, 77, scratch, C_HOUSE);
 
-  fillRect(16, 90, TXT_W - 32, 1, C_EDGE);
+  if (you.beast.kind != 255) {
+    copyString(scratch, "At your heel: ", sizeof scratch);
+    appendString(scratch, beasts[you.beast.kind].name, sizeof scratch);
+    appendString(scratch, ", level ", sizeof scratch);
+    appendNumber(scratch, you.beast.level, sizeof scratch);
+    drawText(16, 90, scratch, C_WELL);
+  } else if (you.tamed) {
+    drawText(16, 90, "Nothing at your heel just now.", C_DIM);
+  } else {
+    drawText(16, 90, "Take something alive with a snare, or hatch one.", C_DIM);
+  }
+
+  fillRect(16, 101, TXT_W - 32, 1, C_EDGE);
   /* What to do next, in words, on the one screen a lost player will open. The
      game had a spine and never mentioned it, which is the same as not having
      one. */
   {
     int at = nextRung();
     if (at < 0) {
-      drawText(16, 94, "Nine sigils. The realm is yours.", C_GOLD);
+      drawText(16, 105, "Nine sigils. The realm is yours.", C_GOLD);
     } else {
       const Leader *l = &leaders[atRung[at]];
       copyString(scratch, "Next: ", sizeof scratch);
       appendString(scratch, l->name, sizeof scratch);
-      drawText(16, 94, scratch, C_GOLD);
+      drawText(16, 105, scratch, C_GOLD);
       copyString(scratch, "at ", sizeof scratch);
       appendString(scratch, l->seat, sizeof scratch);
       appendString(scratch, ", about level ", sizeof scratch);
       appendNumber(scratch, leaderLevel[at], sizeof scratch);
-      drawText(16, 107, scratch, C_DIM);
+      drawText(16, 118, scratch, C_DIM);
     }
   }
 }
@@ -2200,6 +2333,8 @@ typedef struct {
   u8 x, y, weapon, armour;
   u8 shield, pad0, pad1, pad2;
   u16 sigils, pad3;
+  u8 beastKind, beastLevel, eggWins, tamed;
+  u16 beastExp, pad4;
   u32 exp, gold, hp, kills;
   u8 bag[WARE_COUNT];
   char name[NAME_MAX + 1];
@@ -2233,6 +2368,11 @@ static void keepRecord(void) {
   record.armour = you.armour;
   record.shield = you.shield;
   record.sigils = sigils;
+  record.beastKind = you.beast.kind;
+  record.beastLevel = you.beast.level;
+  record.beastExp = you.beast.exp;
+  record.eggWins = you.eggWins;
+  record.tamed = you.tamed;
   record.exp = (u32)you.exp;
   record.gold = (u32)you.gold;
   record.hp = (u32)you.hp;
@@ -2279,6 +2419,13 @@ static void takeUpRecord(void) {
   you.shield = record.shield;
   sigils = record.sigils;
   layLadder();
+  you.beast.kind = record.beastKind;
+  you.beast.level = record.beastLevel;
+  you.beast.exp = record.beastExp;
+  you.beast.hp = you.beast.kind == 255
+    ? 0 : beastVigour(you.beast.kind, you.beast.level);
+  you.eggWins = record.eggWins;
+  you.tamed = record.tamed;
   for (i = 0; i < WARE_COUNT; i++) you.bag[i] = record.bag[i];
   for (i = 0; i <= NAME_MAX; i++) you.name[i] = record.name[i];
   for (m = 0; m < MAP_COUNT; m++) for (k = 0; k < MAX_CROWD; k++) {
@@ -2415,8 +2562,10 @@ static int wearWare(int at) {
 
 static int takeWare(int at) {
   const Ware *w = &wares[at];
-  /* Remedies and makings stack; steel does not, and a second sword is scrap. */
-  if (w->kind == WARE_POTION || w->kind == WARE_STUFF) {
+  /* Remedies, makings, nets and eggs stack; steel does not, and a second sword
+     is scrap. */
+  if (w->kind == WARE_POTION || w->kind == WARE_STUFF
+      || w->kind == WARE_SNARE || w->kind == WARE_EGG) {
     if (you.bag[at] < 99) you.bag[at]++;
     return TOOK_KEPT;
   }
@@ -2431,6 +2580,33 @@ static int takeWare(int at) {
     if (!had || wares[had - 1].price < w->price) { wearWare(at); return TOOK_WORN; }
   }
   return TOOK_KEPT;
+}
+
+/* ----------------------------------------------------------- taking one ---
+   A net over an animal that is still fresh does nothing but annoy it. The
+   further down it is the better your odds, and the better the net the better
+   again - which is what makes the whole thing a fight you win by nearly
+   winning rather than by winning. */
+static int snareOdds(int snare) {
+  int room = theirs.maxHp > 0 ? (int)udiv((u32)theirs.hp * 100, (u32)theirs.maxHp) : 100;
+  int hurt = 100 - room;                       /* how far down it is, in hundredths */
+  int base = 100 - beasts[foeBeast].hold;      /* how hard this kind is to hold */
+  int odds = (wares[snare].hold + (hurt >> 1)) - (base >> 2);
+  /* A beast far above you knows what it is doing. */
+  odds -= (theirs.level - you.level) * 2;
+  if (odds < 3) odds = 3;
+  if (odds > 92) odds = 92;
+  return odds;
+}
+
+/* Puts it at your heel. Whatever you had walks away, and it is said out loud
+   rather than swapped silently: losing one you raised should cost a sentence. */
+static void keepBeast(int which, int level) {
+  you.beast.kind = (u8)which;
+  you.beast.level = (u8)level;
+  you.beast.exp = (u16)beastExpFor(level);
+  you.beast.hp = beastVigour(which, level);
+  you.tamed++;
 }
 
 static int useWare(int at) {
@@ -2575,8 +2751,46 @@ static void paintShop(void) {
 }
 
 /* The same drink, in the middle of a fight. It costs you the turn. */
+/* Set to the line a snare threw up, so the duel can say it, and whether it held. */
+static const char *snareSaid;
+static int snaredIt;
+
 static int useInDuel(int at) {
+  if (wares[at].kind == WARE_SNARE) {
+    if (foeBeast < 0) {
+      snareSaid = "A net is no way to settle a matter between people.";
+      return 1;
+    }
+    if (!beasts[foeBeast].tame) {
+      snareSaid = "Nothing you could throw would hold that, and it knows it.";
+      return 1;
+    }
+    if (!you.bag[at]) return 0;
+    you.bag[at]--;
+    if ((int)roll(100) < snareOdds(at)) {
+      int had = you.beast.kind;
+      keepBeast(foeBeast, theirs.level);
+      copyString(scratch, "The net holds. The ", sizeof scratch);
+      appendString(scratch, beasts[foeBeast].name, sizeof scratch);
+      appendString(scratch, " stops fighting it, and then stops fighting you.",
+        sizeof scratch);
+      if (had != 255 && had != foeBeast) {
+        appendString(scratch, "  Your ", sizeof scratch);
+        appendString(scratch, beasts[had].name, sizeof scratch);
+        appendString(scratch, " watches, and then goes back to the woods.", sizeof scratch);
+      }
+      snareSaid = scratch;
+      theirs.hp = 0;                 /* the fight is over, and nothing died */
+      snaredIt = 1;
+    } else {
+      copyString(scratch, "It tears out of the net and comes back angrier.",
+        sizeof scratch);
+      snareSaid = scratch;
+    }
+    return 1;
+  }
   if (!useWare(at)) return 0;
+  snareSaid = 0;
   mine.hp = you.hp;
   paintDuelPlates();
   return 1;
@@ -2587,11 +2801,13 @@ static const char *buyWare(int at) {
   const Ware *w = &wares[at];
   int how;
   if (you.gold < w->price) return "You cannot afford that, and it shows.";
-  if (w->kind != WARE_POTION && you.bag[at]) return "You have one of those already.";
+  if (w->kind != WARE_POTION && w->kind != WARE_SNARE && you.bag[at]) {
+    return "You have one of those already.";
+  }
   you.gold -= w->price;
   how = takeWare(at);
   if (you.hp > vigourFor(you.level)) you.hp = vigourFor(you.level);
-  if (w->kind == WARE_POTION) return "Wrapped and handed over.";
+  if (w->kind == WARE_POTION || w->kind == WARE_SNARE) return "Wrapped and handed over.";
   /* Bought gear goes onto you only if it beats what you have, so a knife bought
      out of curiosity does not replace a good sword. */
   return how == TOOK_WORN ? "You put it on there and then."
@@ -2698,6 +2914,11 @@ static void enterWorld(int map, int x, int y, int dir) {
 static void beginGame(void) {
   const House *h = &houses[you.house];
   sigils = 0;
+  you.beast.kind = 255;
+  you.beast.level = 0;
+  you.beast.exp = 0;
+  you.eggWins = 0;
+  you.tamed = 0;
   layLadder();
   enterWorld(h->startMap, h->startX, h->startY, h->startDir);
   REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
@@ -2829,6 +3050,20 @@ static void findInGrass(void) {
 
   if (budget > KIT_CEILING) budget = KIT_CEILING;
 
+  /* And if there is a nest on this ground, what is in it - once. An egg is not
+     a thing you find on the way to the shops; it is on the Dragonmont and in
+     the barrows and beyond the Wall, and nowhere else in the world. */
+  if (world->nest != 255 && !you.bag[world->nest] && you.beast.kind == 255
+      && hashUpTo(rot(h, 3), 100) < 30) {
+    takeWare(world->nest);
+    you.eggWins = 0;
+    copyString(scratch, "Half buried, and warm: a ", sizeof scratch);
+    appendString(scratch, wares[world->nest].name, sizeof scratch);
+    appendString(scratch, ". Carry it and win enough fights and it will not stay one.",
+      sizeof scratch);
+    openWindow(0, scratch);
+    return;
+  }
   /* Green things, mostly: the grass is where a maester's bench gets stocked. */
   if (hashUpTo(h, 100) < 34) {
     int found = forage[hashUpTo(rot(h, 7), FORAGE_COUNT)];
@@ -2879,6 +3114,71 @@ static void findInGrass(void) {
   openWindow(0, scratch);
 }
 
+/* What a win is worth to whatever is at your heel, and what it grows into. It
+   climbs on the same fights you do, so the wolf you took out of the Wolfswood
+   at level six is a direwolf by the Riverlands and a winterfang by the end -
+   which is the whole reason to keep the one you caught. */
+static void raiseBeast(void) {
+  int b, was;
+  if (you.beast.kind == 255) {
+    /* Nothing at your heel yet, but perhaps something under your arm. */
+    int i;
+    for (i = 0; i < EGG_COUNT; i++) {
+      if (!you.bag[eggs[i].ware]) continue;
+      if (++you.eggWins < eggs[i].wins) {
+        appendString(scratch, "  Something shifts under your arm.", sizeof scratch);
+        return;
+      }
+      you.bag[eggs[i].ware]--;
+      you.eggWins = 0;
+      keepBeast(eggs[i].beast, you.level < 5 ? 5 : you.level);
+      appendString(scratch, "  And it opens. A ", sizeof scratch);
+      appendString(scratch, beasts[eggs[i].beast].name, sizeof scratch);
+      appendString(scratch, " looks at you and decides you will do.", sizeof scratch);
+      sfxRank();
+      return;
+    }
+    return;
+  }
+  b = you.beast.kind;
+  was = you.beast.level;
+  you.beast.exp += (u16)(12 + foeLevel * 6);
+  while (you.beast.level < 50 && you.beast.exp >= beastExpFor(you.beast.level + 1)) {
+    you.beast.level++;
+  }
+  if (you.beast.level != was) {
+    appendString(scratch, "  Your ", sizeof scratch);
+    appendString(scratch, beasts[b].name, sizeof scratch);
+    appendString(scratch, " is level ", sizeof scratch);
+    appendNumber(scratch, you.beast.level, sizeof scratch);
+    appendString(scratch, " now.", sizeof scratch);
+    if (beasts[b].into != 255 && you.beast.level >= beasts[b].growAt) {
+      you.beast.kind = beasts[b].into;
+      appendString(scratch, "  It has stopped being a ", sizeof scratch);
+      appendString(scratch, beasts[b].name, sizeof scratch);
+      appendString(scratch, ". What stands there now is a ", sizeof scratch);
+      appendString(scratch, beasts[you.beast.kind].name, sizeof scratch);
+      appendString(scratch, ".", sizeof scratch);
+      sfxRank();
+    }
+  }
+}
+
+/* Taken rather than killed. Worth half the experience of finishing it, because
+   you did not, and worth a great deal more than that everywhere else. */
+static void tookAlive(const char *said) {
+  int won = expFrom(foeLevel, you.level) >> 1;
+  sfxRank();
+  you.exp += won;
+  you.hp = mine.hp;
+  duelPhase = DUEL_SPOILS;
+  copyString(scratch, said ? said : "It stops fighting.", sizeof scratch);
+  appendString(scratch, "  ", sizeof scratch);
+  appendNumber(scratch, won, sizeof scratch);
+  appendString(scratch, " experience for taking it whole.", sizeof scratch);
+  duelSay(0, scratch);
+}
+
 /* A win is not over the moment they go down. You stay in the yard, the purse
    and the experience are read out, the rail fills up for it, and every rung it
    passes stops it long enough to say what that rung bought. Only then do you
@@ -2889,7 +3189,7 @@ static void theyFell(void) {
   you.gold += foePurse;
   you.exp += won;
   if (foeSlot >= 0) beaten[worldId][foeSlot] = 1;
-  if (foeDef->mortal) {
+  if (!foeDef || foeDef->mortal) {
     if (foeSlot >= 0) { slain[worldId][foeSlot] = 1; crowdAlive[foeSlot] = 0; }
     you.kills++;
   }
@@ -2904,7 +3204,8 @@ static void theyFell(void) {
   mine.hp = you.hp;
 
   duelPhase = DUEL_SPOILS;
-  copyString(scratch, foeDef->defeat, sizeof scratch);
+  copyString(scratch, foeDef ? foeDef->defeat : "It goes down in the grass and lies still.",
+    sizeof scratch);
   appendString(scratch, "  You take ", sizeof scratch);
   appendNumber(scratch, foePurse, sizeof scratch);
   appendString(scratch, " gold and ", sizeof scratch);
@@ -2929,6 +3230,7 @@ static void theyFell(void) {
       appendString(scratch, ".", sizeof scratch);
     }
   }
+  raiseBeast();
   takeTheirKit();
   /* And something a smith or a maester can use. Which band it comes out of is
      how hard they were, so a fight is worth stripping at every level rather
@@ -3003,27 +3305,51 @@ static void tickDuelBars(void) {
   if (moved) paintDuelBars();
 }
 
+/* Your beast, on the turns it is the one going in. It cannot be hurt in your
+   place - it is at your heel, not in front of you - so it has no health of its
+   own here; what it has is its own reach and its own way of fighting, and
+   spending your turn on it is the whole cost. */
+static Fighter yours;
+
+static void readyBeast(void) {
+  int b = you.beast.kind, lv = you.beast.level;
+  yours.name = beasts[b].name;
+  yours.level = lv;
+  yours.maxHp = yours.hp = 9999;
+  yours.might = beastMight(b, lv);
+  yours.guard = beastGuard(b, lv);
+  yours.swiftness = beastSwift(b, lv);
+  yours.tech = beasts[b].tech;
+  yours.defending = 0;
+}
+
 static void duelTurn(void) {
+  /* Whichever of you is swinging on your side of it, and with what. */
+  Fighter *me = beastSwinging ? &yours : &mine;
+  int myTech = beastSwinging ? beasts[you.beast.kind].tech[roll(4)] : mine.tech[duelMenu];
   /* Both sides swing; who goes first is decided by swiftness. */
   if (duelPhase == DUEL_MINE) {
-    Fighter *a = firstMover ? &mine : &theirs;
-    Fighter *d = firstMover ? &theirs : &mine;
-    int tech = firstMover ? mine.tech[duelMenu] : theirs.tech[roll(4)];
-    if (swing(a, d, tech, a == &mine)) {
+    int mineFirst = firstMover;
+    Fighter *a = mineFirst ? me : &theirs;
+    Fighter *d = mineFirst ? &theirs : &mine;
+    int tech = mineFirst ? myTech : theirs.tech[roll(4)];
+    if (swing(a, d, tech, mineFirst)) {
       duelPhase = DUEL_END;
       duelOver = (d == &mine) ? 2 : 1;
     } else {
       duelPhase = DUEL_THEIRS;
     }
   } else {
-    Fighter *a = firstMover ? &theirs : &mine;
-    Fighter *d = firstMover ? &mine : &theirs;
-    int tech = firstMover ? theirs.tech[roll(4)] : mine.tech[duelMenu];
-    if (swing(a, d, tech, a == &mine)) {
+    int mineFirst = !firstMover;
+    Fighter *a = mineFirst ? me : &theirs;
+    Fighter *d = mineFirst ? &theirs : &mine;
+    int tech = mineFirst ? myTech : theirs.tech[roll(4)];
+    if (swing(a, d, tech, mineFirst)) {
       duelPhase = DUEL_END;
       duelOver = (d == &mine) ? 2 : 1;
     } else {
       duelPhase = DUEL_TOP;
+      beastSwinging = 0;               /* one turn at a time, chosen each time */
     }
   }
 }
@@ -3124,7 +3450,8 @@ static void tickShift(void) {
     duelPhase = DUEL_INTRO;
     paintDuelGround();
     REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
-    beginDuel(shiftDuellist, shiftBank, shiftSlot);
+    if (shiftDuellist < 0) { beginWild(wildWanted, wildLevel); wildWanted = -1; }
+    else beginDuel(shiftDuellist, shiftBank, shiftSlot);
   } else setFade(1, 48 - t);
   if (!--shift) clearFade();
 }
@@ -3234,10 +3561,23 @@ static void tryChallenge(void) {
   callToArms(world->npcs[who].duellist, world->npcs[who].bank, who);
 }
 
-/* Somebody was already in the grass when you walked into it. */
+/* Something was already in the grass when you walked into it. Not always
+   somebody: the encounter tables have said for a long time which animals live
+   on which road, and the cartridge simply never read those rows. */
 static void ambush(void) {
-  const Ambush *a = &world->ambushes[roll(world->ambushCount)];
-  callToArms(a->duellist, a->bank, -1);
+  int beastish = world->wildCount && (!world->ambushCount || (int)roll(100) < 45);
+  if (beastish) {
+    const Wild *w = &world->wilds[roll(world->wildCount)];
+    int lv = (int)w->level + shiftHere();
+    wildWanted = w->beast;
+    wildLevel = lv < 2 ? 2 : (lv > 50 ? 50 : lv);
+    callToArms(-1, 0, -1);
+    return;
+  }
+  {
+    const Ambush *a = &world->ambushes[roll(world->ambushCount)];
+    callToArms(a->duellist, a->bank, -1);
+  }
 }
 
 /* ------------------------------------------------------------- spotted ---- */
@@ -3581,9 +3921,17 @@ int main(void) {
           scene = SCENE_DUEL;
           layoutTextRows(TEXT_DUEL);
           paintDuelPlates();
-          duelPhase = DUEL_THEIRS;
-          copyString(scratch, "You drink it down.", sizeof scratch);
-          duelSay(0, scratch);
+          /* A net that held ends the fight where it stands; anything else costs
+             you the turn and they take theirs. */
+          if (snaredIt) { snaredIt = 0; tookAlive(snareSaid); }
+          else {
+            duelPhase = DUEL_THEIRS;
+            if (snareSaid) duelSay(0, snareSaid);
+            else {
+              copyString(scratch, "You drink it down.", sizeof scratch);
+              duelSay(0, scratch);
+            }
+          }
         } else if (worked) {
           clearPage();
           scene = SCENE_WORLD;
@@ -3698,6 +4046,17 @@ int main(void) {
             clearPage();
             layoutTextRows(TEXT_TOP);
             paintBag();
+          } else if (topPick == 2 && you.beast.kind != 255) {
+            /* Set it on them. It is your turn that is spent, so this is a
+               choice and not a free hit: a well-raised beast hits harder than
+               you do, and a neglected one wastes an exchange. */
+            paintFrameOnly();
+            mine.defending = 0;
+            duelPhase = DUEL_MINE;
+            readyBeast();
+            beastSwinging = 1;
+            beastActed = 1;
+            duelTurn();
           } else if (topPick == 2) {
             duelMenu = 3;                      /* Guard always keeps the last slot */
             paintFrameOnly();
@@ -3842,12 +4201,21 @@ int main(void) {
                       32 + 26 - (SPARK_SIDE / 2), star - 1);
       }
       if (!fxHidden(0) && sinkTheirs < 70) {
-        placeBigObject(1, foeX, 32 + sinkTheirs,
-          NPC_TILE_BASE + bank * NPC_TILE_STRIDE + 0 * ACTOR_FRAME_TILES, bank + 1);
+        if (foeBeast >= 0) {
+          placeBeast(1, foeX - 16, 8 + sinkTheirs, FOE_BEAST_TILE, FOE_BEAST_BANK);
+        } else {
+          placeBigObject(1, foeX, 32 + sinkTheirs,
+            NPC_TILE_BASE + bank * NPC_TILE_STRIDE + 0 * ACTOR_FRAME_TILES, bank + 1);
+        }
       }
       if (!fxHidden(1) && sinkMine < 70) {
         placeBigObject(2, myX, 32 + sinkMine,
           PLAYER_TILE_BASE + (1 * 4) * ACTOR_FRAME_TILES, 0);
+      }
+      /* And whatever is at your heel, standing a pace behind your shoulder. */
+      if (you.beast.kind != 255 && foeBeast < 0 && sinkMine < 70) {
+        placeBeast(3, myX - 44 + (beastSwinging ? 20 : 0), 44 + sinkMine,
+          MY_BEAST_TILE, MY_BEAST_BANK);
       }
     }
 

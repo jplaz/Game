@@ -86,8 +86,12 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const { ITEMS } = await import('/src/data/items.js');
   const { WEAPONS, ARMOUR, SHIELDS } = await import('/src/data/gear.js');
   const { HOUSES, SWEARABLE } = await import('/src/data/houses.js');
-  const { MATERIALS, MATERIAL_IDS, SPOILS, FORAGE, RECIPES } =
+  const { MATERIALS, MATERIAL_IDS, SPOILS, FORAGE, RECIPES, SNARES, EGG_ITEMS } =
     await import('/src/data/craft.js');
+  const { SPECIES } = await import('/src/data/species.js');
+  const { BEAST_TECHNIQUES, GROWS_INTO, NEVER_TAMED, EGGS, NESTS } =
+    await import('/src/data/beasts.js');
+  const creatures = await import('/src/art/creatures.js');
   const { TECHNIQUES, LEARNED } = await import('/src/data/gear.js');
   const { baseStats } = await import('/src/game/player.js');
 
@@ -352,6 +356,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     wares.push({
       id, kind, name: def.name, price: def.price ?? 0, heal: heal ?? 0,
       might: def.might ?? 0, guard: def.guard ?? 0, swiftness: def.swiftness ?? 0,
+      hold: def.hold ?? 0,
       techs: def.techniques ?? [],
     });
     return at;
@@ -377,18 +382,22 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   for (const id of MATERIAL_IDS) {
     matSlot.set(id, ware(id, { ...MATERIALS[id], price: 0 }, 'stuff'));
   }
+  /* What you throw over an animal, and what you carry home from a nest. */
+  for (const [id, def] of Object.entries(SNARES)) ware(id, def, 'snare');
+  for (const [id, def] of Object.entries(EGG_ITEMS)) ware(id, def, 'egg');
 
   const potions = wares.map((w, i) => (w.kind === 'potion' ? i : -1)).filter((i) => i >= 0);
   const forSale = {
     apothecary: potions,
     armourer: wares
-      .map((w, i) => (w.kind !== 'potion' && w.kind !== 'stuff' && w.price ? i : -1))
+      .map((w, i) => (w.kind !== 'potion' && w.kind !== 'stuff' && w.kind !== 'egg'
+                      && w.price ? i : -1))
       .filter((i) => i >= 0),
   };
 
   /* The recipe book, in ware numbers. */
   const wareOf = (id) => {
-    for (const k of ['weapon', 'armour', 'shield', 'potion', 'stuff']) {
+    for (const k of ['weapon', 'armour', 'shield', 'potion', 'stuff', 'snare', 'egg']) {
       if (wareIndex.has(`${k}:${id}`)) return wareIndex.get(`${k}:${id}`);
     }
     throw new Error(`recipe makes ${id}, which is not a ware`);
@@ -404,8 +413,41 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   }));
   const forage = FORAGE.map(wareOf);
 
+  /* ----------------------------------------------------------- the beasts ---
+     Thirty-five animals the browser game already knows how to draw and how to
+     grow. A duel here is fought with four numbers rather than six, so what
+     comes across is: how big it is, how hard it hits, how hard it is to hurt,
+     how fast, what it does when it is angry, how hard it is to take alive, and
+     what it turns into. The picture comes over whole, centred in a
+     sixty-four-square so the hardware can draw it in one object. */
+  const beastIds = Object.keys(SPECIES);
+  const beastSlot = new Map(beastIds.map((id, i) => [id, i]));
+  const beasts = beastIds.map((id) => {
+    const sp = { id, ...SPECIES[id] };
+    const drawn = creatures.creatureSprite(sp);
+    const big = document.createElement('canvas');
+    big.width = 64; big.height = 64;
+    big.getContext('2d').drawImage(drawn, (64 - drawn.width) >> 1, (64 - drawn.height) >> 1);
+    const grow = GROWS_INTO[id];
+    return {
+      id, name: sp.name,
+      hp: sp.base.hp, atk: sp.base.atk, def: sp.base.def, spe: sp.base.spe,
+      techs: techSlots(BEAST_TECHNIQUES[sp.archetype] ?? BEAST_TECHNIQUES.wolf),
+      hold: sp.catchRate ?? 45,
+      tame: NEVER_TAMED.includes(id) ? 0 : 1,
+      into: grow ? beastSlot.get(grow.into) : 255,
+      growAt: grow ? grow.at : 0,
+      w: 64, h: 64, frames: [read(big)],
+    };
+  });
+  const eggs = EGGS.map((e) => ({
+    ware: wareIndex.get(`egg:${e.item}`),
+    beast: beastSlot.get(e.hatches),
+    wins: e.wins,
+  }));
+
   const out = { maps: [], houses, techniques, learned, duellists, wares, forSale,
-                recipes, spoils, forage, leaders: [], actors: null };
+                recipes, spoils, forage, beasts, eggs, leaders: [], actors: null };
 
   /* The spine of the game, in the order it is meant to be walked. Nine seats,
      nine sigils; the cartridge rotates this so that your own liege is the last
@@ -611,6 +653,18 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       if (ambushes.length >= 4) break;
     }
 
+    /* And what lives here that is not a person. The browser's encounter tables
+       already say; the cartridge simply never read those rows. */
+    const wilds = [];
+    for (const row of map.encounters ?? []) {
+      if (!row.beast || !beastSlot.has(row.beast)) continue;
+      wilds.push({
+        beast: beastSlot.get(row.beast),
+        level: Math.max(2, roadLevel + (wilds.length % 3) - 1),
+      });
+      if (wilds.length >= 4) break;
+    }
+
     // Which sky a duel fought here is fought under. Every fight in the game
     // used the same dusk, which made the most repeated screen in the whole
     // cartridge the one screen that never changed.
@@ -640,7 +694,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
 
     out.maps.push({
       id, name: map.name, width, height, cells, solid, cover, ledge, counter,
-      npcs, ambushes,
+      npcs, ambushes, wilds,
+      /* Nests: the one place in the world a given egg is ever found. */
+      nest: (NESTS[id] ?? []).map((it) => wareIndex.get(`egg:${it}`))
+        .filter((n) => n !== undefined)[0] ?? 255,
       scene,
       frost: (map.ground ?? 'grass') === 'snow' ? 1 : 0,
       warps: (map.warps ?? []).map((w) => ({ ...w })),
@@ -782,7 +839,7 @@ for (const map of harvest.maps) {
 // Four bits a pixel with a palette apiece, which is what lets a town's worth of
 // different people be resident at once.
 
-for (const actor of harvest.actors) {
+for (const actor of [...harvest.actors, ...harvest.beasts]) {
   const pal = buildPalette(actor.frames, 15);
   actor.colours = pal.palette;
   actor.tiles = actor.frames.flatMap((rgba) => cut8(indexify(rgba, pal.lookup), actor.w, actor.h));
@@ -962,6 +1019,42 @@ harvest.actors.forEach((a, i) => L.push(`  { actorpal_${i}, actortiles_${i} },  
 L.push('};');
 L.push('');
 
+// The beasts. One picture apiece, sixty-four square, which is one object on the
+// hardware and the whole of what a wolf is on this cartridge.
+L.push(`#define BEAST_COUNT ${harvest.beasts.length}`);
+L.push('#define BEAST_TILES 64          /* a 64x64 sprite, four bits a pixel */');
+harvest.beasts.forEach((b, i) => {
+  L.push(`static const u16 beastpal_${i}[16] = {`);
+  L.push(block([0, ...b.colours, ...new Array(15 - b.colours.length).fill(0)].map(hex), 8));
+  L.push('};');
+  L.push(`static const u32 beasttiles_${i}[${b.tiles.length * 8}] = {`);
+  L.push(block(b.tiles.flatMap(words4).map(hex), 8));
+  L.push('};');
+});
+L.push('typedef struct {');
+L.push('  const char *name;');
+L.push('  const u16 *pal; const u32 *tiles;');
+L.push('  u8 hp, atk, def, spe;   /* what it is made of, before its level */');
+L.push('  u8 tech[4], hold, tame, into, growAt;');
+L.push('} Beast;');
+L.push('static const Beast beasts[BEAST_COUNT] = {');
+harvest.beasts.forEach((b, i) => {
+  /* Four, because the duel picks one of four when it is the animal's turn.
+     Three kinds of blow and the first one twice is a fair reading of a wolf. */
+  const t3 = [...b.techs, 0, 0, 0].slice(0, 3);
+  const t = [...t3, t3[0]];
+  L.push(`  { ${cstr(b.name)}, beastpal_${i}, beasttiles_${i},`);
+  L.push(`    ${b.hp}, ${b.atk}, ${b.def}, ${b.spe},`);
+  L.push(`    { ${t.join(', ')} }, ${b.hold}, ${b.tame}, ${b.into}, ${b.growAt} },`);
+});
+L.push('};');
+L.push(`#define EGG_COUNT ${harvest.eggs.length}`);
+L.push('typedef struct { u8 ware, beast, wins; } Egg;');
+L.push('static const Egg eggs[EGG_COUNT] = {');
+for (const e of harvest.eggs) L.push(`  { ${e.ware}, ${e.beast}, ${e.wins} },`);
+L.push('};');
+L.push('');
+
 // Houses.
 L.push(`#define HOUSE_COUNT ${harvest.houses.length}`);
 L.push('typedef struct { const char *name, *full, *words, *sworn, *seat; u16 colour, accent;'
@@ -987,22 +1080,25 @@ L.push('#define WARE_WEAPON 1');
 L.push('#define WARE_ARMOUR 2');
 L.push('#define WARE_SHIELD 3');
 L.push('#define WARE_STUFF  4    /* what a recipe is made of; never on a counter */');
+L.push('#define WARE_SNARE  5    /* thrown over an animal to take it alive */');
+L.push('#define WARE_EGG    6    /* carried until it is not an egg any more */');
 L.push('typedef struct {');
 L.push('  const char *name;');
 L.push('  u16 price, heal;');
-L.push('  u8 kind, might, guard, tier;');
+L.push('  u8 kind, might, guard, tier, hold;');
 L.push('  s8 swiftness;');
 L.push('  u8 tech[3], techCount;');
 L.push('} Ware;');
 L.push('static const Ware wares[WARE_COUNT] = {');
 {
-  const kindOf = { potion: 0, weapon: 1, armour: 2, shield: 3, stuff: 4 };
+  const kindOf = { potion: 0, weapon: 1, armour: 2, shield: 3, stuff: 4,
+                   snare: 5, egg: 6 };
   // Which of the four looks a piece of armour puts you in.
   const LOOK = { gambeson: 0, boiledLeather: 1, ringmail: 2, scaleArmour: 2, knightPlate: 3 };
   for (const w of harvest.wares) {
     const techs = (w.techs ?? []).map((id) => techSlotOf(id)).filter((n) => n >= 0).slice(0, 3);
     L.push(`  { ${cstr(w.name)}, ${w.price}, ${Math.min(9999, w.heal)}, ${kindOf[w.kind]},`);
-    L.push(`    ${w.might}, ${w.guard}, ${LOOK[w.id] ?? 0}, ${w.swiftness},`);
+    L.push(`    ${w.might}, ${w.guard}, ${LOOK[w.id] ?? 0}, ${w.hold ?? 0}, ${w.swiftness},`);
     L.push(`    { ${[...techs, 0, 0, 0].slice(0, 3).join(', ')} }, ${techs.length} },`);
   }
 }
@@ -1135,6 +1231,7 @@ L.push(`#define MAP_COUNT ${harvest.maps.length}`);
 L.push('typedef struct { u8 x, y, to, tx, ty; } Warp;');
 L.push('typedef struct { u8 x, y; const char *text; } Sign;');
 L.push('typedef struct { u16 duellist; u8 bank; } Ambush;');
+L.push('typedef struct { u8 beast, level; } Wild;');
 L.push('typedef struct {');
 L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges;');
 L.push('  u16 duellist;');
@@ -1157,6 +1254,8 @@ L.push('  const Warp *warps; u8 warpCount;');
 L.push('  const Sign *signs; u8 signCount;');
 L.push('  const Npc  *npcs;  u8 npcCount;');
 L.push('  const Ambush *ambushes; u8 ambushCount;');
+L.push('  const Wild *wilds; u8 wildCount;');
+L.push('  u8 nest;              /* the egg that is found here, or 255 */');
 L.push('} Map;');
 L.push('');
 
@@ -1199,6 +1298,10 @@ harvest.maps.forEach((map, i) => {
   for (const a of map.ambushes) L.push(`  { ${a.duellist}, ${a.bank} },`);
   if (!map.ambushes.length) L.push('  { 0, 0 },');
   L.push('};');
+  L.push(`static const Wild wilds_${i}[${Math.max(1, map.wilds.length)}] = {`);
+  for (const w of map.wilds) L.push(`  { ${w.beast}, ${w.level} },`);
+  if (!map.wilds.length) L.push('  { 0, 0 },');
+  L.push('};');
 
   L.push(`static const Npc npcs_${i}[${Math.max(1, map.npcs.length)}] = {`);
   for (const n of map.npcs) {
@@ -1222,7 +1325,8 @@ harvest.maps.forEach((map, i) => {
   L.push(`  { ${cstr(map.name)}, ${map.width}, ${map.height}, ${map.bank.length}, tiles_${i},`);
   L.push(`    entries_${i}, solid_${i}, cover_${i}, ledge_${i}, counter_${i}, ${map.frost}, ${map.scene}, residents_${i}, ${map.residents.length},`);
   L.push(`    warps_${i}, ${map.liveWarps}, signs_${i}, ${map.signs.length},`);
-  L.push(`    npcs_${i}, ${map.npcs.length}, ambushes_${i}, ${map.ambushes.length} },`);
+  L.push(`    npcs_${i}, ${map.npcs.length}, ambushes_${i}, ${map.ambushes.length},`);
+  L.push(`    wilds_${i}, ${map.wilds.length}, ${map.nest} },`);
 });
 L.push('};');
 L.push('');

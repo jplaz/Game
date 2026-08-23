@@ -151,6 +151,38 @@ export const TECHNIQUES = {
     effect: { bleed: true }, chance: 0.3,
     desc: 'Both hands, all the way round, and whatever is standing there wears it.',
   },
+
+  // --- what has teeth ------------------------------------------------------
+  // Beasts do not carry anything, so how they fight is all they are. Appended
+  // last, as everything is, because the export numbers this table in order.
+  bite: {
+    name: 'Bite', power: 76, accuracy: 95, stamina: 2,
+    effect: { bleed: true }, chance: 0.3,
+    desc: 'Closes on whatever is nearest and does not let go.',
+  },
+  claw: {
+    name: 'Claw', power: 58, accuracy: 100, stamina: 1, highCrit: true,
+    desc: 'Quick, shallow, and it finds the soft places.',
+  },
+  gore: {
+    name: 'Gore', power: 96, accuracy: 85, stamina: 4,
+    effect: { guardBreak: true }, chance: 0.3,
+    desc: 'Head down and all the weight behind it.',
+  },
+  coil: {
+    name: 'Coil', power: 70, accuracy: 90, stamina: 3,
+    effect: { stun: true }, chance: 0.3,
+    desc: 'Winds round and squeezes. Hard to answer while it is happening.',
+  },
+  gust: {
+    name: 'Gust', power: 54, accuracy: 100, stamina: 1, priority: 1,
+    desc: 'A beat of wings across the eyes. Always first.',
+  },
+  fireBreath: {
+    name: 'Fire Breath', power: 104, accuracy: 85, stamina: 5,
+    effect: { burn: true }, chance: 0.3,
+    desc: 'What the Targaryens conquered a continent with, at close range.',
+  },
 };
 
 /**

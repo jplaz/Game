@@ -56,6 +56,38 @@ export const MATERIALS = {
 export const MATERIAL_IDS = Object.keys(MATERIALS);
 
 /**
+ * What you throw over something to take it alive, and what you carry home from
+ * a nest. These are wares like anything else - they sit in the same pouch and
+ * the same record - but using one in a duel with an animal tries to take it
+ * rather than to hurt it.
+ */
+export const SNARES = {
+  snare: {
+    name: 'Wire Snare', price: 150, hold: 24,
+    desc: 'A noose on a springer. Good for a hare, and for a wolf if it is tired enough.',
+  },
+  netTrap: {
+    name: 'Weighted Net', price: 600, hold: 46,
+    desc: 'Lead beads round a hemp mesh. It goes where you throw it and stays there.',
+  },
+  greatNet: {
+    name: 'Kraken Net', price: 2400, hold: 74,
+    desc: 'Ironborn work, made for hauling something up that did not want to come.',
+  },
+};
+
+export const EGG_ITEMS = {
+  dragonEgg: {
+    name: 'Dragon Egg', price: 0,
+    desc: 'Heavy, scaled, and warm to the hand. Twelve fights of carrying it and it moves.',
+  },
+  direwolfPup: {
+    name: 'Wolf Pup', price: 0,
+    desc: 'Blind, grey, and complaining. Four fights of carrying it and it opens its eyes.',
+  },
+};
+
+/**
  * What comes off somebody you beat, by how hard they were. One roll picks the
  * band, a second picks within it, so a fight is worth opening the pouch for at
  * every level rather than only at the end.
@@ -109,4 +141,9 @@ export const RECIPES = [
   { at: 'brew', makes: 'poppyMilk',   gold: 90,  needs: [['poppySeed', 2], ['greenbriar', 1]] },
   { at: 'brew', makes: 'weirwoodSap', gold: 240, needs: [['greenbriar', 4], ['poppySeed', 2]] },
   { at: 'brew', makes: 'kingsRansom', gold: 700, needs: [['fireblood', 1], ['greenbriar', 3], ['poppySeed', 2]] },
+
+  // ------------------------------------------------------- what holds them ---
+  { at: 'forge', makes: 'snare',     gold: 60,   needs: [['ironScrap', 1], ['ashHaft', 1]] },
+  { at: 'forge', makes: 'netTrap',   gold: 300,  needs: [['ironScrap', 3], ['boiledHide', 2]] },
+  { at: 'forge', makes: 'greatNet',  gold: 1400, needs: [['ironScrap', 8], ['boiledHide', 6], ['direwolfPelt', 2]] },
 ];

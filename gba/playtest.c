@@ -204,7 +204,8 @@ static int npcDuelled[MAP_COUNT][MAX_CROWD];
 static int interacting, duelTries, blocked;
 static int wantHouse, runAway, statusChecks, sinceStatus, wantTech, techUsed[4];
 static int menusSeen, bagsSeen, shopsSeen, bought, records, menuWant = -1;
-static int craftsSeen, crafted, craftedHere, lastShopGold, shopRung = -2;
+static int craftsSeen, crafted, craftedHere;
+static int wildsMet, snaresThrown;
 static int doorsThisRung;
 static int spottings, spottedBy, shooting, titleWant;
 static const char *startedAt = "nowhere";
@@ -360,6 +361,10 @@ static void pickLadderGoal(void) {
   want = leaderLevel[at];
   if (at != ladderRung) {
     ladderRung = at;
+    /* One trip to a counter for each rung, armed when the rung changes rather
+       than whenever the purse grows. Arming it on money turned the forge door
+       into a revolving one - in, buy nothing, out, in again, forever. */
+    wantShop = 1;
     printf("    rung %d  %-22s at %-18s wants about %2d\n",
       at + 1, leaders[lead].name, leaders[lead].seat, want);
   }
@@ -381,15 +386,21 @@ static void pickLadderGoal(void) {
      the run did, because the smiths are all one door off the road inside the
      forges and nothing was ever going in. */
   if (wantShop) {
+    /* Arriving is the visit, whether or not the smith is still breathing. The
+       tester duels everybody, so it kills smiths, and a dead one meant the trip
+       was never counted as made: out of the forge, look for a forge, back into
+       the forge, forever. */
+    if (mapHasTrade(worldId)) wantShop = 0;
     for (i = 0; i < crowdCount; i++) {
       if (world->npcs[i].trade == 2 && crowdAlive[i]) {
-        wantShop = 0;
         goalKind = GOAL_NPC; goalIndex = i; return;
       }
     }
-    { int door = warpTowardTrade();
-      if (door >= 0) { goalKind = GOAL_WARP; goalIndex = door; return; } }
-    wantShop = 0;
+    if (wantShop) {
+      int door = warpTowardTrade();
+      if (door >= 0) { goalKind = GOAL_WARP; goalIndex = door; return; }
+      wantShop = 0;
+    }
   }
   if (worldId == leaders[lead].map) {
     who = leaderNpcOn(worldId, lead);
@@ -609,12 +620,23 @@ void hostFrame(void) {
   } else if (scene == SCENE_BAG) {
     bagsSeen++;
     menuWant = -1;
-    /* Drink something if it would help, otherwise put it away. */
-    keys = (carrying() && you.hp < vigourFor(you.level) && (roll(2) == 0))
+    /* In a fight with an animal that is nearly down, reach for a net rather
+       than for a drink: taking one alive is a whole half of the game and a
+       tester that never throws one has not walked it. */
+    if (bagInDuel && foeBeast >= 0 && theirs.hp * 3 < theirs.maxHp) {
+      int have = carrying(), want = -1, i;
+      for (i = 0; i < have; i++) {
+        if (wares[nthCarried(i)].kind == WARE_SNARE) { want = i; break; }
+      }
+      if (want >= 0) {
+        if (bagPick != want) keys = tap(bagPick < want ? KEY_DOWN : KEY_UP);
+        else { keys = tap(KEY_A); if (keys) snaresThrown++; }
+      } else keys = tap(KEY_B);
+    }
+    else keys = (carrying() && you.hp < vigourFor(you.level) && (roll(2) == 0))
       ? tap(KEY_A) : tap(KEY_B);
   } else if (scene == SCENE_SHOP) {
     shopsSeen++;
-    lastShopGold = you.gold;
     if (ladderMode && !craftedHere) {
       /* Look behind the counter first: anything a smith will make out of what
          you are carrying is better than anything on the shelf, and it is the
@@ -634,6 +656,7 @@ void hostFrame(void) {
                 : wares[at].kind == WARE_ARMOUR ? you.armour
                 : wares[at].kind == WARE_SHIELD ? you.shield : 0;
         if (wares[at].kind == WARE_POTION) { if (you.bag[at] >= 4) continue; }
+        else if (wares[at].kind == WARE_SNARE) { if (you.bag[at] >= 3) continue; }
         else if (had && wares[had - 1].price >= wares[at].price) continue;
         if (wares[at].price > you.gold) continue;
         if (best < 0 || wares[stall->ware[best]].price < wares[at].price) best = i;
@@ -647,7 +670,6 @@ void hostFrame(void) {
     else keys = tap(KEY_B);
   } else if (scene == SCENE_CRAFT) {
     craftsSeen++;
-    lastShopGold = you.gold;
     /* Make the dearest thing this bench can manage out of what is in the pouch,
        then go back to the counter. */
     {
@@ -655,6 +677,9 @@ void hostFrame(void) {
       for (i = 0; i < have; i++) {
         const Recipe *r = &recipes[nthRecipe(i)];
         if (shortOf(r) || you.gold < r->gold) continue;
+        /* A net first, always: without one there is no taking anything alive,
+           and the run would never walk that half of the game. */
+        if (wares[r->makes].kind == WARE_SNARE && you.bag[r->makes] < 2) { best = i; break; }
         if (best < 0 || recipes[nthRecipe(best)].gold < r->gold) best = i;
       }
       if (best < 0) keys = tap(KEY_SELECT);
@@ -663,6 +688,7 @@ void hostFrame(void) {
     }
   } else if (scene == SCENE_DUEL) {
     if (wasScene != SCENE_DUEL) {
+      if (foeBeast >= 0) wildsMet++;
       duelTries = 0;
       runAway = ladderMode ? 0 : (duels % 5) == 4;
       if (ladderMode) ladderFights++;
@@ -670,7 +696,18 @@ void hostFrame(void) {
     if (windowOpen) keys = tap(KEY_A);
     else if (duelPhase == DUEL_TOP) {
       /* Fight most of the time; sometimes reach for the pouch, sometimes run. */
-      int want = runAway ? 3 : (you.hp * 3 < vigourFor(you.level) && carrying() ? 1 : 0);
+      /* Only reach for the pouch over an animal if there is actually a net in
+         it. Without that check the tester opened the pouch, found nothing,
+         shut it, and opened it again - four hundred thousand times. */
+      int haveNet = 0, i2;
+      for (i2 = 0; i2 < WARE_COUNT; i2++) {
+        if (wares[i2].kind == WARE_SNARE && you.bag[i2]) { haveNet = 1; break; }
+      }
+      int want = runAway ? 3
+        : (foeBeast >= 0 && haveNet && theirs.hp * 3 < theirs.maxHp) ? 1
+        : (you.hp * 3 < vigourFor(you.level) && carrying() ? 1 : 0);
+      /* And set the beast on them when there is one to set. */
+      if (want == 0 && you.beast.kind != 255 && (roll(3) == 0)) want = 2;
       if ((want & 1) != (topPick & 1)) keys = tap((want & 1) ? KEY_RIGHT : KEY_LEFT);
       else if ((want & 2) != (topPick & 2)) keys = tap((want & 2) ? KEY_DOWN : KEY_UP);
       else keys = tap(KEY_A);
@@ -713,14 +750,6 @@ void hostFrame(void) {
       /* A room with a smith in it and money in your purse is a room you stop
          in. Armed one map at a time, so the ladder run does not walk past
          nine thousand gold's worth of counter on its way to a fight. */
-      /* Only when there is meaningfully more in your purse than the last time
-         you stood at a counter. Arming this on every map change turned the
-         forge door into a revolving one: in, buy nothing, out, in again,
-         thirty-seven thousand times. */
-      if (ladderMode && you.gold > lastShopGold + 1500 && shopRung != ladderRung) {
-        wantShop = 1;
-        shopRung = ladderRung;                 /* one visit to a counter a rung */
-      }
       craftedHere = 0;
       /* A ladder run that takes hundreds of doors without taking a sigil is
          walking a two-map loop, not travelling. Say where, and stop. */
@@ -1000,6 +1029,13 @@ int main(int argc, char **argv) {
   printf("  menus / pouch / stalls  %d / %d / %d, bought %d things, saved %d times\n",
     menusSeen, bagsSeen, shopsSeen, bought, records);
   printf("  benches        %d looked at, %d things made\n", craftsSeen, crafted);
+  printf("  the wild       %d animals met, %d nets thrown, %d taken alive\n",
+    wildsMet, snaresThrown, you.tamed);
+  if (you.beast.kind != 255) {
+    printf("  at your heel   %s, level %d\n", beasts[you.beast.kind].name, you.beast.level);
+  } else {
+    printf("  at your heel   nothing\n");
+  }
   printf("  carrying       ");
   { int n = 0, k; for (k = 0; k < WARE_COUNT; k++) if (you.bag[k]) { printf("%s x%d  ", wares[k].name, you.bag[k]); n++; }
     if (!n) printf("nothing"); printf("\n"); }

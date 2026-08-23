@@ -832,19 +832,54 @@ int main(void) {
     if (lineCount > 2) note("%s: the words at swearing run to %d lines, the card shows two", houses[i].full, lineCount);
   }
 
+  /* --- the beasts --------------------------------------------------------- */
+  {
+    int tamable = 0, grows = 0, wildOn = 0, nests = 0;
+    for (i = 0; i < BEAST_COUNT; i++) {
+      const Beast *b = &beasts[i];
+      checkText("a beast's name", b->name);
+      if (!b->hp || !b->atk) bad("%s has no numbers to fight with", b->name);
+      if (b->into != 255 && b->into >= BEAST_COUNT) bad("%s grows into nothing", b->name);
+      if (b->into != 255 && !b->growAt) bad("%s grows into something at level nought", b->name);
+      for (j = 0; j < 4; j++) {
+        if (b->tech[j] >= TECH_COUNT) bad("%s fights with a technique that does not exist", b->name);
+      }
+      tamable += b->tame;
+      grows += b->into != 255;
+    }
+    for (m = 0; m < MAP_COUNT; m++) {
+      wildOn += maps[m].wildCount > 0;
+      nests += maps[m].nest != 255;
+      for (i = 0; i < maps[m].wildCount; i++) {
+        if (maps[m].wilds[i].beast >= BEAST_COUNT) {
+          bad("%s has an animal on it that does not exist", maps[m].name);
+        }
+      }
+    }
+    if (!nests) bad("there is nowhere in the world an egg can be found");
+    note("%d beasts, %d can be taken alive, %d grow into something else; "
+         "wild on %d maps, %d nests", BEAST_COUNT, tamable, grows, wildOn, nests);
+    /* A snare nobody can ever use is a shop item that lies to the player. */
+    for (i = 0; i < WARE_COUNT; i++) {
+      if (wares[i].kind == WARE_SNARE && !wares[i].hold) {
+        bad("%s would never hold anything", wares[i].name);
+      }
+    }
+  }
+
   /* --- what can be bought ------------------------------------------------- */
   for (i = 0; i < WARE_COUNT; i++) {
     const Ware *w = &wares[i];
     /* Makings are not sold, and neither are the four things that can only be
        made. A price of nought on anything on a counter is still a fault. */
-    if (w->kind == WARE_STUFF) continue;
+    if (w->kind == WARE_STUFF || w->kind == WARE_EGG) continue;
     if (!w->price) {
       int j2, listed = 0;
       for (j2 = 0; j2 < stalls[0].count; j2++) if (stalls[0].ware[j2] == i) listed = 1;
       for (j2 = 0; j2 < stalls[1].count; j2++) if (stalls[1].ware[j2] == i) listed = 1;
       if (listed) bad("%s is on a counter at no price", w->name);
     }
-    if (w->kind > WARE_STUFF) bad("%s is a kind of thing that does not exist", w->name);
+    if (w->kind > WARE_EGG) bad("%s is a kind of thing that does not exist", w->name);
     if (w->kind == WARE_POTION && !w->heal) bad("%s heals nothing", w->name);
     if (w->kind == WARE_ARMOUR && w->tier > 3) bad("%s puts you in body %d", w->name, w->tier);
     for (j = 0; j < w->techCount; j++) {

@@ -34,8 +34,10 @@ const MAP_IDS = [
   'theEyrie', 'maesterHallEyrie', 'eyrieArmoury', 'eyrieKeep',
   'goldRoad', 'lannisport', 'maesterHallLannisport', 'lannisportForge', 'casterlyRock',
   'kingsroad', 'kingsLanding', 'maesterHallKL', 'klArmoury',
+  // The capital, and the four places in it you have to go and find.
+  'greatSept', 'dragonpit', 'fleaBottom', 'mudGate',
   'dragonstone', 'maesterHallDragonstone', 'dragonstoneArmoury', 'dragonmont',
-  'redKeep',
+  'redKeep', 'barrowCave',
   // The south. Three more seats to begin at, three more leaders holding a
   // sigil, and somewhere to go once the Kingsroad runs out.
   'roseroad', 'highgarden', 'maesterHallHighgarden', 'highgardenArmoury',

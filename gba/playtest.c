@@ -32,7 +32,10 @@ unsigned char *gbaMem;
 unsigned char hostSram[65536];
 int hostFramesLeft;
 
-#define FRAME_CAP 900000
+/* The world is sixty maps now and the last two seats are behind a warren and a
+   ferry nobody advertises, so a run that plays the whole ladder needs longer
+   than one that walked thirty-eight rooms. */
+#define FRAME_CAP 1800000
 #define GOAL_FRAMES 3000            /* how long one errand may take before it counts as stuck */
 #define MAX_DUELS 40
 
@@ -145,6 +148,14 @@ static void checkFrame(void) {
 static int cameFrom[32 * 32];
 static int queue[32 * 32];
 
+static int warpHere(int x, int y) {
+  int i;
+  for (i = 0; i < world->warpCount; i++) {
+    if (world->warps[i].x == x && world->warps[i].y == y) return 1;
+  }
+  return 0;
+}
+
 static int stepToward(int gx, int gy) {
   int head = 0, tail = 0, i, at, best = -1;
   int hx = hero.px >> 4, hy = hero.py >> 4;
@@ -174,6 +185,11 @@ static int stepToward(int gx, int gy) {
          has to be walkable. */
       if (solidAt(nx, ny) && !(nx == gx && ny == gy)) continue;
       if (occupied(nx, ny, -1) && !(nx == gx && ny == gy)) continue;
+      /* And never route through a door you did not mean to take. A cave mouth
+         that happens to sit on the shortest line across a road swallowed the
+         tester and spat it out one tile below, over and over: thirty-eight
+         thousand doors and nineteen maps seen in a whole playthrough. */
+      if (!(nx == gx && ny == gy) && warpHere(nx, ny)) continue;
       cameFrom[ny * w + nx] = cur;
       queue[tail++] = ny * w + nx;
     }

@@ -537,6 +537,41 @@ int main(void) {
       if (!back) note("%s: the door at %d,%d into %s has no door back", map->name, w->x, w->y, to->name);
     }
 
+    /* --- can one person standing still shut this map? --------------------- */
+    /* Somebody idling in a one-tile alley of a warren cuts the map in two, and
+       the flood above will not see it because the tile is walkable. Anybody who
+       starts on a tile with two open sides and no way round is a blockage
+       waiting to happen. */
+    for (i = 0; i < map->npcCount; i++) {
+      const Npc *n = &map->npcs[i];
+      int ways = 0, j2;
+      if (n->x >= map->w || n->y >= map->h) continue;
+      for (j2 = 0; j2 < 4; j2++) {
+        if (!solidOn(map, n->x + DIR_X[j2], n->y + DIR_Y[j2])) ways++;
+      }
+      if (ways != 2) continue;
+      /* Two open sides is a corridor. Take the tile out and see what strands. */
+      blocked = n->y * map->w + n->x;
+      memset(standable, 0, sizeof standable);
+      firstWayIn(map, m);
+      blocked = -1;
+      {
+        int lost = 0, k2;
+        memset(spare, 0, sizeof spare);
+        for (k2 = 0; k2 < map->w * map->h; k2++) {
+          if (solidOn(map, k2 % map->w, k2 / map->w) || standable[k2]) continue;
+          if (k2 == n->y * map->w + n->x) continue;
+          lost++;
+        }
+        if (lost > 3) {
+          bad("%s: %s stands in a corridor, and standing there shuts %d tiles off",
+            map->name, n->name, lost);
+        }
+      }
+    }
+    memset(standable, 0, sizeof standable);
+    firstWayIn(map, m);
+
     /* --- is there room to get at every door? ----------------------------- */
     /* A door with exactly one tile you can stand on to use it is a door one
        person can shut. The Great Keep of Winterfell had its only approach

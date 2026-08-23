@@ -71,6 +71,9 @@ export const EGGS = [
  */
 export const NESTS = {
   dragonmont: ['dragonEgg'],
+  /* Forty years shut, and the reason to go looking. */
+  dragonpit: ['dragonEgg'],
   beyondTheWall: ['direwolfPup'],
   barrowCave: ['direwolfPup'],
+  wolfswood: ['direwolfPup'],
 };

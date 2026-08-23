@@ -184,6 +184,138 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
   };
 }
 
+// ---------------------------------------------------------------------------
+// King's Landing.
+//
+// The capital was a twenty-four tile square with four buildings in it, which is
+// the same as a village with better walls. It is the largest map the hardware
+// will hold now - thirty-two by thirty-two, which is as far as a screenblock
+// reaches - and it is laid out as districts rather than as a plan: three hills,
+// a market between them, a warren in the south-west that you have to find your
+// way through, and the docks behind it.
+//
+// Built from a grid rather than typed out as rows, because a thirty-two wide
+// map typed by hand is a map with a one-character mistake in it somewhere.
+// ---------------------------------------------------------------------------
+/* A maze carved rather than typed. Every route in this game has been a straight
+   road down the middle of a rectangle, and a maze written out by hand is a maze
+   with a wall in the wrong place: this carves a perfect one from a fixed seed,
+   so it is the same warren every time you play and it is guaranteed to join up.
+   `wide` and `tall` are in cells; the grid comes out (2*wide+1) by (2*tall+1). */
+function warren(seed, wide, tall, floor = '=', wall = 'I') {
+  let n = seed >>> 0;
+  const roll = (k) => {
+    n = (Math.imul(n ^ (n >>> 15), 2246822519) + 374761393) >>> 0;
+    return (n >>> 9) % k;
+  };
+  const W = wide * 2 + 1, H = tall * 2 + 1;
+  const g = [];
+  for (let y = 0; y < H; y++) g.push(new Array(W).fill(wall));
+  const seen = new Array(wide * tall).fill(false);
+  const stack = [[0, 0]];
+  seen[0] = true;
+  g[1][1] = floor;
+  while (stack.length) {
+    const [cx, cy] = stack[stack.length - 1];
+    const ways = [];
+    if (cx > 0 && !seen[cy * wide + cx - 1]) ways.push([-1, 0]);
+    if (cx < wide - 1 && !seen[cy * wide + cx + 1]) ways.push([1, 0]);
+    if (cy > 0 && !seen[(cy - 1) * wide + cx]) ways.push([0, -1]);
+    if (cy < tall - 1 && !seen[(cy + 1) * wide + cx]) ways.push([0, 1]);
+    if (!ways.length) { stack.pop(); continue; }
+    const [dx, dy] = ways[roll(ways.length)];
+    const nx = cx + dx, ny = cy + dy;
+    g[cy * 2 + 1 + dy][cx * 2 + 1 + dx] = floor;
+    g[ny * 2 + 1][nx * 2 + 1] = floor;
+    seen[ny * wide + nx] = true;
+    stack.push([nx, ny]);
+  }
+  /* A perfect maze has exactly one route between any two points, which is a
+     puzzle rather than a place. Knock a few walls through so there are corners
+     to double back into and more than one way down. */
+  for (let i = 0; i < wide * tall / 3; i++) {
+    const x = 1 + roll(W - 2), y = 1 + roll(H - 2);
+    if ((x & 1) === (y & 1)) continue;
+    g[y][x] = floor;
+  }
+  return g.map((r) => r.join(''));
+}
+
+function cityGrid() {
+  const W = 32, H = 32;
+  const g = [];
+  for (let y = 0; y < H; y++) g.push(new Array(W).fill('o'));
+
+  const put = (x, y, c) => { if (g[y] && g[y][x] !== undefined) g[y][x] = c; };
+  const box = (x, y, w, h, c) => {
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, y + j, c);
+  };
+  const row = (x, y, text) => [...text].forEach((c, i) => put(x + i, y, c));
+
+  // The city wall, all the way round.
+  box(0, 0, W, 1, 'M'); box(0, H - 1, W, 1, 'M');
+  box(0, 0, 1, H, 'M'); box(W - 1, 0, 1, H, 'M');
+
+  // --- Visenya's Hill, north-west: the Great Sept of Baelor ----------------
+  // Seven crystal towers, which at this size is a pale block with a battlement
+  // over it and a great door in the middle of the south face.
+  box(2, 2, 9, 1, 'M');
+  box(2, 3, 9, 4, 'A');
+  row(2, 7, 'AAppDppAA');
+  put(4, 5, 'V'); put(8, 5, 'V');
+
+  // --- Aegon's High Hill, north-east: the Red Keep --------------------------
+  box(20, 2, 10, 1, 'M');
+  box(20, 3, 10, 1, 'M');
+  box(20, 4, 10, 5, 'A');
+  row(20, 9, 'AAAAADAAAA');
+  put(22, 6, 'V'); put(27, 6, 'V');
+  put(20, 3, 'A'); put(29, 3, 'A');       // corner towers stand a course higher
+
+  // --- the streets ---------------------------------------------------------
+  box(1, 10, W - 2, 2, '=');              // the great east-west way
+  box(15, 1, 2, 9, '=');                  // up to the hills
+  box(15, 12, 2, 8, '=');                 // down through the market
+  box(1, 20, W - 2, 1, '=');              // the lower way
+  box(15, 21, 2, 10, '=');                // and out of the Mud Gate
+
+  // --- the market, middle: the Maester's Hall and the Street of Steel ------
+  box(3, 13, 8, 1, 'q'); box(3, 14, 8, 2, 'Q');
+  row(3, 16, 'pepDpwpp');
+  box(20, 12, 1, 1, 'n');
+  box(19, 13, 7, 1, 'z'); box(19, 14, 7, 2, 'Z');
+  row(19, 16, 'AAkDAAA');
+  // Stalls and awnings in the square itself.
+  for (const [x, y] of [[12, 13], [12, 17], [27, 13], [27, 17], [6, 18], [24, 18]]) {
+    put(x, y, 'K'); put(x + 1, y, 'K');
+  }
+
+  // --- Rhaenys's Hill, east: the Dragonpit, burnt and open ----------------
+  box(24, 22, 6, 1, 'U'); box(24, 23, 6, 3, 'A');
+  row(24, 26, 'UAADAU');
+  put(25, 24, 'U'); put(28, 24, 'U');
+
+  // --- Flea Bottom, south-west: a warren you have to find your way through --
+  // Nothing in here is on a grid. That is the point of it.
+  warren(0x5EA51DE, 7, 5, 'd', 'H').forEach((line, j) => row(1, 21 + j, line));
+  /* Two ways out onto the street. A warren with one door is not a district, it
+     is a trap: coming back up out of Flea Bottom put you in the middle of it
+     with the door you had just used as the only way anywhere. */
+  put(15, 22, 'd'); put(15, 30, 'd');
+  put(11, 21, 'D');                        // in off the lower way
+  put(16, 31, '=');                        // the Mud Gate, out to the Kingsroad
+
+  // The docks, south-east, behind the warren.
+  box(22, 29, 8, 2, '~');
+  box(20, 28, 10, 1, 's');
+  put(21, 29, 's'); put(21, 30, 's');
+
+  // A few green things nobody has paved over yet.
+  for (const [x, y] of [[13, 4], [13, 6], [18, 5], [18, 7], [12, 8], [19, 3]]) put(x, y, ',');
+
+  return g.map((r) => r.join(''));
+}
+
 export const MAPS = {
   // =========================================================== hero's home ==
   heroHouse: {
@@ -1060,7 +1192,7 @@ export const MAPS = {
     roof: 'Z', ridge: 'z',
     name: 'Dragonstone', ground: 'stone', wall: 'C', floor: 'o', music: 'battleBoss',
     warps: [
-      { x: 11, y: 19, to: 'kingsLanding', tx: 22, ty: 21, dir: 'down' },
+      { x: 11, y: 19, to: 'mudGate', tx: 9, ty: 7, dir: 'down' },
       { x: 6, y: 6, to: 'maesterHallDragonstone', tx: 5, ty: 7, dir: 'up' },
       { x: 7, y: 14, to: 'dragonmont', tx: 8, ty: 14, dir: 'up' },
       { x: 17, y: 6, to: 'dragonstoneArmoury', tx: 5, ty: 6, dir: 'up' },
@@ -1889,7 +2021,7 @@ export const MAPS = {
     ],
     warps: [
       { x: 10, y: 0, to: 'lannisport', tx: 9, ty: 18, dir: 'up' },
-      { x: 10, y: 22, to: 'kingsLanding', tx: 12, ty: 1, dir: 'down' },
+      { x: 10, y: 22, to: 'kingsLanding', tx: 16, ty: 30, dir: 'up' },
       { x: 19, y: 14, to: 'stormlands', tx: 10, ty: 1, dir: 'right' },
     ],
     signs: [
@@ -2104,54 +2236,200 @@ export const MAPS = {
     name: "King's Landing",
     music: 'town',
     ground: 'stone',
-    tiles: [
-      'MMMMMMMMMMMMMMMMMMMMMMMM',
-      'Moooooooooo-oooooooooooM',
-      'MooooooooooooooooooooooM',
-      'MooooooooooooonooooooooM',
-      'MoooorrrroooozzzzooooooM',
-      'VooooRRRRooooZZZZooooooV',
-      'MooooeDpwooooAAkDooooooM',
-      'Mooooo-ooooooooo-ooooooM',
-      'Mooooo-----------ooooooM',
-      'Mooooooooo-ooooooooooooM',
-      'Mooooooooo-ooooo!ooooooM',
-      'MooooooooooooooooooooooM',
-      'MooooooooooooooooooooooM',
-      'MooooooMMMMMMMMMoooooooM',
-      'VooooooAAVAAAVAAoooooooV',
-      'MooooooAAAAAAAAAoooooooM',
-      'MooooooAAAADAAAAoooooooM',
-      'Moooooooooo-oooooooooooM',
-      'Moooooooooo-oooooooooooM',
-      'Moooooooooo-oooooooooooM',
-      'Moooooooooo-oooooooooooM',
-      'Moooooooooo-oooooooooo--',
-      'MMMMMMMMMMMMMMMMMMMMMMMM',
+    get tiles() { return cityGrid(); },
+    /* No cutpurses out of the weeds here: a city has people standing in it
+       instead, and the crowd is what the appearance budget goes on. What does
+       come at you between the cobbles is the birds. */
+    encounters: [
+      { beast: 'ravenling', min: 28, max: 34, weight: 60 },
+      { beast: 'corvarch', min: 30, max: 38, weight: 40 },
     ],
-    encounters: [],
     warps: [
-      { x: 11, y: 1, to: 'kingsroad', tx: 10, ty: 21, dir: 'up' },
-      { x: 23, y: 21, to: 'dragonstone', tx: 11, ty: 18, dir: 'right' },
-      { x: 6, y: 6, to: 'maesterHallKL', tx: 5, ty: 7, dir: 'up' },
-      { x: 16, y: 6, to: 'klArmoury', tx: 5, ty: 6, dir: 'up' },
-      { x: 11, y: 16, to: 'redKeep', tx: 8, ty: 21, dir: 'up' },
+      { x: 16, y: 31, to: 'kingsroad', tx: 10, ty: 21, dir: 'up' },
+      { x: 6, y: 7, to: 'greatSept', tx: 8, ty: 9, dir: 'up' },
+      { x: 25, y: 9, to: 'redKeep', tx: 8, ty: 21, dir: 'up' },
+      { x: 6, y: 16, to: 'maesterHallKL', tx: 5, ty: 7, dir: 'up' },
+      { x: 22, y: 16, to: 'klArmoury', tx: 5, ty: 6, dir: 'up' },
+      { x: 27, y: 26, to: 'dragonpit', tx: 8, ty: 11, dir: 'up' },
+      { x: 11, y: 21, to: 'fleaBottom', tx: 2, ty: 1, dir: 'down' },
     ],
     signs: [
-      { x: 16, y: 10, text: "KING'S LANDING\nThe Red Keep stands above.\nSigil-holder: THE IRON THRONE." },
+      { x: 14, y: 11, text: "KING'S LANDING\nHalf a million people and one chair.\nMind your purse." },
+      { x: 17, y: 20, text: 'THE HOOK\nUp the hill: the Red Keep.\nDown the alleys: Flea Bottom, and whatever is left of you after it.' },
+      { x: 23, y: 27, text: 'THE DRAGONPIT\nForty years shut. The roof came down on the last of them.\nSomething still nests in it.' },
     ],
     npcs: [
-      { x: 11, y: 20, dir: 'down', name: 'Harbourmaster', sprite: 'merchant',
-        script: 'harbour', data: {} },
-      { x: 8, y: 9, dir: 'down', sprite: 'guard', name: 'Gold Cloak', script: 'klGuard' },
-      { x: 18, y: 19, dir: 'left', sprite: 'child', name: 'Beggar Boy', script: 'klHint' },
-      { x: 4, y: 19, dir: 'right', sprite: 'nightswatch', name: 'Recruiter', script: 'klRecruiter' },
-      { x: 14, y: 12, dir: 'down', sprite: 'redPriest', name: 'Stranger', script: 'klStranger' },
+      { x: 13, y: 11, dir: 'down', sprite: 'guard', name: 'Gold Cloak Serjeant', script: 'klHint',
+        data: { line: 'Keep to the main ways and you will keep your purse. Go down the Hook and you are on your own.' } },
+      { x: 18, y: 11, dir: 'left', sprite: 'merchant', name: 'Pot-Shop Man', script: 'bellowsHand',
+        data: { line: 'A bowl of brown, two coppers. Do not ask what is in it. Nobody asks.' } },
+      { x: 12, y: 14, dir: 'down', sprite: 'goodwife', name: 'Fishwife Cass', script: 'bellowsHand',
+        data: { line: 'Fresh off the Blackwater this morning. That is what I say to everyone.' } },
+      { x: 27, y: 14, dir: 'left', sprite: 'smallfolk', name: 'Wine Seller', script: 'bellowsHand',
+        data: { line: 'Dornish red, Arbor gold, and a barrel I will not name a price on.' } },
+      { x: 24, y: 11, dir: 'up', sprite: 'septa', name: 'Septa Unella', script: 'bellowsHand',
+        data: { line: 'The Sept of Baelor is open to anyone who walks in on their own feet.' } },
+      { x: 9, y: 11, dir: 'right', sprite: 'child', name: 'Cutpurse Boy', script: 'bellowsHand',
+        data: { line: 'Never seen you before. Nice cloak. Do not turn round.' } },
+      { x: 6, y: 19, dir: 'down', sprite: 'sellsword', name: 'Bronn of the Blackwater', script: 'duel',
+        data: { duel: 'bronn' } },
+      { x: 21, y: 19, dir: 'left', sprite: 'kingsguard', name: 'Ser Meryn Trant', script: 'duel',
+        data: { duel: 'meryn' } },
+      { x: 26, y: 20, dir: 'down', sprite: 'brotherhood', name: 'Recruiter', script: 'blackBrother' },
+      { x: 20, y: 30, dir: 'up', sprite: 'braavosi', name: 'Harbourmaster', script: 'bellowsHand',
+        data: { line: 'Nothing sails to Dragonstone from this quay. Try the one nobody advertises.' } },
+      { x: 2, y: 18, dir: 'right', sprite: 'oldman', name: 'Bald Beggar', script: 'bellowsHand',
+        data: { line: 'I remember when there were dragons over that hill. Nobody believes me and I do not blame them.' } },
+      { x: 29, y: 11, dir: 'left', sprite: 'noble', name: 'Lord of the Small Council', script: 'bellowsHand',
+        data: { line: 'Power resides where men believe it resides. That is the whole of the trick.' } },
+    ],
+  },
+
+  /* Behind the warren, and the only quay in Westeros that will take you across
+     to Dragonstone. Nobody tells you it is here. */
+  mudGate: {
+    name: 'The Mud Gate',
+    music: 'town',
+    ground: 'sand',
+    tiles: [
+      '####################',
+      '#ssssssssssssssssss#',
+      '#ss~~~~~~~~~~~~~~ss#',
+      '#ss~~~~~~~~~~~~~~ss#',
+      '#sssssssssssssssss=#',
+      '#ss=============ss=#',
+      '#ss=sHHwHDHwHHs=ss=#',
+      '#ss=sssssssssss=ss=#',
+      '#ss=============ss=#',
+      '#ssssssssssssssssss#',
+      '#ss~~~~~~~~~~~~~~ss#',
+      '#ss~~~~~~~~~~~~~~ss#',
+      '#ssssssssssss=sssss#',
+      '####################',
+    ],
+    warps: [
+      { x: 18, y: 4, to: 'fleaBottom', tx: 20, ty: 13, dir: 'up' },
+      { x: 9, y: 6, to: 'dragonstone', tx: 11, ty: 18, dir: 'up' },
+    ],
+    signs: [
+      { x: 13, y: 12, text: 'THE MUD GATE\nA ferryman who does not give his name.\nHe will take you to the island, and he will not talk about it.' },
+    ],
+    npcs: [
+      { x: 8, y: 7, dir: 'up', sprite: 'braavosi', name: 'The Ferryman', script: 'bellowsHand',
+        data: { line: 'The island, then. Say nothing to anyone about who rowed you.' } },
+      { x: 15, y: 9, dir: 'left', sprite: 'ironborn', name: 'Dock Thief', script: 'duel',
+        data: { duel: 'ironbornReaver' } },
+    ],
+  },
+
+  /* Flea Bottom: no plan, no straight line, and the way through is not the way
+     it looks. Everything in the game before this was a corridor with scenery. */
+  fleaBottom: {
+    name: 'Flea Bottom',
+    music: 'town',
+    ground: 'earth',
+    get tiles() {
+      /* Eleven cells across and seven down: big enough to get lost in, and the
+         way out is at the far corner from the way in. */
+      const g = warren(0xF1EA, 11, 7, '=', 'I').map((r) => [...r]);
+      g[1][1] = 'd';                 /* down from the city */
+      g[13][21] = 'd';               /* and out to the docks, if you find it */
+      return g.map((r) => r.join(''));
+    },
+    encounters: [
+      { roamer: 'bandit', min: 28, max: 36, weight: 60 },
+      { roamer: 'gravedigger', min: 28, max: 36, weight: 40 },
+    ],
+    warps: [
+      { x: 1, y: 1, to: 'kingsLanding', tx: 11, ty: 20, dir: 'down' },
+      { x: 21, y: 13, to: 'mudGate', tx: 18, ty: 5, dir: 'down' },
+    ],
+    signs: [
+      { x: 11, y: 1, text: 'Somebody has scratched an arrow into the wall, and then scratched three more pointing other ways.' },
+    ],
+    npcs: [
+      { x: 19, y: 1, dir: 'down', sprite: 'smallfolk', name: 'Bowl-of-Brown Man', script: 'bellowsHand',
+        data: { line: 'Keep going down and east. Or do not. It is all the same to me.' } },
+      { x: 3, y: 5, dir: 'down', sprite: 'wildling', name: 'Alley Knife', script: 'duel',
+        data: { duel: 'bandit' } },
+      { x: 13, y: 9, dir: 'up', sprite: 'child', name: 'Barefoot Girl', script: 'bellowsHand',
+        data: { line: 'There is a gate at the far end that the gold cloaks have forgotten about.' } },
+    ],
+  },
+
+  greatSept: {
+    name: 'The Great Sept of Baelor',
+    indoor: true,
+    music: 'town',
+    tiles: [
+      'IIIIIIIIIIIIIIIII',
+      'I===cccccccc====I',
+      'I==ccccccccccc==I',
+      'I==cccFccccFcc==I',
+      'I==ccccccccccc==I',
+      'I=B=ccccccccc=B=I',
+      'I=B=ccc===ccc=B=I',
+      'I===cc=====cc===I',
+      'I======TTT======I',
+      'I===============I',
+      'IIIIIIII__IIIIIII',
+    ],
+    warps: [
+      { x: 8, y: 10, to: 'kingsLanding', tx: 6, ty: 8, dir: 'down' },
+      { x: 9, y: 10, to: 'kingsLanding', tx: 6, ty: 8, dir: 'down' },
+    ],
+    signs: [
+      { x: 5, y: 8, text: 'THE SEVEN\nFather, Mother, Warrior, Maiden, Smith, Crone, Stranger.\nSix of them are looking at you.' },
+    ],
+    npcs: [
+      { x: 8, y: 3, dir: 'down', sprite: 'septa', name: 'High Septon', script: 'bellowsHand',
+        data: { line: 'The Father judges, the Warrior fights, and the Stranger comes for us all. Try to keep the first two in front of the third.' } },
+      { x: 4, y: 6, dir: 'right', sprite: 'brotherhood', name: 'Sparrow', script: 'duel',
+        data: { duel: 'beric' } },
+    ],
+  },
+
+  /* The Dragonpit. The roof came down forty years ago and nobody has been in
+     since, which is exactly why there is something in it worth having. */
+  dragonpit: {
+    name: 'The Dragonpit',
+    indoor: true,
+    music: 'wild',
+    ground: 'cave',
+    tiles: [
+      '@@@@@@@@@@@@@@@@@',
+      '@%%%%%%%%%%%%%%%@',
+      '@%%@@%%%%%%%@@%%@',
+      '@%%@@%%,,,%%@@%%@',
+      '@%%%%%,,,,,%%%%%@',
+      '@%%%%%,,,,,%%%%%@',
+      '@%@@%%%,,,%%%@@%@',
+      '@%@@%%%%%%%%%@@%@',
+      '@%%%%%%%%%%%%%%%@',
+      '@%%%%@@@%@@@%%%%@',
+      '@%%%%%%%%%%%%%%%@',
+      '@%%%%%%%%%%%%%%%@',
+      '@@@@@@@@%@@@@@@@@',
+    ],
+    encounters: [
+      { beast: 'emberwisp', min: 32, max: 40, weight: 40 },
+      { beast: 'scaleflight', min: 34, max: 42, weight: 30 },
+      { roamer: 'gravedigger', min: 32, max: 40, weight: 30 },
+    ],
+    warps: [
+      { x: 8, y: 12, to: 'kingsLanding', tx: 27, ty: 27, dir: 'down' },
+    ],
+    signs: [
+      { x: 5, y: 8, text: 'Bones the size of roof beams, and the sand is warm.' },
+    ],
+    npcs: [
+      { x: 8, y: 4, dir: 'down', sprite: 'redPriest', name: 'Pit Watcher', script: 'bellowsHand',
+        data: { line: 'They said the last of them died the size of a cat. They lied about a great deal.' } },
     ],
   },
 
   maesterHallKL: maesterHall({
-    exitTo: 'kingsLanding', exitX: 6, exitY: 7,
+    exitTo: 'kingsLanding', exitX: 6, exitY: 17,
     stock: ['kingsguardBanner', 'kingsRansom', 'weirwoodSap', 'kissOfFire', 'poppyMilk'],
     healerLine: 'The Grand Maester is busy. I am not. Let me see them.',
     merchantLine: 'Everything has a price in this city. Yours is fair.',
@@ -2172,8 +2450,8 @@ export const MAPS = {
       'IIIII__IIIII',
     ],
     warps: [
-      { x: 5, y: 7, to: 'kingsLanding', tx: 16, ty: 7, dir: 'down' },
-      { x: 6, y: 7, to: 'kingsLanding', tx: 16, ty: 7, dir: 'down' },
+      { x: 5, y: 7, to: 'kingsLanding', tx: 22, ty: 17, dir: 'down' },
+      { x: 6, y: 7, to: 'kingsLanding', tx: 22, ty: 17, dir: 'down' },
     ],
     npcs: [
       { x: 7, y: 1, dir: 'down', sprite: 'merchant', name: 'Armourer', script: 'shop',
@@ -2214,7 +2492,7 @@ export const MAPS = {
       'IIIIIIII_IIIIIIIIII',
     ],
     warps: [
-      { x: 8, y: 22, to: 'kingsLanding', tx: 11, ty: 17, dir: 'down' },
+      { x: 8, y: 22, to: 'kingsLanding', tx: 25, ty: 10, dir: 'down' },
     ],
     npcs: [
       { x: 9, y: 4, dir: 'down', sprite: 'cersei', name: 'Queen Cersei', script: 'gymThrone',

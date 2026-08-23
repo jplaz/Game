@@ -171,12 +171,19 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   // Lannister at level five would put them somewhere they cannot beat a single
   // person, which is not a harder game, it is no game. A sworn sword of a great
   // house in the richest seat in Westeros was never a nobody anyway.
+  // Everybody starts at five, outdoors, in a town. Nobody starts at
+  // twenty-three inside somebody's hall, which is what happens if you pick a
+  // seat by its name without checking whether it is a building - Casterly Rock
+  // is an interior map, and a Lannister woke up in a room.
+  //
+  // The levels these people begin at do not need setting against the ground any
+  // more, because the ground is set against them: see `stride` below.
   const SEAT_START = {
-    stark:     { map: 'winterfell',   x: 12, y: 12, dir: 0, level: 5 },
-    lannister: { map: 'casterlyRock', x: 8,  y: 16, dir: 0, level: 23 },
-    tully:     { map: 'riverrun',     x: 10, y: 17, dir: 1, level: 12 },
-    targaryen: { map: 'dragonstone',  x: 11, y: 18, dir: 1, level: 21 },
-    greyjoy:   { map: 'moatCailin',   x: 11, y: 18, dir: 1, level: 6 },
+    stark:     { map: 'winterfell',  x: 12, y: 12, dir: 0, level: 5 },
+    lannister: { map: 'lannisport',  x: 9,  y: 15, dir: 0, level: 5 },
+    tully:     { map: 'riverrun',    x: 10, y: 17, dir: 1, level: 5 },
+    targaryen: { map: 'dragonstone', x: 11, y: 18, dir: 1, level: 5 },
+    greyjoy:   { map: 'moatCailin',  x: 11, y: 18, dir: 1, level: 5 },
   };
   for (const h of houses) {
     const seat = SEAT_START[h.id];
@@ -293,6 +300,35 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
 
   const out = { maps: [], houses, techniques, learned, duellists, wares, forSale, actors: null };
 
+  /* How hard the road is here.
+   *
+   * This used to be the map's position in the export list, which meant
+   * difficulty was an accident of the order somebody typed the names in: append
+   * a map and it became endgame ground whatever it was. Appending the road
+   * south is exactly what happened, and it is why a new sworn sword of House
+   * Lannister woke among level thirties.
+   *
+   * It is distance now. Every house's seat is nought, everything one door away
+   * is one, and the level of anybody without a name of their own goes up as you
+   * walk out from the nearest of them - which is the arrangement every
+   * handheld role-playing game has used since the first one: a gentle town, and
+   * the world getting harder the further you go from it. Named characters keep
+   * their own numbers, so the people worth being frightened of stay frightening
+   * wherever they happen to stand. */
+  const seats = houses.map((h) => h.start.map).filter((id) => mapIds.includes(id));
+  const stride = new Map(seats.map((id) => [id, 0]));
+  const queue = [...seats];
+  while (queue.length) {
+    const at = queue.shift();
+    const here = stride.get(at);
+    for (const w of (MAPS[at]?.warps ?? [])) {
+      if (!mapIds.includes(w.to) || stride.has(w.to)) continue;
+      stride.set(w.to, here + 1);
+      queue.push(w.to);
+    }
+  }
+  out.stride = Object.fromEntries(stride);
+
   for (const id of mapIds) {
     const map = MAPS[id];
     const width = map.width ?? map.grid[0].length;
@@ -323,7 +359,8 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       const named = n.data?.duel ? DUELLISTS[n.data.duel]
         : (n.data?.trainer && TRAINERS[n.data.trainer] ? trainerAsDuellist(n.data.trainer)
         : null);
-      const level = named?.level ?? Math.max(2, Math.min(30, 3 + mapIds.indexOf(id) * 2));
+      const level = named?.level
+        ?? Math.max(3, Math.min(34, 3 + (stride.get(id) ?? 8) * 3));
       const fighter = named
         ? {
             name: named.name, level: named.level,

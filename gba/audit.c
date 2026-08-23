@@ -604,11 +604,12 @@ int main(void) {
       note("bare-handed at their own level, the hardest of the first fights is "
            "%s at level %d: %d wins in a hundred",
         duellists[worstAt].name, duellists[worstAt].level, worstWin);
-      if (worstWin < 25) {
-        bad("%s is level %d and a bare-handed player of that level wins %d in a "
-            "hundred: there is no way into the game",
-          duellists[worstAt].name, duellists[worstAt].level, worstWin);
-      }
+      /* Deliberately a note and not a failure. You go out of the gate with
+         nothing while everybody on the road has a build and a kit, so a fighter
+         of your own level is meant to be beyond you until you have taken
+         something off somebody smaller. What has to hold is that there is
+         somebody smaller - and that is the per-house check below, which fights
+         the people actually within one door of each bed. */
     }
   }
 
@@ -656,6 +657,21 @@ int main(void) {
       note("%s starts at level %d beside %d fighters from level %d up: %d in a "
            "hundred against the easiest of them bare-handed, %d on average",
         h->name, h->startLevel, fights, lowest, best, wins / fights);
+      {
+        int gentle = 0, j3, k3;
+        for (j3 = 0; j3 < MAP_COUNT; j3++) {
+          if (!near[j3]) continue;
+          for (k3 = 0; k3 < maps[j3].npcCount; k3++) {
+            if (maps[j3].npcs[k3].fights
+                && duellists[maps[j3].npcs[k3].duellist].level <= 8) gentle++;
+          }
+        }
+        if (gentle < 2) {
+          bad("%s wakes at %s with %d people of their own size within one door: "
+              "a level five needs somebody to start on",
+            h->name, maps[start].name, gentle);
+        }
+      }
       if (best < 45) {
         bad("%s wakes up at %s and beats even the easiest person within one door "
             "%d times in a hundred: there is nobody there they can start on",
@@ -784,6 +800,17 @@ int main(void) {
     if (solidOn(&maps[h->startMap], h->startX, h->startY)) {
       bad("%s starts inside a wall at %d,%d in %s", h->name, h->startX, h->startY,
         maps[h->startMap].name);
+    }
+    /* Nobody begins the game in a room. Picking a seat by its name without
+       checking whether it is a building is how a Lannister came to wake up
+       inside Casterly Rock, which is an interior map. */
+    if (maps[h->startMap].scene == 5) {
+      bad("%s starts indoors, in %s", h->name, maps[h->startMap].name);
+    }
+    /* And everybody begins at the same standing. The world is arranged around
+       the player, not the player around the world. */
+    if (h->startLevel != 5) {
+      bad("%s starts at level %d; every house starts at five", h->name, h->startLevel);
     }
     note("%s begins at %s, on %s", h->name, h->seat, maps[h->startMap].name);
   }

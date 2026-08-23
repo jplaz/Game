@@ -312,7 +312,8 @@ export const MAPS = {
       { x: 8, y: 14, to: 'winterfell', tx: 12, ty: 7, dir: 'down' },
     ],
     npcs: [
-      { x: 8, y: 4, dir: 'down', sprite: 'stark', name: 'Lord Eddard', script: 'gymStark' },
+      { x: 8, y: 4, dir: 'down', sprite: 'stark', name: 'Lord Eddard', script: 'gymStark',
+        data: { trainer: 'gymStark' } },
       { x: 5, y: 10, dir: 'right', sprite: 'guard', name: 'Hallis', script: 'trainer',
         data: { trainer: 'starkGuard1' } },
       { x: 11, y: 8, dir: 'left', sprite: 'guard', name: 'Torrhen', script: 'trainer',
@@ -1358,7 +1359,8 @@ export const MAPS = {
       { x: 8, y: 15, to: 'riverrun', tx: 10, ty: 17, dir: 'down' },
     ],
     npcs: [
-      { x: 8, y: 4, dir: 'down', sprite: 'tullyLady', name: 'Lady Catelyn', script: 'gymTully' },
+      { x: 8, y: 4, dir: 'down', sprite: 'tullyLady', name: 'Lady Catelyn', script: 'gymTully',
+        data: { trainer: 'gymTully' } },
       { x: 4, y: 7, dir: 'right', sprite: 'tully', name: 'Ser Edmure', script: 'trainer',
         data: { trainer: 'tullyKnight1' } },
       { x: 12, y: 10, dir: 'left', sprite: 'tully', name: 'Ser Brynden', script: 'trainer',
@@ -1582,7 +1584,8 @@ export const MAPS = {
       { x: 8, y: 17, to: 'lannisport', tx: 9, ty: 15, dir: 'down' },
     ],
     npcs: [
-      { x: 8, y: 3, dir: 'down', sprite: 'lannister', name: 'Ser Jaime', script: 'gymLannister' },
+      { x: 8, y: 3, dir: 'down', sprite: 'lannister', name: 'Ser Jaime', script: 'gymLannister',
+        data: { trainer: 'gymLannister' } },
       { x: 6, y: 9, dir: 'right', sprite: 'lannister', name: 'Ser Kevan', script: 'trainer',
         data: { trainer: 'lionKnight1' } },
       { x: 11, y: 14, dir: 'left', sprite: 'lannister', name: 'Ser Addam', script: 'trainer',
@@ -1964,7 +1967,8 @@ export const MAPS = {
       { x: 8, y: 22, to: 'kingsLanding', tx: 11, ty: 17, dir: 'down' },
     ],
     npcs: [
-      { x: 9, y: 4, dir: 'down', sprite: 'cersei', name: 'Queen Cersei', script: 'gymThrone' },
+      { x: 9, y: 4, dir: 'down', sprite: 'cersei', name: 'Queen Cersei', script: 'gymThrone',
+        data: { trainer: 'gymThrone' } },
       { x: 6, y: 9, dir: 'right', sprite: 'guard', name: 'Ser Meryn', script: 'trainer',
         data: { trainer: 'kingsguard1' } },
       { x: 12, y: 12, dir: 'left', sprite: 'guard', name: 'Ser Boros', script: 'trainer',

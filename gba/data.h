@@ -7425,16 +7425,16 @@ static const House houses[HOUSE_COUNT] = {
     { 0, 1, 2, 3 }, 0, 12, 12, 0, 5 },
   { "Lannister", "House Lannister", "Hear Me Roar",
     "A Lannister pays his debts. See that you can afford yours.", "Casterly Rock", 0x1497, 0x3f7e,
-    { 4, 5, 6, 7 }, 28, 8, 16, 0, 23 },
+    { 4, 5, 6, 7 }, 25, 9, 15, 0, 5 },
   { "Tully", "House Tully", "Family, Duty, Honour",
     "Family first, then duty, then honour. In that order, always.", "Riverrun", 0x55a5, 0x18d8,
-    { 8, 9, 10, 11 }, 15, 10, 17, 1, 12 },
+    { 8, 9, 10, 11 }, 15, 10, 17, 1, 5 },
   { "Targaryen", "House Targaryen", "Fire and Blood",
     "Fire and blood. The realm forgot what that meant. Remind it.", "Dragonstone", 0x1071, 0xc63,
-    { 12, 13, 14, 15 }, 33, 11, 18, 1, 21 },
+    { 12, 13, 14, 15 }, 33, 11, 18, 1, 5 },
   { "Greyjoy", "House Greyjoy", "We Do Not Sow",
     "What is dead may never die. Pay the iron price and mean it.", "Pyke", 0x1ca5, 0x2699,
-    { 16, 17, 18, 19 }, 11, 11, 18, 1, 6 },
+    { 16, 17, 18, 19 }, 11, 11, 18, 1, 5 },
 };
 
 #define WARE_COUNT 19
@@ -7563,7 +7563,7 @@ static const Learned learned[LEARN_COUNT] = {
   { 42, 15 },
 };
 
-#define DUELLIST_COUNT 133
+#define DUELLIST_COUNT 134
 typedef struct {
   const char *name;
   u16 vigour; u8 level, might, guard, swiftness, mortal;
@@ -7602,38 +7602,35 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Tyrell Man-at-arms", 59, 4, 18, 14, 15, 1,
     { 2, 3, 0, 0 }, 134, 80,
     "My lord holds this ground and I hold it for him.", "Enough! Take the road, it is not worth my life." },
-  { "Old Nan", 46, 5, 18, 12, 19, 1,
-    { 11, 2, 2, 0 }, 90, 63,
+  { "Old Nan", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Old Nan squares up.", "Old Nan goes down and does not get up." },
-  { "Maester", 49, 7, 17, 14, 20, 1,
-    { 11, 2, 2, 0 }, 118, 81,
+  { "Maester", 45, 6, 15, 13, 19, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Maester squares up.", "Maester goes down and does not get up." },
-  { "Steward", 56, 7, 22, 15, 23, 1,
-    { 11, 2, 2, 0 }, 118, 81,
+  { "Steward", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Steward squares up.", "Steward goes down and does not get up." },
   { "Robb Stark", 145, 12, 33, 22, 24, 1,
     { 2, 3, 1, 0 }, 700, 260,
     "My father says a lord should never ask a man to do what he will not. So - me first.", "Gods. You will do. Ride south and do it there." },
-  { "Lord Eddard", 90, 9, 39, 26, 28, 1,
-    { 2, 3, 4, 0 }, 146, 99,
-    "Lord Eddard squares up.", "Lord Eddard goes down and does not get up." },
+  { "Lord Eddard Stark", 172, 15, 56, 40, 40, 0,
+    { 2, 4, 0, 0 }, 1500, 700,
+    "Winter is coming, and it does not care how ready you are. Show me you are anyway.", "The wolf yields. You have earned the Wolf Sigil, and the road south with it." },
   { "Guardsman Hallis", 95, 10, 34, 23, 27, 1,
     { 3, 1, 0, 0 }, 320, 200,
     "No one walks into the Great Keep unchallenged. Not even you.", "You have the North in you. Go on up." },
   { "Guardsman Torrhen", 102, 11, 37, 25, 29, 1,
     { 3, 1, 0, 0 }, 340, 220,
     "Cold morning for a challenge. Good. It sharpens things.", "Sharp enough, then." },
-  { "Steward", 66, 9, 26, 18, 27, 1,
-    { 11, 2, 2, 0 }, 146, 99,
-    "Steward squares up.", "Steward goes down and does not get up." },
-  { "Mikken", 75, 11, 30, 21, 30, 1,
-    { 11, 2, 2, 0 }, 174, 117,
+  { "Mikken", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Mikken squares up.", "Mikken goes down and does not get up." },
   { "Ser Rodrik", 70, 3, 16, 10, 12, 1,
     { 2, 0, 2, 0 }, 150, 60,
     "Blunted steel, and I will still put you in the dirt. Guard up.", "Better. Your feet finally caught up with your hands." },
-  { "Villager", 85, 13, 34, 24, 34, 1,
-    { 11, 2, 2, 0 }, 202, 135,
+  { "Villager", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Villager squares up.", "Villager goes down and does not get up." },
   { "Forager Wyl", 69, 6, 24, 16, 19, 1,
     { 7, 11, 0, 0 }, 180, 120,
@@ -7644,8 +7641,8 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Ygrid the Free", 89, 9, 31, 21, 25, 1,
     { 5, 6, 0, 0 }, 240, 180,
     "You kneelers all fight the same. Prove me wrong.", "Huh. You know something after all." },
-  { "Woodsman", 85, 13, 34, 24, 34, 1,
-    { 11, 2, 2, 0 }, 202, 135,
+  { "Woodsman", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Woodsman squares up.", "Woodsman goes down and does not get up." },
   { "Bandit", 60, 5, 21, 13, 19, 1,
     { 11, 2, 0, 0 }, 160, 94,
@@ -7662,8 +7659,8 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Ygritte", 135, 15, 32, 12, 38, 1,
     { 13, 14, 11, 0 }, 800, 340,
     "You know nothing. Let us find out how much nothing.", "All right. You know one thing. Keep the bow, southron." },
-  { "Carter", 94, 15, 39, 27, 38, 1,
-    { 11, 2, 2, 0 }, 230, 153,
+  { "Carter", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Carter squares up.", "Carter goes down and does not get up." },
   { "Watch Deserter", 134, 15, 47, 38, 35, 1,
     { 2, 4, 0, 0 }, 420, 234,
@@ -7677,8 +7674,8 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Tyrell Man-at-arms", 148, 17, 52, 43, 38, 1,
     { 2, 3, 0, 0 }, 472, 262,
     "My lord holds this ground and I hold it for him.", "Enough! Take the road, it is not worth my life." },
-  { "A Deserter", 143, 17, 64, 46, 42, 1,
-    { 2, 3, 4, 0 }, 258, 171,
+  { "A Deserter", 90, 9, 39, 28, 27, 1,
+    { 2, 3, 4, 0 }, 146, 99,
     "A Deserter squares up.", "A Deserter goes down and does not get up." },
   { "Jon Snow", 290, 28, 62, 38, 34, 1,
     { 15, 2, 4, 0 }, 3000, 900,
@@ -7686,26 +7683,26 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Tormund", 300, 26, 58, 30, 20, 1,
     { 5, 6, 7, 0 }, 2200, 720,
     "Free folk do not kneel and do not queue. One fight, right now, and then we drink.", "HAH! Good. You will drink with me and you will not enjoy it." },
-  { "Steward Boy", 104, 17, 43, 30, 42, 1,
-    { 11, 2, 2, 0 }, 258, 171,
+  { "Steward Boy", 66, 9, 26, 18, 27, 1,
+    { 11, 2, 2, 0 }, 146, 99,
     "Steward Boy squares up.", "Steward Boy goes down and does not get up." },
-  { "Maester Aemon", 91, 17, 34, 28, 37, 1,
-    { 11, 2, 2, 0 }, 258, 171,
+  { "Maester Aemon", 57, 9, 20, 17, 24, 1,
+    { 11, 2, 2, 0 }, 146, 99,
     "Maester Aemon squares up.", "Maester Aemon goes down and does not get up." },
-  { "Maester", 99, 19, 37, 31, 41, 1,
-    { 11, 2, 2, 0 }, 286, 189,
+  { "Maester", 70, 12, 25, 21, 29, 1,
+    { 11, 2, 2, 0 }, 188, 126,
     "Maester squares up.", "Maester goes down and does not get up." },
-  { "Steward", 114, 19, 47, 33, 46, 1,
-    { 11, 2, 2, 0 }, 286, 189,
+  { "Steward", 80, 12, 32, 23, 32, 1,
+    { 11, 2, 2, 0 }, 188, 126,
     "Steward squares up.", "Steward goes down and does not get up." },
-  { "Donal Noye", 169, 21, 77, 55, 49, 1,
-    { 2, 3, 4, 0 }, 314, 207,
+  { "Donal Noye", 110, 12, 48, 35, 32, 1,
+    { 2, 3, 4, 0 }, 188, 126,
     "Donal Noye squares up.", "Donal Noye goes down and does not get up." },
-  { "Ygritte", 191, 23, 95, 42, 56, 1,
-    { 5, 8, 7, 0 }, 342, 225,
+  { "Ygritte", 115, 12, 55, 24, 34, 1,
+    { 5, 8, 7, 0 }, 188, 126,
     "Ygritte squares up.", "Ygritte goes down and does not get up." },
-  { "?", 133, 23, 55, 39, 53, 1,
-    { 11, 2, 2, 0 }, 342, 225,
+  { "?", 80, 12, 32, 23, 32, 1,
+    { 11, 2, 2, 0 }, 188, 126,
     "? squares up.", "? goes down and does not get up." },
   { "Free Folk Raider", 251, 34, 96, 66, 73, 1,
     { 5, 6, 0, 0 }, 2600, 680,
@@ -7719,20 +7716,20 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Grave-robber", 245, 35, 99, 61, 79, 1,
     { 7, 11, 0, 0 }, 940, 514,
     "The barrows keep their gold and I keep mine. Walk on.", "Enough! Take the road, it is not worth my life." },
-  { "Meera Reed", 178, 25, 89, 45, 72, 1,
-    { 11, 9, 2, 0 }, 370, 243,
+  { "Meera Reed", 46, 3, 20, 10, 19, 1,
+    { 11, 9, 2, 0 }, 62, 45,
     "Meera Reed squares up.", "Meera Reed goes down and does not get up." },
   { "Bog Guard Reed", 108, 12, 39, 27, 31, 1,
     { 3, 1, 0, 0 }, 420, 240,
     "The Neck has drowned three armies. It can spare a moment for you.", "Pass, then. Mind the sink-holes." },
-  { "Crannogwoman", 142, 25, 59, 42, 57, 1,
-    { 11, 2, 2, 0 }, 370, 243,
+  { "Crannogwoman", 37, 3, 13, 9, 15, 1,
+    { 11, 2, 2, 0 }, 62, 45,
     "Crannogwoman squares up.", "Crannogwoman goes down and does not get up." },
   { "Ramsay Bolton", 265, 29, 60, 32, 32, 0,
     { 12, 11, 6, 0 }, 2800, 860,
     "I do so love it when they still have some fight in them at the start.", "No. No, this is not how the story goes-" },
-  { "Joffrey", 142, 25, 59, 42, 57, 1,
-    { 11, 2, 2, 0 }, 370, 243,
+  { "Joffrey", 37, 3, 13, 9, 15, 1,
+    { 11, 2, 2, 0 }, 62, 45,
     "Joffrey squares up.", "Joffrey goes down and does not get up." },
   { "Bandit", 78, 8, 29, 17, 24, 1,
     { 11, 2, 0, 0 }, 238, 136,
@@ -7743,20 +7740,14 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Poacher", 66, 8, 30, 14, 28, 1,
     { 13, 14, 0, 0 }, 238, 136,
     "You saw nothing. Best keep it that way, or you saw your last thing.", "Enough! Take the road, it is not worth my life." },
-  { "Maester", 133, 27, 50, 42, 54, 1,
-    { 11, 2, 2, 0 }, 398, 261,
-    "Maester squares up.", "Maester goes down and does not get up." },
-  { "Steward", 152, 27, 64, 45, 61, 1,
-    { 11, 2, 2, 0 }, 398, 261,
-    "Steward squares up.", "Steward goes down and does not get up." },
-  { "Bog Smith", 162, 29, 68, 48, 65, 1,
-    { 11, 2, 2, 0 }, 426, 279,
+  { "Bog Smith", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Bog Smith squares up.", "Bog Smith goes down and does not get up." },
-  { "Crannogman", 162, 29, 68, 48, 65, 1,
-    { 11, 2, 2, 0 }, 426, 279,
+  { "Crannogman", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Crannogman squares up.", "Crannogman goes down and does not get up." },
-  { "Bronn", 208, 30, 110, 63, 77, 1,
-    { 2, 11, 3, 0 }, 440, 288,
+  { "Bronn", 64, 6, 31, 17, 24, 1,
+    { 2, 11, 3, 0 }, 104, 72,
     "Bronn squares up.", "Bronn goes down and does not get up." },
   { "Fisher Edd", 121, 14, 44, 30, 35, 1,
     { 2, 1, 0, 0 }, 480, 280,
@@ -7767,8 +7758,8 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Freerider Mors", 128, 15, 47, 32, 37, 1,
     { 3, 1, 0, 0 }, 560, 300,
     "I ride for whoever pays. Today nobody has, so this one is free.", "Should have waited for a paying fight." },
-  { "Traveller's Daughter", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Traveller's Daughter", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Traveller's Daughter squares up.", "Traveller's Daughter goes down and does not get up." },
   { "Bandit", 90, 10, 34, 21, 28, 1,
     { 11, 2, 0, 0 }, 290, 164,
@@ -7782,17 +7773,17 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Tyrell Man-at-arms", 100, 10, 34, 28, 26, 1,
     { 2, 3, 0, 0 }, 290, 164,
     "My lord holds this ground and I hold it for him.", "Enough! Take the road, it is not worth my life." },
-  { "Smallfolk Woman", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Smallfolk Woman", 37, 3, 13, 9, 15, 1,
+    { 11, 2, 2, 0 }, 62, 45,
     "Smallfolk Woman squares up.", "Smallfolk Woman goes down and does not get up." },
-  { "Squire", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Squire", 37, 3, 13, 9, 15, 1,
+    { 11, 2, 2, 0 }, 62, 45,
     "Squire squares up.", "Squire goes down and does not get up." },
-  { "Boatwright", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Boatwright", 37, 3, 13, 9, 15, 1,
+    { 11, 2, 2, 0 }, 62, 45,
     "Boatwright squares up.", "Boatwright goes down and does not get up." },
-  { "Fishwife", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Fishwife", 37, 3, 13, 9, 15, 1,
+    { 11, 2, 2, 0 }, 62, 45,
     "Fishwife squares up.", "Fishwife goes down and does not get up." },
   { "Tyrell Man-at-arms", 127, 14, 44, 36, 33, 1,
     { 2, 3, 0, 0 }, 394, 220,
@@ -7803,30 +7794,24 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Bandit", 109, 13, 42, 25, 35, 1,
     { 11, 2, 0, 0 }, 368, 206,
     "Purse or throat. Choose quickly, it is cold.", "Enough! Take the road, it is not worth my life." },
-  { "Maester", 146, 30, 55, 46, 60, 1,
-    { 11, 2, 2, 0 }, 440, 288,
-    "Maester squares up.", "Maester goes down and does not get up." },
-  { "Steward", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
-    "Steward squares up.", "Steward goes down and does not get up." },
-  { "Armourer Ryn", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Armourer Ryn", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Armourer Ryn squares up.", "Armourer Ryn goes down and does not get up." },
-  { "Hedge Knight", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Hedge Knight", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Hedge Knight squares up.", "Hedge Knight goes down and does not get up." },
-  { "Innkeep", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Innkeep", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Innkeep squares up.", "Innkeep goes down and does not get up." },
   { "Sellsword Bronn", 160, 20, 60, 41, 46, 1,
     { 2, 3, 0, 0 }, 900, 400,
     "I fight for coin. But I will make an exception for the practice.", "Worth the practice. Barely." },
-  { "Drunk", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Drunk", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Drunk squares up.", "Drunk goes down and does not get up." },
-  { "Lady Catelyn", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
-    "Lady Catelyn squares up.", "Lady Catelyn goes down and does not get up." },
+  { "Lady Catelyn Tully", 242, 23, 81, 58, 57, 0,
+    { 2, 1, 0, 0 }, 3000, 860,
+    "You come from Winterfell with a wolf on your banner. Show me it means something.", "It means something. The Trout Sigil is yours, and my blessing with it." },
   { "Ser Edmure", 147, 18, 55, 37, 42, 1,
     { 2, 1, 0, 0 }, 700, 360,
     "My sister set me to guard this hall. I intend to do it well, for once.", "Well enough is not well. I see that now." },
@@ -7848,17 +7833,23 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Tyrell Man-at-arms", 203, 25, 73, 60, 53, 1,
     { 2, 3, 0, 0 }, 680, 374,
     "My lord holds this ground and I hold it for him.", "Enough! Take the road, it is not worth my life." },
-  { "Lord Baelish", 187, 30, 90, 66, 70, 1,
-    { 3, 4, 2, 0 }, 440, 288,
+  { "Lord Baelish", 90, 12, 41, 30, 34, 1,
+    { 3, 4, 2, 0 }, 188, 126,
     "Lord Baelish squares up.", "Lord Baelish goes down and does not get up." },
-  { "Lady Arryn", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Lady Arryn", 80, 12, 32, 23, 32, 1,
+    { 11, 2, 2, 0 }, 188, 126,
     "Lady Arryn squares up.", "Lady Arryn goes down and does not get up." },
-  { "Sky Cell Guard", 239, 30, 100, 86, 63, 1,
-    { 2, 1, 3, 0 }, 440, 288,
+  { "Sky Cell Guard", 115, 12, 46, 39, 31, 1,
+    { 2, 1, 3, 0 }, 188, 126,
     "Sky Cell Guard squares up.", "Sky Cell Guard goes down and does not get up." },
-  { "Armourer", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Maester", 83, 15, 30, 25, 34, 1,
+    { 11, 2, 2, 0 }, 230, 153,
+    "Maester squares up.", "Maester goes down and does not get up." },
+  { "Steward", 94, 15, 39, 27, 38, 1,
+    { 11, 2, 2, 0 }, 230, 153,
+    "Steward squares up.", "Steward goes down and does not get up." },
+  { "Armourer", 94, 15, 39, 27, 38, 1,
+    { 11, 2, 2, 0 }, 230, 153,
     "Armourer squares up.", "Armourer goes down and does not get up." },
   { "Syrio Forel", 140, 16, 34, 12, 46, 1,
     { 11, 4, 3, 0 }, 900, 380,
@@ -7872,8 +7863,8 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Caravanner Illyn", 180, 23, 68, 46, 52, 1,
     { 11, 0, 2, 0 }, 1000, 460,
     "Bandits, bad roads and now you. It has been a long month.", "Add it to the list." },
-  { "Miner", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Miner", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Miner squares up.", "Miner goes down and does not get up." },
   { "Sellsword", 114, 16, 48, 27, 51, 1,
     { 11, 12, 0, 0 }, 446, 248,
@@ -7884,29 +7875,29 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Grave-robber", 140, 18, 55, 33, 44, 1,
     { 7, 11, 0, 0 }, 498, 276,
     "The barrows keep their gold and I keep mine. Walk on.", "Enough! Take the road, it is not worth my life." },
-  { "Gold Cloak", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Gold Cloak", 37, 3, 13, 9, 15, 1,
+    { 11, 2, 2, 0 }, 62, 45,
     "Gold Cloak squares up.", "Gold Cloak goes down and does not get up." },
-  { "Goldsmith", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Goldsmith", 37, 3, 13, 9, 15, 1,
+    { 11, 2, 2, 0 }, 62, 45,
     "Goldsmith squares up.", "Goldsmith goes down and does not get up." },
-  { "Joffrey", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
-    "Joffrey squares up.", "Joffrey goes down and does not get up." },
+  { "Armourer", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
+    "Armourer squares up.", "Armourer goes down and does not get up." },
   { "Apprentice Gendry", 186, 24, 70, 48, 54, 1,
     { 2, 3, 0, 0 }, 1050, 480,
     "I make the steel. Sometimes I get to use it.", "Back to the forge, then." },
-  { "Ser Jaime", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
-    "Ser Jaime squares up.", "Ser Jaime goes down and does not get up." },
+  { "Ser Jaime Lannister", 330, 33, 113, 81, 78, 0,
+    { 2, 3, 0, 0 }, 5000, 1060,
+    "Two sigils and a northern accent. Let us see whether you can back either of them.", "You can. Take the Lion Sigil - I have never enjoyed giving one away more." },
   { "Ser Kevan", 206, 27, 78, 54, 59, 1,
     { 2, 3, 0, 0 }, 1200, 540,
     "My nephew holds this hall. I hold the stair. Neither is negotiable.", "The stair is yours. The hall is still his." },
   { "Ser Addam", 212, 28, 81, 55, 61, 1,
     { 2, 3, 0, 0 }, 1250, 560,
     "You have come a long way to lose indoors.", "Or to win indoors. My mistake." },
-  { "Page", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Page", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Page squares up.", "Page goes down and does not get up." },
   { "Gregor Clegane", 400, 32, 78, 52, 12, 0,
     { 7, 5, 8, 0 }, 4000, 1100,
@@ -7914,8 +7905,8 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Ser Jaime Lannister", 300, 30, 66, 40, 40, 0,
     { 15, 3, 4, 0 }, 3500, 980,
     "They call me Kingslayer and never ask how good I had to be to manage it. Guard.", "Beaten fairly, by someone who has actually read the histories. Take the plate." },
-  { "Samwell Tarly", 229, 30, 105, 76, 67, 1,
-    { 2, 3, 4, 0 }, 440, 288,
+  { "Samwell Tarly", 70, 6, 29, 21, 21, 1,
+    { 2, 3, 4, 0 }, 104, 72,
     "Samwell Tarly squares up.", "Samwell Tarly goes down and does not get up." },
   { "Ser Lyle", 232, 31, 89, 61, 67, 1,
     { 7, 8, 0, 0 }, 1400, 620,
@@ -7926,8 +7917,8 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Deserter Karl", 245, 33, 94, 64, 71, 1,
     { 2, 5, 0, 0 }, 1500, 660,
     "I left the Wall. You would have too, if you had seen it.", "Turn me in if you like. The rope is quicker than the cold." },
-  { "Pilgrim", 135, 30, 50, 46, 60, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Pilgrim", 42, 6, 14, 13, 19, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Pilgrim squares up.", "Pilgrim goes down and does not get up." },
   { "Sandor Clegane", 230, 20, 52, 34, 22, 0,
     { 5, 2, 6, 0 }, 1600, 520,
@@ -7944,18 +7935,30 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Bowman", 149, 24, 74, 36, 65, 1,
     { 13, 14, 0, 0 }, 654, 360,
     "We are the brotherhood without banners. We ask the poor for nothing.", "Enough! Take the road, it is not worth my life." },
-  { "Harbourmaster", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Harbourmaster", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Harbourmaster squares up.", "Harbourmaster goes down and does not get up." },
-  { "Beggar Boy", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Gold Cloak", 74, 6, 28, 23, 20, 1,
+    { 2, 1, 3, 0 }, 104, 72,
+    "Gold Cloak squares up.", "Gold Cloak goes down and does not get up." },
+  { "Beggar Boy", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Beggar Boy squares up.", "Beggar Boy goes down and does not get up." },
-  { "Recruiter", 229, 30, 105, 76, 67, 1,
-    { 2, 3, 4, 0 }, 440, 288,
+  { "Recruiter", 70, 6, 29, 21, 21, 1,
+    { 2, 3, 4, 0 }, 104, 72,
     "Recruiter squares up.", "Recruiter goes down and does not get up." },
-  { "Stranger", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Stranger", 51, 6, 20, 14, 21, 1,
+    { 11, 2, 2, 0 }, 104, 72,
     "Stranger squares up.", "Stranger goes down and does not get up." },
+  { "Maester", 57, 9, 20, 17, 24, 1,
+    { 11, 2, 2, 0 }, 146, 99,
+    "Maester squares up.", "Maester goes down and does not get up." },
+  { "Steward", 66, 9, 26, 18, 27, 1,
+    { 11, 2, 2, 0 }, 146, 99,
+    "Steward squares up.", "Steward goes down and does not get up." },
+  { "Armourer", 66, 9, 26, 18, 27, 1,
+    { 11, 2, 2, 0 }, 146, 99,
+    "Armourer squares up.", "Armourer goes down and does not get up." },
   { "Kingsguard Trainee", 245, 33, 94, 64, 71, 1,
     { 3, 1, 0, 0 }, 1600, 660,
     "The white cloak has to be earned. Every day, apparently.", "Earned it tomorrow, then." },
@@ -7965,8 +7968,8 @@ static const Duellist duellists[DUELLIST_COUNT] = {
   { "Daario Naharis", 240, 27, 56, 26, 42, 1,
     { 11, 4, 12, 0 }, 2600, 820,
     "You have the look of someone about to do something magnificent and stupid. I approve.", "Beautiful. Truly. I shall tell it badly in every tavern from here to Meereen." },
-  { "Daenerys", 166, 30, 70, 50, 67, 1,
-    { 11, 2, 2, 0 }, 440, 288,
+  { "Daenerys", 37, 3, 13, 9, 15, 1,
+    { 11, 2, 2, 0 }, 62, 45,
     "Daenerys squares up.", "Daenerys goes down and does not get up." },
   { "Euron Greyjoy", 310, 33, 68, 34, 36, 0,
     { 5, 6, 11, 0 }, 3800, 1050,
@@ -8767,12 +8770,12 @@ static const Ambush ambushes_3[1] = {
 };
 static const Npc npcs_3[4] = {
   { 8, 4, 0, 0, 1, 0, 1, 0, 0, 14,
-    "Lord Rickard", "Come back when you have something to fight with." },
+    "Lord Eddard Stark", "Winter is coming, and it does not care how ready you are. Show me you are anyway." },
   { 5, 10, 3, 1, 1, 0, 1, 0, 4, 15,
     "Hallis", "No one walks into the Great Keep unchallenged. Not even you." },
   { 11, 8, 2, 1, 1, 0, 1, 0, 4, 16,
     "Torrhen", "Cold morning for a challenge. Good. It sharpens things." },
-  { 3, 13, 3, 2, 1, 0, 1, 0, 0, 17,
+  { 3, 13, 3, 2, 1, 0, 1, 0, 0, 12,
     "Steward", "Lord Rickard fights with BEAST creatures. Frost bites them hard, and so does a good wing." },
 };
 
@@ -8881,9 +8884,9 @@ static const Ambush ambushes_4[1] = {
   { 0, 0 },
 };
 static const Npc npcs_4[2] = {
-  { 7, 1, 0, 0, 0, 0, 1, 2, 0, 18,
+  { 7, 1, 0, 0, 0, 0, 1, 2, 0, 17,
     "Mikken", "Northern steel. Plain, heavy and it will not let you down." },
-  { 5, 4, 3, 1, 1, 0, 1, 0, 0, 19,
+  { 5, 4, 3, 1, 1, 0, 1, 0, 0, 18,
     "Ser Rodrik Cassel", "Blunted steel, and I will still put you in the dirt. Guard up." },
 };
 
@@ -9405,20 +9408,20 @@ static const Sign signs_5[2] = {
   { 8, 17, "A drop, not a climb. You can jump down, but not back up." },
 };
 static const Ambush ambushes_5[3] = {
+  { 24, 0 },
   { 25, 0 },
-  { 26, 0 },
-  { 27, 1 },
+  { 26, 1 },
 };
 static const Npc npcs_5[5] = {
-  { 8, 6, 0, 0, 1, 0, 1, 0, 0, 20,
+  { 8, 6, 0, 0, 1, 0, 1, 0, 0, 19,
     "Villager", "It goes badly. Whatever you meant to settle here is still unsettled." },
-  { 6, 6, 3, 0, 1, 0, 1, 0, 3, 21,
+  { 6, 6, 3, 0, 1, 0, 1, 0, 3, 20,
     "Forager", "You are standing on my mushrooms." },
-  { 14, 12, 2, 1, 1, 0, 1, 0, 4, 22,
+  { 14, 12, 2, 1, 1, 0, 1, 0, 4, 21,
     "Ranger Jon", "The Watch takes all sorts. Let me see what sort you are." },
-  { 5, 22, 1, 2, 1, 0, 1, 0, 4, 23,
+  { 5, 22, 1, 2, 1, 0, 1, 0, 4, 22,
     "Wildling", "You kneelers all fight the same. Prove me wrong." },
-  { 16, 20, 2, 3, 1, 0, 1, 0, 0, 24,
+  { 16, 20, 2, 3, 1, 0, 1, 0, 0, 23,
     "Woodsman", "See that drop? You can jump down it, but you will be walking the long way round to get back." },
 };
 
@@ -9748,17 +9751,17 @@ static const Sign signs_6[1] = {
   { 255, 255, "" },
 };
 static const Ambush ambushes_6[4] = {
-  { 31, 0 },
+  { 30, 0 },
+  { 31, 3 },
   { 32, 3 },
-  { 33, 3 },
-  { 34, 4 },
+  { 33, 4 },
 };
 static const Npc npcs_6[3] = {
-  { 6, 8, 3, 0, 1, 0, 1, 0, 4, 28,
+  { 6, 8, 3, 0, 1, 0, 1, 0, 4, 27,
     "Ranger Qhorin", "Nobody rides north for a good reason. Show me yours." },
-  { 14, 17, 2, 1, 1, 0, 1, 0, 0, 29,
+  { 14, 17, 2, 1, 1, 0, 1, 0, 0, 28,
     "Ygritte", "You know nothing. Let us find out how much nothing." },
-  { 4, 21, 0, 2, 1, 0, 1, 0, 0, 30,
+  { 4, 21, 0, 2, 1, 0, 1, 0, 0, 29,
     "Carter", "Road keeps going north till it runs out of road. Then it is just the Wall." },
 };
 
@@ -10175,15 +10178,15 @@ static const Ambush ambushes_7[1] = {
   { 0, 0 },
 };
 static const Npc npcs_7[5] = {
-  { 12, 4, 0, 0, 1, 0, 1, 0, 0, 35,
+  { 12, 4, 0, 0, 1, 0, 1, 0, 0, 34,
     "A Deserter", "It goes badly. Whatever you meant to settle here is still unsettled." },
-  { 8, 9, 0, 0, 1, 0, 1, 0, 0, 36,
+  { 8, 9, 0, 0, 1, 0, 1, 0, 0, 35,
     "Jon Snow", "I am not going to talk you out of this, am I. All right. Longclaw is heavier than it looks." },
-  { 14, 10, 2, 1, 1, 0, 1, 0, 0, 37,
+  { 14, 10, 2, 1, 1, 0, 1, 0, 0, 36,
     "Tormund", "Free folk do not kneel and do not queue. One fight, right now, and then we drink." },
-  { 5, 17, 3, 2, 1, 0, 0, 0, 0, 38,
+  { 5, 17, 3, 2, 1, 0, 0, 0, 0, 37,
     "Steward Boy", "Beyond it, the wights come in numbers. Bring fire, or dragonglass, or both." },
-  { 17, 17, 2, 3, 1, 1, 0, 0, 0, 39,
+  { 17, 17, 2, 3, 1, 1, 0, 0, 0, 38,
     "Maester Aemon", "Kill the boy and let the man be born. It is the only advice worth the raven." },
 };
 
@@ -10289,9 +10292,9 @@ static const Ambush ambushes_8[1] = {
   { 0, 0 },
 };
 static const Npc npcs_8[2] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 40,
+  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 39,
     "Maester", "Cold does worse to a creature than any blade. Let me look." },
-  { 8, 1, 0, 1, 0, 0, 1, 1, 0, 41,
+  { 8, 1, 0, 1, 0, 0, 1, 1, 0, 40,
     "Steward", "Everything here has come a long way. So has the price." },
 };
 
@@ -10400,7 +10403,7 @@ static const Ambush ambushes_9[1] = {
   { 0, 0 },
 };
 static const Npc npcs_9[1] = {
-  { 7, 1, 0, 0, 0, 0, 1, 2, 0, 42,
+  { 7, 1, 0, 0, 0, 0, 1, 2, 0, 41,
     "Donal Noye", "One arm, one forge, and the best steel north of the Neck." },
 };
 
@@ -10777,16 +10780,16 @@ static const Sign signs_10[1] = {
   { 8, 21, "Somebody has driven a spear into the ice here.\nThere is no message. The message is the spear." },
 };
 static const Ambush ambushes_10[3] = {
-  { 46, 0 },
-  { 47, 2 },
-  { 48, 3 },
+  { 45, 0 },
+  { 46, 2 },
+  { 47, 3 },
 };
 static const Npc npcs_10[3] = {
-  { 8, 10, 0, 0, 1, 0, 1, 0, 0, 43,
+  { 8, 10, 0, 0, 1, 0, 1, 0, 0, 42,
     "Ygritte", "They can die out there, and if they do that is the end of them. No maester brings a person back." },
-  { 10, 4, 0, 1, 1, 0, 0, 0, 0, 44,
+  { 10, 4, 0, 1, 1, 0, 0, 0, 0, 43,
     "?", "A direwolf the colour of the drifts steps out and looks straight through you." },
-  { 6, 14, 3, 0, 1, 0, 1, 0, 4, 45,
+  { 6, 14, 3, 0, 1, 0, 1, 0, 4, 44,
     "Raider", "You are a long way from a fire, kneeler." },
 };
 
@@ -11272,20 +11275,20 @@ static const Sign signs_11[1] = {
   { 15, 13, "MOAT CAILIN\nThree towers still standing out of twenty.\nThe Neck swallowed the rest." },
 };
 static const Ambush ambushes_11[3] = {
+  { 53, 5 },
   { 54, 5 },
   { 55, 5 },
-  { 56, 5 },
 };
 static const Npc npcs_11[5] = {
-  { 12, 10, 0, 0, 1, 0, 1, 0, 0, 49,
+  { 12, 10, 0, 0, 1, 0, 1, 0, 0, 48,
     "Meera Reed", "They can die out there, and if they do that is the end of them. No maester brings a person back." },
-  { 13, 10, 0, 1, 1, 0, 1, 0, 4, 50,
+  { 13, 10, 0, 1, 1, 0, 1, 0, 4, 49,
     "Bog Guard", "The Neck has drowned three armies. It can spare a moment for you." },
-  { 4, 15, 3, 2, 1, 0, 1, 0, 0, 51,
+  { 4, 15, 3, 2, 1, 0, 1, 0, 0, 50,
     "Crannogman", "Water that looks like ground has drowned better travellers than you. Stay on the causeway." },
-  { 16, 9, 0, 3, 1, 0, 1, 0, 0, 52,
+  { 16, 9, 0, 3, 1, 0, 1, 0, 0, 51,
     "Ramsay Bolton", "I do so love it when they still have some fight in them at the start." },
-  { 17, 10, 0, 4, 1, 0, 1, 0, 0, 53,
+  { 17, 10, 0, 4, 1, 0, 1, 0, 0, 52,
     "Joffrey", "Nothing happens here, which is how we like it." },
 };
 
@@ -11391,9 +11394,9 @@ static const Ambush ambushes_12[1] = {
   { 0, 0 },
 };
 static const Npc npcs_12[2] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 57,
+  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 11,
     "Maester", "The damp is unkind to creatures. Let me see to yours." },
-  { 8, 1, 0, 1, 0, 0, 1, 1, 0, 58,
+  { 8, 1, 0, 1, 0, 0, 1, 1, 0, 12,
     "Steward", "Everything here has come a long way. So has the price." },
 };
 
@@ -11518,9 +11521,9 @@ static const Ambush ambushes_13[1] = {
   { 0, 0 },
 };
 static const Npc npcs_13[2] = {
-  { 5, 1, 0, 0, 0, 0, 1, 2, 0, 59,
+  { 5, 1, 0, 0, 0, 0, 1, 2, 0, 56,
     "Bog Smith", "Crannogmen bring me iron out of the water. It has been down there a long while, and it holds an edge like nothing else." },
-  { 3, 5, 3, 0, 1, 0, 1, 0, 0, 60,
+  { 3, 5, 3, 0, 1, 0, 1, 0, 0, 57,
     "Crannogman", "He does not look up from the bellows. \"Mind the floor by the north wall. It is not floor any more.\"" },
 };
 
@@ -11982,21 +11985,21 @@ static const Sign signs_14[1] = {
   { 9, 1, "THE RIVERLANDS\nSouth to Riverrun.\nMind the fords." },
 };
 static const Ambush ambushes_14[4] = {
-  { 66, 5 },
-  { 67, 6 },
-  { 68, 0 },
-  { 69, 7 },
+  { 63, 5 },
+  { 64, 6 },
+  { 65, 0 },
+  { 66, 7 },
 };
 static const Npc npcs_14[5] = {
-  { 12, 10, 0, 0, 1, 0, 1, 0, 0, 61,
+  { 12, 10, 0, 0, 1, 0, 1, 0, 0, 58,
     "Bronn", "They can die out there, and if they do that is the end of them. No maester brings a person back." },
-  { 5, 10, 3, 1, 1, 0, 1, 0, 4, 62,
+  { 5, 10, 3, 1, 1, 0, 1, 0, 4, 59,
     "Fisher Edd", "Caught nothing all morning. You will do." },
-  { 15, 15, 2, 2, 1, 0, 1, 0, 3, 63,
+  { 15, 15, 2, 2, 1, 0, 1, 0, 3, 60,
     "Pedlar", "Buy something. Or fight me. Either way you are stopping." },
-  { 6, 20, 1, 3, 1, 0, 1, 0, 4, 64,
+  { 6, 20, 1, 3, 1, 0, 1, 0, 4, 61,
     "Freerider", "I ride for whoever pays. Today nobody has, so this one is free." },
-  { 14, 4, 0, 4, 1, 0, 0, 0, 0, 65,
+  { 14, 4, 0, 4, 1, 0, 0, 0, 0, 62,
     "Traveller's Daughter", "A creature that is asleep or frozen is far easier to win over. Weaken it, then raise your banner." },
 };
 
@@ -12454,18 +12457,18 @@ static const Sign signs_15[1] = {
   { 18, 9, "RIVERRUN\nSeat of House Tully.\nSigil-holder: LADY CATELYN." },
 };
 static const Ambush ambushes_15[3] = {
-  { 74, 3 },
-  { 75, 4 },
-  { 76, 5 },
+  { 71, 3 },
+  { 72, 4 },
+  { 73, 5 },
 };
 static const Npc npcs_15[4] = {
-  { 12, 6, 0, 0, 1, 0, 1, 0, 0, 70,
+  { 12, 6, 0, 0, 1, 0, 1, 0, 0, 67,
     "Smallfolk Woman", "It goes badly. Whatever you meant to settle here is still unsettled." },
-  { 8, 10, 0, 1, 1, 0, 0, 0, 0, 71,
+  { 8, 10, 0, 1, 1, 0, 0, 0, 0, 68,
     "Squire", "She fights with TIDE creatures. Bring something green, or something that crackles." },
-  { 17, 15, 2, 2, 1, 0, 1, 0, 0, 72,
+  { 17, 15, 2, 2, 1, 0, 1, 0, 0, 69,
     "Boatwright", "Every creature has two types, most of them. Hit both badly and it hardly matters how strong it is." },
-  { 4, 17, 3, 0, 1, 0, 1, 0, 0, 73,
+  { 4, 17, 3, 0, 1, 0, 1, 0, 0, 70,
     "Fishwife", "You have the look of someone who has been kind to a creature or two." },
 };
 
@@ -12571,9 +12574,9 @@ static const Ambush ambushes_16[1] = {
   { 0, 0 },
 };
 static const Npc npcs_16[2] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 77,
+  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 11,
     "Maester", "Rivers run, and so do errands. Rest here first." },
-  { 8, 1, 0, 1, 0, 0, 1, 1, 0, 78,
+  { 8, 1, 0, 1, 0, 0, 1, 1, 0, 12,
     "Steward", "Everything here has come a long way. So has the price." },
 };
 
@@ -12682,9 +12685,9 @@ static const Ambush ambushes_17[1] = {
   { 0, 0 },
 };
 static const Npc npcs_17[2] = {
-  { 3, 2, 0, 0, 0, 0, 1, 2, 0, 79,
+  { 3, 2, 0, 0, 0, 0, 1, 2, 0, 74,
     "Ryn", "River steel, and mail a man can swim in if he has to. Half of Riverrun has had to." },
-  { 8, 5, 2, 1, 1, 0, 1, 0, 0, 80,
+  { 8, 5, 2, 1, 1, 0, 1, 0, 0, 75,
     "Hedge Knight", "The rivers keep the Riverlands fed and the Riverlands fought over." },
 };
 
@@ -12785,11 +12788,11 @@ static const Ambush ambushes_18[1] = {
   { 0, 0 },
 };
 static const Npc npcs_18[3] = {
-  { 7, 1, 0, 0, 0, 0, 1, 0, 0, 81,
+  { 7, 1, 0, 0, 0, 0, 1, 0, 0, 76,
     "Innkeep", "You slept until the noise downstairs became unbearable. Everyone is rested." },
-  { 3, 3, 3, 1, 1, 0, 1, 0, 0, 82,
+  { 3, 3, 3, 1, 1, 0, 1, 0, 0, 77,
     "Sellsword", "I fight for coin. But I will make an exception for the practice." },
-  { 8, 5, 2, 2, 1, 0, 1, 0, 0, 83,
+  { 8, 5, 2, 2, 1, 0, 1, 0, 0, 78,
     "Drunk", "There is a cave off the Gold Road. Something walks in it that should not walk at all." },
 };
 
@@ -12963,13 +12966,13 @@ static const Ambush ambushes_19[1] = {
   { 0, 0 },
 };
 static const Npc npcs_19[4] = {
-  { 8, 4, 0, 0, 1, 0, 1, 0, 0, 84,
-    "Lady Catelyn", "You carry no sigil at all. Earn one in the North first, and then we will talk." },
-  { 4, 7, 3, 1, 1, 0, 1, 0, 4, 85,
+  { 8, 4, 0, 0, 1, 0, 1, 0, 0, 79,
+    "Lady Catelyn", "You come from Winterfell with a wolf on your banner. Show me it means something." },
+  { 4, 7, 3, 1, 1, 0, 1, 0, 4, 80,
     "Ser Edmure", "My sister set me to guard this hall. I intend to do it well, for once." },
-  { 12, 10, 2, 1, 1, 0, 1, 0, 5, 86,
+  { 12, 10, 2, 1, 1, 0, 1, 0, 5, 81,
     "Ser Brynden", "They call me the Blackfish. Nothing swims past me." },
-  { 3, 14, 3, 2, 1, 0, 1, 0, 0, 78,
+  { 3, 14, 3, 2, 1, 0, 1, 0, 0, 12,
     "Steward", "TIDE creatures drown a fire and crush a stone. Storms and green things undo them." },
 };
 
@@ -13355,14 +13358,14 @@ static const Sign signs_20[1] = {
   { 8, 21, "THE BLOODY GATE\n\"You may not pass.\"\nSomeone has scratched: \"unless\"" },
 };
 static const Ambush ambushes_20[3] = {
-  { 89, 2 },
-  { 90, 3 },
-  { 91, 4 },
+  { 84, 2 },
+  { 85, 3 },
+  { 86, 4 },
 };
 static const Npc npcs_20[2] = {
-  { 6, 10, 3, 0, 1, 0, 1, 0, 4, 87,
+  { 6, 10, 3, 0, 1, 0, 1, 0, 4, 82,
     "Ser Vardis", "The Bloody Gate has turned back armies. It can turn back one rider." },
-  { 13, 19, 2, 1, 1, 0, 1, 0, 0, 88,
+  { 13, 19, 2, 1, 1, 0, 1, 0, 0, 83,
     "Brienne of Tarth", "I have no lands and no title. I have a sword, and I keep my oaths. Draw." },
 };
 
@@ -13684,11 +13687,11 @@ static const Ambush ambushes_21[1] = {
   { 0, 0 },
 };
 static const Npc npcs_21[3] = {
-  { 8, 9, 0, 0, 1, 0, 1, 0, 0, 92,
+  { 8, 9, 0, 0, 1, 0, 1, 0, 0, 87,
     "Lord Baelish", "You have collected sigils. Good. Collect debts next - they last longer." },
-  { 14, 10, 2, 1, 1, 0, 1, 0, 0, 93,
+  { 14, 10, 2, 1, 1, 0, 1, 0, 0, 88,
     "Lady Arryn", "The Vale has stayed out of every war since the Conquest. That is not cowardice, it is arithmetic." },
-  { 5, 17, 3, 2, 1, 0, 1, 0, 0, 94,
+  { 5, 17, 3, 2, 1, 0, 1, 0, 0, 89,
     "Guard", "WIND creatures nest all over the mountain. Bring something that throws stones." },
 };
 
@@ -13794,9 +13797,9 @@ static const Ambush ambushes_22[1] = {
   { 0, 0 },
 };
 static const Npc npcs_22[2] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 77,
+  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 90,
     "Maester", "The climb is hard on them. Sit a while." },
-  { 8, 1, 0, 1, 0, 0, 1, 1, 0, 78,
+  { 8, 1, 0, 1, 0, 0, 1, 1, 0, 91,
     "Steward", "Everything here has come a long way. So has the price." },
 };
 
@@ -13905,9 +13908,9 @@ static const Ambush ambushes_23[1] = {
   { 0, 0 },
 };
 static const Npc npcs_23[2] = {
-  { 7, 1, 0, 0, 0, 0, 1, 2, 0, 95,
+  { 7, 1, 0, 0, 0, 0, 1, 2, 0, 92,
     "Armourer", "Falcon-etched and overpriced. It is the Vale, what did you expect." },
-  { 5, 4, 3, 1, 1, 0, 1, 0, 0, 96,
+  { 5, 4, 3, 1, 1, 0, 1, 0, 0, 93,
     "Syrio Forel", "The First Sword of Braavos does not dance with just anyone. Watch me. Just watch me." },
 };
 
@@ -14345,19 +14348,19 @@ static const Sign signs_24[1] = {
   { 9, 1, "THE GOLD ROAD\nSouth to Lannisport.\nA dark opening gapes to the west." },
 };
 static const Ambush ambushes_24[4] = {
-  { 101, 3 },
-  { 34, 4 },
-  { 102, 5 },
-  { 103, 5 },
+  { 98, 3 },
+  { 33, 4 },
+  { 99, 5 },
+  { 100, 5 },
 };
 static const Npc npcs_24[4] = {
-  { 14, 6, 2, 0, 1, 0, 1, 0, 4, 97,
+  { 14, 6, 2, 0, 1, 0, 1, 0, 4, 94,
     "Guardsman", "The Gold Road is Lannister road. Toll or trial. Pick." },
-  { 5, 15, 3, 0, 1, 0, 1, 0, 5, 98,
+  { 5, 15, 3, 0, 1, 0, 1, 0, 5, 95,
     "Hedge Knight", "No lands, no lord, no coin. Just a shield and a bad habit of using it." },
-  { 15, 20, 1, 1, 1, 0, 1, 0, 4, 99,
+  { 15, 20, 1, 1, 1, 0, 1, 0, 4, 96,
     "Caravanner", "Bandits, bad roads and now you. It has been a long month." },
-  { 4, 4, 0, 2, 1, 0, 1, 0, 0, 100,
+  { 4, 4, 0, 2, 1, 0, 1, 0, 0, 97,
     "Miner", "Something down there is older than the road, the Rock, and probably the gods." },
 };
 
@@ -14781,11 +14784,11 @@ static const Ambush ambushes_25[1] = {
   { 0, 0 },
 };
 static const Npc npcs_25[3] = {
-  { 6, 9, 0, 0, 1, 0, 1, 0, 0, 104,
+  { 6, 9, 0, 0, 1, 0, 1, 0, 0, 101,
     "Gold Cloak", "Casterly Rock is up the stair. Ser Jaime holds the Lion Sigil and gives it to almost nobody." },
-  { 15, 17, 2, 1, 1, 0, 1, 0, 0, 105,
+  { 15, 17, 2, 1, 1, 0, 1, 0, 0, 102,
     "Goldsmith", "STEEL turns aside frost and stone alike. Fire goes straight through it." },
-  { 4, 17, 3, 2, 1, 0, 1, 0, 0, 106,
+  { 4, 17, 3, 2, 1, 0, 1, 0, 0, 52,
     "Joffrey", "Nothing happens here, which is how we like it." },
 };
 
@@ -14891,9 +14894,9 @@ static const Ambush ambushes_26[1] = {
   { 0, 0 },
 };
 static const Npc npcs_26[2] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 77,
+  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 11,
     "Maester", "Gold pays for good care. Yours is free, of course." },
-  { 8, 1, 0, 1, 0, 0, 1, 1, 0, 78,
+  { 8, 1, 0, 1, 0, 0, 1, 1, 0, 12,
     "Steward", "Everything here has come a long way. So has the price." },
 };
 
@@ -15002,9 +15005,9 @@ static const Ambush ambushes_27[1] = {
   { 0, 0 },
 };
 static const Npc npcs_27[2] = {
-  { 7, 1, 0, 0, 0, 0, 1, 1, 0, 95,
+  { 7, 1, 0, 0, 0, 0, 1, 1, 0, 103,
     "Armourer", "Good steel, fair prices, and no questions about either." },
-  { 5, 4, 3, 1, 1, 0, 1, 0, 0, 107,
+  { 5, 4, 3, 1, 1, 0, 1, 0, 0, 104,
     "Apprentice", "I make the steel. Sometimes I get to use it." },
 };
 
@@ -15194,17 +15197,17 @@ static const Ambush ambushes_28[1] = {
   { 0, 0 },
 };
 static const Npc npcs_28[6] = {
-  { 8, 3, 0, 0, 1, 0, 1, 0, 0, 108,
-    "Ser Jaime", "Two sigils to climb the Rock. You are one short. Riverrun is that way." },
-  { 6, 9, 3, 0, 1, 0, 1, 0, 4, 109,
+  { 8, 3, 0, 0, 1, 0, 1, 0, 0, 105,
+    "Ser Jaime", "Two sigils and a northern accent. Let us see whether you can back either of them." },
+  { 6, 9, 3, 0, 1, 0, 1, 0, 4, 106,
     "Ser Kevan", "My nephew holds this hall. I hold the stair. Neither is negotiable." },
-  { 11, 14, 2, 0, 1, 0, 1, 0, 5, 110,
+  { 11, 14, 2, 0, 1, 0, 1, 0, 5, 107,
     "Ser Addam", "You have come a long way to lose indoors." },
-  { 3, 16, 3, 1, 1, 0, 0, 0, 0, 111,
+  { 3, 16, 3, 1, 1, 0, 0, 0, 0, 108,
     "Steward", "Ser Jaime fields BEAST and STEEL. Flame melts one; a good hard hit settles the other." },
-  { 13, 3, 0, 2, 1, 0, 1, 0, 0, 112,
+  { 13, 3, 0, 2, 1, 0, 1, 0, 0, 109,
     "Gregor Clegane", "Gregor Clegane says nothing at all. He simply lifts the greatsword and starts walking." },
-  { 4, 3, 0, 0, 1, 0, 1, 0, 0, 113,
+  { 4, 3, 0, 0, 1, 0, 1, 0, 0, 110,
     "Ser Jaime Lannister", "They call me Kingslayer and never ask how good I had to be to manage it. Guard." },
 };
 
@@ -15673,23 +15676,23 @@ static const Sign signs_29[1] = {
   { 9, 1, "THE KINGSROAD\nSouth to King's Landing.\nThe end of the road, one way or another." },
 };
 static const Ambush ambushes_29[4] = {
-  { 120, 4 },
-  { 121, 5 },
-  { 122, 6 },
-  { 123, 7 },
+  { 117, 4 },
+  { 118, 5 },
+  { 119, 6 },
+  { 120, 7 },
 };
 static const Npc npcs_29[6] = {
-  { 8, 14, 0, 0, 1, 0, 1, 0, 0, 114,
+  { 8, 14, 0, 0, 1, 0, 1, 0, 0, 111,
     "Samwell Tarly", "They can die out there, and if they do that is the end of them. No maester brings a person back." },
-  { 5, 6, 3, 1, 1, 0, 1, 0, 4, 115,
+  { 5, 6, 3, 1, 1, 0, 1, 0, 4, 112,
     "Ser Lyle", "Ours is the fury. Mostly mine, at present." },
-  { 15, 12, 2, 1, 1, 0, 1, 0, 5, 116,
+  { 15, 12, 2, 1, 1, 0, 1, 0, 5, 113,
     "Ser Rolland", "The last one who passed me is still walking it off." },
-  { 6, 17, 1, 0, 1, 0, 1, 0, 4, 117,
+  { 6, 17, 1, 0, 1, 0, 1, 0, 4, 114,
     "Deserter", "I left the Wall. You would have too, if you had seen it." },
-  { 14, 20, 2, 2, 1, 0, 0, 0, 0, 118,
+  { 14, 20, 2, 2, 1, 0, 0, 0, 0, 115,
     "Pilgrim", "Three sigils on your banner and the Red Keep will open its doors." },
-  { 4, 20, 3, 3, 1, 0, 1, 0, 0, 119,
+  { 4, 20, 3, 3, 1, 0, 1, 0, 0, 116,
     "Sandor Clegane", "Knights. Sers. Vows. You want a real fight, you fight a dog. Come on then." },
 };
 
@@ -16017,15 +16020,15 @@ static const Ambush ambushes_30[1] = {
   { 0, 0 },
 };
 static const Npc npcs_30[5] = {
-  { 11, 20, 0, 0, 0, 0, 1, 0, 0, 124,
+  { 11, 20, 0, 0, 0, 0, 1, 0, 0, 121,
     "Harbourmaster", "Ships out to Braavos, Pentos, Volantis and Meereen. The captain sets the fare, not me." },
-  { 8, 9, 0, 1, 1, 0, 1, 0, 0, 104,
+  { 8, 9, 0, 1, 1, 0, 1, 0, 0, 122,
     "Gold Cloak", "Three sigils. The Red Keep is yours to climb. Gods be with you." },
-  { 18, 19, 2, 2, 1, 0, 0, 0, 0, 125,
+  { 18, 19, 2, 2, 1, 0, 0, 0, 0, 123,
     "Beggar Boy", "I am not supposed to talk to strangers. Hello." },
-  { 4, 19, 3, 3, 1, 0, 1, 0, 0, 126,
+  { 4, 19, 3, 3, 1, 0, 1, 0, 0, 124,
     "Recruiter", "They say something is stirring beyond it. They have said that for a hundred years, mind." },
-  { 14, 12, 0, 4, 1, 0, 1, 0, 0, 127,
+  { 14, 12, 0, 4, 1, 0, 1, 0, 0, 125,
     "Stranger", "When you sit in that chair, remember who was here before you. Everyone forgets. That is how it keeps happening." },
 };
 
@@ -16131,9 +16134,9 @@ static const Ambush ambushes_31[1] = {
   { 0, 0 },
 };
 static const Npc npcs_31[2] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 77,
+  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 126,
     "Maester", "The Grand Maester is busy. I am not. Let me see them." },
-  { 8, 1, 0, 1, 0, 0, 1, 1, 0, 78,
+  { 8, 1, 0, 1, 0, 0, 1, 1, 0, 127,
     "Steward", "Everything here has come a long way. So has the price." },
 };
 
@@ -16242,9 +16245,9 @@ static const Ambush ambushes_32[1] = {
   { 0, 0 },
 };
 static const Npc npcs_32[2] = {
-  { 7, 1, 0, 0, 0, 0, 1, 1, 0, 95,
+  { 7, 1, 0, 0, 0, 0, 1, 1, 0, 128,
     "Armourer", "Good steel, fair prices, and no questions about either." },
-  { 5, 5, 3, 1, 1, 0, 1, 0, 0, 128,
+  { 5, 5, 3, 1, 1, 0, 1, 0, 0, 129,
     "Kingsguard", "The white cloak has to be earned. Every day, apparently." },
 };
 
@@ -16565,13 +16568,13 @@ static const Ambush ambushes_33[1] = {
   { 0, 0 },
 };
 static const Npc npcs_33[4] = {
-  { 8, 9, 0, 0, 1, 0, 1, 0, 0, 129,
+  { 8, 9, 0, 0, 1, 0, 1, 0, 0, 130,
     "Grey Worm", "Unsullied do not duel for honour. We duel to know what you are. Begin." },
-  { 14, 10, 2, 1, 1, 0, 1, 0, 0, 130,
+  { 14, 10, 2, 1, 1, 0, 1, 0, 0, 131,
     "Daario Naharis", "You have the look of someone about to do something magnificent and stupid. I approve." },
-  { 5, 17, 3, 2, 1, 0, 1, 0, 0, 131,
+  { 5, 17, 3, 2, 1, 0, 1, 0, 0, 132,
     "Daenerys", "You want the chair. So does everyone. What I want to know is what you will do the morning after." },
-  { 16, 17, 2, 3, 1, 0, 1, 0, 0, 132,
+  { 16, 17, 2, 3, 1, 0, 1, 0, 0, 133,
     "Euron Greyjoy", "I have sailed further than any of you and come back with worse ideas. Shall we?" },
 };
 
@@ -16677,9 +16680,9 @@ static const Ambush ambushes_34[1] = {
   { 0, 0 },
 };
 static const Npc npcs_34[2] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 77,
+  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 11,
     "Maester", "The island is hot and the stone never cools. Rest them here." },
-  { 8, 1, 0, 1, 0, 0, 1, 1, 0, 78,
+  { 8, 1, 0, 1, 0, 0, 1, 1, 0, 12,
     "Steward", "Everything here has come a long way. So has the price." },
 };
 

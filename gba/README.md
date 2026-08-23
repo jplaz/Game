@@ -16,13 +16,22 @@ Dragonstone, or - since the cartridge has no Pyke - Moat Cailin, which is where
 the ironborn take hold anyway. All five seats are joined on foot, and the world
 is checked walkable from every one of them.
 
-The seats are not equally gentle ground, so the level you walk out at is set to
-the one you are standing on rather than to five for everybody. The weakest
-fighter within one door of Winterfell is level three; of Casterly Rock,
-twenty-seven. A Lannister starting at five would wake somewhere they cannot beat
-a single person, which is not a harder game but no game at all - so a Stark
-begins at five and a Lannister at twenty-three, and the audit fights the people
-who are actually next to each bed to prove there is somebody there to start on. The
+**Everybody starts at level five, outdoors, in a town.** The world is arranged
+around the player rather than the player around the world, which is how every
+handheld role-playing game has done it since the first one.
+
+How hard the road is was, for a long time, the map's position in the export
+list - so difficulty was an accident of the order somebody typed names in, and
+appending the road south quietly made every southern map endgame ground. It is
+walking distance now: a house's seat is nought, everything one door away is one,
+and an unnamed fighter's level climbs as you walk out from the nearest seat.
+Named characters keep their own numbers, so the people worth being frightened of
+stay frightening wherever they stand. Every seat now has level-three locals to
+start on and the country hardens outward from all five of them.
+
+The audit will not build a cartridge where any house starts indoors, starts at a
+level other than five, or wakes up with fewer than two people of its own size
+within one door. The
 title asks before it does anything: with a record on the cartridge it offers to
 take up the road, to swear a new sword instead, or to throw that record away, and
 none of the three happens on its own. If an emulator's save file ever leaves you

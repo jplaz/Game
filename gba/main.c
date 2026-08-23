@@ -2959,10 +2959,25 @@ static void tickShift(void) {
   if (!--shift) clearFade();
 }
 
+/* Whoever you are facing, counting a lean over a counter as facing them.
+   A stallholder stands behind their own stall, so walking up to the front of
+   one and pressing A found nothing at all: the only way to buy anything was to
+   walk round the end of the counter and stand beside the person selling. */
+static int facing(void) {
+  int x = (hero.px >> 4) + DIR_X[hero.dir];
+  int y = (hero.py >> 4) + DIR_Y[hero.dir];
+  int who = crowdAt(x, y);
+  if (who < 0 && x >= 0 && y >= 0 && x < world->w && y < world->h
+      && world->counter[y * world->w + x]) {
+    who = crowdAt(x + DIR_X[hero.dir], y + DIR_Y[hero.dir]);
+  }
+  return who;
+}
+
 static void tryTalk(void) {
   int fx = (hero.px >> 4) + DIR_X[hero.dir];
   int fy = (hero.py >> 4) + DIR_Y[hero.dir];
-  int who = crowdAt(fx, fy);
+  int who = facing();
   if (who >= 0) {
     const Npc *npc = &world->npcs[who];
     /* Face whoever spoke to you; it is rude not to. */
@@ -3040,9 +3055,7 @@ static void tryTalk(void) {
 }
 
 static void tryChallenge(void) {
-  int fx = (hero.px >> 4) + DIR_X[hero.dir];
-  int fy = (hero.py >> 4) + DIR_Y[hero.dir];
-  int who = crowdAt(fx, fy);
+  int who = facing();
   if (who < 0) { openWindow(0, "There is nobody there to fight."); return; }
   if (!world->npcs[who].fights) {
     openWindow(world->npcs[who].name, "I will not draw on you, and you know it.");

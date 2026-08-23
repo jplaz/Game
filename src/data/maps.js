@@ -15,12 +15,12 @@
 // ---------------------------------------------------------------------------
 const MAESTER_HALL_TILES = [
   'IIIIIIIIIIII',
-  'I=========BI',
+  'IN=B===B=B=I',
   'IKKK===KKK=I',
   'I==========I',
-  'I==========I',
+  'Ib=b====h==I',
   'I==T====T==I',
-  'I==========I',
+  'Ib=b=======I',
   'I==========I',
   'IIIII__IIIII',
 ];
@@ -55,7 +55,7 @@ function maesterHall({ exitTo, exitX, exitY, stock, healerLine, merchantLine, ex
  * Exits: north (11,0) south (11,19)
  */
 function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = '.',
-                    roof = 'R', ridge = 'r', house = 'H',
+                    roof = 'R', ridge = 'r', house = 'H', banner = 'V', dressing = [],
                     encounters = [], warps = [], npcs = [], signs = [], items = [] }) {
   const W = wall;
   const g = floor;
@@ -72,10 +72,12 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
   // chimney smoking over the ridge, and a keep is a crenellated block of
   // ashlar. Once you have found one of each you can find them in any town in
   // the world without walking up and trying the door.
-  const A = 'A';       // dressed stone: the forge and the keep are built of it
-  const M = 'M';       // and the keep is crowned with battlements
+  const A = 'A';       // dressed stone: the forge and the castle are built of it
+  const M = 'M';       // and both are crowned with battlements
   const F = 'Z';       // a forge roofs in tarred board, never in thatch
   const f = 'z';
+  const P = 'p';       // and a maester's hall is limewashed, wherever it stands
+  const V = banner;
 
   const tiles = [
     W.repeat(11) + '-' + W.repeat(12),
@@ -84,13 +86,17 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
     row(W, fill(2), t.repeat(6), fill(2), '-', fill(2), f.repeat(6), fill(3), W),
     row(W, fill(2), R.repeat(6), fill(2), '-', fill(2), F.repeat(6), fill(3), W),
     row(W, fill(2), R.repeat(6), fill(2), '-', fill(2), F.repeat(6), fill(3), W),
-    row(W, fill(2), H, 'w', H, 'D', H, 'w', fill(2), '-', fill(2), A, A, A, 'D', A, A, fill(3), W),
+    row(W, fill(2), P, 'e', P, 'D', P, 'w', fill(2), '-', fill(2), A, 'k', A, 'D', A, A, fill(3), W),
     row(W, fill(5), '-', fill(4), '-', fill(5), '-', fill(5), W),
     row(W, fill(2), '-'.repeat(18), fill(2), W),
-    row(W, fill(10), '-', fill(11), W),
-    row(W, fill(8), '!', g, '-', fill(11), W),
-    row(W, fill(2), M.repeat(8), '-', fill(11), W),
+    // The seat itself: two towers standing a course above a curtain wall, with
+    // the house's banners hung either side of the gate. Every town used to have
+    // a shed with a door in it here, which is not what a seat of a great house
+    // looks like from the road.
+    row(W, fill(2), M, fill(6), M, '-', fill(11), W),
+    row(W, fill(2), A, M.repeat(6), A, '-', g, '!', fill(9), W),
     row(W, fill(2), A.repeat(8), '-', fill(11), W),
+    row(W, fill(2), A, A, V, A, A, V, A, A, '-', fill(11), W),
     row(W, fill(2), A.repeat(8), '-', fill(11), W),
     row(W, fill(2), A, A, A, A, 'D', A, A, A, '-', fill(11), W),
     row(W, fill(6), '-', fill(3), '-', fill(11), W),
@@ -100,7 +106,21 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
     W.repeat(11) + '-' + W.repeat(12),
   ];
 
-  return { name, music, ground, tiles, encounters, warps, npcs, signs, items };
+  /* Whatever this particular town has that no other one does: a rose bed, a
+     ruin, a pool. One plan drawn nine times is nine of the same town. */
+  const grid = tiles.map((r) => [...r]);
+  /* Never on open floor somebody is standing on, or a door leads to: a rose bed
+     dropped on a fisherman walls him into the ground he is standing on, and the
+     audit is the only thing that ever notices. */
+  const taken = new Set([...npcs, ...signs, ...warps, ...items]
+    .map((o) => `${o.x},${o.y}`));
+  for (const [x, y, char] of dressing) {
+    if (!grid[y] || grid[y][x] !== g || taken.has(`${x},${y}`)) continue;
+    grid[y][x] = char;
+  }
+  const laid = grid.map((r) => r.join(''));
+
+  return { name, music, ground, tiles: laid, encounters, warps, npcs, signs, items };
 }
 
 /** Standard door and exit coordinates for a makeTown map. */
@@ -204,14 +224,14 @@ export const MAPS = {
       'MSSSSSSSSzzzMMMSSSSSSSSM',
       'MSSSSSSSSZZZAAASSSSSSSSM',
       'vSSSSSSSSZZZAAASSSSSSSSv',
-      'MSSSSSSSSADADAASSSSSSSSM',
+      'MSSSSSSSSkDADAASSSSSSSSM',
       'MSSSSSSSS!--SSSSSSSSSSSM',
       'MSS------------------SSM',
       'MSSSSSSSSSSS-SSSSSSSSSSM',
       'MSSggggggSSS-SSSggggSSSM',
       'MSSGGGGGGSSS-SSSGGGGSSSM',
       'MSSGGGGGGSSS-SSSHDHwSSSM',
-      'vSSHwHDHwSSS-SSSSSSSSSSv',
+      'vSSpepDpwSSS-SSSSSSSSSSv',
       'MSSSSS-SSSSS-SSSSSSSSSSM',
       'MSS------------------SSM',
       'MSSSSSSSSSSS-SSSSSSSSSSM',
@@ -271,12 +291,12 @@ export const MAPS = {
     music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'I=FF=====B=I',
+      'Ixx=a===l=lI',
       'I=====KKK==I',
       'I==========I',
-      'I=TT====TT=I',
+      'I=a=====a==I',
       'I==========I',
-      'I=F======F=I',
+      'I=T=F==F=T=I',
       'IIIII__IIIII',
     ],
     warps: [
@@ -393,7 +413,7 @@ export const MAPS = {
       'PSSSSSSSSSS-SSSSSnSSSSSP',
       'PSSzzzzSSSS-SSSSzzzzzSSP',
       'PSSZZZZSSSS-SSSSZZZZZSSP',
-      'PSSHDHwSSSS-SSSSAADAASSP',
+      'PSSeDpwSSSS-SSSSAkDAASSP',
       'PSSSSSSSSSS-SSSSSSSSSSSP',
       'PSS------------------SSP',
       'PSSSSSSSS!S-SSSSSSSSSSSP',
@@ -415,7 +435,7 @@ export const MAPS = {
       { x: 5, y: 14, to: 'castleBlackHall', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
-      { x: 9, y: 10, text: 'CASTLE BLACK\nSeat of the Night\u2019s Watch.\nNorth of here the maps stop.' },
+      { x: 13, y: 10, text: 'CASTLE BLACK\nSeat of the Night\u2019s Watch.\nNorth of here the maps stop.' },
     ],
     npcs: [
       { x: 12, y: 4, dir: 'down', name: 'A Deserter', sprite: 'nightswatch',
@@ -499,12 +519,12 @@ export const MAPS = {
     music: 'town',
     tiles: [
       'IIIIIIIIIIII',
+      'Ixx=a===l=lI',
+      'I=====KKK==I',
       'I==========I',
-      'I==KKKKKK==I',
+      'I=a=====a==I',
       'I==========I',
-      'I==T====T==I',
-      'I==T====T==I',
-      'I=====UU===I',
+      'I=T=F==F=T=I',
       'IIIII__IIIII',
     ],
     warps: [
@@ -537,12 +557,12 @@ export const MAPS = {
     indoor: true, music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'I=FF=====B=I',
+      'Ixx=a===l=lI',
       'I=====KKK==I',
       'I==========I',
-      'I=TT====TT=I',
+      'I=a=====a==I',
       'I==========I',
-      'I=F======F=I',
+      'I=T=F==F=T=I',
       'IIIII__IIIII',
     ],
     warps: [
@@ -648,6 +668,10 @@ export const MAPS = {
   }),
 
   theEyrie: makeTown({
+    banner: 'v',
+    dressing: [[4, 1, 'i'], [5, 1, 'i'], [6, 1, 'i'], [17, 17, 'C'], [18, 17, 'C'],
+               [5, 17, 'C'], [6, 18, 'C'], [19, 2, 'C'], [4, 2, 'i'], [18, 18, 'C'],
+               [15, 12, 'C'], [16, 13, 'C'], [20, 9, 'C'], [3, 17, 'i']],
     roof: 'G', ridge: 'g',
     name: 'The Eyrie', ground: 'stone', wall: 'C', floor: 'o', music: 'town',
     warps: [
@@ -657,7 +681,7 @@ export const MAPS = {
       { x: 7, y: 14, to: 'eyrieKeep', tx: 7, ty: 8, dir: 'up' },
     ],
     signs: [
-      { x: 9, y: 10, text: 'THE EYRIE\nSeat of House Arryn.\nAs high as honour, and a good deal colder.' },
+      { x: 13, y: 10, text: 'THE EYRIE\nSeat of House Arryn.\nAs high as honour, and a good deal colder.' },
     ],
     npcs: [
       { x: 8, y: 9, dir: 'down', sprite: 'noble', name: 'Lord Baelish', script: 'littlefinger' },
@@ -678,12 +702,12 @@ export const MAPS = {
     indoor: true, music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'I=BB=====B=I',
+      'Ixx=a===l=lI',
       'I=====KKK==I',
       'I==========I',
-      'I=TT====TT=I',
+      'I=a=====a==I',
       'I==========I',
-      'I=F======F=I',
+      'I=T=F==F=T=I',
       'IIIII__IIIII',
     ],
     warps: [
@@ -752,6 +776,11 @@ export const MAPS = {
   }),
 
   highgarden: makeTown({
+    banner: 'V',
+    dressing: [[4, 17, '*'], [5, 17, '*'], [6, 17, '*'], [7, 17, '*'], [4, 18, '*'],
+               [5, 18, '*'], [6, 18, '*'], [15, 17, '*'], [16, 17, '*'], [17, 17, '*'],
+               [16, 18, '*'], [17, 18, '*'], [14, 12, '#'], [17, 12, '#'], [15, 14, '#'],
+               [19, 13, '#'], [13, 2, '*'], [20, 2, '*'], [2, 1, '*'], [21, 17, '#']],
     roof: 'Y', ridge: 'y',
     name: 'Highgarden', ground: 'grass', music: 'town',
     warps: [
@@ -762,7 +791,7 @@ export const MAPS = {
       { x: 17, y: 6, to: 'highgardenArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
-      { x: 9, y: 10, text: 'HIGHGARDEN\nSeat of House Tyrell.\nEvery hedge is deliberate.' },
+      { x: 13, y: 10, text: 'HIGHGARDEN\nSeat of House Tyrell.\nEvery hedge is deliberate.' },
     ],
     npcs: [
       { x: 8, y: 9, dir: 'down', sprite: 'goodwife', name: 'Lady Olenna', script: 'olenna' },
@@ -783,12 +812,12 @@ export const MAPS = {
     indoor: true, music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'I=FF=====B=I',
+      'Ixx=a===l=lI',
       'I=====KKK==I',
       'I==========I',
-      'I=TT====TT=I',
+      'I=a=====a==I',
       'I==========I',
-      'I=F======F=I',
+      'I=T=F==F=T=I',
       'IIIII__IIIII',
     ],
     warps: [
@@ -850,6 +879,11 @@ export const MAPS = {
   }),
 
   sunspear: makeTown({
+    banner: 'V',
+    dressing: [[14, 12, '~'], [15, 12, '~'], [16, 12, '~'], [14, 13, '~'], [15, 13, '~'],
+               [16, 13, '~'], [4, 17, '#'], [7, 17, '#'], [5, 18, '*'], [17, 17, '#'],
+               [20, 17, '#'], [18, 18, '*'], [2, 1, '#'], [21, 2, '#'], [13, 17, '*'],
+               [21, 12, '#'], [2, 12, '#'], [13, 2, '*'], [20, 13, '*']],
     roof: 'Q', ridge: 'q',
     name: 'Sunspear', ground: 'sand', wall: 'C', floor: 's', music: 'town',
     warps: [
@@ -859,7 +893,7 @@ export const MAPS = {
       { x: 17, y: 6, to: 'sunspearArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
-      { x: 9, y: 10, text: 'SUNSPEAR\nSeat of House Martell.\nUnbowed. Unbent. Unbroken.' },
+      { x: 13, y: 10, text: 'SUNSPEAR\nSeat of House Martell.\nUnbowed. Unbent. Unbroken.' },
     ],
     npcs: [
       { x: 8, y: 9, dir: 'down', sprite: 'martell', name: 'Oberyn Martell', script: 'duel',
@@ -881,12 +915,12 @@ export const MAPS = {
     indoor: true, music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'I=TT=====B=I',
+      'Ixx=a===l=lI',
       'I=====KKK==I',
       'I==========I',
-      'I=TT====TT=I',
+      'I=a=====a==I',
       'I==========I',
-      'I=F======F=I',
+      'I=T=F==F=T=I',
       'IIIII__IIIII',
     ],
     warps: [
@@ -954,6 +988,11 @@ export const MAPS = {
   }),
 
   stormsEnd: makeTown({
+    banner: 'V',
+    dressing: [[14, 17, '~'], [15, 17, '~'], [16, 17, '~'], [17, 17, '~'], [14, 18, '~'],
+               [15, 18, '~'], [16, 18, '~'], [17, 18, '~'], [4, 17, 'U'], [5, 17, 'U'],
+               [4, 18, 'U'], [20, 2, 'U'], [21, 3, 'U'], [2, 2, 'U'], [19, 12, 'U'],
+               [13, 13, 'U'], [3, 1, 'U']],
     roof: 'G', ridge: 'g',
     name: "Storm's End", ground: 'grass', wall: 'C', music: 'town',
     warps: [
@@ -963,7 +1002,7 @@ export const MAPS = {
       { x: 17, y: 6, to: 'stormsEndArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
-      { x: 9, y: 10, text: "STORM'S END\nSeat of House Baratheon.\nNo storm has ever taken it. Many have tried." },
+      { x: 13, y: 10, text: "STORM'S END\nSeat of House Baratheon.\nNo storm has ever taken it. Many have tried." },
     ],
     npcs: [
       { x: 8, y: 9, dir: 'down', sprite: 'redPriest', name: 'Melisandre', script: 'melisandre' },
@@ -984,12 +1023,12 @@ export const MAPS = {
     indoor: true, music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'I=FF=====B=I',
+      'Ixx=a===l=lI',
       'I=====KKK==I',
       'I==========I',
-      'I=TT====TT=I',
+      'I=a=====a==I',
       'I==========I',
-      'I=F======F=I',
+      'I=T=F==F=T=I',
       'IIIII__IIIII',
     ],
     warps: [
@@ -1013,6 +1052,11 @@ export const MAPS = {
   //  DRAGONSTONE
   // =========================================================================
   dragonstone: makeTown({
+    banner: 'V',
+    dressing: [[14, 17, 'U'], [15, 17, 'U'], [16, 17, 'U'], [14, 18, 'U'], [17, 17, 'U'],
+               [4, 17, 'U'], [5, 17, 'U'], [6, 18, 'U'], [4, 18, 'U'], [20, 2, 'C'],
+               [21, 3, 'C'], [2, 1, 'C'], [3, 2, 'C'], [19, 12, 'C'], [13, 13, 'U'],
+               [20, 13, 'C'], [13, 2, 'U']],
     roof: 'Z', ridge: 'z',
     name: 'Dragonstone', ground: 'stone', wall: 'C', floor: 'o', music: 'battleBoss',
     warps: [
@@ -1022,7 +1066,7 @@ export const MAPS = {
       { x: 17, y: 6, to: 'dragonstoneArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
-      { x: 9, y: 10, text: 'DRAGONSTONE\nAncient seat of House Targaryen.\nThe stone here was shaped while it was still soft.' },
+      { x: 13, y: 10, text: 'DRAGONSTONE\nAncient seat of House Targaryen.\nThe stone here was shaped while it was still soft.' },
     ],
     npcs: [
       { x: 8, y: 9, dir: 'down', sprite: 'unsullied', name: 'Grey Worm', script: 'duel',
@@ -1256,7 +1300,7 @@ export const MAPS = {
       '#........d...zzzzzz#',
       '#...gggg.d...ZZZZZZ#',
       '#...GGGG.d...ZZZZZZ#',
-      '#...HDHw.d...AADAAA#',
+      '#...eDpw.d...AkDAAA#',
       '#....d...d.........#',
       '#....ddddddd.......#',
       '#....d.....d.......#',
@@ -1312,12 +1356,12 @@ export const MAPS = {
     music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'I%%=====%%=I',
-      'I==KKKKKK==I',
-      'I==F====F==I',
-      'I====TT====I',
-      'I=B=======UI',
-      'I=B=====UU=I',
+      'Ixx=a===l=lI',
+      'I=====KKK==I',
+      'I==========I',
+      'I=a=====a==I',
+      'I==========I',
+      'I=T=F==F=T=I',
       'IIIII__IIIII',
     ],
     warps: [
@@ -1350,12 +1394,12 @@ export const MAPS = {
     music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'I=F=TTTT=F=I',
+      'Ixx=a===l=lI',
+      'I=====KKK==I',
       'I==========I',
-      'I=KKKKKKKK=I',
+      'I=a=====a==I',
       'I==========I',
-      'IB=======B=I',
-      'IB=======B=I',
+      'I=T=F==F=T=I',
       'IIIII__IIIII',
     ],
     warps: [
@@ -1463,15 +1507,15 @@ export const MAPS = {
       '~..yyyyyy..-..yyyy....~~',
       '~..YYYYYY..-..YYYY....~~',
       '~..YYYYYY..-..HDHw....~~',
-      '~..HwHDHw..-..........~~',
+      '~..pepDpw..-..........~~',
       '~.....-....-..........~~',
       '~.....------------....~~',
       '~..........-.....n!...~~',
       '~..*.......-....zzzzzz~~',
       '~..........-....ZZZZZZ~~',
       '~...MMMMMMMMMMM.ZZZZZZ~~',
-      '~...AAAAAAAAAAA.AADAAA~~',
-      '~...AAAAAAAAAAA.......~~',
+      '~...AAAAAAAAAAA.AkDAAA~~',
+      '~...AAAAVAVAAAA.......~~',
       '~...AAAAAAAAAAA.......~~',
       '~...AAAAAADAAAA.......~~',
       '~..........-..........~~',
@@ -1518,7 +1562,7 @@ export const MAPS = {
     music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'I=========BI',
+      'I=h======B=I',
       'I=====KKKK=I',
       'I==========I',
       'I=TT====TT=I',
@@ -1693,13 +1737,13 @@ export const MAPS = {
       '#.o.........n....o.#',
       '#.o.rrrr...zzzz..o.#',
       '#.o.RRRR...ZZZZ..o.#',
-      '#.o.HDHw...AAAD..o.#',
+      '#.o.eDpw...AAkD..o.#',
       '#.o..-........-..o.#',
       '#.o..----------..o.#',
       '#.o......-.......o.#',
       '#.o......-....!..o.#',
       '#.o..MMMMMMMM....o.#',
-      '#.o..AAAAAAAA....o.#',
+      '#.o..AAVAAVAA....o.#',
       '#.o..AAAAAAAA....o.#',
       '#.o..AAAADAAA....o.#',
       '#.o......-.......o.#',
@@ -1741,12 +1785,12 @@ export const MAPS = {
     music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'I=FF=====B=I',
+      'Ixx=a===l=lI',
       'I=====KKK==I',
       'I==========I',
-      'I=TT====TT=I',
+      'I=a=====a==I',
       'I==========I',
-      'I=F======F=I',
+      'I=T=F==F=T=I',
       'IIIII__IIIII',
     ],
     warps: [
@@ -1929,7 +1973,7 @@ export const MAPS = {
         script: 'freeCityLocal', data: { line: 'Bravo: In Braavos we fight with the point. '
           + 'Hacking is for people who chop wood.' } },
     ],
-    signs: [{ x: 9, y: 10, text: 'THE TITAN OF BRAAVOS STANDS BEHIND YOU. IT IS THE ONLY THING THAT DOES.' }],
+    signs: [{ x: 13, y: 10, text: 'THE TITAN OF BRAAVOS STANDS BEHIND YOU. IT IS THE ONLY THING THAT DOES.' }],
     warps: [
       { x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
       { x: 6, y: 6, to: 'houseOfBlackAndWhite', tx: 7, ty: 10, dir: 'up' },
@@ -1976,7 +2020,7 @@ export const MAPS = {
         script: 'freeCityLocal', data: { line: 'Dothraki Rider: A khal who cannot ride is no khal. '
           + 'You walk everywhere. It is very strange.' } },
     ],
-    signs: [{ x: 9, y: 10, text: 'PENTOS. NO WALLS WORTH THE NAME, AND NO NEED OF THEM YET.' }],
+    signs: [{ x: 13, y: 10, text: 'PENTOS. NO WALLS WORTH THE NAME, AND NO NEED OF THEM YET.' }],
     warps: [{ x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' }],
   }),
 
@@ -1998,7 +2042,7 @@ export const MAPS = {
         script: 'freeCityLocal', data: { line: 'Bridge Guard: The Long Bridge has stood a thousand '
           + 'years. Walk on the left.' } },
     ],
-    signs: [{ x: 9, y: 10, text: 'THE LONG BRIDGE. BUILT BY VALYRIA. NOBODY LEFT KNOWS HOW.' }],
+    signs: [{ x: 13, y: 10, text: 'THE LONG BRIDGE. BUILT BY VALYRIA. NOBODY LEFT KNOWS HOW.' }],
     warps: [{ x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' }],
   }),
 
@@ -2020,7 +2064,7 @@ export const MAPS = {
       { x: 4, y: 9, dir: 'right', name: 'Daario Naharis', sprite: 'braavosi',
         script: 'duel', data: { duel: 'daario' } },
     ],
-    signs: [{ x: 9, y: 10, text: 'THE GREAT PYRAMID OF MEEREEN. A DRAGON QUEEN SITS AT THE TOP OF IT.' }],
+    signs: [{ x: 13, y: 10, text: 'THE GREAT PYRAMID OF MEEREEN. A DRAGON QUEEN SITS AT THE TOP OF IT.' }],
     warps: [{ x: 11, y: 19, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' }],
   }),
 
@@ -2067,7 +2111,7 @@ export const MAPS = {
       'MooooooooooooonooooooooM',
       'MoooorrrroooozzzzooooooM',
       'VooooRRRRooooZZZZooooooV',
-      'MooooHDHwooooAAADooooooM',
+      'MooooeDpwooooAAkDooooooM',
       'Mooooo-ooooooooo-ooooooM',
       'Mooooo-----------ooooooM',
       'Mooooooooo-ooooooooooooM',
@@ -2075,7 +2119,7 @@ export const MAPS = {
       'MooooooooooooooooooooooM',
       'MooooooooooooooooooooooM',
       'MooooooMMMMMMMMMoooooooM',
-      'VooooooAAAAAAAAAoooooooV',
+      'VooooooAAVAAAVAAoooooooV',
       'MooooooAAAAAAAAAoooooooM',
       'MooooooAAAADAAAAoooooooM',
       'Moooooooooo-oooooooooooM',
@@ -2119,12 +2163,12 @@ export const MAPS = {
     music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'I=FF=====B=I',
+      'Ixx=a===l=lI',
       'I=====KKK==I',
       'I==========I',
-      'I=BB====BB=I',
+      'I=a=====a==I',
       'I==========I',
-      'I=TT====TT=I',
+      'I=T=F==F=T=I',
       'IIIII__IIIII',
     ],
     warps: [

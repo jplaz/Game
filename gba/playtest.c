@@ -292,6 +292,28 @@ static void pickGoal(void) {
   if (i >= 0) { goalKind = GOAL_WARP; goalIndex = i; }
 }
 
+/* Whether that tile is a counter you can lean over. */
+static int counterAt(int x, int y) {
+  if (x < 0 || y < 0 || x >= world->w || y >= world->h) return 0;
+  return world->counter[y * world->w + x];
+}
+
+/* Where to put your feet to speak to somebody: beside them, or on the near side
+   of the counter they are standing behind. A stallholder is walled in on
+   purpose, and a tester that only ever walks up alongside people never reaches
+   a single shopkeeper - which is how twenty-two people stopped being visited
+   the day the shops got counters that ran the width of the room. */
+static void standTile(int gx, int gy, int *sx, int *sy) {
+  int i;
+  *sx = gx; *sy = gy;
+  for (i = 0; i < 4; i++) if (!solidAt(gx + DIR_X[i], gy + DIR_Y[i])) return;
+  for (i = 0; i < 4; i++) {
+    int nx = gx + DIR_X[i], ny = gy + DIR_Y[i];
+    int bx = nx + DIR_X[i], by = ny + DIR_Y[i];
+    if (counterAt(nx, ny) && !solidAt(bx, by)) { *sx = bx; *sy = by; return; }
+  }
+}
+
 static void goalTile(int *gx, int *gy) {
   if (goalKind == GOAL_NPC) { *gx = crowd[goalIndex].px >> 4; *gy = crowd[goalIndex].py >> 4; }
   else if (goalKind == GOAL_SIGN) { *gx = world->signs[goalIndex].x; *gy = world->signs[goalIndex].y; }
@@ -352,6 +374,23 @@ void hostFrame(void) {
   static int wasScene = -1, wasMap = -1, wasLevel = 0, wasKills = 0;
 
   checkFrame();
+
+  /* POSTCARDS=1 catches one picture of every map the tester walks into, drawn
+     through the cartridge's own tiles and its own quantised palette. Building
+     a town and then looking at a screenshot of a road somewhere else is how a
+     roof gets shipped the wrong colour: this is a contact sheet of the whole
+     world as the console will actually draw it. */
+  if (shooting && getenv("POSTCARDS") && scene == SCENE_WORLD && world
+      && !windowOpen && !hero.walk && !shift && frameNo > 8) {
+    static unsigned char posted[MAP_COUNT];
+    if (!posted[worldId]) {
+      char name[80];
+      posted[worldId] = 1;
+      snprintf(name, sizeof name, "map-%02d-%s", worldId, world->name);
+      for (char *c = name; *c; c++) if (*c == ' ' || *c == '\'' || *c == ',') *c = '-';
+      snapshot(name);
+    }
+  }
 
   if (shooting) {
     if (scene == SCENE_TITLE) catchOnce(0, getenv("SAVED") ? "01-title-with-a-record" : "01-title");
@@ -555,7 +594,17 @@ void hostFrame(void) {
       {
         static const unsigned KEYS[4] = { KEY_DOWN, KEY_UP, KEY_LEFT, KEY_RIGHT };
         int hx = hero.px >> 4, hy = hero.py >> 4, i, facing = -1;
+        int sx = gx, sy = gy;
         for (i = 0; i < 4; i++) if (hx + DIR_X[i] == gx && hy + DIR_Y[i] == gy) facing = i;
+        /* Or across their counter, which is the only way to reach a shopkeeper
+           and exactly what the game allows. */
+        if (facing < 0 && goalKind == GOAL_NPC) {
+          for (i = 0; i < 4; i++) {
+            if (hx + 2 * DIR_X[i] == gx && hy + 2 * DIR_Y[i] == gy
+                && counterAt(hx + DIR_X[i], hy + DIR_Y[i])) facing = i;
+          }
+        }
+        if (goalKind == GOAL_NPC) standTile(gx, gy, &sx, &sy);
 
         /* A door has to be stepped on. A person or a sign only has to be stood
            next to — walking into them forever is how the last tester spent an
@@ -571,7 +620,7 @@ void hostFrame(void) {
             if (keys) interacting = 1;
           }
         } else {
-          dir = stepToward(gx, gy);
+          dir = stepToward(sx, sy);
           if (dir >= 0) { keys = KEYS[dir]; blocked = 0; }
           else if (++blocked < 900) {
             keys = 0;      /* somebody is in the doorway; wait for them to move */

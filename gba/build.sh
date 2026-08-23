@@ -18,6 +18,18 @@ HOSTFLAGS="-DHOST_TEST -O1 -Wall -Wno-unused-function"
 # everybody's time, and there was no way to tell them apart at all until now.
 printf '#define BUILD_STAMP "%s"\n' "$(date -u +%Y-%m-%d\ %H:%M)" > build.h
 
+# data.h is generated from the browser game's own painters and tables by
+# export.mjs, which is not cheap and so is not run every time. Building without
+# it when the sources have moved on silently tests the last world rather than
+# this one - and that failure looks exactly like "nothing I changed mattered",
+# which is the worst thing a test can say.
+if [ -n "$(find ../src ../tools export.mjs -newer data.h 2>/dev/null | head -1)" ]; then
+  echo "data.h is behind the sources. Re-exporting."
+  # export.mjs serves the repository over http for the browser painters, so it
+  # has to be run from the root rather than from here.
+  ( cd .. && node gba/export.mjs )
+fi
+
 # The font is indexed by byte, so a curly quote or an em dash in a line the game
 # draws comes out as three wrong glyphs. Catch it before it is ever seen.
 node -e '

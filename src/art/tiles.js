@@ -252,48 +252,13 @@ const painters = {
     if (!(mask & S)) rect(ctx, 0, TILE - 2, TILE, 2, '#2b261f');
   },
 
-  wall(ctx, _frame, mask) {
-    // A timber-framed house: daub panels between dark posts, on a stone footing.
-    rect(ctx, 0, 0, TILE, TILE, '#c3b088');
-    for (let y = 0; y < TILE; y++) {
-      for (let x = 0; x < TILE; x++) {
-        const n = hash(x, y, 61);
-        if (n < 0.08) rect(ctx, x, y, 1, 1, '#d2c09b');
-        else if (n < 0.15) rect(ctx, x, y, 1, 1, '#ac9a74');
-      }
-    }
-    const beam = '#4a3722';
-    const beamLit = '#6b5334';
-    const beamDark = '#2c2013';
+  wall(ctx, _frame, mask) { timberWall(ctx, mask, WALL_DAUB); },
+  /* The same house, limewashed. Every trade building in every town was the
+     identical daub-and-timber box, so a maester's hall could only be told from
+     a granary by opening it. A hall is whitewashed and keeps its region's
+     roof; a forge is dressed stone under tarred board. */
+  wallPale(ctx, _frame, mask) { timberWall(ctx, mask, WALL_LIME); },
 
-    // A post at each tile edge, so a run of wall reads as framed bays.
-    rect(ctx, 0, 0, 3, TILE, beam);
-    rect(ctx, TILE - 3, 0, 3, TILE, beam);
-    rect(ctx, 0, 0, 1, TILE, beamDark);
-    rect(ctx, TILE - 1, 0, 1, TILE, beamDark);
-    rect(ctx, 2, 0, 1, TILE, beamLit);
-    rect(ctx, TILE - 3, 0, 1, TILE, beamLit);
-
-    // Top plate under the eaves.
-    rect(ctx, 0, 0, TILE, 3, beam);
-    rect(ctx, 0, 0, TILE, 1, beamDark);
-    rect(ctx, 0, 2, TILE, 1, beamLit);
-
-
-
-    // Stone footing along the ground.
-    if (!(mask & S)) {
-      rect(ctx, 0, TILE - 4, TILE, 4, '#938a78');
-      rect(ctx, 0, TILE - 4, TILE, 1, '#6a6255');
-      rect(ctx, 0, TILE - 1, TILE, 1, '#585044');
-      rect(ctx, 5, TILE - 3, 1, 3, '#6a6255');
-      rect(ctx, 12, TILE - 3, 1, 3, '#6a6255');
-    } else {
-      rect(ctx, 0, TILE - 3, TILE, 3, beam);
-      rect(ctx, 0, TILE - 3, TILE, 1, beamDark);
-    }
-    eaveShadow(ctx, mask);
-  },
 
   /** Dressed castle stone: big coursed ashlar blocks, cool and heavy. */
   ashlar(ctx, _frame, mask) {
@@ -421,6 +386,119 @@ const painters = {
     rect(ctx, 10 + drift, 0, 4, 2, '#dfe4ee');
     rect(ctx, 10 + drift, 2, 3, 1, '#93939c');
     rect(ctx, 13 - drift, 0, 3, 1, '#93939c');
+  },
+
+  /* Hanging trade signs, bracketed off the wall beside a door. A town's
+     buildings only told you what they were by being opened, which is no use
+     from the other side of a square. */
+  signSmith(ctx, _frame, mask) {
+    painters.ashlar(ctx, 0, mask | N | E | S | W);
+    shingle(ctx, '#c3b088', '#4a3820', (c) => {
+      rect(c, 4, 9, 8, 2, '#2c2013');       // the anvil face
+      rect(c, 3, 9, 2, 1, '#2c2013');       // its horn
+      rect(c, 7, 11, 2, 1, '#2c2013');      // its waist
+      rect(c, 5, 12, 6, 1, '#2c2013');      // and its foot
+      rect(c, 7, 6, 5, 2, '#2c2013');       // the hammer head
+      rect(c, 4, 7, 3, 1, '#7a5a30');       // and its haft
+    });
+  },
+  signMaester(ctx, _frame, mask) {
+    painters.wallPale(ctx, 0, mask | N | E | S | W);
+    shingle(ctx, '#b0a894', '#5c5648', (c) => {
+      // Five links of five metals, sagging the way a chain hangs.
+      const metal = ['#c8c8d0', '#c8a24a', '#a8763c', '#8ca0b8', '#d8d8e0'];
+      const sag = [7, 9, 10, 9, 7];
+      for (let i = 0; i < 5; i++) {
+        rect(c, 3 + i * 2, sag[i], 2, 2, '#5c5648');
+        rect(c, 3 + i * 2, sag[i], 2, 1, metal[i]);
+        rect(c, 3 + i * 2, sag[i] + 1, 1, 1, metal[i]);
+      }
+    });
+  },
+
+  /* ------------------------------------------------------ inside things ---
+     Every trade building had the same room in it: a stone floor, a yellow
+     counter and two crates. A forge should have a fire in it and something to
+     beat steel on; a maester's hall should have beds and birds. All of it is
+     drawn out of colours the palette already holds, because the palette is
+     full. */
+
+  /* An anvil on its oak block, the way one actually stands. */
+  anvil(ctx) {
+    painters.floorStone(ctx);
+    rect(ctx, 4, 10, 8, 6, '#5b4023');        // the oak block it stands on
+    rect(ctx, 4, 10, 8, 1, '#8a5f33');
+    rect(ctx, 4, 15, 8, 1, '#2c2013');
+    rect(ctx, 5, 12, 1, 3, '#3a2c1c');
+    rect(ctx, 10, 12, 1, 3, '#3a2c1c');
+    rect(ctx, 2, 5, 12, 4, '#3a3a3f');        // the face, wide and heavy
+    rect(ctx, 2, 5, 12, 1, '#93939c');
+    rect(ctx, 2, 8, 12, 1, '#100e0e');
+    rect(ctx, 0, 5, 3, 3, '#3a3a3f');         // the horn, off the near end
+    rect(ctx, 0, 5, 3, 1, '#75757d');
+    rect(ctx, 5, 9, 6, 2, '#241f1c');         // and the waist under it
+    rect(ctx, 5, 9, 6, 1, '#5b5b5f');
+  },
+
+  /* The forge fire itself: a stone hearth under a hood, with coals in it. */
+  forgeHearth(ctx) {
+    painters.ashlar(ctx, 0, N | E | W);
+    rect(ctx, 1, 0, 14, 4, '#3a3a3f');        // the hood
+    rect(ctx, 1, 3, 14, 1, '#5b5b5f');
+    rect(ctx, 2, 4, 12, 9, '#241f1c');        // the firebox
+    rect(ctx, 3, 5, 10, 7, '#100e0e');
+    rect(ctx, 4, 8, 8, 4, '#e06a20');         // and the coals in it
+    rect(ctx, 5, 9, 6, 3, '#f0a830');
+    rect(ctx, 6, 10, 4, 1, '#f6de70');
+    rect(ctx, 5, 6, 2, 2, '#e06a20');
+    rect(ctx, 9, 6, 2, 2, '#e06a20');
+    rect(ctx, 1, 13, 14, 3, '#6a5c4c');       // the hearthstone
+    rect(ctx, 1, 13, 14, 1, '#938a78');
+  },
+
+  /* A rack of spears and blades stood against the wall. */
+  armsRack(ctx) {
+    painters.floorStone(ctx);
+    rect(ctx, 0, 12, TILE, 3, '#4a3722');     // the trestle
+    rect(ctx, 0, 12, TILE, 1, '#6b5334');
+    rect(ctx, 0, 1, TILE, 2, '#4a3722');      // and the rail it leans on
+    for (let i = 0; i < 4; i++) {
+      const x = 2 + i * 4;
+      rect(ctx, x, 2, 1, 11, '#5b4023');      // hafts
+      rect(ctx, x, 2, 1, 4, '#93939c');       // heads
+      rect(ctx, x - 1, 3, 3, 1, '#75757d');
+    }
+    rect(ctx, 0, 14, TILE, 2, '#2c2013');
+  },
+
+  /* A raven in a wicker cage: what a maester's hall has that nothing else does. */
+  ravenCage(ctx) {
+    painters.floorStone(ctx);
+    rect(ctx, 2, 2, 12, 13, '#5b4023');
+    rect(ctx, 3, 3, 10, 11, '#241f1c');
+    rect(ctx, 2, 2, 12, 2, '#8a5f33');        // the hoop
+    rect(ctx, 2, 13, 12, 2, '#8a5f33');
+    rect(ctx, 5, 6, 6, 7, '#100e0e');         // the bird
+    rect(ctx, 6, 4, 4, 3, '#100e0e');
+    rect(ctx, 9, 5, 2, 1, '#f0a830');         // beak
+    rect(ctx, 7, 5, 1, 1, '#f6de70');         // eye
+    for (let x = 3; x < 13; x += 3) rect(ctx, x, 4, 1, 9, '#8a5f33');
+  },
+
+  /* A hearth, for the rooms people live in rather than work in. */
+  hearth(ctx) {
+    painters.ashlar(ctx, 0, N | E | W);
+    rect(ctx, 2, 3, 12, 11, '#241f1c');
+    rect(ctx, 3, 4, 10, 9, '#100e0e');
+    rect(ctx, 4, 6, 3, 6, '#5b4023');         // logs
+    rect(ctx, 9, 6, 3, 6, '#5b4023');
+    rect(ctx, 4, 6, 3, 1, '#8a5f33');
+    rect(ctx, 9, 6, 3, 1, '#8a5f33');
+    rect(ctx, 5, 8, 6, 5, '#e06a20');         // and the fire between them
+    rect(ctx, 6, 9, 4, 4, '#f0a830');
+    rect(ctx, 7, 11, 2, 2, '#f6de70');
+    rect(ctx, 1, 14, 14, 2, '#6a5c4c');
+    rect(ctx, 1, 14, 14, 1, '#938a78');
   },
 
   door(ctx) {
@@ -645,6 +723,60 @@ const painters = {
  *   'ledge'      one-way hop to the south
  *   'water'      blocks movement (no surfing in this game)
  */
+/* Two limewash-and-timber palettes, and one painter for both. */
+const WALL_DAUB = { fill: '#c3b088', lit: '#d2c09b', dim: '#ac9a74',
+                    beam: '#4a3722', beamLit: '#6b5334', beamDark: '#2c2013' };
+const WALL_LIME = { fill: '#e4e0d4', lit: '#f2efe6', dim: '#c8c2b2',
+                    beam: '#6b5334', beamLit: '#8a6f48', beamDark: '#4a3722' };
+
+function timberWall(ctx, mask, key) {
+  rect(ctx, 0, 0, TILE, TILE, key.fill);
+  for (let y = 0; y < TILE; y++) {
+    for (let x = 0; x < TILE; x++) {
+      const n = hash(x, y, 61);
+      if (n < 0.08) rect(ctx, x, y, 1, 1, key.lit);
+      else if (n < 0.15) rect(ctx, x, y, 1, 1, key.dim);
+    }
+  }
+  // A post at each tile edge, so a run of wall reads as framed bays.
+  rect(ctx, 0, 0, 3, TILE, key.beam);
+  rect(ctx, TILE - 3, 0, 3, TILE, key.beam);
+  rect(ctx, 0, 0, 1, TILE, key.beamDark);
+  rect(ctx, TILE - 1, 0, 1, TILE, key.beamDark);
+  rect(ctx, 2, 0, 1, TILE, key.beamLit);
+  rect(ctx, TILE - 3, 0, 1, TILE, key.beamLit);
+  // Top plate under the eaves.
+  rect(ctx, 0, 0, TILE, 3, key.beam);
+  rect(ctx, 0, 0, TILE, 1, key.beamDark);
+  rect(ctx, 0, 2, TILE, 1, key.beamLit);
+  // Stone footing along the ground.
+  if (!(mask & S)) {
+    rect(ctx, 0, TILE - 4, TILE, 4, '#938a78');
+    rect(ctx, 0, TILE - 4, TILE, 1, '#6a6255');
+    rect(ctx, 0, TILE - 1, TILE, 1, '#585044');
+    rect(ctx, 5, TILE - 3, 1, 3, '#6a6255');
+    rect(ctx, 12, TILE - 3, 1, 3, '#6a6255');
+  } else {
+    rect(ctx, 0, TILE - 3, TILE, 3, key.beam);
+    rect(ctx, 0, TILE - 3, TILE, 1, key.beamDark);
+  }
+  eaveShadow(ctx, mask);
+}
+
+/* The board a trade sign hangs on: a bracket, two rings, and a painted plank
+   with whatever the trade is on it. */
+function shingle(ctx, board, edge, draw) {
+  rect(ctx, 2, 1, 12, 2, '#3a2c1c');
+  rect(ctx, 2, 1, 12, 1, '#6d5738');
+  rect(ctx, 4, 3, 1, 2, '#6d5738');
+  rect(ctx, 11, 3, 1, 2, '#6d5738');
+  rect(ctx, 2, 4, 12, 10, edge);
+  rect(ctx, 3, 5, 10, 8, board);
+  rect(ctx, 3, 5, 10, 1, '#d8c8a8');
+  rect(ctx, 3, 12, 10, 1, '#6a5638');
+  draw(ctx);
+}
+
 /* One roof, any material. The geometry says where the courses and the eave go;
    the key says what it is made of. */
 function roofBody(ctx, mask, body, ridge, eave, key) {
@@ -700,6 +832,9 @@ export const TILE_DEFS = {
   'D': { paint: painters.door, kind: 'floor' },
   'w': { paint: painters.window, kind: 'solid' },
   'n': { paint: painters.chimney, kind: 'solid', frames: 2, grounded: true },
+  'k': { paint: painters.signSmith, kind: 'solid' },
+  'e': { paint: painters.signMaester, kind: 'solid' },
+  'p': { paint: painters.wallPale, kind: 'solid', autotile: true },
   '!': { paint: painters.sign, kind: 'solid', grounded: true },
   '*': { paint: painters.flowers, kind: 'floor', grounded: true, varies: true },
   'L': { paint: painters.ledge, kind: 'ledge', grounded: true },
@@ -715,6 +850,11 @@ export const TILE_DEFS = {
   '<': { paint: painters.stairs, kind: 'floor' },
   'X': { paint: painters.throne, kind: 'solid' },
   'F': { paint: painters.brazier, kind: 'solid' },
+  'a': { paint: painters.anvil, kind: 'solid' },
+  'x': { paint: painters.forgeHearth, kind: 'solid' },
+  'l': { paint: painters.armsRack, kind: 'solid' },
+  'N': { paint: painters.ravenCage, kind: 'solid' },
+  'h': { paint: painters.hearth, kind: 'solid' },
   'U': { paint: painters.rubble, kind: 'solid' },
   '%': { paint: painters.caveFloor, kind: 'floor', varies: true },
   '@': { paint: painters.caveWall, kind: 'solid', autotile: true },
@@ -745,7 +885,8 @@ export const TILE_GROUP = {
   '~': 'water',
   '@': 'cave',
   'H': 'building', 'w': 'building', 'D': 'building',
-  'A': 'castle', 'M': 'castle', 'V': 'castle', 'v': 'castle',
+  'e': 'plaster', 'p': 'plaster',
+  'A': 'castle', 'M': 'castle', 'V': 'castle', 'v': 'castle', 'k': 'castle',
   'R': 'roof', 'r': 'roof',
   'G': 'slate', 'g': 'slate',
   'Z': 'pitch', 'z': 'pitch',

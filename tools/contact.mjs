@@ -7,10 +7,11 @@ import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { deflateSync } from 'node:zlib';
 
-const [dir, out, COLS = 5, SCALE = 1, FIRST = 1, COUNT = 40] = process.argv.slice(2);
+const [dir, out, COLS = 5, SCALE = 1, FIRST = 1, COUNT = 40, PREFIX = 'story-']
+  = process.argv.slice(2);
 const cols = Number(COLS), scale = Number(SCALE);
 
-const names = (await readdir(dir)).filter((n) => n.startsWith('story-') && n.endsWith('.ppm'))
+const names = (await readdir(dir)).filter((n) => n.startsWith(PREFIX) && n.endsWith('.ppm'))
   .sort().slice(Number(FIRST) - 1, Number(FIRST) - 1 + Number(COUNT));
 if (!names.length) { console.error('no frames'); process.exit(1); }
 

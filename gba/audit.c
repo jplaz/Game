@@ -50,9 +50,21 @@ static int solidOn(const Map *m, int x, int y) {
   return m->solid[y * m->w + x];
 }
 
+/* Can anybody get within speaking distance? Counting a counter, since the game
+   lets you lean over one - a shopkeeper walled in behind a full-width counter
+   is exactly where the game wants them, not a fault. */
+static int counterOn(const Map *m, int x, int y) {
+  if (x < 0 || y < 0 || x >= m->w || y >= m->h) return 0;
+  return m->counter[y * m->w + x];
+}
+
 static int walkableNeighbour(const Map *m, int x, int y) {
   int i;
-  for (i = 0; i < 4; i++) if (!solidOn(m, x + DIR_X[i], y + DIR_Y[i])) return 1;
+  for (i = 0; i < 4; i++) {
+    int nx = x + DIR_X[i], ny = y + DIR_Y[i];
+    if (!solidOn(m, nx, ny)) return 1;
+    if (counterOn(m, nx, ny) && !solidOn(m, nx + DIR_X[i], ny + DIR_Y[i])) return 1;
+  }
   return 0;
 }
 
@@ -161,6 +173,15 @@ static int standNextTo(const Map *m, int x, int y) {
     int nx = x + DIR_X[i], ny = y + DIR_Y[i];
     if (nx < 0 || ny < 0 || nx >= m->w || ny >= m->h) continue;
     if (standable[ny * m->w + nx]) return 1;
+    /* Or across a counter, the way the game lets you: a stallholder stands
+       behind theirs and is spoken to over it. Without this, giving a shop a
+       counter that runs the width of the room reads as walling the shopkeeper
+       in, which is exactly what it used to be. */
+    if (m->counter[ny * m->w + nx]) {
+      int bx = nx + DIR_X[i], by = ny + DIR_Y[i];
+      if (bx >= 0 && by >= 0 && bx < m->w && by < m->h
+          && standable[by * m->w + bx]) return 1;
+    }
   }
   return 0;
 }

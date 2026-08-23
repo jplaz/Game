@@ -7,6 +7,9 @@ gba/*.o
 gba/*.elf
 gba/hosttest
 gba/shots/*.ppm
+# intermediate render output; the PNGs beside them are the keepers
+gba/shots-ladder/
 gba/playtest
+gba/playtest_dbg
 gba/audit
 gba/w

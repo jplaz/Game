@@ -3672,9 +3672,9 @@ static const char *sellWare(int at) {
 
 /* ------------------------------------------------------------- the menu --- */
 
-#define MENU_ENTRIES 6
+#define MENU_ENTRIES 7
 static const char *const MENU[MENU_ENTRIES] =
-  { "Sigil", "At Heel", "Swords", "Pouch", "Record", "Leave" };
+  { "Sigil", "At Heel", "Swords", "Pouch", "Deeds", "Record", "Leave" };
 
 static void paintMenu(void) {
   int i;
@@ -3748,6 +3748,7 @@ static void paintTitle(void) {
 #define SCENE_PARTY 12
 #define SCENE_HOLD  13    /* the cages at the back of a maester's hall */
 #define SCENE_HOST  14    /* who has sworn to you */
+#define SCENE_DEEDS 15    /* what you have walked into, and what you said */
 
 static int scene;
 
@@ -4669,6 +4670,40 @@ static void paintHost(void) {
   drawText(14, TXT_H - 18, "B: go", C_DIM);
 }
 
+/* --------------------------------------------------------------- the log ---
+   What you have walked into and what you decided about it. A side quest whose
+   answer is never mentioned again is a menu you clicked once; this is where
+   they are written down. */
+
+static int deedPick, deedTop;
+
+static void paintDeeds(void) {
+  int i, shown = 0, open = 0;
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
+  drawText(14, 6, "WHAT YOU HAVE DONE", C_GOLD);
+  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+  for (i = 0; i < CUT_COUNT; i++) if (flagSet(cuts[i].flag)) open++;
+  copyString(scratch, "", sizeof scratch);
+  appendNumber(scratch, open, sizeof scratch);
+  appendString(scratch, " of ", sizeof scratch);
+  appendNumber(scratch, CUT_COUNT, sizeof scratch);
+  drawText(TXT_W - 14 - textWidth(scratch), 6, scratch, C_DIM);
+
+  for (i = 0; i < CUT_COUNT && shown < LIST_ROWS; i++) {
+    int y = 24 + shown * 12, seen = flagSet(cuts[i].flag);
+    if (i < deedTop) continue;
+    if (i == deedPick) drawCursor(14, y + 1, C_GOLD);
+    drawText(24, y, seen ? cuts[i].name : "- - -",
+      i == deedPick ? C_GOLD : (seen ? C_INK : C_DIM));
+    drawText(TXT_W - 76, y, seen ? "settled" : "not yet", seen ? C_WELL : C_DIM);
+    shown++;
+  }
+  drawText(14, TXT_H - 30,
+    "Places worth stopping at, and what you said when you got there.", C_DIM);
+  drawText(14, TXT_H - 18, "B: go", C_DIM);
+}
+
 /* ---------------------------------------------------------- the last act --
  *
  * The one part of this game that is told rather than walked. A page is a sky, a
@@ -4801,6 +4836,10 @@ static void startTale(int which, int then) {
  * never happens twice.
  */
 
+/* A duel is started from inside a scene, and the machinery that starts one is
+   written below this. */
+static void callToArms(int duellist, int bank, int slot);
+
 #define CUT_SLOTS CUT_PEOPLE
 
 static int cutAt = -1;          /* which scene is playing, or -1 */
@@ -4811,6 +4850,10 @@ static int cutPick, cutAsking, cutPainted;  /* the chooser, when a beat asks */
 static Body cutBody[CUT_SLOTS];
 static u8 cutBank[CUT_SLOTS], cutLive[CUT_SLOTS];
 static int cutWalkLeft, cutWalkSlot, cutWalkDir;
+/* What the answer you gave turned out to mean, and whoever has to be fought
+   before it is settled. */
+static const char *cutSaid;
+static int cutFight = 0xFFFF;
 
 /* Whether standing here starts something. Fires once, and never while a window
    is open or a fight is coming up. */
@@ -4831,6 +4874,7 @@ static void endCut(void) {
   cutAt = -1;
   cutShake = cutFlash = cutTimer = 0;
   cutAsking = 0;
+  cutSaid = 0;
   clearFade();
 }
 
@@ -4958,17 +5002,41 @@ static void tickCut(void) {
     if (hit(KEY_DOWN) && cutPick < c->count - 1) cutPick++;
     if (cutPick != was) { sfxPick(); paintCutChoice(); }
     if (hit(KEY_A)) {
-      setFlag(c->flag[cutPick]);
+      int said = cutPick;
+      setFlag(c->flag[said]);
       sfxRank();
       cutAsking = 0;
       windowOpen = 0;
       clearRows(windowTop, windowRows * 8);
+      /* What it costs you, what it pays, and what it turns out to have meant.
+         A side quest whose answers all read the same is a menu, not a choice. */
+      if (c->gold[said]) {
+        you.gold += c->gold[said];
+        if (you.gold < 0) you.gold = 0;
+      }
       cutBeat++;
-      openBeat();
+      if (c->said[said]) {
+        cutSaid = c->said[said];
+        cutFight = c->duel[said];
+        openWindow(0, cutSaid);
+      } else {
+        cutFight = c->duel[said];
+        openBeat();
+      }
     }
     return;
   }
   if (windowOpen) return;         /* the line is still being read */
+  /* And if the answer has to be argued with steel, it is argued now: the scene
+     is over and whoever disagreed with you is standing there. */
+  if (cutFight != 0xFFFF) {
+    int who = cutFight;
+    cutFight = 0xFFFF;
+    setFlag(cut->flag);
+    endCut();
+    callToArms(who, 0, -1);
+    return;
+  }
   cutBeat++;
   openBeat();
 }
@@ -5596,6 +5664,13 @@ int main(void) {
           layoutTextRows(TEXT_TOP);
           paintBag();
         } else if (menuPick == 4) {
+          scene = SCENE_DEEDS;
+          deedPick = 0;
+          deedTop = 0;
+          clearPage();
+          layoutTextRows(TEXT_TOP);
+          paintDeeds();
+        } else if (menuPick == 5) {
           keepRecord();
           clearPage();
           layoutTextRows(TEXT_PLAY);
@@ -5616,6 +5691,19 @@ int main(void) {
         for (i = hostPick + 1; i < HOST_MAX; i++) if (you.host[i].kind != 255) { hostPick = i; break; }
       }
       if (hostPick != was) { sfxPick(); paintHost(); }
+      if (hit(KEY_B)) {
+        scene = SCENE_MENU;
+        clearPage();
+        layoutTextRows(TEXT_TOP);
+        paintMenu();
+      }
+    } else if (scene == SCENE_DEEDS) {
+      int was = deedPick;
+      if (hit(KEY_UP) && deedPick > 0) deedPick--;
+      if (hit(KEY_DOWN) && deedPick < CUT_COUNT - 1) deedPick++;
+      if (deedPick < deedTop) deedTop = deedPick;
+      if (deedPick >= deedTop + LIST_ROWS) deedTop = deedPick - LIST_ROWS + 1;
+      if (deedPick != was) { sfxPick(); paintDeeds(); }
       if (hit(KEY_B)) {
         scene = SCENE_MENU;
         clearPage();

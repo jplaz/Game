@@ -89,7 +89,7 @@ static void checkSound(void) {
 static void checkFrame(void) {
   int i;
   checkSound();
-  if (scene < 0 || scene > SCENE_HOST) finding("scene is %d, which is not a scene", scene);
+  if (scene < 0 || scene > SCENE_DEEDS) finding("scene is %d, which is not a scene", scene);
   /* Nothing is standing anywhere yet on the screens that come before the
      world, and there is no map to be standing on. */
   if (scene == SCENE_TITLE || scene == SCENE_HOUSE || scene == SCENE_NAME) return;
@@ -226,6 +226,8 @@ static int wantHouse, runAway, statusChecks, sinceStatus, wantTech, techUsed[4];
 static int menusSeen, bagsSeen, shopsSeen, bought, records, menuWant = -1;
 static int mustersSeen, kennelsSeen, holdLooks, boarded, fetched, oathsOffered;
 static int oathWanted = -1;
+static int deedsSeen, cutsPlayed, cutsChosen;
+static unsigned char cutSeen[CUT_COUNT];
 static int eggsFound, eggsHatched, dragonEgg;
 static int boughtOf[WARE_COUNT];
 static int craftsSeen, crafted, craftedHere;
@@ -704,6 +706,22 @@ void hostFrame(void) {
     if (windowSays("decides you will do")) eggsHatched = 1;
   }
 
+  /* A cutscene has the screen. Read it, and answer when it asks: a run that
+     walked over five scenes and never saw one would look exactly like a run
+     that never walked over any. */
+  if (cutAt >= 0) {
+    if (!cutSeen[cutAt]) { cutSeen[cutAt] = 1; cutsPlayed++; }
+    if (cutAsking) {
+      if (typeDone) { keys = tap(KEY_A); if (keys) cutsChosen++; }
+    } else if (windowOpen) {
+      keys = tap(KEY_A);
+    }
+    lastKeys = keys;
+    REG_KEYINPUT = (unsigned short)(~keys & 0x03FF);
+    frameNo++;
+    return;
+  }
+
   if (scene == SCENE_TITLE) {
     /* Walk the cursor onto the entry this run is meant to take, then choose it,
        so a run can prove the record is taken up and a run can prove it is
@@ -731,7 +749,7 @@ void hostFrame(void) {
        the tester ever looking in the pouch. */
     if (menuWant == MENU_ENTRIES - 1) { keys = tap(KEY_B); if (keys) menuWant = -1; }
     else if (menuPick != menuWant) keys = tap(menuPick < menuWant ? KEY_DOWN : KEY_UP);
-    else { keys = tap(KEY_A); if (keys) { if (menuWant == 4) records++; menuWant = -1; } }
+    else { keys = tap(KEY_A); if (keys) { if (menuWant == 5) records++; menuWant = -1; } }
   } else if (scene == SCENE_PARTY) {
     /* Read down whatever is at your heel, put a different one in front now and
        then, and go. */
@@ -739,6 +757,9 @@ void hostFrame(void) {
     if (partyLooks < 3) { partyLooks++; keys = tap(KEY_DOWN); }
     else if (partyLooks == 3) { partyLooks++; keys = tap(KEY_A); if (keys) swaps++; }
     else { keys = tap(KEY_B); if (keys) partyLooks = 0; }
+  } else if (scene == SCENE_DEEDS) {
+    deedsSeen++;
+    keys = tap(KEY_B);
   } else if (scene == SCENE_HOST) {
     /* Read the muster and go. There is nothing to press here but B. */
     mustersSeen++;
@@ -1300,6 +1321,8 @@ int main(int argc, char **argv) {
         wares[top].name, boughtOf[top]);
     }
   }
+  printf("  scenes         %d of %d played, %d answered, log opened %d times\n",
+    cutsPlayed, CUT_COUNT, cutsChosen, deedsSeen);
   printf("  nests          %s found, %s hatched, dragon egg %s\n",
     eggsFound ? "an egg" : "nothing", eggsHatched ? "one" : "none",
     dragonEgg ? "yes" : "not this run");

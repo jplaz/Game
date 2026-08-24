@@ -127,6 +127,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     await import('/src/data/craft.js');
   const { SPECIES } = await import('/src/data/species.js');
   const { CUTSCENES, CUTSCENE_IDS } = await import('/src/data/cutscenes.js');
+  const { QUESTS } = await import('/src/data/quests.js');
   const { BEAST_TECHNIQUES, GROWS_INTO, NEVER_TAMED, EGGS, NESTS } =
     await import('/src/data/beasts.js');
   const creatures = await import('/src/art/creatures.js');
@@ -581,82 +582,9 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     intro: DUELLISTS.throneChampion.intro, defeat: DUELLISTS.throneChampion.defeat,
   });
 
-  /* The cutscenes.
-     These were written a long time ago and never once reached the cartridge:
-     nothing in the exporter had ever imported the file. Five scenes, and the
-     road they are on is the reason walking it feels like nothing but fighting.
-     A scene is a run of beats; the cartridge steps them one at a time. */
-  const BEAT = { say: 0, wait: 1, shake: 2, flash: 3, spawn: 4, walk: 5,
-                 face: 6, despawn: 7, sky: 8, flag: 9, choose: 10 };
-  const sceneFlags = [];
-  const flagAt = (name) => {
-    let at = sceneFlags.indexOf(name);
-    if (at < 0) { at = sceneFlags.length; sceneFlags.push(name); }
-    if (at >= 32) throw new Error('more story flags than a word holds');
-    return at;
-  };
-  const scenes = [];
-  const beats = [];
-  const choices = [];
-  for (const id of CUTSCENE_IDS) {
-    const cs = CUTSCENES[id];
-    const map = harvest.maps.find((m) => m.id === cs.map);
-    if (!map) throw new Error(`the cutscene ${id} stands on ${cs.map}, which is not on the cartridge`);
-    const slots = [];
-    const slotOf = (who) => {
-      let at = slots.indexOf(who);
-      if (at < 0) { at = slots.length; slots.push(who); }
-      return at;
-    };
-    const first = beats.length;
-    for (const beat of cs.beats) {
-      const [kind] = beat;
-      const row = { kind: BEAT[kind], slot: 0, a: 0, b: 0, c: 0, d: 0, text: '' };
-      if (BEAT[kind] === undefined) throw new Error(`${id} has a beat called ${kind}`);
-      if (kind === 'say') row.text = beat[1];
-      else if (kind === 'wait' || kind === 'shake' || kind === 'flash') {
-        row.a = Math.min(255, Math.round(beat[1] * 60));
-      } else if (kind === 'spawn') {
-        const at = beat[2];
-        row.slot = slotOf(beat[1]);
-        row.a = at.x; row.b = at.y;
-        row.c = actors.DIRECTIONS.indexOf(at.dir ?? 'down');
-        /* The person who walks in has to have their art resident on that map,
-           the same as anybody standing on it does. */
-        const actor = actorFor(personLook(at.sprite ?? 'smallfolk', at.name ?? ''),
-                               `${at.sprite}|${at.name ?? ''}`);
-        (map.sceneActors ??= []).push(actor);
-        row.actor = actor;
-        row.mapId = cs.map;
-        row.text = at.name ?? '';
-      } else if (kind === 'walk') {
-        row.slot = slotOf(beat[1]);
-        row.a = actors.DIRECTIONS.indexOf(beat[2]);
-        row.b = beat[3];
-      } else if (kind === 'face') {
-        row.slot = slotOf(beat[1]);
-        row.a = actors.DIRECTIONS.indexOf(beat[2]);
-      } else if (kind === 'despawn') {
-        row.slot = slotOf(beat[1]);
-      } else if (kind === 'flag') {
-        row.a = flagAt(beat[1]);
-      } else if (kind === 'choose') {
-        const opts = beat[2].slice(0, 3);
-        row.a = choices.length;
-        choices.push({ ask: beat[1], opts,
-          /* What you said is remembered, one flag per answer. */
-          flags: opts.map((_, i) => flagAt(`${beat[3]?.record ?? 'said'}_${i}`)) });
-      }
-      beats.push(row);
-    }
-    scenes.push({ id, map: cs.map, x: cs.x, y: cs.y,
-      flag: flagAt(cs.flag), first, count: beats.length - first,
-      people: slots.length });
-  }
-
   const out = { maps: [], houses, techniques, learned, duellists, wares, forSale,
                 recipes, spoils, forage, beasts, eggs, tales, throneChampion,
-                swornKinds, scenes, beats, choices, sceneFlags,
+                swornKinds,
                 leaders: [], actors: null };
 
   /* The spine of the game, in the order it is meant to be walked. Nine seats,
@@ -957,6 +885,146 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       signs: (map.signs ?? []).map((s) => ({ x: s.x, y: s.y, text: s.text })),
     });
   }
+
+  /* The cutscenes.
+     These were written a long time ago and never once reached the cartridge:
+     nothing in the exporter had ever imported the file. Five scenes, and the
+     road they are on is the reason walking it feels like nothing but fighting.
+     A scene is a run of beats; the cartridge steps them one at a time. */
+  const BEAT = { say: 0, wait: 1, shake: 2, flash: 3, spawn: 4, walk: 5,
+                 face: 6, despawn: 7, sky: 8, flag: 9, choose: 10 };
+  const sceneFlags = [];
+  const flagAt = (name) => {
+    let at = sceneFlags.indexOf(name);
+    if (at < 0) { at = sceneFlags.length; sceneFlags.push(name); }
+    if (at >= 32) throw new Error('more story flags than a word holds');
+    return at;
+  };
+  const scenes = [];
+  const beats = [];
+  const choices = [];
+  for (const id of CUTSCENE_IDS) {
+    const cs = CUTSCENES[id];
+    const map = out.maps.find((m) => m.id === cs.map);
+    if (!map) throw new Error(`the cutscene ${id} stands on ${cs.map}, which is not on the cartridge`);
+    const slots = [];
+    const slotOf = (who) => {
+      let at = slots.indexOf(who);
+      if (at < 0) { at = slots.length; slots.push(who); }
+      return at;
+    };
+    const first = beats.length;
+    for (const beat of cs.beats) {
+      const [kind] = beat;
+      const row = { kind: BEAT[kind], slot: 0, a: 0, b: 0, c: 0, d: 0, text: '' };
+      if (BEAT[kind] === undefined) throw new Error(`${id} has a beat called ${kind}`);
+      if (kind === 'say') row.text = beat[1];
+      else if (kind === 'wait' || kind === 'shake' || kind === 'flash') {
+        row.a = Math.min(255, Math.round(beat[1] * 60));
+      } else if (kind === 'spawn') {
+        const at = beat[2];
+        row.slot = slotOf(beat[1]);
+        row.a = at.x; row.b = at.y;
+        row.c = actors.DIRECTIONS.indexOf(at.dir ?? 'down');
+        /* The person who walks in has to have their art resident on that map,
+           the same as anybody standing on it does. */
+        const actor = actorFor(personLook(at.sprite ?? 'smallfolk', at.name ?? ''),
+                               `${at.sprite}|${at.name ?? ''}`);
+        (map.sceneActors ??= []).push(actor);
+        row.actor = actor;
+        row.mapId = cs.map;
+        row.text = at.name ?? '';
+      } else if (kind === 'walk') {
+        row.slot = slotOf(beat[1]);
+        row.a = actors.DIRECTIONS.indexOf(beat[2]);
+        row.b = beat[3];
+      } else if (kind === 'face') {
+        row.slot = slotOf(beat[1]);
+        row.a = actors.DIRECTIONS.indexOf(beat[2]);
+      } else if (kind === 'despawn') {
+        row.slot = slotOf(beat[1]);
+      } else if (kind === 'flag') {
+        row.a = flagAt(beat[1]);
+      } else if (kind === 'choose') {
+        const opts = beat[2].slice(0, 3);
+        row.a = choices.length;
+        choices.push({ ask: beat[1], opts,
+          /* What you said is remembered, one flag per answer. */
+          flags: opts.map((_, i) => flagAt(`${beat[3]?.record ?? 'said'}_${i}`)),
+          gold: opts.map(() => 0), result: opts.map(() => ''),
+          duel: opts.map(() => 0xFFFF) });
+      }
+      beats.push(row);
+    }
+    scenes.push({ id, map: cs.map, x: cs.x, y: cs.y,
+      flag: flagAt(cs.flag), first, count: beats.length - first,
+      people: slots.length });
+  }
+
+  /* The side quests, which are the same machinery pointed at a person rather
+     than at a tile: somebody says their piece, you are given three ways to
+     answer, and the answer costs gold, is remembered, and sometimes has to be
+     argued with steel first.
+     These were written for the browser and had never reached the cartridge
+     either - and they had no map or tile on them, because the browser hung
+     them off a region. Here is where each one stands. */
+  const QUEST_PLACES = {
+    hangingTree:      { map: 'riverlands',    x: 4,  y: 20 },
+    brokenTower:      { map: 'kingsroadNorth', x: 4, y: 20 },
+    maestersDebt:     { map: 'roseroad',      x: 4,  y: 20 },
+    deserterAtTheGate:{ map: 'castleBlack',   x: 3,  y: 16 },
+  };
+  for (const [id, q] of Object.entries(QUESTS)) {
+    const place = QUEST_PLACES[id];
+    if (!place) throw new Error(`the quest ${id} has nowhere to stand`);
+    const map = out.maps.find((m) => m.id === place.map);
+    if (!map) throw new Error(`the quest ${id} stands on ${place.map}, which is not on the cartridge`);
+    /* A tile that is actually open. The coordinate written here is a wish; the
+       carved roads move about between builds and a quest-giver standing inside
+       a hedge is a quest nobody can start. */
+    let spot = null;
+    for (let r = 0; r < 24 && !spot; r++) {
+      for (let dy = -r; dy <= r && !spot; dy++) {
+        for (let dx = -r; dx <= r && !spot; dx++) {
+          const x = place.x + dx, y = place.y + dy;
+          if (x < 1 || y < 1 || x >= map.width - 1 || y >= map.height - 1) continue;
+          if (map.solid[y * map.width + x]) continue;
+          if (map.ledge[y * map.width + x]) continue;
+          if ((map.npcs ?? []).some((n) => n.x === x && n.y === y)) continue;
+          if ((map.warps ?? []).some((w) => w.x === x && w.y === y)) continue;
+          spot = { x, y };
+        }
+      }
+    }
+    if (!spot) throw new Error(`nowhere on ${place.map} for ${id} to stand`);
+    const opts = q.resolve.slice(0, 3);
+    const first = beats.length;
+    beats.push({ kind: BEAT.say, slot: 0, a: 0, b: 0, c: 0, d: 0, text: q.giver });
+    beats.push({ kind: BEAT.say, slot: 0, a: 0, b: 0, c: 0, d: 0, text: q.open });
+    beats.push({ kind: BEAT.choose, slot: 0, a: choices.length, b: 0, c: 0, d: 0, text: '' });
+    choices.push({
+      ask: q.summary,
+      opts: opts.map((o) => o.label),
+      flags: opts.map((o) => flagAt(`${o.choice[0]}_${o.choice[1]}`)),
+      gold: opts.map((o) => o.gold ?? 0),
+      result: opts.map((o) => o.result ?? ''),
+      /* One of these has to be argued with steel before it is settled. */
+      duel: opts.map((o) => (o.roamer
+        ? pushDuellist(Object.assign(
+            makeRoamer(typeof o.roamer === 'string' ? o.roamer : o.roamer.id,
+                       groundBy[0][mapIds.indexOf(place.map)], (l) => l[0]),
+            { mortal: 1, fixed: 0, sworn: 255, host: 0, dead: 0 }))
+        : 0xFFFF)),
+    });
+    scenes.push({ id, map: place.map, x: spot.x, y: spot.y,
+      flag: flagAt(`quest_${id}`), first, count: beats.length - first, people: 0,
+      quest: 1, name: q.name });
+  }
+
+  out.scenes = scenes;
+  out.beats = beats;
+  out.choices = choices;
+  out.sceneFlags = sceneFlags;
 
   out.actors = actorList;
   return out;
@@ -1510,20 +1578,37 @@ for (const b of harvest.beats) {
   L.push(`  { ${b.kind}, ${b.slot}, ${b.a}, ${b.b}, ${b.c}, ${b.bank ?? 0}, ${cstr(b.text)} },`);
 }
 L.push('};');
-L.push('typedef struct { const char *ask; const char *opt[3]; u8 count, flag[3]; } Choice;');
+L.push('typedef struct {');
+L.push('  const char *ask;');
+L.push('  const char *opt[3];');
+L.push('  const char *said[3];   /* what happens when you say it */');
+L.push('  s16 gold[3];           /* what saying it costs, or pays */');
+L.push('  u16 duel[3];           /* whoever has to be argued with first, or 65535 */');
+L.push('  u8 count, flag[3];');
+L.push('} Choice;');
 L.push('static const Choice choices[CHOICE_COUNT] = {');
-if (!harvest.choices.length) L.push('  { 0, { 0, 0, 0 }, 0, { 0, 0, 0 } },');
+if (!harvest.choices.length) {
+  L.push('  { 0, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 65535, 65535, 65535 }, 0, { 0, 0, 0 } },');
+}
 for (const c of harvest.choices) {
   const opts = [0, 1, 2].map((i) => (c.opts[i] ? cstr(c.opts[i]) : '0')).join(', ');
+  const said = [0, 1, 2].map((i) => (c.result?.[i] ? cstr(c.result[i]) : '0')).join(', ');
+  const gold = [0, 1, 2].map((i) => c.gold?.[i] ?? 0).join(', ');
+  const duel = [0, 1, 2].map((i) => c.duel?.[i] ?? 65535).join(', ');
   const flags = [0, 1, 2].map((i) => c.flags[i] ?? 0).join(', ');
-  L.push(`  { ${cstr(c.ask)}, { ${opts} }, ${c.opts.length}, { ${flags} } },`);
+  L.push(`  { ${cstr(c.ask)}, { ${opts} }, { ${said} }, { ${gold} }, { ${duel} }, `
+    + `${c.opts.length}, { ${flags} } },`);
 }
 L.push('};');
-L.push('typedef struct { u8 map, x, y, flag, people; u16 first, count; } Cut;');
+L.push('typedef struct {');
+L.push('  u8 map, x, y, flag, people, quest;');
+L.push('  u16 first, count;');
+L.push('  const char *name;');
+L.push('} Cut;');
 L.push('static const Cut cuts[CUT_COUNT] = {');
 for (const sc of harvest.scenes) {
   L.push(`  { ${MAP_IDS.indexOf(sc.map)}, ${sc.x}, ${sc.y}, ${sc.flag}, ${sc.people}, `
-    + `${sc.first}, ${sc.count} },   /* ${sc.id} */`);
+    + `${sc.quest ?? 0}, ${sc.first}, ${sc.count}, ${cstr(sc.name ?? sc.id)} },`);
 }
 L.push('};');
 L.push('');

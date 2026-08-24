@@ -13,3 +13,7 @@ gba/playtest
 gba/playtest_dbg
 gba/audit
 gba/w
+
+# the copy at the root that gets handed over; gba/thronebound.gba is the one
+# the build writes and the one that is kept
+/Thronebound.gba

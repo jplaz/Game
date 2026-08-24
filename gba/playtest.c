@@ -226,6 +226,7 @@ static int wantHouse, runAway, statusChecks, sinceStatus, wantTech, techUsed[4];
 static int menusSeen, bagsSeen, shopsSeen, bought, records, menuWant = -1;
 static int mustersSeen, kennelsSeen, holdLooks, boarded, fetched, oathsOffered;
 static int oathWanted = -1;
+static int eggsFound, eggsHatched, dragonEgg;
 static int craftsSeen, crafted, craftedHere;
 static int wildsMet, snaresThrown;
 static int doorsThisRung;
@@ -691,6 +692,15 @@ void hostFrame(void) {
         else if (worldId == 15) catchOnce(25, "25-riverrun");
       }
     }
+  }
+
+  /* Nests were the thing that could not be proved by counting: an egg found is
+     one window and an egg hatching is another, and a run that never saw either
+     looked exactly like a run that never walked over a nest. */
+  if (windowOpen) {
+    if (windowSays("Half buried")) eggsFound = 1;
+    if (windowSays("Dragon Egg")) dragonEgg = 1;
+    if (windowSays("decides you will do")) eggsHatched = 1;
   }
 
   if (scene == SCENE_TITLE) {
@@ -1276,6 +1286,9 @@ int main(int argc, char **argv) {
   printf("  benches        %d looked at, %d things made\n", craftsSeen, crafted);
   printf("  the wild       %d animals met, %d nets thrown, %d taken alive\n",
     wildsMet, snaresThrown, you.tamed);
+  printf("  nests          %s found, %s hatched, dragon egg %s\n",
+    eggsFound ? "an egg" : "nothing", eggsHatched ? "one" : "none",
+    dragonEgg ? "yes" : "not this run");
   printf("  the kennels    %d visits, %d boarded, %d fetched, %d still there\n",
     kennelsSeen, boarded, fetched, holdCount());
   printf("  the host       %d musters read, %d purses offered, %d sworn\n",

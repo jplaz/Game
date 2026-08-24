@@ -304,7 +304,8 @@ function makeCellar({ town, name, keeper, keeperDuel, line, loot }) {
  * eleven, and the way out is the same two tiles you came in by.
  */
 function makeHold({ name, town, townGate, hall, ground = 'grass', wall = '#',
-                    floor = '.', banner = 'V', npcs = [], signs = [], items = [] }) {
+                    floor = '.', banner = 'V', grass = ',', encounters = [],
+                    npcs = [], signs = [], items = [] }) {
   const W = wall;    // whatever this part of the world is walled with
   const f = floor;   // and whatever grows outside the gate
   const A = 'A';     // dressed stone, because every hold in the world is
@@ -315,7 +316,7 @@ function makeHold({ name, town, townGate, hall, ground = 'grass', wall = '#',
   const wide = (inner) => W + out + 'A' + inner + 'A' + out + W;
 
   return {
-    name, music: 'wild', ground, wall,
+    name, music: 'wild', ground, wall, encounters,
     tiles: [
       W.repeat(24),
       W + out + M.repeat(16) + out + W,
@@ -335,8 +336,8 @@ function makeHold({ name, town, townGate, hall, ground = 'grass', wall = '#',
       wide(d.repeat(14)),
       wide(d.repeat(14)),
       W + out + 'A'.repeat(7) + 'dd' + 'A'.repeat(7) + out + W,
-      W + f.repeat(10) + 'dd' + f.repeat(10) + W,
-      W + f.repeat(10) + 'dd' + f.repeat(10) + W,
+      W + f.repeat(4) + grass.repeat(6) + 'dd' + grass.repeat(6) + f.repeat(4) + W,
+      W + f.repeat(4) + grass.repeat(6) + 'dd' + grass.repeat(6) + f.repeat(4) + W,
       W + f.repeat(10) + 'dd' + f.repeat(10) + W,
       W.repeat(11) + 'dd' + W.repeat(11),
     ],
@@ -4259,6 +4260,12 @@ export const MAPS = {
      a yard, a keep behind it, and six rooms inside worth going through. */
 
   stoneCrowHold: makeHold({
+    grass: ';',
+    encounters: [
+      { roamer: 'clansman', min: 30, max: 40, weight: 26 },
+      { roamer: 'wildlingRaider', min: 32, max: 42, weight: 22 },
+      { beast: 'falconet', min: 30, max: 40, weight: 16 },
+    ],
     name: 'The Stone Crow Camp', town: 'theEyrie', townGate: [11, 1, 'down'], hall: 'stoneCrowCave',
     ground: 'stone', wall: 'C', floor: 'o', banner: 'v',
     signs: [
@@ -4316,6 +4323,12 @@ export const MAPS = {
   }),
 
   seaDragonHold: makeHold({
+    grass: ',',
+    encounters: [
+      { roamer: 'redPriestess', min: 30, max: 40, weight: 26 },
+      { roamer: 'ironbornReaver', min: 32, max: 42, weight: 22 },
+      { beast: 'emberwisp', min: 30, max: 40, weight: 16 },
+    ],
     name: 'The Sea Dragon Tower', town: 'dragonstone', townGate: [11, 1, 'down'], hall: 'seaDragonVault',
     ground: 'stone', wall: 'C', floor: 'o', banner: 'V',
     signs: [
@@ -4373,6 +4386,12 @@ export const MAPS = {
   }),
 
   kennelHold: makeHold({
+    grass: ';',
+    encounters: [
+      { roamer: 'manAtArms', min: 30, max: 40, weight: 26 },
+      { roamer: 'deserter', min: 32, max: 42, weight: 22 },
+      { beast: 'direwolf', min: 30, max: 40, weight: 16 },
+    ],
     name: 'The Bolton Kennels', town: 'dreadfort', townGate: [11, 1, 'down'], hall: 'flayedHall',
     ground: 'snow', wall: 'P', floor: 'S', banner: 'v',
     signs: [
@@ -4430,6 +4449,12 @@ export const MAPS = {
   }),
 
   sealordHold: makeHold({
+    grass: ',',
+    encounters: [
+      { roamer: 'sellsword', min: 30, max: 40, weight: 26 },
+      { roamer: 'bandit', min: 32, max: 42, weight: 22 },
+      { beast: 'krakenling', min: 30, max: 40, weight: 16 },
+    ],
     name: 'The Sealord\'s Yard', town: 'braavos', townGate: [11, 1, 'down'], hall: 'sealordPalace',
     ground: 'stone', wall: '~', floor: 'o', banner: 'V',
     signs: [
@@ -4487,6 +4512,12 @@ export const MAPS = {
   }),
 
   cheesemongerHold: makeHold({
+    grass: ',',
+    encounters: [
+      { roamer: 'sellsword', min: 30, max: 40, weight: 26 },
+      { roamer: 'dornishOutrider', min: 32, max: 42, weight: 22 },
+      { beast: 'sandviper', min: 30, max: 40, weight: 16 },
+    ],
     name: 'The Slavers\' Compound', town: 'pentos', townGate: [11, 1, 'down'], hall: 'cheesemongerCellar',
     ground: 'sand', wall: 'C', floor: 's', banner: 'V',
     signs: [
@@ -4544,6 +4575,12 @@ export const MAPS = {
   }),
 
   blackWallHold: makeHold({
+    grass: ',',
+    encounters: [
+      { roamer: 'sellsword', min: 30, max: 40, weight: 26 },
+      { roamer: 'redPriestess', min: 32, max: 42, weight: 22 },
+      { beast: 'sandviper', min: 30, max: 40, weight: 16 },
+    ],
     name: 'The Black Wall', town: 'volantis', townGate: [11, 1, 'down'], hall: 'elephantCourt',
     ground: 'sand', wall: 'C', floor: 's', banner: 'V',
     signs: [
@@ -4601,6 +4638,12 @@ export const MAPS = {
   }),
 
   fightingPits: makeHold({
+    grass: ',',
+    encounters: [
+      { roamer: 'sellsword', min: 30, max: 40, weight: 26 },
+      { roamer: 'ironbornReaver', min: 32, max: 42, weight: 22 },
+      { beast: 'boartusk', min: 30, max: 40, weight: 16 },
+    ],
     name: 'The Fighting Pits', town: 'meereen', townGate: [11, 1, 'down'], hall: 'pitMasterRooms',
     ground: 'sand', wall: 'C', floor: 's', banner: 'V',
     signs: [
@@ -4658,6 +4701,12 @@ export const MAPS = {
   }),
 
   waterGardens: makeHold({
+    grass: ',',
+    encounters: [
+      { roamer: 'dornishOutrider', min: 30, max: 40, weight: 26 },
+      { roamer: 'sellsword', min: 32, max: 42, weight: 22 },
+      { beast: 'dornspine', min: 30, max: 40, weight: 16 },
+    ],
     name: 'The Water Gardens', town: 'sunspear', townGate: [11, 25, 'up'], hall: 'pavilionOfOranges',
     ground: 'sand', wall: 'C', floor: 's', banner: 'V',
     signs: [
@@ -4715,6 +4764,12 @@ export const MAPS = {
   }),
 
   wreckersHold: makeHold({
+    grass: ',',
+    encounters: [
+      { roamer: 'manAtArms', min: 30, max: 40, weight: 26 },
+      { roamer: 'hedgeKnight', min: 32, max: 42, weight: 22 },
+      { beast: 'crownstag', min: 30, max: 40, weight: 16 },
+    ],
     name: 'Shipbreaker Cliffs', town: 'stormsEnd', townGate: [11, 25, 'up'], hall: 'wreckersHall',
     ground: 'grass', wall: 'C', floor: '.', banner: 'V',
     signs: [

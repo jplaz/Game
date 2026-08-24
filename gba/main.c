@@ -2957,7 +2957,9 @@ static void paintBag(void) {
     int y = 22 + i * 11;
     if (top + i == bagPick) drawCursor(14, y + 1, C_GOLD);
     drawText(24, y, wares[at].name, top + i == bagPick ? C_GOLD : C_INK);
-    if (wares[at].kind == WARE_POTION || wares[at].kind == WARE_STUFF) {
+    if (wares[at].kind == WARE_POTION || wares[at].kind == WARE_STUFF
+        || wares[at].kind == WARE_SNARE || wares[at].kind == WARE_EGG
+        || wares[at].kind == WARE_OATH || wares[at].kind == WARE_RELIC) {
       copyString(scratch, "x", sizeof scratch);
       appendNumber(scratch, you.bag[at], sizeof scratch);
       drawText(TXT_W - 34, y, scratch, C_DIM);
@@ -3009,10 +3011,17 @@ static int wearWare(int at) {
 
 static int takeWare(int at) {
   const Ware *w = &wares[at];
-  /* Remedies, makings, nets and eggs stack; steel does not, and a second sword
-     is scrap. */
+  /* Everything that is spent by using it stacks; steel does not, and a second
+     sword is scrap.
+     Relics and oaths were on the wrong side of this line. Both are used up the
+     moment they work, and you could hold exactly one of each for the whole
+     game - one horn, one jar of wildfire, one purse - so the things that make
+     a hard fight winnable were rationed to a single use per trip to a counter.
+     Worse, a counter refuses to sell what you already hold, so carrying one
+     made every counter in the world say no to it forever. */
   if (w->kind == WARE_POTION || w->kind == WARE_STUFF
-      || w->kind == WARE_SNARE || w->kind == WARE_EGG) {
+      || w->kind == WARE_SNARE || w->kind == WARE_EGG
+      || w->kind == WARE_OATH || w->kind == WARE_RELIC) {
     if (you.bag[at] < 99) you.bag[at]++;
     return TOOK_KEPT;
   }
@@ -3617,13 +3626,17 @@ static const char *buyWare(int at) {
   const Ware *w = &wares[at];
   int how;
   if (you.gold < w->price) return "You cannot afford that, and it shows.";
-  if (w->kind != WARE_POTION && w->kind != WARE_SNARE && you.bag[at]) {
+  if (w->kind != WARE_POTION && w->kind != WARE_SNARE && w->kind != WARE_OATH
+      && w->kind != WARE_RELIC && you.bag[at]) {
     return "You have one of those already.";
   }
   you.gold -= w->price;
   how = takeWare(at);
   if (you.hp > vigourFor(you.level)) you.hp = vigourFor(you.level);
-  if (w->kind == WARE_POTION || w->kind == WARE_SNARE) return "Wrapped and handed over.";
+  if (w->kind == WARE_POTION || w->kind == WARE_SNARE || w->kind == WARE_OATH
+      || w->kind == WARE_RELIC) {
+    return "Wrapped and handed over.";
+  }
   /* Bought gear goes onto you only if it beats what you have, so a knife bought
      out of curiosity does not replace a good sword. */
   return how == TOOK_WORN ? "You put it on there and then."

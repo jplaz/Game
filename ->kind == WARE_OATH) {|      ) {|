@@ -1,0 +1,1432 @@
+extern unsigned char *gbaMem;       /* covers 0x04000000 .. 0x07000400 */
+#define REG_BLDYREG16(0x04000054)
+#define PAL_BG  ((volatile u16 *)HW(0x05000000))
+#define PAL_OBJ ((volatile u16 *)HW(0x05000200))
+#define VRAM_TXT_MAP  ((volatile u16 *)HW(0x0600D800))   /* screenblock 27      */
+#define VRAM_BG_MAP   ((volatile u16 *)HW(0x0600E000))   /* screenblocks 28-31  */
+#define VRAM_OBJ((volatile u32 *)HW(0x06010000))
+#define OAM     ((volatile u16 *)HW(0x07000000))
+#define C_RAIL 9/* shares the healthy green; a rail is never red */
+  const u8 *tune;/* square one */
+  const u8 *drum;/* noise: 0 quiet, 1 tap, 2 hit */
+  u8 steps;      /* how many entries before it comes round again */
+  u8 frames;     /* frames a step lasts */
+  u8 duty;       /* square wave duty, 0..3 */
+  REG_SNDCNT_X = 0x0080;               /* the sound hardware at all */
+  REG_SNDCNT_H = 0x0002;               /* the four generators at full */
+if (stingAt < stingLen) voice(2, sting[stingAt++], 2, 11, 2);
+stingWait = stingHold;
+if (lead == REST) hush(1);
+else voice(1, lead, t->duty, 9, 3);
+if (low == REST) hush(2);
+else voice(2, low, 3, 7, 4);
+#define SOUND_HZ_TICKS 274  /* 16.78MHz / 1024, divided by sixty */
+  REG_TM0_CTRL = (u16)(3 | 0x0080);/* prescaler 1024, running */
+soundOwed -= SOUND_HZ_TICKS;
+owed++;
+int colLeft = tx << 3;
+int rx0 = x > colLeft ? x - colLeft : 0;
+int rx1 = x1 < colLeft + 8 ? x1 - colLeft : 8;
+int at = ty * TXT_COLS + tx, j;
+u8 *tile = pageTiles[at];
+if (rx0 == 0 && rx1 == 8) {
+  for (j = ry0; j < ry1; j++) {
+    u8 *p = tile + (j << 2);
+    p[0] = pair; p[1] = pair; p[2] = pair; p[3] = pair;
+  }
+} else {
+  for (j = ry0; j < ry1; j++) {
+    u8 *p = tile + (j << 2);
+    int i;
+    for (i = rx0; i < rx1; i++) {
+      if (i & 1) p[i >> 1] = (u8)((p[i >> 1] & 0x0F) | (colour << 4));
+      else      p[i >> 1] = (u8)((p[i >> 1] & 0xF0) | colour);
+    }
+  }
+}
+touch(at);
+ assembling each one out of four bytes and three shifts was work done
+ twice, once here and once by whatever wrote the pixels. */
+    volatile u32 *out = VRAM_TXT_CHR + (i + 1) * 8;/* tile 0 stays blank */
+int g = glyphOf[(u8)*p & 127];
+for (row = 0; row < FONT_ROWS; row++) {
+  u16 bits = font_rows[g][row];
+  for (col = 0; bits >> col; col++) {
+    if (!((bits >> col) & 1)) continue;
+    if (pass) plot(at + col, y + row, ink);
+    else plot(at + col + 1, y + row + 1, C_SHADE);
+  }
+}
+at += font_advance[g];
+u16 bits = font_rows[g][row];
+for (col = 0; bits >> col; col++) {
+  if (!((bits >> col) & 1)) continue;
+  if (pass) plot(x + col, y + row, ink);
+  else plot(x + col + 1, y + row + 1, C_SHADE);
+}
+int buf = -1;
+if (mode == TEXT_MIDDLE) { if (ty >= 3 && ty < 17) buf = ty - 3; }
+else if (mode == TEXT_TOP) { if (ty < 14) buf = ty; }
+else if (mode == TEXT_DUEL) {
+  /* Four rows of foe plate at the top, then the yard, then your own plate
+     and what is being said. The yard used to get forty-eight pixels and
+     the text box eighty, so a duel was a caption with two small figures
+     over it. The yard gets sixty-four now, which is exactly the height of
+     the two of you at full size. */
+  if (ty < 4) buf = ty;
+  else if (ty >= 12 && ty < 20) buf = ty - 8;
+} else {
+  if (ty < 2) buf = ty;
+  else if (ty >= 14 && ty < 20) buf = ty - 12;
+}
+VRAM_TXT_MAP[ty * 32 + tx] = (buf >= 0 && tx < TXT_COLS)
+  ? (u16)((1 + buf * TXT_COLS + tx) | (TXT_BANK << 12)) : 0;
+if (wordLen < LINE_CHARS - 1) word[wordLen++] = c;
+s++;
+continue;
+int need = textWidth(word) + (cur ? charWidth(' ') : 0);
+if (cur && textWidth(lines[lineCount]) + need > width) {
+  if (lineCount < MAX_LINES - 1) lineCount++;
+  lines[lineCount][0] = 0;
+  cur = 0;
+}
+{
+  char *dst = lines[lineCount];
+  int at = 0, i = 0;
+  while (dst[at]) at++;
+  if (at && at < LINE_CHARS - 2) dst[at++] = ' ';
+  while (word[i] && at < LINE_CHARS - 1) dst[at++] = word[i++];
+  dst[at] = 0;
+  cur = at;
+}
+wordLen = 0;
+lineCount++;
+lines[lineCount][0] = 0;
+cur = 0;
+typeLine++; typeCol = 0; typeX = 12; typeY += 12;
+continue;
+  oam[slot * 4 + 0] = (u16)((y & 0xFF) | 0x8000);        /* tall */
+  oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0x8000);       /* size 2 => 16x32 */
+  oam[slot * 4 + 0] = (u16)(y & 0xFF);                  /* square */
+  oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0xC000);      /* size 3 => 64x64 */
+char c = SPOT_ART[y][x];
+int v = c == 'k' ? 1 : c == 'w' ? 2 : 0;
+int tile = (y >> 3) * 2 + (x >> 3);
+int at = tile * 32 + (y & 7) * 4 + ((x & 7) >> 1);
+if (!v) continue;
+if (x & 1) out[at] = (u8)((out[at] & 0x0F) | (v << 4));
+else out[at] = (u8)((out[at] & 0xF0) | v);
+#define SPARK_SIDE 32      /* four frames of sixteen tiles apiece */
+for (x = 0; x < SPARK_SIDE; x++) {
+  int dx = x - half, dy = y - half;
+  int ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy;
+  int d = ax + ay, v = 0, tile, at;
+  if (d <= CORE[f]) v = 2;
+  else if (d <= CORE[f] + 3) v = 3;
+  else if ((ax <= THICK[f] && ay <= ARM[f]) ||
+           (ay <= THICK[f] && ax <= ARM[f])) v = 3;
+  /* The last frame is the one before it blown open: a ring, not a star. */
+  if (f == SPARK_FRAMES - 1 && d <= CORE[f] - 4) v = 0;
+  if (!v) continue;
+  tile = f * wide * wide + (y >> 3) * wide + (x >> 3);
+  at = tile * 32 + (y & 7) * 4 + ((x & 7) >> 1);
+  if (x & 1) out[at] = (u8)((out[at] & 0x0F) | (v << 4));
+  else out[at] = (u8)((out[at] & 0xF0) | v);
+}
+    int ink = f ? 3 : 2;                 /* gold for leaves, white for snow */
+for (x = 3; x < 5; x++) {
+  int at = f * 32 + y * 4 + (x >> 1);
+  if (x & 1) out[at] = (u8)((out[at] & 0x0F) | (ink << 4));
+  else out[at] = (u8)((out[at] & 0xF0) | ink);
+}
+for (x = 0; x < 16; x++) {
+  char c = GRASS_ART[f][y][x];
+  int v = c == 'd' ? 1 : c == 'm' ? 2 : c == 'l' ? 3 : c == 'h' ? 4 : 0;
+  int tile = (y >> 3) * 2 + (x >> 3);
+  int at = tile * 32 + (y & 7) * 4 + ((x & 7) >> 1);
+  if (!v) continue;
+  if (x & 1) out[at] = (u8)((out[at] & 0x0F) | (v << 4));
+  else out[at] = (u8)((out[at] & 0xF0) | v);
+}
+  oam[slot * 4 + 0] = (u16)(y & 0xFF);                 /* square, size 0 */
+  oam[slot * 4 + 0] = (u16)(y & 0xFF);                /* square */
+  oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0x8000);    /* size 2 => 32x32 */
+  oam[slot * 4 + 0] = (u16)(y & 0xFF);                 /* square */
+  oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0x4000);     /* size 1 => 16x16 */
+  s16 px, py;/* pixel position of the tile the body stands on */
+  u8 dir;    /* 0 down, 1 up, 2 left, 3 right */
+  u8 stride; /* which foot goes forward on this step */
+  u8 walk;   /* pixels left in the step, 0 when standing */
+static u8 beaten[MAP_COUNT][MAX_CROWD];      /* the appearance of the house you swore to */
+  char name[NAME_MAX + 1];  /* what people call you */
+  u8 lead;                  /* which of them is at your heel */
+  u8 eggWins;               /* fights won since you picked the egg up */
+  u8 tamed;                 /* how many you have taken alive */
+ things at the end of the ladder are made and nothing else. A test for
+ "costs no more than their purse" said yes to all of them, so a bandit on
+ the first road could be wearing White Plate. */
+ otherwise swordplay anybody picks up. */
+  myTechs[3] = player_techs[3];        /* Guard */
+volatile u16 *cell = rowBase + ((tx >> 5) << 10) + (tx & 31);
+*cell = (tx < tw && ty < th) ? world->entries[ty * tw + tx] : 0;
+const u32 *from = a->tiles + (d * 4) * ACTOR_FRAME_TILES * 8;
+for (w = 0; w < 2 * ACTOR_FRAME_TILES * 8; w++) *dst++ = from[w];
+moteY[i] = (s16)(moteY[i] - fall);
+/* An ember wanders as it rises rather than falling in a line. */
+moteX[i] = (s16)(moteX[i] + (((frameClock >> 4) + i) & 1 ? 1 : -1));
+if (moteY[i] < -8) { moteY[i] = (s16)(SCREEN_H + 8); moteX[i] = (s16)roll(SCREEN_W); }
+moteY[i] = (s16)(moteY[i] + fall);
+moteX[i] = (s16)(moteX[i] + (kind == WEATHER_SNOW ? -1 : 1));
+if (moteY[i] > SCREEN_H + 8) { moteY[i] = -8; moteX[i] = (s16)roll(SCREEN_W); }
+int nx = tx + DIR_X[d], ny = ty + DIR_Y[d];
+if (solidAt(nx, ny) || occupied(nx, ny, i)) continue;
+crowd[i].px = (s16)(nx * 16);
+crowd[i].py = (s16)(ny * 16);
+crowd[i].dir = (u8)d;
+break;
+|| (solidAt(x, y - 1) && solidAt(x, y + 1));
+static int foeSlot;        /* which of the crowd is being fought, or -1 */
+static int foeBank;        /* which resident appearance they wear */
+static int foeId;          /* which of the duellists, for what they carry */
+ your own plate. It used to sit at the foot of the window, and the window
+ is a good deal shorter than it was now that the fight has the room. */
+copyString(scratch, "Power ", sizeof scratch);
+appendNumber(scratch, t->power, sizeof scratch);
+copyString(scratch, "No blow", sizeof scratch);
+ else, and never an impossible one: one to six levels over you, in the
+ order the ladder puts them, so the ninth is still worse than the first. */
+ so arriving early is a hard fight rather than an impossible one. But no
+ floor: what the ladder says is what they are, and if you have gone away
+ and come back stronger than that, you are stronger than that. Holding
+ them one level above you whatever you did made every seat the same fight
+ forever and took away the oldest answer in the genre, which is to go and
+ level up and come back. */
+static int foeBeast = -1;  /* which animal you are facing, or -1 for a person */
+static int beastActed;     /* whether yours has already gone in this duel */
+static int beastSwinging;  /* and whether it is the one swinging right now */
+static int snareEdge;      /* a doused net, worth this much more */
+static int theyBalk;       /* they lose their next go */
+static int mySureShots;    /* this many of your blows cannot miss */
+if (wares[i].kind == WARE_SNARE && you.bag[i]) { net = 1; break; }
+? "  Wear it down and there is a net in your pouch that would hold it."
+: "  It could be taken alive, with a net. Any maester's hall sells one.",
+sizeof scratch);
+ their back until it is not their fight any more, which is where you get
+ it from - and it is the one edge a scavenger has over everybody on the
+ road: you are wearing all three of everything you ever took. */
+ one of them used to fight with it slung, which meant the player was the
+ only person in Westeros wearing all three pieces they owned - and by the
+ middle of the game that gap was worth twenty-eight fights in a row
+ without going down. Half of them have it up now; you still take it off
+ them either way. */
+const Ware *w;
+if (piece[i] == KIT_NONE) continue;
+w = &wares[piece[i]];
+theirs.might += w->might;
+theirs.guard += w->guard;
+theirs.swiftness += w->swiftness;
+                          : " raises a guard.", sizeof scratch);
+appendString(scratch, t->bite == 1 ? "  Steel is no help against weight."
+                                   : "  Straight through the gap.", sizeof scratch);
+appendString(scratch, t->bite == 1 ? "  Nothing there to break."
+                                   : "  The point turns on the plate.", sizeof scratch);
+appendString(scratch, actor->obsidian
+  ? "  The obsidian goes in and stays in."
+  : "  Steel barely marks it. Something else is needed.", sizeof scratch);
+extra -= myHostGuard();
+if (extra < 0) extra = 0;
+target->hp -= extra;
+if (target->hp < 0) target->hp = 0;
+appendString(scratch, target == &theirs ? "  Your swords come in behind it: "
+                                        : "  Their swords come in behind it: ",
+  sizeof scratch);
+appendNumber(scratch, extra, sizeof scratch);
+appendString(scratch, " more.", sizeof scratch);
+  paintDuelPlates();    /* the bars in it still show the old figures */
+  PAL_BG[TXT_BANK * 16 + C_FILL]  = RGB15(29, 28, 24);   /* parchment    */
+  PAL_BG[TXT_BANK * 16 + C_DEEP]  = RGB15(5, 4, 3);/* the keyline        */
+  PAL_BG[TXT_BANK * 16 + C_INK]   = RGB15(7, 5, 4);/* the writing        */
+  PAL_BG[TXT_BANK * 16 + C_SHADE] = RGB15(24, 22, 18);   /* its shadow   */
+  PAL_BG[TXT_BANK * 16 + C_BACK]  = RGB15(14, 12, 9);    /* an empty bar */
+  REG_DISPCNT = 0x0080;                        /* forced blank while loading */
+  for (i = 0; i < 8; i++) VRAM_TXT_CHR[i] = 0; /* the blank text tile */
+  REG_BG1CNT = (u16)(0 | (2 << 2) | (27 << 8));       /* 4bpp text, in front */
+for (col = 0; col < NAME_COLS; col++) {
+  int cx = 22 + col * 28, cy = 39 + row * 12;
+  int here = (row == nameRow && col == nameCol);
+  char one[2];
+  one[0] = NAME_KEYS[row * NAME_COLS + col];
+  one[1] = 0;
+  if (here) drawCursor(cx - 9, cy + 1, C_GOLD);
+  drawText(cx, cy, one, here ? C_GOLD : C_INK);
+}
+drawText(16, 105, you.story >= 3 ? "The Iron Throne is yours. Holding it is the rest."
+                                 : "Every sigil taken. The Red Keep is open.", C_GOLD);
+const Leader *l = &leaders[atRung[at]];
+copyString(scratch, "Next: ", sizeof scratch);
+appendString(scratch, l->name, sizeof scratch);
+drawText(16, 105, scratch, C_GOLD);
+copyString(scratch, "at ", sizeof scratch);
+appendString(scratch, l->seat, sizeof scratch);
+appendString(scratch, ", about level ", sizeof scratch);
+appendNumber(scratch, leaderLevel[at], sizeof scratch);
+drawText(16, 118, scratch, C_DIM);
+extern unsigned char hostSram[65536];        /* the harness's stand-in */
+record.partyKind[k] = you.party[k].kind;
+record.partyLevel[k] = you.party[k].level;
+record.partyExp[k] = you.party[k].exp;
+record.holdKind[k] = you.holdfast[k].kind;
+record.holdLevel[k] = you.holdfast[k].level;
+record.holdExp[k] = you.holdfast[k].exp;
+record.hostKind[k] = you.host[k].kind;
+record.hostLevel[k] = you.host[k].level;
+you.party[k].kind = record.partyKind[k];
+you.party[k].level = record.partyLevel[k];
+you.party[k].exp = record.partyExp[k];
+you.party[k].hp = record.partyKind[k] == 255
+  ? 0 : beastVigour(record.partyKind[k], record.partyLevel[k]);
+you.holdfast[k].kind = record.holdKind[k];
+you.holdfast[k].level = record.holdLevel[k];
+you.holdfast[k].exp = record.holdExp[k];
+you.holdfast[k].hp = record.holdKind[k] == 255
+  ? 0 : beastVigour(record.holdKind[k], record.holdLevel[k]);
+you.host[k].kind = record.hostKind[k];
+you.host[k].level = record.hostLevel[k];
+you.host[k].exp = 0;
+you.host[k].hp = record.hostKind[k] == 255
+  ? 0 : swornVigour(record.hostKind[k], record.hostLevel[k]);
+int k;
+for (k = 0; k < recipes[i].count; k++) {
+  if (recipes[i].mat[k] != at) continue;
+  if (j++) appendString(scratch, ", ", sizeof scratch);
+  appendString(scratch, wares[recipes[i].makes].name, sizeof scratch);
+  break;
+}
+|| w->kind == WARE_SHIELD || w->kind == WARE_HELM || w->kind == WARE_GLOVES)) {
+appendString(scratch, "   On you now.", sizeof scratch);
+const Ware *had = &wares[you.worn[w->kind] - 1];
+int step = (w->might + w->guard) - (had->might + had->guard);
+appendString(scratch, "   ", sizeof scratch);
+appendString(scratch, step > 0 ? "Better than your " : step < 0 ? "Worse than your "
+                                                               : "Same as your ", sizeof scratch);
+appendString(scratch, had->name, sizeof scratch);
+  || wares[at].kind == WARE_SNARE || wares[at].kind == WARE_EGG
+  || wares[at].kind == WARE_OATH) {
+copyString(scratch, "x", sizeof scratch);
+appendNumber(scratch, you.bag[at], sizeof scratch);
+drawText(TXT_W - 34, y, scratch, C_DIM);
+drawText(TXT_W - 52, y, wares[at].kind == WARE_WEAPON ? "in hand" : "worn", C_WELL);
+ worth and which button takes it. */
+int worth = wareWorth(at);
+copyString(scratch, worth ? "SELECT: sell for " : "SELECT: they will not take that",
+  sizeof scratch);
+if (worth) appendNumber(scratch, worth, sizeof scratch);
+drawText(TXT_W - 14 - textWidth(scratch), TXT_H - 18, scratch,
+  worth ? C_GOLD : C_DIM);
+|| w->kind == WARE_SNARE || w->kind == WARE_EGG
+|| w->kind == WARE_OATH) {
+    you.gold += w->price >> 4;/* scrap, not the asking price */
+  int hurt = 100 - room;                 /* how far down it is, in hundredths */
+  int base = 100 - beasts[foeBeast].hold;/* how hard this kind is to hold */
+static int craftPick, craftAt;/* craftAt: 0 a maester's bench, 1 a forge */
+!able ? C_DIM : (top + i == craftPick ? C_GOLD : C_INK));
+if (i2) appendString(scratch, ", ", sizeof scratch);
+appendNumber(scratch, r->many[i2], sizeof scratch);
+appendString(scratch, " ", sizeof scratch);
+appendString(scratch, wares[r->mat[i2]].name, sizeof scratch);
+appendString(scratch, " (", sizeof scratch);
+appendNumber(scratch, you.bag[r->mat[i2]], sizeof scratch);
+appendString(scratch, ")", sizeof scratch);
+                               : "A: brew it    SELECT: the counter    B: go", C_DIM);
+!able ? C_DIM : (i == portPick ? C_GOLD : C_INK));
+drawText(TXT_W - 62, y, "you are here", C_DIM);
+copyString(scratch, "", sizeof scratch);
+appendNumber(scratch, (int)ports[i].fare, sizeof scratch);
+drawText(TXT_W - 46, y, scratch, able ? C_GOLD : C_DIM);
+                          : "Ground, steeped and stoppered: a ", sizeof scratch);
+         : how == TOOK_SOLD ? ". You had one already; this one goes for scrap."
+                            : ", wrapped and handed over.", sizeof scratch);
+mine ? C_DIM : (top + i == shopPick ? C_GOLD : C_INK));
+you.gold >= wares[at].price ? C_INK : C_DYING);
+ counter, so the counter says it outright. */
+sizeof scratch);
+snareSaid = "A net is no way to settle a matter between people.";
+return 1;
+snareSaid = "Nothing you could throw would hold that, and it knows it.";
+return 1;
+int room = keepBeast(foeBeast, theirs.level);
+copyString(scratch, "The net holds. The ", sizeof scratch);
+appendString(scratch, beasts[foeBeast].name, sizeof scratch);
+appendString(scratch, " stops fighting it, and then stops fighting you.",
+  sizeof scratch);
+if (!room) {
+  /* Six is the whole party, and a net thrown well should never end with
+     an animal quietly not appearing anywhere. It used to be cut loose on
+     the spot; now it goes to the kennels, and is there when you next
+     stand in a maester's hall. */
+  int spare = holdRoom();
+  if (spare >= 0) {
+    you.holdfast[spare].kind = (u8)foeBeast;
+    you.holdfast[spare].level = (u8)theirs.level;
+    you.holdfast[spare].exp = (u16)beastExpFor(theirs.level);
+    you.holdfast[spare].hp = beastVigour(foeBeast, theirs.level);
+    you.tamed++;
+    appendString(scratch, "  Six already walk with you, so it goes to the "
+      "kennels. Any maester's hall will hand it back.", sizeof scratch);
+  } else {
+    appendString(scratch, "  Six walk with you and the kennels are full. "
+      "You cut it loose.", sizeof scratch);
+  }
+} else {
+  appendString(scratch, "  That is ", sizeof scratch);
+  appendNumber(scratch, partyCount(), sizeof scratch);
+  appendString(scratch, " at your heel.", sizeof scratch);
+}
+snareSaid = scratch;
+theirs.hp = 0;                 /* the fight is over, and nothing died */
+snaredIt = 1;
+copyString(scratch, "It tears out of the net and comes back angrier.",
+  sizeof scratch);
+snareSaid = scratch;
+snareSaid = "An animal cannot swear anything, and would not keep it.";
+return 1;
+copyString(scratch, theirs.name, sizeof scratch);
+appendString(scratch, " is not for sale, at that price or any other.",
+  sizeof scratch);
+snareSaid = scratch;
+return 1;
+snareSaid = "It has nothing left to swear with.";
+return 1;
+snareSaid = "Six swords already follow you, and six is what you can pay.";
+return 1;
+swearIn(foeDef->sworn, theirs.level);
+copyString(scratch, theirs.name, sizeof scratch);
+appendString(scratch, " looks at what is on offer, looks at the ground, "
+  "and takes it. That is ", sizeof scratch);
+appendNumber(scratch, hostCount(), sizeof scratch);
+appendString(scratch, hostCount() == 1 ? " sword behind you."
+                                       : " swords behind you.", sizeof scratch);
+snareSaid = scratch;
+theirs.hp = 0;                 /* it is settled, and nobody died of it */
+snaredIt = 1;
+copyString(scratch, theirs.name, sizeof scratch);
+appendString(scratch, " spits, and gets back up.", sizeof scratch);
+snareSaid = scratch;
+case 1:                                   /* Hunter's Draught */
+  snareEdge = 25;
+  copyString(scratch, "You douse the net. Whatever you throw it over is "
+    "going to mind a good deal less.", sizeof scratch);
+  break;
+case 2:                                   /* Ironwood Warhorn */
+  theirs.defending = 0;
+  theyBalk = 1;
+  copyString(scratch, "One long note off the ironwood. They spend the next "
+    "moment deciding whether to run, and lose it.", sizeof scratch);
+  break;
+case 3:                                   /* Maester's Salts */
+  if (MY_BEAST.kind == 255) {
+    you.bag[at]++;
+    return 0;
+  }
+  MY_BEAST.hp = beastVigour(MY_BEAST.kind, MY_BEAST.level);
+  beastActed = 0;
+  copyString(scratch, "Under its nose, and it gets up. All of it gets up.",
+    sizeof scratch);
+  break;
+case 4:                                   /* Shade of the Evening */
+  mySureShots = 2;
+  copyString(scratch, "Thick, blue, and it tastes of ink. You can see the "
+    "next two blows before they are thrown.", sizeof scratch);
+  break;
+case 5: {                                 /* Wildfire */
+  int burn = 60 + you.level * 4;
+  theirs.hp -= burn;
+  if (theirs.hp < 0) theirs.hp = 0;
+  copyString(scratch, "The jar goes over and the green takes hold. ", sizeof scratch);
+  appendNumber(scratch, burn, sizeof scratch);
+  appendString(scratch, " damage, and it is still burning.", sizeof scratch);
+  break;
+}
+case 6:                                   /* Weirwood Paste */
+  you.hp = vigourFor(you.level);
+  mine.hp = you.hp;
+  copyString(scratch, "You see a great deal at once and remember almost "
+    "none of it. Everything that hurt has stopped.", sizeof scratch);
+  break;
+default:                                  /* Dragonbinder */
+  beastActed = 0;
+  mySureShots = 3;
+  copyString(scratch, "Six feet of Valyrian horn, and the note costs you "
+    "something you will not miss until later.", sizeof scratch);
+  break;
+&& you.bag[at]) {
+                    : "Wrapped and handed over. Yours is still the better.";
+#define DUEL_SPOILS 6      /* won, and the rail filling up for it */
+                  "Everything you fight in, you will take off somebody who "
+                  "tried to stop you. Look in the long grass as well: "
+                  "people lose things there.", sizeof scratch);
+const Leader *l = &leaders[atRung[at]];
+appendString(scratch, "  Nine seats hold a sigil. Take all nine and the "
+                      "realm is yours to argue over. Start with ", sizeof scratch);
+appendString(scratch, l->name, sizeof scratch);
+appendString(scratch, ", at ", sizeof scratch);
+appendString(scratch, l->seat, sizeof scratch);
+appendString(scratch, ".", sizeof scratch);
+static int taleAt = -1;   /* which tale is playing, or -1 */
+static int talePage;      /* and which page of it */
+static int taleThen;      /* what to do when the last page turns over */
+#define AFTER_CHAMPION 1  /* Ser Gregor draws the moment the page turns */
+#define AFTER_CROWN 2     /* and the crowning follows the sitting down  */
+hostFell = swornKinds[you.host[last].kind].name;
+you.host[last].kind = 255;
+hostFell = 0;
+ failing that to your own house's seat. Walking twenty doors back from
+ Winterfell every time you lost a fight in Dorne was the least fun thing
+ in the game. */
+sizeof scratch);
+"and is not among the people who carried you back.", sizeof scratch);
+                    "the bed. Nobody says who.", sizeof scratch);
+sizeof scratch);
+    if (!wares[i].price) continue;    /* the made things are never dropped */
+appendString(scratch, ", better than what you had. It is yours now.", sizeof scratch);
+appendString(scratch, ". You have one, so it goes in the purse: ", sizeof scratch);
+appendNumber(scratch, wares[best].price >> 3, sizeof scratch);
+appendString(scratch, " gold the richer.", sizeof scratch);
+appendString(scratch, ", worse than what you carry, but worth keeping.", sizeof scratch);
+if (!you.bag[eggs[i].ware]) continue;
+if (++you.eggWins < eggs[i].wins) {
+  appendString(scratch, "  Something shifts under your arm.", sizeof scratch);
+  return;
+}
+if (partyRoom() < 0) {
+  appendString(scratch, "  It is trying to hatch and there is no room at "
+    "your heel for what comes out.", sizeof scratch);
+  return;
+}
+you.bag[eggs[i].ware]--;
+you.eggWins = 0;
+keepBeast(eggs[i].beast, you.level < 5 ? 5 : you.level);
+appendString(scratch, "  And it opens. A ", sizeof scratch);
+appendString(scratch, beasts[eggs[i].beast].name, sizeof scratch);
+appendString(scratch, " looks at you and decides you will do.", sizeof scratch);
+sfxRank();
+return;
+Kept *h = &you.host[i];
+if (h->kind == 255) continue;
+if (h->level < you.level && roll(3) == 0) {
+  h->level++;
+  h->hp = swornVigour(h->kind, h->level);
+}
+Kept *k = &you.party[i];
+int share = (i == you.lead) ? whole : whole >> 1;
+int wasLevel;
+if (k->kind == 255 || i == you.lead) continue;
+wasLevel = k->level;
+k->exp = (u16)(k->exp + share);
+while (k->level < 50 && k->exp >= beastExpFor(k->level + 1)) k->level++;
+/* And they grow up in the pack, quietly, whether or not you were
+   watching. You find out on the card. */
+if (k->level != wasLevel && beasts[k->kind].into != 255
+    && k->level >= beasts[k->kind].growAt) {
+  k->kind = beasts[k->kind].into;
+}
+if (k->hp < 1) k->hp = beastVigour(k->kind, k->level);
+MY_BEAST.kind = beasts[b].into;
+appendString(scratch, "  It has stopped being a ", sizeof scratch);
+appendString(scratch, beasts[b].name, sizeof scratch);
+appendString(scratch, ". What stands there now is a ", sizeof scratch);
+appendString(scratch, beasts[MY_BEAST.kind].name, sizeof scratch);
+appendString(scratch, ".", sizeof scratch);
+sfxRank();
+int held;
+sigils |= (u16)(1 << lead);
+held = countSigils();
+/* The two turns of the last act that a fight can bring about: the ninth
+   sigil is what makes the realm write to you, and the tenth is what
+   wakes the thing standing behind the chair. */
+if (lead == LEADER_COUNT - 1) {
+  taleWaiting = TALE_CHAMPION;
+  taleWaitingThen = AFTER_CHAMPION;
+} else if (held == LEADER_COUNT - 1 && you.story < 1) {
+  you.story = 1;
+  taleWaiting = TALE_SUMMONS;
+  taleWaitingThen = AFTER_NOTHING;
+}
+sfxRank();
+appendString(scratch, "  You take the ", sizeof scratch);
+appendString(scratch, leaders[lead].sigil, sizeof scratch);
+appendString(scratch, " Sigil. That is ", sizeof scratch);
+appendNumber(scratch, held, sizeof scratch);
+appendString(scratch, " of ", sizeof scratch);
+appendNumber(scratch, LEADER_COUNT, sizeof scratch);
+appendString(scratch, ".", sizeof scratch);
+sizeof scratch);
+ level after nearly every fight - so you began almost every duel whole, no
+ matter what the last one cost, and a remedy could never do anything
+ because you were never hurt when you reached for one. Growing gives you
+ the difference it added and nothing else. */
+int taught = learnedAt(you.level);
+if (taught >= 0) {
+  appendString(scratch, "  You have learned ", sizeof scratch);
+  appendString(scratch, techniques[taught].name, sizeof scratch);
+  appendString(scratch, ".", sizeof scratch);
+}
+"goes past.", sizeof scratch);
+duelPhase = DUEL_END;
+duelOver = (d == &mine) ? 2 : 1;
+duelPhase = DUEL_THEIRS;
+duelPhase = DUEL_END;
+duelOver = (d == &mine) ? 2 : 1;
+duelPhase = DUEL_TOP;
+beastSwinging = 0;               /* one turn at a time, chosen each time */
+#define DUEL_BAND 496      /* eleven flat tiles, above anything a map uses */
+#define DUEL_PAL 200       /* and eleven colours, above anything the art uses */
+/* A fixed, cheap hash. The same yard every time, which is what stops the
+   ground crawling about while you are standing on it. */
+int h = ((x * 7 + y * 13 + tile * 29) * 2654435761u) >> 24 & 31;
+int c = h < spread ? light : (h < spread + 12 ? mid : dark);
+word |= (u32)c << (x * 4);
+int h = ((x * 7 + y * 13 + tile * 29 + 977) * 2654435761u) >> 24 & 31;
+int c = h < spread ? light : (h < spread + 12 ? mid : dark);
+word |= (u32)c << (x * 4);
+VRAM_BG_CHR[(DUEL_BAND + i) * 16 + w] = 0x01010101u * (u32)(DUEL_PAL + i);
+    if (ty < 8) band = ty + 1;           /* the sky, eight rows of it     */
+    else if (ty == 8) band = 14;         /* the far bank, dark and hazy   */
+    else if (ty < 11) band = 13;         /* the middle distance           */
+    else band = 12;                      /* and the ground you stand on   */
+volatile u16 *rowBase = VRAM_BG_MAP + ((ty >> 5) << 11) + ((ty & 31) << 5);
+for (tx = 0; tx < 64; tx++) {
+  volatile u16 *cell = rowBase + ((tx >> 5) << 10) + (tx & 31);
+  /* Flip alternate columns only. Flipping on both axes made a chequer,
+     which is a pattern rather than a texture. */
+  *cell = (u16)((DUEL_BAND + band) | ((tx & 1) ? 0x0400 : 0));
+}
+i == partyPick ? C_GOLD : (i == you.lead ? C_WELL : C_INK));
+int next = beastExpFor(k->level + 1) - beastExpFor(k->level);
+int got = (int)k->exp - beastExpFor(k->level);
+copyString(scratch, "Grows at ", sizeof scratch);
+if (beasts[k->kind].into != 255) {
+  appendNumber(scratch, beasts[k->kind].growAt, sizeof scratch);
+  appendString(scratch, " into ", sizeof scratch);
+  appendString(scratch, beasts[beasts[k->kind].into].name, sizeof scratch);
+} else {
+  copyString(scratch, "This is as far as it grows.", sizeof scratch);
+}
+drawText(14, TXT_H - 32, scratch, C_DIM);
+copyString(scratch, "", sizeof scratch);
+appendNumber(scratch, got < 0 ? 0 : got, sizeof scratch);
+appendString(scratch, " of ", sizeof scratch);
+appendNumber(scratch, next < 1 ? 1 : next, sizeof scratch);
+appendString(scratch, " to the next level", sizeof scratch);
+drawText(TXT_W - 14 - textWidth(scratch), TXT_H - 32, scratch, C_DIM);
+ ought to compile to a multiply, and here it did not: it called out for
+ __aeabi_uidivmod, which on an ARM7 with no divide instruction and no
+ library behind it is a symbol that does not exist and a build that does
+ not link. */
+(!holdSide && i == partyPick) ? C_GOLD : (i == you.lead ? C_WELL : C_INK));
+(holdSide && at == holdPick) ? C_GOLD : C_INK);
+ `theirs` still holds the last opponent out here, and a card that read
+ differently depending on who you happened to beat an hour ago would be
+ a card nobody could trust. */
+if (you.host[i].kind == 255) continue;
+sum += swornMight(you.host[i].kind, you.host[i].level) / 6;
+VRAM_BG_CHR[(DUEL_BAND + i) * 16 + w] = 0x01010101u * (u32)(DUEL_PAL + i);
+volatile u16 *cell = rowBase + ((tx >> 5) << 10) + (tx & 31);
+*cell = (u16)(DUEL_BAND + (band > 10 ? 10 : band));
+  fillRect(cx - 26, cy + 26, 52, 6, C_DEEP);        /* the dais         */
+  fillRect(cx - 20, cy - 4, 40, 30, C_DEEP);        /* the seat itself  */
+  for (i = 0; i < 11; i++) {                        /* blades, fanned   */
+  fillRect(cx - 20, cy - 4, 40, 3, C_EDGE);         /* the lit top edge */
+  fillRect(cx - 5, cy - 6, 10, 16, C_DEEP);         /* body             */
+  fillRect(cx - 3, cy - 12, 7, 7, C_DEEP);          /* head             */
+  fillRect(cx + 4, cy - 10, 5, 3, C_DEEP);          /* beak             */
+  fillRect(cx - 28, cy - 10, 24, 7, C_DEEP);        /* wings, spread    */
+  fillRect(cx - 3, cy + 10, 6, 12, C_DEEP);         /* tail             */
+  fillRect(cx - 26, cy + 6, 52, 10, C_DEEP);        /* the band         */
+  for (i = 0; i < 5; i++) {                         /* five points      */
+  fillRect(cx - 8, cy + 10, 16, 20, C_CLEAR);      /* the tunnel        */
+&& world->counter[y * world->w + x]) {
+         : how == TOOK_SOLD ? ", which is worth nothing to you but scrap."
+                            : ", wrapped in oilcloth.", sizeof scratch);
+ where they stand leaves them straddling two tiles: drawn on one, standing
+ on the other, and walked through as if they were not there. */
+crowd[who].px = (s16)(crowd[who].px + crowd[who].dx * crowd[who].walk);
+crowd[who].py = (s16)(crowd[who].py + crowd[who].dy * crowd[who].walk);
+crowd[who].walk = 0;
+/* And this is where they will carry you if you go down somewhere else. */
+you.haven = worldId;
+you.havenX = (hero.px >> 4);
+you.havenY = (hero.py >> 4);
+{
+  /* Everybody who came in with you, not only the one out in front. It
+     used to be you and your lead beast, so five of a party of six walked
+     back out of a maester's hall exactly as hurt as they walked in, and
+     the swords you had paid for were never mended at all. */
+  int i, mended = you.hp < vigourFor(you.level);
+  you.hp = vigourFor(you.level);
+  for (i = 0; i < PARTY_MAX; i++) {
+    Kept *k = &you.party[i];
+    int full;
+    if (k->kind == 255) continue;
+    full = beastVigour(k->kind, k->level);
+    if (k->hp < full) mended = 1;
+    k->hp = full;
+  }
+  for (i = 0; i < HOST_MAX; i++) {
+    Kept *h = &you.host[i];
+    int full;
+    if (h->kind == 255) continue;
+    full = swornVigour(h->kind, h->level);
+    if (h->hp < full) mended = 1;
+    h->hp = full;
+  }
+  if (mended) {
+    mine.hp = you.hp;
+    openWindow(npc->name,
+      "Sit. There. Whole again, you and everyone who walked in behind "
+      "you, and no charge to a sworn sword of a great house. If you go "
+      "down out there, they will bring you back here.");
+    return;
+  }
+}
+ The road was full of people who said a line and gave nothing, so there
+ was no reason to talk to any of them twice, or often once. What they give
+ is what they would have: a smallfolk a handful of coin, a maester
+ something to drink, and now and then somebody has a piece of kit they no
+ longer need. */
+int rank = duellists[npc->duellist].level;
+int roll100 = (int)roll(100);
+gifted[worldId][who] = 1;
+if (npc->heals || roll100 < 22) {
+  int p = rank / 16;
+  int remedy = p > 3 ? 3 : p;
+  takeWare(remedy);
+  appendString(scratch, "  They press a ", sizeof scratch);
+  appendString(scratch, wares[remedy].name, sizeof scratch);
+  appendString(scratch, " on you.", sizeof scratch);
+} else if (roll100 < 30) {
+  /* Something off a shelf they have no use for any more. Deliberately
+     behind the curve: a gift should be a nudge, never a shortcut past
+     the smith. */
+  int budget = 80 + rank * 40, best = -1, i;
+  int kind = roll100 < 26 ? WARE_WEAPON : WARE_ARMOUR;
+  if (budget > KIT_CEILING) budget = KIT_CEILING;
+  for (i = 0; i < WARE_COUNT; i++) {
+    if (wares[i].kind != kind || wares[i].price > budget) continue;
+    if (best < 0 || wares[i].price > wares[best].price) best = i;
+  }
+  if (best >= 0) {
+    int how = takeWare(best);
+    appendString(scratch, "  They dig out a ", sizeof scratch);
+    appendString(scratch, wares[best].name, sizeof scratch);
+    appendString(scratch, how == TOOK_WORN ? " and make you put it on."
+                                           : " and press it on you.", sizeof scratch);
+  }
+} else {
+  int coin = 5 + rank * 2 + (int)roll(1 + rank);
+  you.gold += coin;
+  appendString(scratch, "  They press ", sizeof scratch);
+  appendNumber(scratch, coin, sizeof scratch);
+  appendString(scratch, " gold into your hand.", sizeof scratch);
+}
+ the game ever said which button starts a fight, so people who stood
+ there after saying their piece read as people you were not allowed to
+ fight at all. */
+appendString(scratch, "   [SELECT to draw on them]", sizeof scratch);
+ their piece. SELECT still challenges anybody at all; this is so that a
+ lord in his own hall does not simply stand there after speaking. */
+ on the road does. A wolf four levels over you is a fight; a wolf twenty
+ over you is a wall you walked into by turning left. */
+x += DIR_X[crowd[i].dir];
+y += DIR_Y[crowd[i].dir];
+if (solidAt(x, y)) break;
+if ((hero.px >> 4) == x && (hero.py >> 4) == y && !hero.walk) {
+  spotted = i;
+  spotTimer = 44;
+  return;
+}
+dir = (ty != hy) ? (ty < hy ? 0 : 1) : (tx < hx ? 3 : 2);
+nx = tx + DIR_X[dir]; ny = ty + DIR_Y[dir];
+if (solidAt(nx, ny) || occupied(nx, ny, spotted)) { spotted = -1; return; }
+    crowdTimer[who] = 120;/* and they stay out of it for a while */
+ door is never blocked for long. */
+               || ledgeGate(crowd[i].px >> 4, crowd[i].py >> 4)
+               || gateAt(crowd[i].px >> 4, crowd[i].py >> 4))
+? (u16)(10 + roll(30)) : (u16)(30 + roll(150));
+int dir = (int)roll(4);
+int nx = (crowd[i].px >> 4) + DIR_X[dir];
+int ny = (crowd[i].py >> 4) + DIR_Y[dir];
+crowd[i].dir = (u8)dir;
+/* Nobody strays more than three tiles from where they belong. */
+if (nx > world->npcs[i].x + 3 || nx < world->npcs[i].x - 3) continue;
+if (ny > world->npcs[i].y + 3 || ny < world->npcs[i].y - 3) continue;
+if (solidAt(nx, ny) || occupied(nx, ny, i)) continue;
+if (nearWarp(nx, ny) || ledgeAt(nx, ny) || ledgeGate(nx, ny)
+    || gateAt(nx, ny)) continue;
+stepBody(&crowd[i], dir);
+  order[count++] = -1;                        /* the player */
+int otherY = order[j] < 0 ? hero.py : crowd[order[j]].py;
+if (otherY >= keyY) break;
+order[j + 1] = order[j];
+hero.walk ? (int)((frameClock >> 2) & 1) : 0,
+world->frost ? FROST_BANK : GRASS_BANK);
+crowd[spotted].py - camY - 30);
+placeObject(slot, hero.px - camX, hero.py - camY - 16 - hopLift(&hero),
+  PLAYER_TILE_BASE + frameOf(&hero, 4) * ACTOR_FRAME_TILES, 0);
+int bank = world->npcs[who].bank;
+placeObject(slot, crowd[who].px - camX, crowd[who].py - camY - 16,
+  NPC_TILE_BASE + bank * NPC_TILE_STRIDE + frameOf(&crowd[who], 2) * ACTOR_FRAME_TILES,
+  bank + 1);
+tickShift();
+keysNow = 0;                      /* the buttons are held while it plays */
+if (scene == SCENE_DUEL) { waitVBlank(); pushObjects(); flushPage(); continue; }
+int was = titlePick;
+if (hit(KEY_UP) && titlePick) titlePick--;
+if (hit(KEY_DOWN) && titlePick < TITLE_ENTRIES - 1) titlePick++;
+if (titlePick != was) { sfxPick(); paintTitle(); }
+if (hit(KEY_START) || hit(KEY_A)) {
+  /* With no record the one entry is "swear a new sword", so the cursor
+     position means the same thing either way once it is offset. */
+  int chose = hasRecord ? titlePick : 1;
+  if (chose == 0) {
+    takeUpRecord();
+    PAL_BG[TXT_BANK * 16 + C_HOUSE] = houses[you.house].colour;
+    PAL_BG[TXT_BANK * 16 + C_TRIM] = houses[you.house].accent;
+    PAL_BG[TXT_BANK * 16 + C_EDGE] = houses[you.house].colour;
+    enterWorld(record.worldId, record.x, record.y, record.dir);
+    REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
+  } else if (chose == 1) {
+    scene = SCENE_HOUSE;
+    houseChoice = 0;
+    paintHousePicker();
+  } else {
+    /* Somebody who wants the old save gone should be able to be rid of
+       it without going looking for a file on a telephone. */
+    forgetRecord();
+    hasRecord = 0;
+    titlePick = 0;
+    paintTitle();
+  }
+}
+if (hit(KEY_LEFT) && houseChoice > 0) { houseChoice--; sfxPick(); paintHousePicker(); }
+if (hit(KEY_RIGHT) && houseChoice < HOUSE_COUNT - 1) { houseChoice++; sfxPick(); paintHousePicker(); }
+if (hit(KEY_A)) {
+  you.house = houseChoice;
+  /* Where you begin decides what you begin as. The seats are not equally
+     gentle ground, so the level you walk out at is set to the one you are
+     standing on rather than to five for everybody. */
+  you.level = houses[you.house].startLevel;
+  you.exp = expForLevel(you.level);
+  you.hp = vigourFor(you.level);
+  /* You are sent out of the yard with your bare hands and one remedy.
+     Everything you fight in, you take off somebody. */
+  { int k; for (k = 0; k < WARE_KINDS; k++) you.worn[k] = 0; }
+  newGameState();
+  you.story = 0;
+  you.bag[START_POTION] = 1;
+  reckonTechniques();
+  PAL_BG[TXT_BANK * 16 + C_HOUSE] = houses[you.house].colour;
+  PAL_BG[TXT_BANK * 16 + C_TRIM] = houses[you.house].accent;
+  PAL_BG[TXT_BANK * 16 + C_EDGE] = houses[you.house].colour;
+  /* Who you are before where you are. */
+  scene = SCENE_NAME;
+  nameCol = 0;
+  nameRow = 0;
+  nameLen = 0;
+  you.name[0] = 0;
+  layoutTextRows(TEXT_TOP);
+  paintNamer();
+}
+int was = namePick;
+if (hit(KEY_LEFT) && nameCol) nameCol--;
+if (hit(KEY_RIGHT) && nameCol < NAME_COLS - 1) nameCol++;
+if (hit(KEY_UP) && nameRow) nameRow--;
+if (hit(KEY_DOWN) && nameRow < NAME_ROWS - 1) nameRow++;
+if (namePick != was) { sfxPick(); paintNamer(); }
+if (hit(KEY_A) && nameLen < NAME_MAX) {
+  you.name[nameLen++] = NAME_KEYS[namePick];
+  you.name[nameLen] = 0;
+  paintNamer();
+} else if (hit(KEY_SELECT) && nameLen && nameLen < NAME_MAX) {
+  you.name[nameLen++] = ' ';
+  you.name[nameLen] = 0;
+  paintNamer();
+} else if (hit(KEY_B) && nameLen) {
+  you.name[--nameLen] = 0;
+  sfxPick();
+  paintNamer();
+} else if (hit(KEY_START)) {
+  /* Somebody who will not be told keeps their house's name. */
+  if (!nameLen) copyString(you.name, houses[you.house].name, sizeof you.name);
+  beginGame();
+}
+if (hit(KEY_START) || hit(KEY_B) || hit(KEY_A)) {
+  scene = SCENE_MENU;
+  clearPage();
+  layoutTextRows(TEXT_TOP);
+  paintMenu();
+}
+int was = menuPick;
+if (hit(KEY_UP) && menuPick > 0) menuPick--;
+if (hit(KEY_DOWN) && menuPick < MENU_ENTRIES - 1) menuPick++;
+if (menuPick != was) { sfxPick(); paintMenu(); }
+if (hit(KEY_B) || hit(KEY_START)) {
+  scene = SCENE_WORLD;
+  clearPage();
+  layoutTextRows(TEXT_PLAY);
+} else if (hit(KEY_A)) {
+  if (menuPick == 0) {
+    scene = SCENE_STATUS;
+    clearPage();
+    layoutTextRows(TEXT_MIDDLE);
+    paintStatus();
+  } else if (menuPick == 1) {
+    scene = SCENE_PARTY;
+    partyPick = you.lead;
+    if (you.party[partyPick].kind == 255) partyStep(1);
+    clearPage();
+    layoutTextRows(TEXT_TOP);
+    paintParty();
+  } else if (menuPick == 2) {
+    scene = SCENE_HOST;
+    hostPick = 0;
+    while (hostPick < HOST_MAX && you.host[hostPick].kind == 255) hostPick++;
+    if (hostPick >= HOST_MAX) hostPick = 0;
+    clearPage();
+    layoutTextRows(TEXT_TOP);
+    paintHost();
+  } else if (menuPick == 3) {
+    scene = SCENE_BAG;
+    bagInDuel = 0;
+    bagPick = 0;
+    clearPage();
+    layoutTextRows(TEXT_TOP);
+    paintBag();
+  } else if (menuPick == 4) {
+    keepRecord();
+    clearPage();
+    layoutTextRows(TEXT_PLAY);
+    scene = SCENE_WORLD;
+    openWindow(0, "Your record is written down. The maesters keep worse ones.");
+  } else {
+    scene = SCENE_WORLD;
+    clearPage();
+    layoutTextRows(TEXT_PLAY);
+  }
+}
+int was = hostPick, i;
+if (hit(KEY_UP)) {
+  for (i = hostPick - 1; i >= 0; i--) if (you.host[i].kind != 255) { hostPick = i; break; }
+}
+if (hit(KEY_DOWN)) {
+  for (i = hostPick + 1; i < HOST_MAX; i++) if (you.host[i].kind != 255) { hostPick = i; break; }
+}
+if (hostPick != was) { sfxPick(); paintHost(); }
+if (hit(KEY_B)) {
+  scene = SCENE_MENU;
+  clearPage();
+  layoutTextRows(TEXT_TOP);
+  paintMenu();
+}
+int wasPick = holdPick, wasSide = holdSide, wasParty = partyPick;
+if (hit(KEY_LEFT)) holdSide = 0;
+if (hit(KEY_RIGHT)) holdSide = 1;
+if (holdSide) {
+  if (hit(KEY_UP) && holdPick > 0) holdPick--;
+  if (hit(KEY_DOWN) && holdPick < HOLD_MAX - 1) holdPick++;
+} else {
+  if (hit(KEY_UP) && partyPick > 0) partyPick--;
+  if (hit(KEY_DOWN) && partyPick < PARTY_MAX - 1) partyPick++;
+}
+if (holdPick != wasPick || holdSide != wasSide || partyPick != wasParty) {
+  sfxPick();
+  paintHoldfast();
+}
+if (hit(KEY_A)) {
+  int moved = holdSide ? fetchBeast(holdPick) : boardBeast(partyPick);
+  if (moved) {
+    sfxRank();
+    /* Whatever is out in front is the art that is loaded, so moving one
+       across can change what is walking behind you on the map. */
+    if (MY_BEAST.kind != 255) {
+      loadBeastArt(MY_BEAST.kind, MY_BEAST_TILE, MY_BEAST_BANK);
+    }
+  }
+  paintHoldfast();
+}
+if (hit(KEY_B)) {
+  scene = SCENE_WORLD;
+  clearPage();
+  layoutTextRows(TEXT_PLAY);
+}
+int was = partyPick;
+if (hit(KEY_UP)) partyStep(-1);
+if (hit(KEY_DOWN)) partyStep(1);
+if (partyPick != was) { sfxPick(); paintParty(); }
+if (hit(KEY_B)) {
+  scene = SCENE_MENU;
+  clearPage();
+  layoutTextRows(TEXT_TOP);
+  paintMenu();
+} else if (hit(KEY_A) && you.party[partyPick].kind != 255
+           && partyPick != you.lead) {
+  you.lead = (u8)partyPick;
+  sfxRank();
+  /* The one out in front is the one drawn walking behind you, so its art
+     has to be the art that is resident. */
+  loadBeastArt(MY_BEAST.kind, MY_BEAST_TILE, MY_BEAST_BANK);
+  paintParty();
+}
+int have = carrying(), was = bagPick;
+if (hit(KEY_UP) && bagPick > 0) bagPick--;
+if (hit(KEY_DOWN) && bagPick < have - 1) bagPick++;
+if (bagPick != was) { sfxPick(); paintBag(); }
+if (hit(KEY_B)) {
+  clearPage();
+  if (bagInDuel) {
+    scene = SCENE_DUEL;
+    layoutTextRows(TEXT_DUEL);
+    paintDuelPlates();
+    paintDuelMenu();
+  } else if (atCounter) {
+    atCounter = 0;
+    scene = SCENE_SHOP;
+    layoutTextRows(TEXT_TOP);
+    paintShop();
+  } else {
+    scene = SCENE_MENU;
+    layoutTextRows(TEXT_TOP);
+    paintMenu();
+  }
+} else if (hit(KEY_SELECT) && have && atCounter) {
+  int at = nthCarried(bagPick);
+  const char *said = sellWare(at);
+  sfxRank();
+  if (bagPick >= carrying() && bagPick) bagPick--;
+  if (!carrying()) {
+    atCounter = 0;
+    scene = SCENE_SHOP;
+    clearPage();
+    layoutTextRows(TEXT_TOP);
+    paintShop();
+    openWindow(0, said);
+  } else {
+    paintBag();
+    showPlate(said);
+  }
+} else if (hit(KEY_A) && have) {
+  int at = nthCarried(bagPick);
+  int worked = bagInDuel ? useInDuel(at) : useWare(at);
+  if (bagPick >= carrying() && bagPick) bagPick--;
+  if (bagInDuel && worked) {
+    clearPage();
+    scene = SCENE_DUEL;
+    layoutTextRows(TEXT_DUEL);
+    paintDuelPlates();
+    /* A net that held ends the fight where it stands; anything else costs
+       you the turn and they take theirs. */
+    if (snaredIt) { snaredIt = 0; tookAlive(snareSaid); }
+    else {
+      duelPhase = DUEL_THEIRS;
+      if (snareSaid) duelSay(0, snareSaid);
+      else {
+        copyString(scratch, "You drink it down.", sizeof scratch);
+        duelSay(0, scratch);
+      }
+    }
+  } else if (worked) {
+    clearPage();
+    scene = SCENE_WORLD;
+    layoutTextRows(TEXT_PLAY);
+    openWindow(0, "Better. Not good, but better.");
+  } else if (wareBalked) {
+    /* It did nothing, and used to do nothing silently - which from the
+       other side of the screen is indistinguishable from a remedy that
+       is broken. */
+    clearPage();
+    scene = bagInDuel ? SCENE_DUEL : SCENE_WORLD;
+    layoutTextRows(bagInDuel ? TEXT_DUEL : TEXT_PLAY);
+    if (bagInDuel) { paintDuelPlates(); duelSay(0, wareBalked); }
+    else openWindow(0, wareBalked);
+  } else {
+    paintBag();
+  }
+}
+int have = craftCount(), was = craftPick;
+if (hit(KEY_UP) && craftPick > 0) craftPick--;
+if (hit(KEY_DOWN) && craftPick < have - 1) craftPick++;
+if (craftPick != was) { sfxPick(); paintCraft(); }
+if (hit(KEY_B)) {
+  scene = SCENE_WORLD;
+  clearPage();
+  layoutTextRows(TEXT_PLAY);
+} else if (hit(KEY_SELECT)) {
+  scene = SCENE_SHOP;
+  shopPick = 0;
+  sfxPick();
+  paintShop();
+} else if (hit(KEY_A)) {
+  const char *said = makeWare(nthRecipe(craftPick));
+  sfxRank();
+  scene = SCENE_WORLD;
+  clearPage();
+  layoutTextRows(TEXT_PLAY);
+  openWindow(0, said);
+  afterWindow = shopStall + 1;
+}
+if (hit(KEY_A) || hit(KEY_B)) {
+  if (!advanceWindow()) {
+    if (++talePage < tales[taleAt].count) {
+      paintTalePage();
+    } else {
+      int then = taleThen;
+      taleAt = -1;
+      scene = SCENE_WORLD;
+      taleThen = AFTER_NOTHING;
+      if (then == AFTER_CROWN) {
+        startTale(TALE_CROWNED, AFTER_NOTHING);
+      } else {
+        enterMap(worldId, hero.px >> 4, hero.py >> 4, hero.dir);
+        layoutTextRows(TEXT_PLAY);
+        if (then == AFTER_CHAMPION) callToArms(THRONE_CHAMPION, 0, -1);
+      }
+    }
+  }
+} else {
+  tickWindow(held(KEY_A));
+}
+int was = portPick;
+if (hit(KEY_UP) && portPick > 0) portPick--;
+if (hit(KEY_DOWN) && portPick < PORT_COUNT - 1) portPick++;
+if (portPick != was) { sfxPick(); paintPort(); }
+if (hit(KEY_B)) {
+  scene = SCENE_WORLD;
+  clearPage();
+  layoutTextRows(TEXT_PLAY);
+} else if (hit(KEY_A)) {
+  const char *said = sailTo(portPick);
+  scene = SCENE_WORLD;
+  clearPage();
+  layoutTextRows(TEXT_PLAY);
+  if (said) openWindow(0, said);
+  else sfxRank();
+}
+const Stall *stall = &stalls[shopStall];
+int was = shopPick;
+if (hit(KEY_START)) {
+  /* Over to your own side of the counter, where things can be sold. */
+  scene = SCENE_BAG;
+  bagInDuel = 0;
+  atCounter = 1;
+  bagPick = 0;
+  clearPage();
+  layoutTextRows(TEXT_TOP);
+  paintBag();
+  continue;
+}
+if (hit(KEY_UP) && shopPick > 0) shopPick--;
+if (hit(KEY_DOWN) && shopPick < stall->count - 1) shopPick++;
+if (shopPick != was) { sfxPick(); paintShop(); }
+if (hit(KEY_SELECT)) {
+  /* The bench behind the counter. A smith will make you what he has the
+     makings of; a maester will steep you something. */
+  craftAt = shopStall;
+  craftPick = 0;
+  scene = SCENE_CRAFT;
+  sfxPick();
+  paintCraft();
+} else if (hit(KEY_B)) {
+  scene = SCENE_WORLD;
+  clearPage();
+  layoutTextRows(TEXT_PLAY);
+} else if (hit(KEY_A)) {
+  const char *said = buyWare(stall->ware[shopPick]);
+  paintShop();
+  scene = SCENE_WORLD;
+  clearPage();
+  layoutTextRows(TEXT_PLAY);
+  openWindow(0, said);
+  afterWindow = shopStall + 1;
+}
+/* No button is taken while a swing is still playing or while the rail is
+   still filling: you see the blow land and the bar climb before the game
+   will let you skip past them. */
+int busy = fxLeft || (duelPhase == DUEL_SPOILS && !spoilsDone());
+/* A swing reads itself out. Every blow used to need a button press of its
+   own, so a duel of ten exchanges was twenty presses of A on twenty
+   near-identical screens, which is most of what made fighting a chore.
+   The workaday half-turns now carry on by themselves once the line has
+   finished typing and been left up long enough to read; A still skips
+   ahead at once for anybody faster than that. Everything that actually
+   matters - who you are facing, somebody going down, what you took off
+   them - still waits to be dismissed. */
+if (windowOpen && !busy && typeDone
+    && (duelPhase == DUEL_MINE || duelPhase == DUEL_THEIRS)) {
+  if (++readHold > 70) keysNow |= KEY_A;
+} else if (!windowOpen) {
+  readHold = 0;
+}
+if (windowOpen) {
+  if (!busy && (hit(KEY_A) || hit(KEY_B))) {
+    readHold = 0;
+    if (!advanceWindow()) {
+      if (duelPhase == DUEL_INTRO) {
+        firstMover = mine.swiftness >= theirs.swiftness;
+        duelPhase = DUEL_TOP;
+      } else if (duelPhase == DUEL_END) {
+        if (duelOver == 2) youFell(); else theyFell();
+      } else if (duelPhase == DUEL_SPOILS) {
+        /* The purse is counted, the rail is full: away you go. */
+        endDuel();
+      } else if (duelPhase == DUEL_MINE || duelPhase == DUEL_THEIRS) {
+        /* Only a half-turn that is actually owed gets swung. Falling
+           through to here on the menu phase would hand out a free hit. */
+        duelTurn();
+      }
+      if (scene == SCENE_DUEL && duelPhase == DUEL_TOP && !windowOpen) paintDuelTop();
+    }
+  }
+} else if (duelPhase == DUEL_TOP) {
+  int was = topPick;
+  if (hit(KEY_LEFT) && (topPick & 1)) topPick--;
+  if (hit(KEY_RIGHT) && !(topPick & 1)) topPick++;
+  if (hit(KEY_UP) && topPick > 1) topPick -= 2;
+  if (hit(KEY_DOWN) && topPick < 2) topPick += 2;
+  if (topPick != was) { sfxPick(); paintDuelTop(); }
+  if (hit(KEY_A)) {
+    if (topPick == 0) { duelPhase = DUEL_MENU; paintDuelMenu(); }
+    else if (topPick == 1) {
+      scene = SCENE_BAG;
+      bagInDuel = 1;
+      bagPick = 0;
+      clearPage();
+      layoutTextRows(TEXT_TOP);
+      paintBag();
+    } else if (topPick == 2 && MY_BEAST.kind != 255) {
+      /* Set it on them. It is your turn that is spent, so this is a
+         choice and not a free hit: a well-raised beast hits harder than
+         you do, and a neglected one wastes an exchange. */
+      paintFrameOnly();
+      mine.defending = 0;
+      duelPhase = DUEL_MINE;
+      readyBeast();
+      beastSwinging = 1;
+      beastActed = 1;
+      duelTurn();
+    } else if (topPick == 2) {
+      duelMenu = 3;                      /* Guard always keeps the last slot */
+      paintFrameOnly();
+      mine.defending = 0;
+      duelPhase = DUEL_MINE;
+      duelTurn();
+    } else {
+      if (roll(100) < 55) {
+        you.hp = mine.hp;
+        endDuel();
+        openWindow(0, "You break off and put distance between you.");
+      } else {
+        duelSay(0, "There is nowhere to go. Finish it.");
+        duelPhase = DUEL_MINE;
+      }
+    }
+  }
+} else if (duelPhase == DUEL_MENU) {
+  int was = duelMenu;
+  if (hit(KEY_LEFT) && (duelMenu & 1)) duelMenu--;
+  if (hit(KEY_RIGHT) && !(duelMenu & 1)) duelMenu++;
+  if (hit(KEY_UP) && duelMenu > 1) duelMenu -= 2;
+  if (hit(KEY_DOWN) && duelMenu < 2) duelMenu += 2;
+  if (duelMenu != was) { sfxPick(); paintDuelMenu(); }
+  if (hit(KEY_B)) { duelPhase = DUEL_TOP; paintDuelTop(); }
+  else if (hit(KEY_A)) {
+    paintFrameOnly();
+    mine.defending = 0;
+    duelPhase = DUEL_MINE;
+    duelTurn();
+  }
+}
+/* The world. */
+if (windowOpen) {
+  /* One press, one page. Only the press that reads the last page of what
+     somebody said does anything else. */
+  if (hit(KEY_A) || hit(KEY_B)) {
+    if (!advanceWindow()) {
+      if (afterDuel >= 0) {
+        int who = afterDuel;
+        afterDuel = -1;
+        afterWindow = 0;
+        callToArms(world->npcs[who].duellist, world->npcs[who].bank, who);
+      } else if (afterHold) {
+        afterHold = 0;
+        holdPick = 0;
+        holdSide = holdCount() && partyRoom() >= 0 ? 1 : 0;
+        partyPick = 0;
+        scene = SCENE_HOLD;
+        clearPage();
+        layoutTextRows(TEXT_TOP);
+        paintHoldfast();
+      } else if (afterPort) {
+        int mine = portHere();
+        afterPort = 0;
+        portPick = (mine == 0 && PORT_COUNT > 1) ? 1 : 0;
+        scene = SCENE_PORT;
+        clearPage();
+        layoutTextRows(TEXT_TOP);
+        paintPort();
+      } else if (afterWindow) {
+        shopStall = afterWindow - 1;
+        afterWindow = 0;
+        shopPick = 0;
+        scene = SCENE_SHOP;
+        clearPage();
+        layoutTextRows(TEXT_TOP);
+        paintShop();
+      }
+    }
+  }
+} else if (spotted >= 0) {
+  /* Nothing to do but wait for them. */
+} else if (hero.walk) {
+  moveBody(&hero, hopping ? 2 : (held(KEY_B) ? RUN_SPEED : WALK_SPEED));
+  if (!hero.walk) hopping = 0;
+  if (!hero.walk) {
+    const Warp *warp = warpAt(hero.px >> 4, hero.py >> 4);
+    /* The Red Keep is shut. It was a room you could walk into at level
+       eight and lose in, which made the end of the game a door rather
+       than an end: the Kingsguard hold the stair until nine seats have
+       bent to you, and they say so. */
+    if (warp && warp->to == THRONE_MAP && countSigils() < LEADER_COUNT - 1) {
+      int short_by = (LEADER_COUNT - 1) - countSigils();
+      copyString(scratch, "Two white cloaks put the flat of a hand on your chest. "
+                          "\"Nine seats. You have ", sizeof scratch);
+      appendNumber(scratch, countSigils(), sizeof scratch);
+      appendString(scratch, ". Come back when you are ", sizeof scratch);
+      appendNumber(scratch, short_by, sizeof scratch);
+      appendString(scratch, " closer.\"", sizeof scratch);
+      openWindow("The Kingsguard", scratch);
+    } else if (warp) {
+      int wasStory = you.story;
+      enterMap(warp->to, warp->tx, warp->ty, hero.dir);
+      /* And the first time you do climb it, the hall is worth a look
+         before anybody in it says anything. */
+      if (worldId == THRONE_MAP && wasStory < 2) {
+        you.story = 2;
+        startTale(TALE_GATE, AFTER_NOTHING);
+      } else if (worldId == THRONE_MAP && wasStory == 2
+                 && haveSigil(LEADER_COUNT - 1)) {
+        /* The queen is beaten and the chair is not yours, which means the
+           thing behind it put you down. It is not standing on any map -
+           nobody can walk up to it - so without this the last fight in
+           the game could be lost exactly once and then never fought
+           again, and the story simply stopped there forever. It is
+           waiting in the same shadow every time you come back up. */
+        startTale(TALE_CHAMPION, AFTER_CHAMPION);
+      }
+    }
+    else if (world->ambushCount && coverAt(hero.px >> 4, hero.py >> 4)
+             && roll(100) < 12) ambush();
+    else if (coverAt(hero.px >> 4, hero.py >> 4) && roll(100) < 4) findInGrass();
+    /* Somewhere with a nest on it is worth searching whether or not
+       anything grows there. The Dragonmont, the sea cave and the barrows
+       have not one blade of grass between them, and finding what is in a
+       nest was bound to standing in grass - so three of the four places
+       in the world that hold a dragon egg could never hand one over. */
+    else if (nestWouldGive() && roll(100) < 3) findInGrass();
+  }
+} else if (hit(KEY_START)) {
+  scene = SCENE_MENU;
+  menuPick = 0;
+  clearPage();
+  layoutTextRows(TEXT_TOP);
+  paintMenu();
+} else if (hit(KEY_SELECT)) {
+  tryChallenge();
+} else if (hit(KEY_A)) {
+  tryTalk();
+} else if (turnHold) {
+  /* Facing a new way takes a beat before you go that way, which is what
+     lets you turn on the spot to talk to somebody beside you. */
+  turnHold--;
+} else {
+  int want = -1;
+  if (held(KEY_UP)) want = 1;
+  else if (held(KEY_DOWN)) want = 0;
+  else if (held(KEY_LEFT)) want = 2;
+  else if (held(KEY_RIGHT)) want = 3;
+  if (want >= 0 && hero.dir != want) {
+    hero.dir = (u8)want;
+    turnHold = 6;
+  } else if (want >= 0) {
+    int nx = (hero.px >> 4) + DIR_X[want];
+    int ny = (hero.py >> 4) + DIR_Y[want];
+    if (ledgeAt(nx, ny)) {
+      /* Southward only, and it carries you clear of the drop. */
+      if (want == 0 && !solidAt(nx, ny + 1) && !occupied(nx, ny + 1, -1)) {
+        hopBody(&hero);
+        moveBody(&hero, 2);
+      }
+    } else if (!solidAt(nx, ny) && !occupied(nx, ny, -1)) {
+      shoveHold = 0;
+      stepBody(&hero, want);
+      moveBody(&hero, held(KEY_B) ? RUN_SPEED : WALK_SPEED);
+    } else if (!solidAt(nx, ny)) {
+      /* Not a wall - a person. Somebody standing in a one-tile gap used
+         to close the road for as long as they felt like standing there,
+         and in a dead end with your own beast behind you it closed it for
+         good. Lean on the direction and they give way. */
+      if (shoveDir != want) { shoveDir = want; shoveHold = 0; }
+      if (++shoveHold > 18) { shoveHold = 0; shoveAside(nx, ny); }
+    } else {
+      shoveHold = 0;
+    }
+  }
+}
+if (!windowOpen) {
+  if (spotted >= 0) tickSpotted();
+  else { moveCrowd(); lookForTrouble(); }
+}
+if (plateTimer && !--plateTimer) clearRows(0, 16);
+camX = clampCamera(hero.px + 8 - (SCREEN_W >> 1), world->w * 16, SCREEN_W);
+camY = clampCamera(hero.py + 8 - (SCREEN_H >> 1), world->h * 16, SCREEN_H);
+tickWeather();
+placeEveryone();
+placeWeather();          /* after, since placeEveryone clears every slot */
+/* The two of you, half again life size, facing each other across the yard.
+   They face you; you are seen from behind, which is the facing the walk
+   sheet already has. Where they stand this frame is where the swing that
+   is playing has put them. */
+int bank = foeBank;
+int star = fxStar();
+int foeX = 150 - fxLean(0) + fxShake(0);
+int myX = 26 + fxLean(1) + fxShake(1);
+if (fxLeft) fxLeft--;
+if (theirs.hp <= 0 && shownTheirs <= 0 && sinkTheirs < 70) sinkTheirs += 3;
+if (mine.hp <= 0 && shownMine <= 0 && sinkMine < 70) sinkMine += 3;
+if (duelPhase == DUEL_SPOILS) tickSpoils();
+tickDuelBars();
+hideAllObjects();
+/* The star takes the front slot: a lower object number is drawn nearer
+   the viewer, and a blow that lands behind somebody is no blow at all. */
+if (star) {
+  placeSpark(0, (fxOnMe ? myX : foeX) + 16 - (SPARK_SIDE / 2),
+                32 + 26 - (SPARK_SIDE / 2), star - 1);
+}
+if (!fxHidden(0) && sinkTheirs < 70) {
+  if (foeBeast >= 0) {
+    placeBeast(1, foeX - 16, 8 + sinkTheirs, FOE_BEAST_TILE, FOE_BEAST_BANK);
+  } else {
+    placeBigObject(1, foeX, 32 + sinkTheirs,
+      NPC_TILE_BASE + bank * NPC_TILE_STRIDE + 0 * ACTOR_FRAME_TILES, bank + 1);
+  }
+}
+if (!fxHidden(1) && sinkMine < 70) {
+  placeBigObject(2, myX, 32 + sinkMine,
+    PLAYER_TILE_BASE + (1 * 4) * ACTOR_FRAME_TILES, 0);
+}
+/* And whatever is at your heel, standing a pace behind your shoulder. */
+if (MY_BEAST.kind != 255 && foeBeast < 0 && sinkMine < 70) {
+  placeBeast(3, myX - 44 + (beastSwinging ? 20 : 0), 44 + sinkMine,
+    MY_BEAST_TILE, MY_BEAST_BANK);
+}
+REG_BG0HOFS = (u16)(camX & 0x01FF);
+REG_BG0VOFS = (u16)(camY & 0x01FF);

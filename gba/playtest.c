@@ -227,6 +227,7 @@ static int menusSeen, bagsSeen, shopsSeen, bought, records, menuWant = -1;
 static int mustersSeen, kennelsSeen, holdLooks, boarded, fetched, oathsOffered;
 static int oathWanted = -1;
 static int eggsFound, eggsHatched, dragonEgg;
+static int boughtOf[WARE_COUNT];
 static int craftsSeen, crafted, craftedHere;
 static int wildsMet, snaresThrown;
 static int doorsThisRung;
@@ -820,7 +821,10 @@ void hostFrame(void) {
       }
       if (best < 0) keys = tap(KEY_B);
       else if (shopPick != best) keys = tap(shopPick < best ? KEY_DOWN : KEY_UP);
-      else { keys = tap(KEY_A); if (keys) bought++; }
+      else {
+        keys = tap(KEY_A);
+        if (keys) { bought++; boughtOf[stall->ware[best]]++; }
+      }
     }
     else if (bought < 24 && roll(3) == 0) { keys = tap(KEY_A); if (keys) bought++; }
     else if (roll(4) == 0) keys = tap(KEY_DOWN);
@@ -1286,6 +1290,16 @@ int main(int argc, char **argv) {
   printf("  benches        %d looked at, %d things made\n", craftsSeen, crafted);
   printf("  the wild       %d animals met, %d nets thrown, %d taken alive\n",
     wildsMet, snaresThrown, you.tamed);
+  {
+    int b, top = -1;
+    for (b = 0; b < WARE_COUNT; b++) {
+      if (top < 0 || boughtOf[b] > boughtOf[top]) top = b;
+    }
+    if (top >= 0 && boughtOf[top] > 40) {
+      printf("  counter        pressed A on %s %d times, which is not shopping\n",
+        wares[top].name, boughtOf[top]);
+    }
+  }
   printf("  nests          %s found, %s hatched, dragon egg %s\n",
     eggsFound ? "an egg" : "nothing", eggsHatched ? "one" : "none",
     dragonEgg ? "yes" : "not this run");

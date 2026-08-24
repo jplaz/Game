@@ -1241,6 +1241,43 @@ int main(void) {
     if (nests < 4) bad("there are only %d nests in the world", nests);
   }
 
+  /* --- what stacks must also be buyable twice ------------------------------ */
+  /* A counter refuses to sell you something you already have, which is right
+     for a sword and ruinous for anything spent by using it. An oath stacked
+     nowhere and could not be re-bought, so a purse in your pouch made every
+     counter in the world say no - and the directed climb spent nine million
+     frames pressing A at one, which is how this was found at all. */
+  {
+    int i2;
+    for (i2 = 0; i2 < WARE_COUNT; i2++) {
+      int kind = wares[i2].kind, stacks, sellsAgain;
+      if (!wares[i2].price) continue;
+      for (j = 0; j < WARE_COUNT; j++) you.bag[j] = 0;
+      you.gold = 1000000;
+      for (j = 0; j < WARE_KINDS; j++) you.worn[j] = 0;
+      takeWare(i2);
+      takeWare(i2);
+      stacks = you.bag[i2] > 1;
+      for (j = 0; j < WARE_COUNT; j++) you.bag[j] = 0;
+      buyWare(i2);
+      buyWare(i2);
+      sellsAgain = you.bag[i2] > 1;
+      if (stacks != sellsAgain) {
+        bad("%s %s in the pouch but a counter %s sell you a second",
+          wares[i2].name, stacks ? "stacks" : "does not stack",
+          sellsAgain ? "will" : "will not");
+      }
+      /* Anything used up the moment it works has to stack, or the game hands
+         you one of it per walk back to a counter. */
+      if ((kind == WARE_OATH || kind == WARE_RELIC || kind == WARE_SNARE
+           || kind == WARE_POTION) && !stacks) {
+        bad("%s is spent by using it and does not stack", wares[i2].name);
+      }
+    }
+    for (j = 0; j < WARE_COUNT; j++) you.bag[j] = 0;
+    for (j = 0; j < WARE_KINDS; j++) you.worn[j] = 0;
+  }
+
   /* --- somebody worth swearing, and something to swear them with ----------- */
   {
     int i2, oaths = 0, sworn = 0, named = 0;

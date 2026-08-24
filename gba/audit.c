@@ -945,6 +945,22 @@ int main(void) {
     }
   }
   if (START_WEAPON < 0 || START_WEAPON >= WARE_COUNT) bad("the starting blade does not exist");
+  /* A net has to be on the counter a player who wants to catch something would
+     actually open. They were only ever on the armourer's, which is the one
+     counter somebody looking for a way to take an animal alive has no reason to
+     look behind, so the whole half of the game about catching things was filed
+     under ARMS AND ARMOUR. */
+  {
+    int st, nets[2];
+    nets[0] = nets[1] = 0;
+    for (st = 0; st < 2; st++) {
+      for (j = 0; j < stalls[st].count; j++) {
+        if (wares[stalls[st].ware[j]].kind == WARE_SNARE) nets[st]++;
+      }
+    }
+    note("nets on the counters: %d at a maester's, %d at a smith's", nets[0], nets[1]);
+    if (!nets[0]) bad("no counter a player looking to catch something would open sells a net");
+  }
 
   /* --- six at your heel, and no seventh ------------------------------------ */
   /* The party is the one thing in this game a wandering run cannot prove: the
@@ -1165,6 +1181,64 @@ int main(void) {
     if (n <= 0) bad("six sworn swords add nothing to a blow");
     for (k = 0; k < HOST_MAX; k++) you.host[k].kind = 255;
     if (myHostBlow()) bad("an empty host still adds %d to a blow", myHostBlow());
+  }
+
+  /* --- can a nest ever hand over what is in it? --------------------------- */
+  /* Two things stood between every player and a dragon. Finding what is in a
+     nest wanted your heel to be empty, and the game hands you a wolf pup in the
+     first hour; and it was bound to standing in tall grass, and three of the
+     four places that hold a dragon egg have not a blade of grass on them. Both
+     of those are one line each and neither the sweep nor the ladder could see
+     either, because a tester that never finds an egg looks exactly like a
+     tester that never walked over one. */
+  {
+    int m2, nests = 0, bare = 0, i2, e2;
+    int wasWorld = worldId;
+    for (e2 = 0; e2 < EGG_COUNT; e2++) {
+      int held = 0;
+      for (m2 = 0; m2 < MAP_COUNT; m2++) if (maps[m2].nest == eggs[e2].ware) held++;
+      if (!held) {
+        bad("%s hatches into a %s and there is no nest in the world holding one",
+          wares[eggs[e2].ware].name, beasts[eggs[e2].beast].name);
+      }
+    }
+    for (m2 = 0; m2 < MAP_COUNT; m2++) {
+      int cover = 0, x2, y2;
+      if (maps[m2].nest == 255) continue;
+      nests++;
+      for (y2 = 0; y2 < maps[m2].h; y2++) {
+        for (x2 = 0; x2 < maps[m2].w; x2++) {
+          if (maps[m2].cover[y2 * maps[m2].w + x2]) cover++;
+        }
+      }
+      if (!cover) bare++;
+      /* And the rule itself, asked of the cartridge on that very map: a nest
+         must give up what is in it whether or not anything walks with you.
+         Wanting an empty heel is what put every dragon on this cartridge
+         behind an animal the game gives you in the first hour. */
+      {
+        int k2, empty, carrying;
+        worldId = m2;
+        world = &maps[m2];
+        for (k2 = 0; k2 < PARTY_MAX; k2++) you.party[k2].kind = 255;
+        you.lead = 0;
+        for (i2 = 0; i2 < WARE_COUNT; i2++) if (wares[i2].kind == WARE_EGG) you.bag[i2] = 0;
+        empty = nestWouldGive();
+        keepBeast(0, 10);
+        carrying = nestWouldGive();
+        for (k2 = 0; k2 < PARTY_MAX; k2++) you.party[k2].kind = 255;
+        you.lead = 0;
+        if (!empty) bad("the nest on %s gives up nothing at all", maps[m2].name);
+        if (empty != carrying) {
+          bad("the nest on %s only gives up what is in it when your heel is "
+              "empty", maps[m2].name);
+        }
+      }
+    }
+    worldId = wasWorld;
+    world = &maps[wasWorld];
+    note("%d nests, %d of them on ground where nothing grows", nests, bare);
+    if (nests < 4) bad("there are only %d nests in the world", nests);
   }
 
   /* --- somebody worth swearing, and something to swear them with ----------- */

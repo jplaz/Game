@@ -478,8 +478,15 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
      go on the same counter as the remedies. */
   const oathWares = wares.map((w, i) => (w.kind === 'oath' && w.price ? i : -1))
     .filter((i) => i >= 0);
+  /* Nets belong on a maester's counter as well as a smith's. They were only
+     ever on the armourer's, which is the one counter a player looking for a way
+     to take something alive has no reason to open - so the whole half of the
+     game that is about catching things was behind a door marked ARMS AND
+     ARMOUR. */
+  const snareWares = wares.map((w, i) => (w.kind === 'snare' && w.price ? i : -1))
+    .filter((i) => i >= 0);
   const forSale = {
-    apothecary: potions.concat(oathWares),
+    apothecary: potions.concat(snareWares).concat(oathWares),
     armourer: wares
       .map((w, i) => (w.kind !== 'potion' && w.kind !== 'stuff' && w.kind !== 'egg'
                       && w.kind !== 'oath' && w.price ? i : -1))

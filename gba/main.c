@@ -2206,6 +2206,20 @@ static void beginWild(int which, int level) {
   copyString(scratch, "A ", sizeof scratch);
   appendString(scratch, beasts[which].name, sizeof scratch);
   appendString(scratch, " comes out of the grass with its head down.", sizeof scratch);
+  /* And whether there is any point reaching for the pouch. Taking things alive
+     is half of what this game is and nothing anywhere ever mentioned it, so a
+     player could walk the whole map killing everything without once learning
+     that a net was a thing they could have bought. */
+  if (beasts[which].tame) {
+    int i, net = 0;
+    for (i = 0; i < WARE_COUNT; i++) {
+      if (wares[i].kind == WARE_SNARE && you.bag[i]) { net = 1; break; }
+    }
+    appendString(scratch, net
+      ? "  Wear it down and there is a net in your pouch that would hold it."
+      : "  It could be taken alive, with a net. Any maester's hall sells one.",
+      sizeof scratch);
+  }
   openTheDuel(scratch);
 }
 
@@ -3917,6 +3931,13 @@ static void takeTheirKit(void) {
    Mostly a remedy; now and then a piece of gear worth about what somebody of
    your own standing would be carrying, which is what keeps looking in the grass
    worth the walk however far along you are. */
+/* Whether a nest on this ground would give up what is in it, leaving the roll
+   aside. Pulled out so the audit can ask the cartridge the question rather than
+   restate the rule beside it and drift. */
+int nestWouldGive(void) {
+  return world->nest != 255 && !you.bag[world->nest];
+}
+
 static void findInGrass(void) {
   u32 h = roll(0xFFFF) | (roll(0xFFFF) << 16);
   int budget = 200 + you.level * 150;
@@ -3927,8 +3948,12 @@ static void findInGrass(void) {
   /* And if there is a nest on this ground, what is in it - once. An egg is not
      a thing you find on the way to the shops; it is on the Dragonmont and in
      the barrows and beyond the Wall, and nowhere else in the world. */
-  if (world->nest != 255 && !you.bag[world->nest] && MY_BEAST.kind == 255
-      && hashUpTo(rot(h, 3), 100) < 30) {
+  /* It used to want your heel to be empty as well, which sounds reasonable and
+     is not: the game hands you a wolf pup out of the Wolfswood in the first
+     hour, and from that moment on no nest in the world would ever give you
+     anything again. Every dragon egg on the cartridge was behind that. All it
+     asks now is that you are not already carrying one. */
+  if (nestWouldGive() && hashUpTo(rot(h, 3), 100) < 30) {
     takeWare(world->nest);
     you.eggWins = 0;
     copyString(scratch, "Half buried, and warm: a ", sizeof scratch);
@@ -5774,6 +5799,12 @@ int main(void) {
           else if (world->ambushCount && coverAt(hero.px >> 4, hero.py >> 4)
                    && roll(100) < 12) ambush();
           else if (coverAt(hero.px >> 4, hero.py >> 4) && roll(100) < 4) findInGrass();
+          /* Somewhere with a nest on it is worth searching whether or not
+             anything grows there. The Dragonmont, the sea cave and the barrows
+             have not one blade of grass between them, and finding what is in a
+             nest was bound to standing in grass - so three of the four places
+             in the world that hold a dragon egg could never hand one over. */
+          else if (nestWouldGive() && roll(100) < 3) findInGrass();
         }
       } else if (hit(KEY_START)) {
         scene = SCENE_MENU;

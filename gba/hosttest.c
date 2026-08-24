@@ -33,10 +33,10 @@ static int frameNo;
 /* A beat is either a set of buttons held for so many frames, or a tile to walk
    to — greedy, one axis at a time, which is enough for the corridors here and
    keeps a route from breaking every time somebody wanders across it. */
-typedef struct { int frames; unsigned keys; const char *shot; int gx, gy; } Beat;
+typedef struct { int frames; unsigned keys; const char *shot; int gx, gy; } Step;   /* not the cartridge Beat: that one is a cutscene */
 #define WALK_TO(f, x, y, shot) { f, 0, shot, x, y }
 
-static const Beat script[] = {
+static const Step script[] = {
   { 6, 0, "01-title", 0, 0 },
   { 2, KEY_START, 0, 0, 0 },
   { 6, 0, "02-swear", 0, 0 },
@@ -128,7 +128,7 @@ void hostFrame(void) {
     beatAt++;
   }
   {
-    const Beat *beat = &script[beatAt - 1];
+    const Step *beat = &script[beatAt - 1];
     unsigned keys = beat->keys;
     if (beat->gx || beat->gy) {
       static const unsigned KEYS[4] = { KEY_DOWN, KEY_UP, KEY_LEFT, KEY_RIGHT };

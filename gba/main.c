@@ -3201,6 +3201,19 @@ static int theirHostBlow(void) {
   return hit * n;
 }
 
+/* What "you have nothing and nobody" actually means.
+   Nought is a real animal and a real sort of sworn sword, so an array that has
+   never been written to reads as full rather than empty: a new game began with
+   eighteen snowpups boarded and six bandits already following you. These have
+   to be written, not left as they were born. */
+void newGameState(void) {
+  int k;
+  for (k = 0; k < PARTY_MAX; k++) you.party[k].kind = 255;
+  for (k = 0; k < HOLD_MAX; k++) you.holdfast[k].kind = 255;
+  for (k = 0; k < HOST_MAX; k++) you.host[k].kind = 255;
+  you.lead = 0;
+}
+
 /* Takes somebody's oath. Returns 0 when there is nobody left to take it. */
 static int swearIn(int kind, int level) {
   int at = hostRoom();
@@ -5165,6 +5178,7 @@ int main(void) {
   setUpVideo();
   soundUp();
   startSoundClock();
+  newGameState();
   you.house = 0; you.level = 5; you.gold = 220;
   you.hp = vigourFor(you.level);
   you.exp = expForLevel(you.level);
@@ -5241,8 +5255,7 @@ int main(void) {
         /* You are sent out of the yard with your bare hands and one remedy.
            Everything you fight in, you take off somebody. */
         { int k; for (k = 0; k < WARE_KINDS; k++) you.worn[k] = 0; }
-        { int k; for (k = 0; k < PARTY_MAX; k++) you.party[k].kind = 255; }
-        you.lead = 0;
+        newGameState();
         you.story = 0;
         you.bag[START_POTION] = 1;
         reckonTechniques();

@@ -1082,6 +1082,21 @@ int main(void) {
     you.level = 25;
 
     if (holdCount()) bad("empty kennels count %d", holdCount());
+    /* Nought is a real animal and a real sort of sworn sword, so an array that
+       has never been written to reads as full rather than empty. A new game
+       began with eighteen snowpups boarded and six bandits already following
+       you, and neither the sweep nor the ladder ever looked. */
+    {
+      extern void newGameState(void);
+      int j4;
+      for (j4 = 0; j4 < HOLD_MAX; j4++) you.holdfast[j4].kind = 0;
+      for (j4 = 0; j4 < HOST_MAX; j4++) you.host[j4].kind = 0;
+      for (j4 = 0; j4 < PARTY_MAX; j4++) you.party[j4].kind = 0;
+      newGameState();
+      if (partyCount()) bad("a new game begins with %d at your heel", partyCount());
+      if (holdCount()) bad("a new game begins with %d boarded", holdCount());
+      if (hostCount()) bad("a new game begins with %d already sworn", hostCount());
+    }
     for (k = 0; k < PARTY_MAX; k++) keepBeast(k % BEAST_COUNT, 10 + k);
     /* Board five of the six, leaving the one that was out in front. */
     for (k = 1; k < PARTY_MAX; k++) {

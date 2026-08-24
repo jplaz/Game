@@ -1199,6 +1199,14 @@ typedef struct {
    put a sworn sword's health back and a swing has to know what six of them add,
    and both of those come first in the file, so something has to be declared
    before it is written. */
+/* Every flag a cutscene can set, and what you answered when one asked you
+   something. Kept in the record: a scene that fired again after a reload would
+   be worse than one that never fired at all. */
+static u32 storyFlags;
+
+static int flagSet(int at) { return (int)((storyFlags >> at) & 1u); }
+static void setFlag(int at) { storyFlags |= 1u << at; }
+
 static int swornVigour(int kind, int level);
 static int myHostBlow(void);
 static int myHostGuard(void);
@@ -2664,10 +2672,10 @@ extern unsigned char hostSram[65536];              /* the harness's stand-in */
 #else
 #define SRAM ((volatile u8 *)0x0E000000)
 #endif
-/* "ICE2". The kennels and the host went into the record, which made it a
-   different shape; an old save read as this one would put animals and sworn
-   swords in places they were never written to. */
-#define RECORD_MAGIC 0x32454349u
+/* "ICE3". The kennels, the host and then the cutscene flags each changed the
+   shape of the record; an old save read as this one would put animals, sworn
+   swords and scenes-already-seen in places they were never written to. */
+#define RECORD_MAGIC 0x33454349u
 
 typedef struct {
   u32 magic;
@@ -2689,6 +2697,9 @@ typedef struct {
   u16 holdExp[HOLD_MAX];
   u8 hostKind[HOST_MAX], hostLevel[HOST_MAX];
   u8 haven, havenX, havenY, story;
+  /* Which scenes have played and what you answered when one asked. A cutscene
+     that fired again after a reload would be worse than one that never fired. */
+  u32 storyFlags;
   u8 emptied[MAP_COUNT][8];
   u32 exp, gold, hp, kills;
   u8 bag[WARE_COUNT];
@@ -2739,6 +2750,7 @@ static void keepRecord(void) {
     }
   }
   record.story = you.story;
+  record.storyFlags = storyFlags;
   record.eggWins = you.eggWins;
   record.tamed = you.tamed;
   record.haven = (u8)(you.haven < 0 ? 255 : you.haven);
@@ -2814,6 +2826,7 @@ static void takeUpRecord(void) {
     }
   }
   you.story = record.story;
+  storyFlags = record.storyFlags;
   you.eggWins = record.eggWins;
   you.tamed = record.tamed;
   you.haven = record.haven == 255 ? -1 : record.haven;
@@ -3235,6 +3248,7 @@ void newGameState(void) {
   for (k = 0; k < HOLD_MAX; k++) you.holdfast[k].kind = 255;
   for (k = 0; k < HOST_MAX; k++) you.host[k].kind = 255;
   you.lead = 0;
+  storyFlags = 0;
 }
 
 /* Takes somebody's oath. Returns 0 when there is nobody left to take it. */
@@ -4773,6 +4787,192 @@ static void startTale(int which, int then) {
   paintTalePage();
 }
 
+/* ------------------------------------------------------------- cutscenes ---
+ *
+ * Step somewhere and something happens without you asking for it: a rider comes
+ * up the road and reins in hard, a shadow goes over too fast to be cloud, a
+ * sellsword who has been three days behind you stops bothering to hide.
+ *
+ * These were written a long time ago and never once reached the cartridge -
+ * nothing in the exporter had ever imported the file - so the roads had five
+ * things happening on them and the cartridge knew about none of them. A scene
+ * is a run of beats and this steps them one at a time: it holds the player
+ * still, says its lines, walks somebody on and off again, and sets a flag so it
+ * never happens twice.
+ */
+
+#define CUT_SLOTS CUT_PEOPLE
+
+static int cutAt = -1;          /* which scene is playing, or -1 */
+static int cutBeat;             /* how far through its beats */
+static int cutTimer;            /* frames left on a wait, a shake or a flash */
+static int cutShake, cutFlash;
+static int cutPick, cutAsking, cutPainted;  /* the chooser, when a beat asks */
+static Body cutBody[CUT_SLOTS];
+static u8 cutBank[CUT_SLOTS], cutLive[CUT_SLOTS];
+static int cutWalkLeft, cutWalkSlot, cutWalkDir;
+
+/* Whether standing here starts something. Fires once, and never while a window
+   is open or a fight is coming up. */
+static int cutHere(int x, int y) {
+  int i;
+  if (cutAt >= 0 || windowOpen || shift || spotted >= 0) return -1;
+  for (i = 0; i < CUT_COUNT; i++) {
+    if (cuts[i].map != worldId || cuts[i].x != x || cuts[i].y != y) continue;
+    if (flagSet(cuts[i].flag)) continue;
+    return i;
+  }
+  return -1;
+}
+
+static void endCut(void) {
+  int i;
+  for (i = 0; i < CUT_SLOTS; i++) cutLive[i] = 0;
+  cutAt = -1;
+  cutShake = cutFlash = cutTimer = 0;
+  cutAsking = 0;
+  clearFade();
+}
+
+/* Draws the three lines of a question over the window that asked it. */
+static void paintCutChoice(void) {
+  const Choice *c = &choices[beats[cuts[cutAt].first + cutBeat].a];
+  int i;
+  fillRect(6, TXT_H - 44, TXT_W - 12, 40, C_FILL);
+  drawFrame(4, TXT_H - 46, TXT_W - 8, 44);
+  for (i = 0; i < c->count; i++) {
+    int y = TXT_H - 40 + i * 12;
+    if (i == cutPick) drawCursor(12, y + 1, C_GOLD);
+    drawText(22, y, c->opt[i], i == cutPick ? C_GOLD : C_INK);
+  }
+}
+
+/* Starts the beat the run is now on. Returns 0 when the scene has ended. */
+static int openBeat(void) {
+  const Cut *cut = &cuts[cutAt];
+  const Beat *b;
+  if (cutBeat >= cut->count) {
+    setFlag(cut->flag);
+    endCut();
+    return 0;
+  }
+  b = &beats[cut->first + cutBeat];
+  switch (b->kind) {
+    case BEAT_SAY:
+      openWindow(0, b->text);
+      break;
+    case BEAT_WAIT:
+      cutTimer = b->a;
+      break;
+    case BEAT_SHAKE:
+      cutTimer = b->a;
+      cutShake = 1;
+      break;
+    case BEAT_FLASH:
+      cutTimer = b->a;
+      cutFlash = 1;
+      break;
+    case BEAT_SPAWN:
+      if (b->slot < CUT_SLOTS) {
+        cutBody[b->slot].px = (s16)(b->a << 4);
+        cutBody[b->slot].py = (s16)(b->b << 4);
+        cutBody[b->slot].dir = b->c;
+        cutBody[b->slot].walk = 0;
+        cutBody[b->slot].stride = 0;
+        cutBank[b->slot] = b->bank;
+        cutLive[b->slot] = 1;
+      }
+      break;
+    case BEAT_WALK:
+      if (b->slot < CUT_SLOTS && cutLive[b->slot]) {
+        cutWalkSlot = b->slot;
+        cutWalkDir = b->a;
+        cutWalkLeft = b->b;
+      }
+      break;
+    case BEAT_FACE:
+      if (b->slot < CUT_SLOTS) cutBody[b->slot].dir = (u8)b->a;
+      break;
+    case BEAT_DESPAWN:
+      if (b->slot < CUT_SLOTS) cutLive[b->slot] = 0;
+      break;
+    case BEAT_SKY:
+      /* Something enormous goes over. The weather layer already knows how to
+         put a shadow across the ground, so it is asked to do it now. */
+      cutTimer = 90;
+      cutShake = 1;
+      break;
+    case BEAT_FLAG:
+      setFlag(b->a);
+      break;
+    case BEAT_CHOOSE:
+      openWindow(0, choices[b->a].ask);
+      cutPick = 0;
+      cutAsking = 1;
+      cutPainted = 0;
+      break;
+    default:
+      break;
+  }
+  return 1;
+}
+
+static void startCut(int which) {
+  int i;
+  cutAt = which;
+  cutBeat = 0;
+  cutWalkLeft = 0;
+  for (i = 0; i < CUT_SLOTS; i++) cutLive[i] = 0;
+  hero.walk = 0;
+  openBeat();
+}
+
+/* One frame of whatever is playing. */
+static void tickCut(void) {
+  const Cut *cut;
+  const Beat *b;
+  if (cutAt < 0) return;
+  cut = &cuts[cutAt];
+  b = &beats[cut->first + cutBeat];
+
+  if (cutWalkLeft) {
+    if (cutBody[cutWalkSlot].walk) {
+      moveBody(&cutBody[cutWalkSlot], WALK_SPEED);
+    } else if (--cutWalkLeft >= 0) {
+      if (cutWalkLeft) stepBody(&cutBody[cutWalkSlot], cutWalkDir);
+    }
+    if (cutWalkLeft || cutBody[cutWalkSlot].walk) return;
+  }
+  if (cutTimer) {
+    if (cutShake) camY += ((frameClock >> 1) & 1) ? 2 : -2;
+    if (cutFlash) setFade(0, 16 - (cutTimer >> 2 > 16 ? 16 : cutTimer >> 2));
+    if (!--cutTimer) { cutShake = cutFlash = 0; clearFade(); }
+    else return;
+  }
+  if (cutAsking) {
+    const Choice *c = &choices[b->a];
+    int was = cutPick;
+    if (!typeDone) return;
+    if (!cutPainted) { cutPainted = 1; paintCutChoice(); }
+    if (hit(KEY_UP) && cutPick > 0) cutPick--;
+    if (hit(KEY_DOWN) && cutPick < c->count - 1) cutPick++;
+    if (cutPick != was) { sfxPick(); paintCutChoice(); }
+    if (hit(KEY_A)) {
+      setFlag(c->flag[cutPick]);
+      sfxRank();
+      cutAsking = 0;
+      windowOpen = 0;
+      clearRows(windowTop, windowRows * 8);
+      cutBeat++;
+      openBeat();
+    }
+    return;
+  }
+  if (windowOpen) return;         /* the line is still being read */
+  cutBeat++;
+  openBeat();
+}
+
 /* ------------------------------------------------------------ drawing on -- */
 /* A fight does not simply appear. The screen cracks white twice, falls to
    black, and comes up again in the yard — which is what the handhelds do, and
@@ -5148,20 +5348,32 @@ static void moveCrowd(void) {
   }
 }
 
+/* Whoever a place in the drawing order refers to: the crowd by index, the
+   player at -1, and whoever a cutscene has put on the map below that. */
+static const Body *bodyOf(int who) {
+  if (who <= -2) return &cutBody[-2 - who];
+  if (who < 0) return &hero;
+  return &crowd[who];
+}
+
 /* Objects are handed to the hardware front to back, so whoever is lower on the
    screen is drawn over whoever is behind them. */
 static void placeEveryone(void) {
-  int order[MAX_CROWD + 1], count = 0, i, j;
+  int order[MAX_CROWD + 1 + CUT_SLOTS], count = 0, i, j;
   hideAllObjects();
 
   for (i = 0; i < crowdCount; i++) if (crowdAlive[i]) order[count++] = i;
   order[count++] = -1;                              /* the player */
+  /* And anybody a cutscene has walked onto the map, who sorts by depth with
+     everyone else: somebody who always drew in front of you would read as
+     standing on the road rather than on it. */
+  for (i = 0; i < CUT_SLOTS; i++) if (cutLive[i]) order[count++] = -2 - i;
 
   for (i = 1; i < count; i++) {
     int key = order[i];
-    int keyY = key < 0 ? hero.py : crowd[key].py;
+    int keyY = bodyOf(key)->py;
     for (j = i - 1; j >= 0; j--) {
-      int otherY = order[j] < 0 ? hero.py : crowd[order[j]].py;
+      int otherY = bodyOf(order[j])->py;
       if (otherY >= keyY) break;
       order[j + 1] = order[j];
     }
@@ -5183,7 +5395,12 @@ static void placeEveryone(void) {
   for (i = 0; i < count; i++) {
     int who = order[i];
     int slot = count - 1 - i;
-    if (who < 0) {
+    if (who <= -2) {
+      int at = -2 - who, bank = cutBank[at];
+      placeObject(slot, cutBody[at].px - camX, cutBody[at].py - camY - 16,
+        NPC_TILE_BASE + bank * NPC_TILE_STRIDE + frameOf(&cutBody[at], 2) * ACTOR_FRAME_TILES,
+        bank + 1);
+    } else if (who < 0) {
       placeObject(slot, hero.px - camX, hero.py - camY - 16 - hopLift(&hero),
         PLAYER_TILE_BASE + frameOf(&hero, 4) * ACTOR_FRAME_TILES, 0);
     } else {
@@ -5732,7 +5949,12 @@ int main(void) {
       }
     } else {
       /* The world. */
-      if (windowOpen) {
+      /* Something is playing. It has the screen until it is done: a scene you
+         can walk out of halfway through is not a scene. */
+      if (cutAt >= 0) {
+        if (windowOpen && !cutAsking && (hit(KEY_A) || hit(KEY_B))) advanceWindow();
+        tickCut();
+      } else if (windowOpen) {
         /* One press, one page. Only the press that reads the last page of what
            somebody said does anything else. */
         if (hit(KEY_A) || hit(KEY_B)) {
@@ -5772,6 +5994,8 @@ int main(void) {
         }
       } else if (spotted >= 0) {
         /* Nothing to do but wait for them. */
+      } else if (!hero.walk && cutHere(hero.px >> 4, hero.py >> 4) >= 0) {
+        startCut(cutHere(hero.px >> 4, hero.py >> 4));
       } else if (hero.walk) {
         moveBody(&hero, hopping ? 2 : (held(KEY_B) ? RUN_SPEED : WALK_SPEED));
         if (!hero.walk) hopping = 0;
@@ -5868,7 +6092,7 @@ int main(void) {
         }
       }
 
-      if (!windowOpen) {
+      if (!windowOpen && cutAt < 0) {
         if (spotted >= 0) tickSpotted();
         else { moveCrowd(); lookForTrouble(); }
       }

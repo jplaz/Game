@@ -4822,6 +4822,20 @@ static void startTale(int which, int then) {
   paintTalePage();
 }
 
+/* ------------------------------------------------------------ drawing on -- */
+/* A fight does not simply appear. The screen cracks white twice, falls to
+   black, and comes up again in the yard — which is what the handhelds do, and
+   what stops a duel reading as the game having glitched. */
+
+static int shift, shiftDuellist, shiftBank, shiftSlot;
+
+static void setFade(int black, int amount) {
+  REG_BLDCNT = (u16)(0x003F | (black ? (3 << 6) : (2 << 6)));
+  REG_BLDY = (u16)(amount < 0 ? 0 : amount > 16 ? 16 : amount);
+}
+
+static void clearFade(void) { REG_BLDCNT = 0; REG_BLDY = 0; }
+
 /* ------------------------------------------------------------- cutscenes ---
  *
  * Step somewhere and something happens without you asking for it: a rider comes
@@ -5041,19 +5055,6 @@ static void tickCut(void) {
   openBeat();
 }
 
-/* ------------------------------------------------------------ drawing on -- */
-/* A fight does not simply appear. The screen cracks white twice, falls to
-   black, and comes up again in the yard — which is what the handhelds do, and
-   what stops a duel reading as the game having glitched. */
-
-static int shift, shiftDuellist, shiftBank, shiftSlot;
-
-static void setFade(int black, int amount) {
-  REG_BLDCNT = (u16)(0x003F | (black ? (3 << 6) : (2 << 6)));
-  REG_BLDY = (u16)(amount < 0 ? 0 : amount > 16 ? 16 : amount);
-}
-
-static void clearFade(void) { REG_BLDCNT = 0; REG_BLDY = 0; }
 
 static void callToArms(int duellist, int bank, int slot) {
   shiftDuellist = duellist;

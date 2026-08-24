@@ -1582,7 +1582,7 @@ L.push('typedef struct {');
 L.push('  const char *ask;');
 L.push('  const char *opt[3];');
 L.push('  const char *said[3];   /* what happens when you say it */');
-L.push('  s16 gold[3];           /* what saying it costs, or pays */');
+L.push('  short gold[3];         /* what saying it costs, or pays */');
 L.push('  u16 duel[3];           /* whoever has to be argued with first, or 65535 */');
 L.push('  u8 count, flag[3];');
 L.push('} Choice;');

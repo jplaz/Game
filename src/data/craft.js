@@ -61,6 +61,37 @@ export const MATERIAL_IDS = Object.keys(MATERIALS);
  * the same record - but using one in a duel with an animal tries to take it
  * rather than to hurt it.
  */
+/**
+ * What you put in front of somebody who has just lost to you.
+ *
+ * A net takes an animal. There was nothing at all that took a person, so every
+ * road in the world was somebody to knock down and walk past, and the gold you
+ * took off them piled up with nothing to spend it on. These are the other end
+ * of that: a purse, a writ, a pardon under a seal. Used on somebody who has
+ * yielded, they take an oath instead of a life, and whoever swears walks the
+ * rest of the game behind you and swings when you swing.
+ *
+ * `hold` is how persuasive it is, on the same scale as a snare's.
+ */
+export const OATHS = {
+  silverPurse: {
+    name: 'Purse of Silver', price: 300, hold: 26,
+    desc: 'Enough to make a hungry man reconsider who he is angry with.',
+  },
+  seaChest: {
+    name: 'Sellsword\u2019s Chest', price: 1200, hold: 48,
+    desc: 'A season\u2019s wages, counted out on the road. Most companies pay worse.',
+  },
+  lordsWarrant: {
+    name: 'Lord\u2019s Warrant', price: 4000, hold: 68,
+    desc: 'A writ of service under a seal. Refusing one is a thing with a name and a punishment.',
+  },
+  royalPardon: {
+    name: 'Royal Pardon', price: 0, hold: 90,
+    desc: 'Everything a man has done, struck out. Nobody sells these; they are given, and rarely.',
+  },
+};
+
 export const SNARES = {
   birdLime: {
     name: 'Birdlime', price: 40, hold: 12,

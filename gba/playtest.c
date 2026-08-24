@@ -89,7 +89,7 @@ static void checkSound(void) {
 static void checkFrame(void) {
   int i;
   checkSound();
-  if (scene < 0 || scene > SCENE_PARTY) finding("scene is %d, which is not a scene", scene);
+  if (scene < 0 || scene > SCENE_HOST) finding("scene is %d, which is not a scene", scene);
   /* Nothing is standing anywhere yet on the screens that come before the
      world, and there is no map to be standing on. */
   if (scene == SCENE_TITLE || scene == SCENE_HOUSE || scene == SCENE_NAME) return;
@@ -224,6 +224,8 @@ static int npcDuelled[MAP_COUNT][MAX_CROWD];
 static int interacting, duelTries, blocked;
 static int wantHouse, runAway, statusChecks, sinceStatus, wantTech, techUsed[4];
 static int menusSeen, bagsSeen, shopsSeen, bought, records, menuWant = -1;
+static int mustersSeen, kennelsSeen, holdLooks, boarded, fetched, oathsOffered;
+static int oathWanted = -1;
 static int craftsSeen, crafted, craftedHere;
 static int wildsMet, snaresThrown;
 static int doorsThisRung;
@@ -718,7 +720,7 @@ void hostFrame(void) {
        the tester ever looking in the pouch. */
     if (menuWant == MENU_ENTRIES - 1) { keys = tap(KEY_B); if (keys) menuWant = -1; }
     else if (menuPick != menuWant) keys = tap(menuPick < menuWant ? KEY_DOWN : KEY_UP);
-    else { keys = tap(KEY_A); if (keys) { if (menuWant == 3) records++; menuWant = -1; } }
+    else { keys = tap(KEY_A); if (keys) { if (menuWant == 4) records++; menuWant = -1; } }
   } else if (scene == SCENE_PARTY) {
     /* Read down whatever is at your heel, put a different one in front now and
        then, and go. */
@@ -726,9 +728,39 @@ void hostFrame(void) {
     if (partyLooks < 3) { partyLooks++; keys = tap(KEY_DOWN); }
     else if (partyLooks == 3) { partyLooks++; keys = tap(KEY_A); if (keys) swaps++; }
     else { keys = tap(KEY_B); if (keys) partyLooks = 0; }
+  } else if (scene == SCENE_HOST) {
+    /* Read the muster and go. There is nothing to press here but B. */
+    mustersSeen++;
+    keys = tap(KEY_B);
+  } else if (scene == SCENE_HOLD) {
+    /* Board what is at your heel, take it back out, and leave. Both ways round,
+       because the interesting failure is the one where an animal goes in and
+       does not come back. */
+    kennelsSeen++;
+    if (holdLooks == 0) { holdLooks++; keys = tap(KEY_LEFT); }
+    else if (holdLooks == 1) { holdLooks++; keys = tap(KEY_A); if (keys) boarded++; }
+    else if (holdLooks == 2) { holdLooks++; keys = tap(KEY_RIGHT); }
+    else if (holdLooks == 3) { holdLooks++; keys = tap(KEY_A); if (keys) fetched++; }
+    else { keys = tap(KEY_B); if (keys) holdLooks = 0; }
   } else if (scene == SCENE_BAG) {
     bagsSeen++;
     menuWant = -1;
+    /* And against a person who is nearly finished, put a purse in front of them
+       instead of a sword: a host is the other half of what a road is for, and a
+       tester that never takes an oath has not walked that half. */
+    oathWanted = -1;
+    if (bagInDuel && foeBeast < 0 && foeDef && foeDef->sworn < SWORN_KINDS
+        && hostRoom() >= 0 && theirs.hp * 4 < theirs.maxHp) {
+      int have = carrying(), i;
+      for (i = 0; i < have; i++) {
+        if (wares[nthCarried(i)].kind == WARE_OATH) { oathWanted = i; break; }
+      }
+    }
+    if (oathWanted >= 0) {
+      if (bagPick != oathWanted) keys = tap(bagPick < oathWanted ? KEY_DOWN : KEY_UP);
+      else { keys = tap(KEY_A); if (keys) oathsOffered++; }
+    }
+    else
     /* In a fight with an animal that is nearly down, reach for a net rather
        than for a drink: taking one alive is a whole half of the game and a
        tester that never throws one has not walked it. */
@@ -764,6 +796,7 @@ void hostFrame(void) {
         int had = wares[at].kind < WARE_KINDS ? you.worn[wares[at].kind] : 0;
         if (wares[at].kind == WARE_POTION) { if (you.bag[at] >= 4) continue; }
         else if (wares[at].kind == WARE_SNARE) { if (you.bag[at] >= 3) continue; }
+        else if (wares[at].kind == WARE_OATH) { if (you.bag[at] >= 2) continue; }
         else if (had && wares[had - 1].price >= wares[at].price) continue;
         if (wares[at].price > you.gold) continue;
         /* A net before anything else when there is none in the pouch. Buying
@@ -1243,6 +1276,10 @@ int main(int argc, char **argv) {
   printf("  benches        %d looked at, %d things made\n", craftsSeen, crafted);
   printf("  the wild       %d animals met, %d nets thrown, %d taken alive\n",
     wildsMet, snaresThrown, you.tamed);
+  printf("  the kennels    %d visits, %d boarded, %d fetched, %d still there\n",
+    kennelsSeen, boarded, fetched, holdCount());
+  printf("  the host       %d musters read, %d purses offered, %d sworn\n",
+    mustersSeen, oathsOffered, hostCount());
   if (MY_BEAST.kind != 255) {
     int q;
     printf("  at your heel   %s, level %d\n", beasts[MY_BEAST.kind].name, MY_BEAST.level);

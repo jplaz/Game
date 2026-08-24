@@ -9,6 +9,59 @@
 const P = (dark, body, light, belly, accent, eye) => ({ dark, body, light, belly, accent, eye });
 
 export const SPECIES = {
+  /* Horses. Everything in this world walks, and the one animal every single
+     person in it actually owned was not in it at all. These are wild on the
+     open roads, they are easier to take alive than anything else out there,
+     and once one is at your heel you are riding rather than walking. */
+  palfrey: {
+    name: 'Palfrey',
+    types: ['beast'],
+    archetype: 'horse',
+    base: { hp: 62, atk: 52, def: 50, spa: 34, spd: 46, spe: 88 },
+    growth: 'medium',
+    catchRate: 70,
+    expYield: 96,
+    mount: 'ground',
+    palette: { dark: '#3d2f22', body: '#8a6a45', light: '#b89468',
+               belly: '#e4d3b6', accent: '#5b4326', eye: '#241a12' },
+    learnset: [[1, 'tackle'], [1, 'growl'], [7, 'rally'], [12, 'gust'],
+               [18, 'quickfang'], [24, 'lastcharge'], [31, 'rend']],
+    evolve: { level: 24, into: 'courser' },
+    dex: 'A riding horse, bred for the road rather than the charge. Steady, '
+      + 'sure-footed, and worth more than most of the people riding one.',
+  },
+  courser: {
+    name: 'Courser',
+    types: ['beast', 'steel'],
+    archetype: 'horse',
+    base: { hp: 92, atk: 86, def: 78, spa: 40, spd: 66, spe: 104 },
+    growth: 'medium',
+    catchRate: 34,
+    expYield: 168,
+    mount: 'ground',
+    palette: { dark: '#241f2b', body: '#4c4756', light: '#7b7488',
+               belly: '#c8c2d2', accent: '#171420', eye: '#a03a2c' },
+    learnset: [[1, 'tackle'], [1, 'rally'], [1, 'lastcharge'], [26, 'ironclad'],
+               [32, 'steelfang'], [38, 'shieldwall'], [44, 'landslide']],
+    dex: 'A destrier, trained to go towards the noise instead of away from it. '
+      + 'It costs as much as a suit of plate and is harder to replace.',
+  },
+  sandSteed: {
+    name: 'Sand Steed',
+    types: ['beast', 'wind'],
+    archetype: 'horse',
+    base: { hp: 70, atk: 66, def: 52, spa: 48, spd: 58, spe: 122 },
+    growth: 'medium',
+    catchRate: 40,
+    expYield: 152,
+    mount: 'ground',
+    palette: { dark: '#4a3520', body: '#c39a5e', light: '#e0c08a',
+               belly: '#f4e6c6', accent: '#8a6330', eye: '#3a2a18' },
+    learnset: [[1, 'tackle'], [1, 'gust'], [10, 'rally'], [17, 'updraft'],
+               [24, 'skyfall'], [30, 'lastcharge'], [37, 'wingslash']],
+    dex: 'Dornish. It will run a day and a night and outlast anything with '
+      + 'four legs, and it will not carry armour worth the name.',
+  },
   // ============================================================ wolf line ==
   snowpup: {
     name: 'Snowpup', types: ['beast'], archetype: 'wolf',

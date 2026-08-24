@@ -45,6 +45,13 @@ function maesterHall({ exitTo, exitX, exitY, stock, healerLine, merchantLine, ex
         data: { line: healerLine } },
       { x: 8, y: 1, dir: 'down', sprite: 'merchant', name: 'Steward', script: 'shop',
         data: { stock } },
+      /* The cages at the back. Six at your heel is all anybody can feed on the
+         road, and everything you took alive past the sixth used to be turned
+         loose on the spot. They are boarded here instead, and you can come and
+         change your mind about which six you are travelling with. */
+      { x: 9, y: 4, dir: 'down', sprite: 'oldman', name: 'Kennelmaster', script: 'kennel',
+        data: { line: 'Kennelmaster: Anything you cannot carry, I will board. '
+          + 'They are fed, they are exercised, and they are here when you want them.' } },
       ...extraNpcs,
     ],
   };
@@ -1487,6 +1494,7 @@ export const MAPS = {
       { roamer: 'manAtArms', min: 26, max: 34, weight: 34 },
       { roamer: 'poacher', min: 27, max: 36, weight: 32 },
           { beast: 'fawnhart', min: 26, max: 31, weight: 16 },
+          { beast: 'courser', min: 26, max: 31, weight: 12 },
       { beast: 'cubmane', min: 27, max: 31, weight: 12 },
       { beast: 'emberwisp', min: 28, max: 32, weight: 10 },
     ],
@@ -1602,6 +1610,7 @@ export const MAPS = {
       { roamer: 'sellsword', min: 30, max: 35, weight: 30 },
       { roamer: 'bandit', min: 31, max: 38, weight: 30 },
           { beast: 'sandviper', min: 30, max: 35, weight: 18 },
+          { beast: 'sandSteed', min: 30, max: 36, weight: 16 },
       { beast: 'dornspine', min: 34, max: 38, weight: 8 },
       { beast: 'crabcrag', min: 31, max: 35, weight: 12 },
     ],
@@ -1715,6 +1724,7 @@ export const MAPS = {
       { roamer: 'hedgeKnight', min: 29, max: 35, weight: 33 },
       { roamer: 'ironbornReaver', min: 30, max: 37, weight: 33 },
           { beast: 'crownstag', min: 33, max: 37, weight: 10 },
+          { beast: 'courser', min: 30, max: 36, weight: 12 },
       { beast: 'krakenling', min: 29, max: 33, weight: 14 },
       { beast: 'riverfry', min: 28, max: 32, weight: 12 },
     ],
@@ -2234,6 +2244,7 @@ export const MAPS = {
       { roamer: 'sellsword', min: 9, max: 12, weight: 24 },
       { roamer: 'manAtArms', min: 8, max: 12, weight: 24 },
           { beast: 'riverfry', min: 8, max: 12, weight: 16 },
+          { beast: 'palfrey', min: 8, max: 12, weight: 16 },
       { beast: 'ravenling', min: 8, max: 12, weight: 12 },
       { beast: 'boartusk', min: 9, max: 13, weight: 12 },
     ],
@@ -2424,6 +2435,7 @@ export const MAPS = {
       { roamer: 'bandit', min: 14, max: 18, weight: 24 },
       { roamer: 'gravedigger', min: 16, max: 19, weight: 18 },
           { beast: 'cubmane', min: 14, max: 18, weight: 16 },
+          { beast: 'palfrey', min: 14, max: 18, weight: 16 },
       { beast: 'boartusk', min: 15, max: 19, weight: 14 },
     ],
     warps: [
@@ -2652,6 +2664,7 @@ export const MAPS = {
       { roamer: 'bandit', min: 20, max: 24, weight: 24 },
       { roamer: 'brotherhoodBowman', min: 21, max: 26, weight: 22 },
           { beast: 'fawnhart', min: 20, max: 25, weight: 14 },
+          { beast: 'palfrey', min: 20, max: 25, weight: 16 },
       { beast: 'falconet', min: 21, max: 26, weight: 12 },
       { beast: 'boartusk', min: 20, max: 24, weight: 12 },
     ],
@@ -4253,7 +4266,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 11, y: 15, dir: 'up', sprite: 'wildling', name: 'Gate Sentry', script: 'duel',
-        data: { duel: 'clansman' } },
+        data: { duel: 'clansman', host: 3 } },
       { x: 7, y: 11, dir: 'right', roams: true, sprite: 'wildling', name: 'Garrison Man',
         script: 'duel', data: { duel: 'clansman' } },
       { x: 16, y: 11, dir: 'left', roams: true, sprite: 'wildling', name: 'Garrison Man',
@@ -4280,7 +4293,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 7, y: 2, dir: 'down', sprite: 'wildling', name: 'Shagga son of Dolf', script: 'duel',
-        data: { duel: 'clansman' } },
+        data: { duel: 'clansman', host: 5 } },
       { x: 5, y: 3, dir: 'right', roams: true, sprite: 'wildling', name: 'Hall Guard',
         script: 'duel', data: { duel: 'clansman' } },
       { x: 11, y: 3, dir: 'left', roams: true, sprite: 'wildling', name: 'Hall Guard',
@@ -4310,7 +4323,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 11, y: 15, dir: 'up', sprite: 'redPriest', name: 'Gate Sentry', script: 'duel',
-        data: { duel: 'redPriestess' } },
+        data: { duel: 'redPriestess', host: 3 } },
       { x: 7, y: 11, dir: 'right', roams: true, sprite: 'redPriest', name: 'Garrison Man',
         script: 'duel', data: { duel: 'redPriestess' } },
       { x: 16, y: 11, dir: 'left', roams: true, sprite: 'redPriest', name: 'Garrison Man',
@@ -4337,7 +4350,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 7, y: 2, dir: 'down', sprite: 'guard', name: 'Ser Axell', script: 'duel',
-        data: { duel: 'redPriestess' } },
+        data: { duel: 'redPriestess', host: 5 } },
       { x: 5, y: 3, dir: 'right', roams: true, sprite: 'redPriest', name: 'Hall Guard',
         script: 'duel', data: { duel: 'redPriestess' } },
       { x: 11, y: 3, dir: 'left', roams: true, sprite: 'redPriest', name: 'Hall Guard',
@@ -4367,7 +4380,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 11, y: 15, dir: 'up', sprite: 'bolton', name: 'Gate Sentry', script: 'duel',
-        data: { duel: 'manAtArms' } },
+        data: { duel: 'manAtArms', host: 3 } },
       { x: 7, y: 11, dir: 'right', roams: true, sprite: 'bolton', name: 'Garrison Man',
         script: 'duel', data: { duel: 'manAtArms' } },
       { x: 16, y: 11, dir: 'left', roams: true, sprite: 'bolton', name: 'Garrison Man',
@@ -4394,7 +4407,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 7, y: 2, dir: 'down', sprite: 'bolton', name: 'Kennelmaster Ben', script: 'duel',
-        data: { duel: 'manAtArms' } },
+        data: { duel: 'manAtArms', host: 5 } },
       { x: 5, y: 3, dir: 'right', roams: true, sprite: 'bolton', name: 'Hall Guard',
         script: 'duel', data: { duel: 'manAtArms' } },
       { x: 11, y: 3, dir: 'left', roams: true, sprite: 'bolton', name: 'Hall Guard',
@@ -4424,7 +4437,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 11, y: 15, dir: 'up', sprite: 'braavosi', name: 'Gate Sentry', script: 'duel',
-        data: { duel: 'sellsword' } },
+        data: { duel: 'sellsword', host: 3 } },
       { x: 7, y: 11, dir: 'right', roams: true, sprite: 'braavosi', name: 'Garrison Man',
         script: 'duel', data: { duel: 'sellsword' } },
       { x: 16, y: 11, dir: 'left', roams: true, sprite: 'braavosi', name: 'Garrison Man',
@@ -4451,7 +4464,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 7, y: 2, dir: 'down', sprite: 'braavosi', name: 'First Sword of Braavos', script: 'duel',
-        data: { duel: 'sellsword' } },
+        data: { duel: 'sellsword', host: 5 } },
       { x: 5, y: 3, dir: 'right', roams: true, sprite: 'braavosi', name: 'Hall Guard',
         script: 'duel', data: { duel: 'sellsword' } },
       { x: 11, y: 3, dir: 'left', roams: true, sprite: 'braavosi', name: 'Hall Guard',
@@ -4481,7 +4494,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 11, y: 15, dir: 'up', sprite: 'merchant', name: 'Gate Sentry', script: 'duel',
-        data: { duel: 'sellsword' } },
+        data: { duel: 'sellsword', host: 3 } },
       { x: 7, y: 11, dir: 'right', roams: true, sprite: 'merchant', name: 'Garrison Man',
         script: 'duel', data: { duel: 'sellsword' } },
       { x: 16, y: 11, dir: 'left', roams: true, sprite: 'merchant', name: 'Garrison Man',
@@ -4508,7 +4521,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 7, y: 2, dir: 'down', sprite: 'sellsword', name: 'Slaver Captain', script: 'duel',
-        data: { duel: 'sellsword' } },
+        data: { duel: 'sellsword', host: 5 } },
       { x: 5, y: 3, dir: 'right', roams: true, sprite: 'merchant', name: 'Hall Guard',
         script: 'duel', data: { duel: 'sellsword' } },
       { x: 11, y: 3, dir: 'left', roams: true, sprite: 'merchant', name: 'Hall Guard',
@@ -4538,7 +4551,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 11, y: 15, dir: 'up', sprite: 'unsullied', name: 'Gate Sentry', script: 'duel',
-        data: { duel: 'sellsword' } },
+        data: { duel: 'sellsword', host: 3 } },
       { x: 7, y: 11, dir: 'right', roams: true, sprite: 'unsullied', name: 'Garrison Man',
         script: 'duel', data: { duel: 'sellsword' } },
       { x: 16, y: 11, dir: 'left', roams: true, sprite: 'unsullied', name: 'Garrison Man',
@@ -4565,7 +4578,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 7, y: 2, dir: 'down', sprite: 'guard', name: 'Tiger Cloak Captain', script: 'duel',
-        data: { duel: 'sellsword' } },
+        data: { duel: 'sellsword', host: 5 } },
       { x: 5, y: 3, dir: 'right', roams: true, sprite: 'unsullied', name: 'Hall Guard',
         script: 'duel', data: { duel: 'sellsword' } },
       { x: 11, y: 3, dir: 'left', roams: true, sprite: 'unsullied', name: 'Hall Guard',
@@ -4595,7 +4608,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 11, y: 15, dir: 'up', sprite: 'unsullied', name: 'Gate Sentry', script: 'duel',
-        data: { duel: 'sellsword' } },
+        data: { duel: 'sellsword', host: 3 } },
       { x: 7, y: 11, dir: 'right', roams: true, sprite: 'unsullied', name: 'Garrison Man',
         script: 'duel', data: { duel: 'sellsword' } },
       { x: 16, y: 11, dir: 'left', roams: true, sprite: 'unsullied', name: 'Garrison Man',
@@ -4622,7 +4635,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 7, y: 2, dir: 'down', sprite: 'merchant', name: 'Pit Master', script: 'duel',
-        data: { duel: 'sellsword' } },
+        data: { duel: 'sellsword', host: 5 } },
       { x: 5, y: 3, dir: 'right', roams: true, sprite: 'unsullied', name: 'Hall Guard',
         script: 'duel', data: { duel: 'sellsword' } },
       { x: 11, y: 3, dir: 'left', roams: true, sprite: 'unsullied', name: 'Hall Guard',
@@ -4652,7 +4665,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 11, y: 15, dir: 'up', sprite: 'martell', name: 'Gate Sentry', script: 'duel',
-        data: { duel: 'dornishOutrider' } },
+        data: { duel: 'dornishOutrider', host: 3 } },
       { x: 7, y: 11, dir: 'right', roams: true, sprite: 'martell', name: 'Garrison Man',
         script: 'duel', data: { duel: 'dornishOutrider' } },
       { x: 16, y: 11, dir: 'left', roams: true, sprite: 'martell', name: 'Garrison Man',
@@ -4679,7 +4692,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 7, y: 2, dir: 'down', sprite: 'martell', name: 'Areo Hotah', script: 'duel',
-        data: { duel: 'dornishOutrider' } },
+        data: { duel: 'dornishOutrider', host: 5 } },
       { x: 5, y: 3, dir: 'right', roams: true, sprite: 'martell', name: 'Hall Guard',
         script: 'duel', data: { duel: 'dornishOutrider' } },
       { x: 11, y: 3, dir: 'left', roams: true, sprite: 'martell', name: 'Hall Guard',
@@ -4709,7 +4722,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 11, y: 15, dir: 'up', sprite: 'baratheon', name: 'Gate Sentry', script: 'duel',
-        data: { duel: 'manAtArms' } },
+        data: { duel: 'manAtArms', host: 3 } },
       { x: 7, y: 11, dir: 'right', roams: true, sprite: 'baratheon', name: 'Garrison Man',
         script: 'duel', data: { duel: 'manAtArms' } },
       { x: 16, y: 11, dir: 'left', roams: true, sprite: 'baratheon', name: 'Garrison Man',
@@ -4736,7 +4749,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 7, y: 2, dir: 'down', sprite: 'sellsword', name: 'Wreck Captain', script: 'duel',
-        data: { duel: 'manAtArms' } },
+        data: { duel: 'manAtArms', host: 5 } },
       { x: 5, y: 3, dir: 'right', roams: true, sprite: 'baratheon', name: 'Hall Guard',
         script: 'duel', data: { duel: 'manAtArms' } },
       { x: 11, y: 3, dir: 'left', roams: true, sprite: 'baratheon', name: 'Hall Guard',

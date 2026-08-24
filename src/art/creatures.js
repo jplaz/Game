@@ -127,6 +127,33 @@ export const ARCHETYPES = {
     ell(ctx, MID, 46, 6, 4, p.belly);
   },
 
+  /* A horse, seen head-on the way everything else here is: the long head and
+     the pricked ears do the work, because a horse in profile would be the only
+     creature in the game not facing you. */
+  horse(ctx, p) {
+    // ears
+    sym(ctx, 14, 4, 4, 9, p.dark);
+    sym(ctx, 15, 6, 2, 6, p.accent);
+    // the mane, falling either side of the crest
+    sym(ctx, 12, 9, 4, 18, p.accent);
+    rect(ctx, MID - 3, 5, 6, 9, p.accent);
+    // the long head, narrowing to a muzzle
+    ell(ctx, MID, 19, 10, 12, p.dark);
+    ell(ctx, MID, 19, 8, 10, p.body);
+    ell(ctx, MID, 28, 6, 8, p.dark);
+    ell(ctx, MID, 28, 4, 7, p.light);
+    rect(ctx, MID - 4, 34, 8, 2, p.dark);
+    sym(ctx, MID - 4, 32, 2, 2, p.dark);
+    eyes(ctx, MID, 16, 5, 3, p.eye);
+    // chest and shoulders
+    ell(ctx, MID, 42, 15, 9, p.dark);
+    ell(ctx, MID, 42, 13, 8, p.body);
+    ell(ctx, MID, 44, 6, 5, p.belly);
+    // forelegs, and the white on them
+    sym(ctx, 13, 40, 5, 8, p.dark);
+    sym(ctx, 14, 45, 3, 3, p.belly);
+  },
+
   dragon(ctx, p) {
     // wings
     for (const side of [-1, 1]) {

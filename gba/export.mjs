@@ -116,14 +116,14 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const actors = await import('/src/art/actors.js');
   const pixels = await import('/src/art/pixels.js');
   const { MAPS, REGIONS } = await import('/src/data/maps.js');
-  const { DUELLISTS, ROAMERS, makeRoamer } = await import('/src/data/duellists.js');
+  const { DUELLISTS, ROAMERS, ROAMER_TABLES, makeRoamer } = await import('/src/data/duellists.js');
   const { TRAINERS, trainerAsDuellist } = await import('/src/data/trainers.js');
   const { ITEMS } = await import('/src/data/items.js');
   const { WEAPONS, ARMOUR, SHIELDS, HELMS, GLOVES } = await import('/src/data/gear.js');
   const { HOUSES, SWEARABLE } = await import('/src/data/houses.js');
   const { TALES, TALE_ORDER, TALE_HOUSES } = await import('/src/data/tale.js');
   const { MATERIALS, MATERIAL_IDS, SPOILS, FORAGE, RECIPES, SNARES, EGG_ITEMS,
-          RELICS } =
+          RELICS, OATHS } =
     await import('/src/data/craft.js');
   const { SPECIES } = await import('/src/data/species.js');
   const { BEAST_TECHNIQUES, GROWS_INTO, NEVER_TAMED, EGGS, NESTS } =
@@ -345,6 +345,33 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     return at;
   }
 
+  /* The sixteen sorts of person who walk the roads, as things you can take
+     into your own service rather than only things to knock down. Their numbers
+     are read off the same generator that dresses them as opponents, sampled at
+     two levels so the cartridge can work out the rest with a multiply. */
+  const SWORN_IDS = Object.keys(ROAMERS);
+  const swornKinds = SWORN_IDS.map((id) => {
+    const low = makeRoamer(id, 10, (l) => l[0]);
+    const high = makeRoamer(id, 40, (l) => l[0]);
+    return {
+      name: low.name,
+      might10: low.might, might40: high.might,
+      guard10: low.guard, guard40: high.guard,
+      vigour10: low.vigour, vigour40: high.vigour,
+    };
+  });
+  const swornOf = (id) => {
+    const at = SWORN_IDS.indexOf(id);
+    return at < 0 ? 255 : at;
+  };
+  /* Anybody standing on a road can be sworn, whether or not they were written
+     with a roamer's name on them: whoever this region breeds is who they turn
+     out to have been. */
+  const swornForRegion = (region) => {
+    const table = ROAMER_TABLES[region] ?? ROAMER_TABLES['The Crownlands'];
+    return swornOf(table[0]);
+  };
+
   function techSlots(ids) {
     const picked = (ids ?? []).map((id) => techSlot.get(id)).filter((n) => n !== undefined);
     while (picked.length < 3) picked.push(techSlot.get('slash'));
@@ -438,24 +465,31 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   }
   /* What you throw over an animal, and what you carry home from a nest. */
   for (const [id, def] of Object.entries(SNARES)) ware(id, def, 'snare');
+  /* And what you put in front of somebody who has yielded, which is the same
+     idea aimed at a person: they swear instead of dying. */
+  for (const [id, def] of Object.entries(OATHS)) ware(id, def, 'oath');
   for (const [id, def] of Object.entries(EGG_ITEMS)) ware(id, def, 'egg');
   /* And the relics, which are the reason a chest is still worth opening once
      you are wearing the best of everything. */
   for (const id of Object.keys(RELICS)) ware(id, RELICS[id], 'relic');
 
   const potions = wares.map((w, i) => (w.kind === 'potion' ? i : -1)).filter((i) => i >= 0);
+  /* A writ under a seal is a maester's business, not a smith's, so the oaths
+     go on the same counter as the remedies. */
+  const oathWares = wares.map((w, i) => (w.kind === 'oath' && w.price ? i : -1))
+    .filter((i) => i >= 0);
   const forSale = {
-    apothecary: potions,
+    apothecary: potions.concat(oathWares),
     armourer: wares
       .map((w, i) => (w.kind !== 'potion' && w.kind !== 'stuff' && w.kind !== 'egg'
-                      && w.price ? i : -1))
+                      && w.kind !== 'oath' && w.price ? i : -1))
       .filter((i) => i >= 0),
   };
 
   /* The recipe book, in ware numbers. */
   const wareOf = (id) => {
     for (const k of ['weapon', 'armour', 'shield', 'helm', 'gloves',
-                     'potion', 'stuff', 'snare', 'egg', 'relic']) {
+                     'potion', 'stuff', 'snare', 'egg', 'relic', 'oath']) {
       if (wareIndex.has(`${k}:${id}`)) return wareIndex.get(`${k}:${id}`);
     }
     throw new Error(`recipe makes ${id}, which is not a ware`);
@@ -541,6 +575,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
 
   const out = { maps: [], houses, techniques, learned, duellists, wares, forSale,
                 recipes, spoils, forage, beasts, eggs, tales, throneChampion,
+                swornKinds,
                 leaders: [], actors: null };
 
   /* The spine of the game, in the order it is meant to be walked. Nine seats,
@@ -685,6 +720,17 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
             intro: named.intro, defeat: named.defeat,
           }
         : roadFighter(n.name ?? 'Stranger', sprite, level);
+      /* Which sort of sworn sword this person turns out to have been, if you
+         put a purse in front of them instead of finishing it. Somebody the
+         story knows by name is not for hire at any price. */
+      fighter.sworn = (n.data?.duel && DUELLISTS[n.data.duel])
+        || (n.data?.trainer && TRAINERS[n.data.trainer]) ? 255
+        : n.data?.duel && ROAMERS[n.data.duel] ? swornOf(n.data.duel)
+        : swornForRegion(REGIONS[id] ?? '');
+      /* How many swords stand behind them. A captain on his own gate is not a
+         captain; this is what makes a fight at a stronghold a fight between
+         two companies rather than two people. */
+      fighter.host = n.data?.host ?? 0;
       // What this person actually says. Most of it is authored on the duellist
       // or the trainer rather than in the script, and some scripts hold their
       // lines in an array, so ask in that order before falling back.
@@ -714,7 +760,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         duellist: pushDuellist(fighter),
         // A town is not a waxwork. Everybody has somewhere to be except the
         // people whose whole job is to stand behind something.
-        roams: /healer|merchant|shop|smith|innkeep|steward|harbour|ship|court|stable/i
+        roams: /healer|merchant|shop|smith|innkeep|steward|harbour|ship|court|stable|kennel/i
           .test(n.script ?? '') ? 0 : 1,
         // A maester will put you back together. A maester will not fight you,
         // and neither will a child or a septa.
@@ -734,6 +780,9 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         /* A harbourmaster is not a shopkeeper: speaking to one opens the
            passage list rather than a counter. */
         sails: /^(ship|harbour)/i.test(n.script ?? '') ? 1 : 0,
+        /* A kennelmaster boards what you cannot carry. Speaking to one opens
+           the holdfast rather than a counter or a conversation. */
+        holds: /^kennel/i.test(n.script ?? '') ? 1 : 0,
       };
     });
 
@@ -757,6 +806,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
           might: made.might, guard: made.guard, swiftness: made.swiftness,
           techs: techSlots(made.techniques),
           reward: made.reward, exp: made.exp, mortal: 1,
+          sworn: swornOf(row.roamer), host: 0,
           dead: made.sprite === 'whitewalker' ? 1 : 0,
           intro: made.intro, defeat: made.defeat,
         }),
@@ -1207,7 +1257,8 @@ L.push('#define WARE_EGG    6    /* carried until it is not an egg any more */')
 L.push('#define WARE_HELM   7');
 L.push('#define WARE_GLOVES 8');
 L.push('#define WARE_RELIC  9    /* used up in a fight, and does what steel cannot */');
-L.push('#define WARE_KINDS  10   /* how many kinds there are, worn or not */');
+L.push('#define WARE_OATH   10   /* put in front of somebody who has yielded */');
+L.push('#define WARE_KINDS  11   /* how many kinds there are, worn or not */');
 L.push('typedef struct {');
 L.push('  const char *name;');
 L.push('  u16 price, heal;');
@@ -1218,7 +1269,7 @@ L.push('} Ware;');
 L.push('static const Ware wares[WARE_COUNT] = {');
 {
   const kindOf = { potion: 0, weapon: 1, armour: 2, shield: 3, stuff: 4,
-                   snare: 5, egg: 6, helm: 7, gloves: 8, relic: 9 };
+                   snare: 5, egg: 6, helm: 7, gloves: 8, relic: 9, oath: 10 };
   // Which of the four looks a piece of armour puts you in.
   const LOOK = { gambeson: 0, boiledLeather: 1, ringmail: 2, scaleArmour: 2, knightPlate: 3 };
   for (const w of harvest.wares) {
@@ -1321,6 +1372,8 @@ L.push(`#define DUELLIST_COUNT ${harvest.duellists.length}`);
 L.push('typedef struct {');
 L.push('  const char *name;');
 L.push('  u16 vigour; u8 level, might, guard, swiftness, mortal, fixed, dead;');
+L.push('  u8 sworn;             /* which sort of sworn sword, or 255 for nobody */');
+L.push('  u8 host;              /* how many swords stand behind them */');
 L.push('  u8 tech[4];');
 L.push('  u16 reward, exp;');
 L.push('  const char *intro, *defeat;');
@@ -1328,8 +1381,23 @@ L.push('} Duellist;');
 L.push('static const Duellist duellists[DUELLIST_COUNT] = {');
 for (const d of harvest.duellists) {
   L.push(`  { ${cstr(d.name)}, ${d.vigour}, ${d.level}, ${d.might}, ${d.guard}, ${d.swiftness}, ${d.mortal}, ${d.fixed ?? 0}, ${d.dead ?? 0},`);
+  L.push(`    ${d.sworn ?? 255}, ${d.host ?? 0},`);
   L.push(`    { ${d.techs.join(', ')} }, ${d.reward}, ${d.exp},`);
   L.push(`    ${cstr(d.intro)}, ${cstr(d.defeat)} },`);
+}
+L.push('};');
+L.push('');
+
+// Who can be taken into service, and what they are worth at any level.
+L.push(`#define SWORN_KINDS ${harvest.swornKinds.length}`);
+L.push('typedef struct {');
+L.push('  const char *name;');
+L.push('  u16 might10, might40, guard10, guard40, vigour10, vigour40;');
+L.push('} SwornKind;');
+L.push('static const SwornKind swornKinds[SWORN_KINDS] = {');
+for (const k of harvest.swornKinds) {
+  L.push(`  { ${cstr(k.name)}, ${k.might10}, ${k.might40}, ${k.guard10}, `
+    + `${k.guard40}, ${k.vigour10}, ${k.vigour40} },`);
 }
 L.push('};');
 L.push('');
@@ -1423,7 +1491,7 @@ L.push('typedef struct { u16 duellist; u8 bank; } Ambush;');
 L.push('typedef struct { u8 beast, level; } Wild;');
 L.push('typedef struct { u8 x, y, ware; u16 gold; } Chest;');
 L.push('typedef struct {');
-L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sails;');
+L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sails, holds;');
 L.push('  u16 duellist;');
 L.push('  const char *name, *line;');
 L.push('} Npc;');
@@ -1508,7 +1576,7 @@ harvest.maps.forEach((map, i) => {
       name = n.name.startsWith(spoken[1]) ? n.name : spoken[1];
       line = spoken[2];
     }
-    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.duellist},`);
+    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.duellist},`);
     L.push(`    ${cstr(name)}, ${cstr(line.trim())} },`);
   }
   if (!map.npcs.length) L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');

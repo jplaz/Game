@@ -1152,6 +1152,11 @@ typedef struct { u8 kind, level; u16 exp; int hp; } Kept;
    the one that fights beside you; the rest come along and can be swapped to the
    front at the menu. */
 #define PARTY_MAX 6
+/* Three pages of six at the kennels, and six swords behind you. Six because
+   that is what fits on a card without a second page, and because a company you
+   cannot read at a glance is a company you stop thinking about. */
+#define HOLD_MAX 18
+#define HOST_MAX 6
 
 typedef struct {
   int house;
@@ -1166,6 +1171,13 @@ typedef struct {
   char name[NAME_MAX + 1];        /* what people call you */
   Kept party[PARTY_MAX];
   u8 lead;                        /* which of them is at your heel */
+  /* What is boarded at the kennels, and who has sworn to you.
+     Six is all anybody can feed on the road, so everything taken alive past
+     the sixth used to be turned loose where it stood. The holdfast is where it
+     goes instead, and the host is the same idea aimed at people: somebody who
+     has yielded and been paid rather than finished. */
+  Kept holdfast[HOLD_MAX];
+  Kept host[HOST_MAX];
   u8 eggWins;                     /* fights won since you picked the egg up */
   u8 tamed;                       /* how many you have taken alive */
   /* Where somebody last put you back together. Going down used to send you all
@@ -1181,6 +1193,16 @@ typedef struct {
    says this, so gaining a party of six did not mean rewriting every line that
    ever mentioned the one you had. */
 #define MY_BEAST (you.party[you.lead])
+
+/* The host and the kennels are written out further down, next to each other,
+   because they are one idea aimed at two sorts of company. The record has to
+   put a sworn sword's health back and a swing has to know what six of them add,
+   and both of those come first in the file, so something has to be declared
+   before it is written. */
+static int swornVigour(int kind, int level);
+static int myHostBlow(void);
+static int myHostGuard(void);
+static int theirHostBlow(void);
 
 #define WORN_WEAPON worn[WARE_WEAPON]
 #define WORN_ARMOUR worn[WARE_ARMOUR]
@@ -2273,6 +2295,7 @@ static int swingQuiet(Fighter *actor, Fighter *target, int techId) {
 }
 #endif
 
+
 /* One side's swing, written out. Returns 1 if the duel ended on it. */
 static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
   const Tech *t = &techniques[techId];
@@ -2326,6 +2349,26 @@ static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
       appendString(scratch, actor->obsidian
         ? "  The obsidian goes in and stays in."
         : "  Steel barely marks it. Something else is needed.", sizeof scratch);
+    }
+  }
+  /* And then the companies. Whoever is behind you comes in on the back of your
+     blow rather than taking a turn of their own: a fight with six swords a side
+     that took twelve turns to get through a round would be unreadable. */
+  if (target->hp > 0) {
+    int extra = (target == &theirs) ? myHostBlow() : theirHostBlow();
+    /* Your own six stand in front of you when the other company comes on. */
+    if (target == &mine && extra > 0) {
+      extra -= myHostGuard();
+      if (extra < 0) extra = 0;
+    }
+    if (extra > 0) {
+      target->hp -= extra;
+      if (target->hp < 0) target->hp = 0;
+      appendString(scratch, target == &theirs ? "  Your swords come in behind it: "
+                                              : "  Their swords come in behind it: ",
+        sizeof scratch);
+      appendNumber(scratch, extra, sizeof scratch);
+      appendString(scratch, " more.", sizeof scratch);
     }
   }
   duelSay(0, scratch);
@@ -2607,7 +2650,10 @@ extern unsigned char hostSram[65536];              /* the harness's stand-in */
 #else
 #define SRAM ((volatile u8 *)0x0E000000)
 #endif
-#define RECORD_MAGIC 0x31454349u          /* "ICE1" */
+/* "ICE2". The kennels and the host went into the record, which made it a
+   different shape; an old save read as this one would put animals and sworn
+   swords in places they were never written to. */
+#define RECORD_MAGIC 0x32454349u
 
 typedef struct {
   u32 magic;
@@ -2624,6 +2670,10 @@ typedef struct {
      experience, which is what a party of one needs. */
   u8 partyKind[PARTY_MAX], partyLevel[PARTY_MAX];
   u16 partyExp[PARTY_MAX];
+  /* What is boarded at the kennels, and who has sworn to you. */
+  u8 holdKind[HOLD_MAX], holdLevel[HOLD_MAX];
+  u16 holdExp[HOLD_MAX];
+  u8 hostKind[HOST_MAX], hostLevel[HOST_MAX];
   u8 haven, havenX, havenY, story;
   u8 emptied[MAP_COUNT][8];
   u32 exp, gold, hp, kills;
@@ -2664,6 +2714,15 @@ static void keepRecord(void) {
       record.partyExp[k] = you.party[k].exp;
     }
     record.lead = you.lead;
+    for (k = 0; k < HOLD_MAX; k++) {
+      record.holdKind[k] = you.holdfast[k].kind;
+      record.holdLevel[k] = you.holdfast[k].level;
+      record.holdExp[k] = you.holdfast[k].exp;
+    }
+    for (k = 0; k < HOST_MAX; k++) {
+      record.hostKind[k] = you.host[k].kind;
+      record.hostLevel[k] = you.host[k].level;
+    }
   }
   record.story = you.story;
   record.eggWins = you.eggWins;
@@ -2725,6 +2784,20 @@ static void takeUpRecord(void) {
         ? 0 : beastVigour(record.partyKind[k], record.partyLevel[k]);
     }
     you.lead = record.lead < PARTY_MAX ? record.lead : 0;
+    for (k = 0; k < HOLD_MAX; k++) {
+      you.holdfast[k].kind = record.holdKind[k];
+      you.holdfast[k].level = record.holdLevel[k];
+      you.holdfast[k].exp = record.holdExp[k];
+      you.holdfast[k].hp = record.holdKind[k] == 255
+        ? 0 : beastVigour(record.holdKind[k], record.holdLevel[k]);
+    }
+    for (k = 0; k < HOST_MAX; k++) {
+      you.host[k].kind = record.hostKind[k];
+      you.host[k].level = record.hostLevel[k];
+      you.host[k].exp = 0;
+      you.host[k].hp = record.hostKind[k] == 255
+        ? 0 : swornVigour(record.hostKind[k], record.hostLevel[k]);
+    }
   }
   you.story = record.story;
   you.eggWins = record.eggWins;
@@ -2751,6 +2824,9 @@ static int afterWindow;
 /* Set when the person you just spoke to was a harbourmaster: the passage
    list opens once they have finished talking, the same way a counter does. */
 static int afterPort;
+/* Set when a kennelmaster has finished saying what they say, so the cages open
+   as the window closes rather than needing a second press on the same person. */
+static int afterHold;
 static int portPick;
 static int afterDuel = -1;   /* the slot to draw on once their line is read */
 
@@ -2955,6 +3031,20 @@ static int snareOdds(int snare) {
   return odds;
 }
 
+/* And the odds on a purse. Nobody swears to somebody who has not beaten them
+   badly, so how far down they are counts for more here than it does with a net:
+   a man on his feet takes the money and keeps fighting. */
+static int oathOdds(int oath) {
+  int room = theirs.maxHp > 0 ? (int)udiv((u32)theirs.hp * 100, (u32)theirs.maxHp) : 100;
+  int hurt = 100 - room;
+  int odds = wares[oath].hold + ((hurt * 3) >> 2) - 40 + snareEdge;
+  /* Somebody far above you does not take orders from you at any price. */
+  odds -= (theirs.level - you.level) * 3;
+  if (odds < 2) odds = 2;
+  if (odds > 90) odds = 90;
+  return odds;
+}
+
 /* Puts it at your heel. Whatever you had walks away, and it is said out loud
    rather than swapped silently: losing one you raised should cost a sentence. */
 /* How many are travelling with you. */
@@ -2984,6 +3074,141 @@ static int keepBeast(int which, int level) {
   /* The first one you ever take walks out in front. */
   if (MY_BEAST.kind == 255) you.lead = (u8)at;
   you.tamed++;
+  return 1;
+}
+
+/* ------------------------------------------------------------ the kennels ---
+   Six at your heel is all anybody can feed on the road. Everything past the
+   sixth was turned loose on the spot, which meant a good net thrown well after
+   your party was full was worth nothing at all. It is boarded here instead. */
+
+static int holdCount(void) {
+  int i, n = 0;
+  for (i = 0; i < HOLD_MAX; i++) if (you.holdfast[i].kind != 255) n++;
+  return n;
+}
+
+static int holdRoom(void) {
+  int i;
+  for (i = 0; i < HOLD_MAX; i++) if (you.holdfast[i].kind == 255) return i;
+  return -1;
+}
+
+/* Boards one of your six. Returns 0 when the kennels are full. The one you
+   were leading with is never the one that goes, so `lead` cannot end up
+   pointing at an empty place. */
+static int boardBeast(int at) {
+  int room = holdRoom();
+  if (at < 0 || at >= PARTY_MAX || you.party[at].kind == 255) return 0;
+  if (room < 0) return 0;
+  you.holdfast[room] = you.party[at];
+  you.party[at].kind = 255;
+  if (you.lead == (u8)at) {
+    int i;
+    you.lead = 0;
+    for (i = 0; i < PARTY_MAX; i++) if (you.party[i].kind != 255) { you.lead = (u8)i; break; }
+  }
+  return 1;
+}
+
+/* And takes one back out. */
+static int fetchBeast(int at) {
+  int room = partyRoom();
+  if (at < 0 || at >= HOLD_MAX || you.holdfast[at].kind == 255) return 0;
+  if (room < 0) return 0;
+  you.party[room] = you.holdfast[at];
+  you.holdfast[at].kind = 255;
+  if (MY_BEAST.kind == 255) you.lead = (u8)room;
+  return 1;
+}
+
+/* --------------------------------------------------------------- the host ---
+   What a purse buys you. Somebody who has yielded and been paid walks behind
+   you afterwards and swings when you swing; enough of them and a fight at
+   somebody's gate is a fight between two companies. */
+
+/* A sworn sword's numbers at a level, read off the two the table carries.
+   Everything about them is a straight line between level ten and level forty,
+   which is what the generator that dresses them as opponents does too. */
+static int swornStat(int low, int high, int level) {
+  int span = high - low;
+  if (level < 1) level = 1;
+  if (level > 50) level = 50;
+  return low + (span * (level - 10)) / 30;
+}
+
+static int swornMight(int kind, int level) {
+  return swornStat(swornKinds[kind].might10, swornKinds[kind].might40, level);
+}
+
+static int swornGuard(int kind, int level) {
+  return swornStat(swornKinds[kind].guard10, swornKinds[kind].guard40, level);
+}
+
+static int swornVigour(int kind, int level) {
+  int v = swornStat(swornKinds[kind].vigour10, swornKinds[kind].vigour40, level);
+  return v < 8 ? 8 : v;
+}
+
+static int hostCount(void) {
+  int i, n = 0;
+  for (i = 0; i < HOST_MAX; i++) if (you.host[i].kind != 255) n++;
+  return n;
+}
+
+static int hostRoom(void) {
+  int i;
+  for (i = 0; i < HOST_MAX; i++) if (you.host[i].kind == 255) return i;
+  return -1;
+}
+
+/* What your six add to a blow of yours. Each of them lands something small;
+   together they are worth about as much again as you are, which is what four
+   thousand gold and a fight you had to win first ought to buy. */
+static int myHostBlow(void) {
+  int i, total = 0;
+  for (i = 0; i < HOST_MAX; i++) {
+    int hit;
+    if (you.host[i].kind == 255) continue;
+    hit = swornMight(you.host[i].kind, you.host[i].level) / 6 - theirs.guard / 12;
+    if (hit < 1) hit = 1;
+    total += hit;
+  }
+  return total;
+}
+
+/* And what standing behind six shields is worth when the other company comes at
+   you: they take some of it before it reaches you. */
+static int myHostGuard(void) {
+  int i, total = 0;
+  for (i = 0; i < HOST_MAX; i++) {
+    if (you.host[i].kind == 255) continue;
+    total += swornGuard(you.host[i].kind, you.host[i].level) / 8;
+  }
+  return total;
+}
+
+/* And what theirs add, which is what makes a captain on his own gate a company
+   rather than a man. */
+static int theirHostBlow(void) {
+  int n, kind, hit;
+  if (!foeDef || foeBeast >= 0) return 0;
+  n = foeDef->host;
+  if (n <= 0) return 0;
+  kind = foeDef->sworn < SWORN_KINDS ? foeDef->sworn : 0;
+  hit = swornMight(kind, foeLevel) / 6 - mine.guard / 12;
+  if (hit < 1) hit = 1;
+  return hit * n;
+}
+
+/* Takes somebody's oath. Returns 0 when there is nobody left to take it. */
+static int swearIn(int kind, int level) {
+  int at = hostRoom();
+  if (kind >= SWORN_KINDS || at < 0) return 0;
+  you.host[at].kind = (u8)kind;
+  you.host[at].level = (u8)level;
+  you.host[at].exp = 0;
+  you.host[at].hp = swornVigour(kind, level);
   return 1;
 }
 
@@ -3219,9 +3444,22 @@ static int useInDuel(int at) {
         sizeof scratch);
       if (!room) {
         /* Six is the whole party, and a net thrown well should never end with
-           an animal quietly not appearing anywhere. */
-        appendString(scratch, "  But six already walk with you, and it will not "
-          "be the seventh. You cut it loose.", sizeof scratch);
+           an animal quietly not appearing anywhere. It used to be cut loose on
+           the spot; now it goes to the kennels, and is there when you next
+           stand in a maester's hall. */
+        int spare = holdRoom();
+        if (spare >= 0) {
+          you.holdfast[spare].kind = (u8)foeBeast;
+          you.holdfast[spare].level = (u8)theirs.level;
+          you.holdfast[spare].exp = (u16)beastExpFor(theirs.level);
+          you.holdfast[spare].hp = beastVigour(foeBeast, theirs.level);
+          you.tamed++;
+          appendString(scratch, "  Six already walk with you, so it goes to the "
+            "kennels. Any maester's hall will hand it back.", sizeof scratch);
+        } else {
+          appendString(scratch, "  Six walk with you and the kennels are full. "
+            "You cut it loose.", sizeof scratch);
+        }
       } else {
         appendString(scratch, "  That is ", sizeof scratch);
         appendNumber(scratch, partyCount(), sizeof scratch);
@@ -3233,6 +3471,50 @@ static int useInDuel(int at) {
     } else {
       copyString(scratch, "It tears out of the net and comes back angrier.",
         sizeof scratch);
+      snareSaid = scratch;
+    }
+    return 1;
+  }
+  /* An oath. Everything about a road was somebody to knock down and walk past,
+     and the gold you took off them piled up with nothing to spend it on. Put a
+     purse in front of somebody who has already lost and they swear instead:
+     they walk behind you afterwards and swing when you swing. */
+  if (wares[at].kind == WARE_OATH) {
+    if (foeBeast >= 0) {
+      snareSaid = "An animal cannot swear anything, and would not keep it.";
+      return 1;
+    }
+    if (!foeDef || foeDef->sworn >= SWORN_KINDS) {
+      copyString(scratch, theirs.name, sizeof scratch);
+      appendString(scratch, " is not for sale, at that price or any other.",
+        sizeof scratch);
+      snareSaid = scratch;
+      return 1;
+    }
+    if (theirs.dead) {
+      snareSaid = "It has nothing left to swear with.";
+      return 1;
+    }
+    if (hostRoom() < 0) {
+      snareSaid = "Six swords already follow you, and six is what you can pay.";
+      return 1;
+    }
+    if (!you.bag[at]) return 0;
+    you.bag[at]--;
+    if ((int)roll(100) < oathOdds(at)) {
+      swearIn(foeDef->sworn, theirs.level);
+      copyString(scratch, theirs.name, sizeof scratch);
+      appendString(scratch, " looks at what is on offer, looks at the ground, "
+        "and takes it. That is ", sizeof scratch);
+      appendNumber(scratch, hostCount(), sizeof scratch);
+      appendString(scratch, hostCount() == 1 ? " sword behind you."
+                                             : " swords behind you.", sizeof scratch);
+      snareSaid = scratch;
+      theirs.hp = 0;                 /* it is settled, and nobody died of it */
+      snaredIt = 1;
+    } else {
+      copyString(scratch, theirs.name, sizeof scratch);
+      appendString(scratch, " spits, and gets back up.", sizeof scratch);
       snareSaid = scratch;
     }
     return 1;
@@ -3336,9 +3618,9 @@ static const char *sellWare(int at) {
 
 /* ------------------------------------------------------------- the menu --- */
 
-#define MENU_ENTRIES 5
+#define MENU_ENTRIES 6
 static const char *const MENU[MENU_ENTRIES] =
-  { "Sigil", "At Heel", "Pouch", "Record", "Leave" };
+  { "Sigil", "At Heel", "Swords", "Pouch", "Record", "Leave" };
 
 static void paintMenu(void) {
   int i;
@@ -3410,6 +3692,8 @@ static void paintTitle(void) {
 #define SCENE_PORT 10
 #define SCENE_TALE 11
 #define SCENE_PARTY 12
+#define SCENE_HOLD  13    /* the cages at the back of a maester's hall */
+#define SCENE_HOST  14    /* who has sworn to you */
 
 static int scene;
 
@@ -3506,6 +3790,10 @@ static void endDuel(void) {
   }
 }
 
+/* Whoever went down covering you, so the line about it can be read out after
+   the line about waking up somewhere else. */
+static const char *hostFell;
+
 static void youFell(void) {
   int bare;
   sfxLost();
@@ -3516,6 +3804,18 @@ static void youFell(void) {
      who has just put you on the floor is still willing to do it again. */
   you.hp = vigourFor(you.level);
   you.gold -= you.gold / 3;
+  /* And somebody who swore to you does not walk away from it. A host that
+     never thinned would be six swords you paid for once and then forgot. */
+  {
+    int i, last = -1;
+    for (i = 0; i < HOST_MAX; i++) if (you.host[i].kind != 255) last = i;
+    if (last >= 0) {
+      hostFell = swornKinds[you.host[last].kind].name;
+      you.host[last].kind = 255;
+    } else {
+      hostFell = 0;
+    }
+  }
   bare = !you.WORN_WEAPON;
   endDuel();
   /* Somebody carries you home. It costs you a third of your purse and the
@@ -3538,6 +3838,13 @@ static void youFell(void) {
     appendString(scratch, maps[where].name, sizeof scratch);
     appendString(scratch, ", wounds dressed and a third of your purse gone.",
       sizeof scratch);
+  }
+  if (hostFell) {
+    appendString(scratch, "  Your ", sizeof scratch);
+    appendString(scratch, hostFell, sizeof scratch);
+    appendString(scratch, " stood over you while they took you off the field, "
+      "and is not among the people who carried you back.", sizeof scratch);
+    hostFell = 0;
   }
   if (bare) {
     takeWare(FLOOR_WEAPON);
@@ -3705,6 +4012,20 @@ static void raiseBeast(void) {
      never afford to use, which is not a party - it is one beast and a cupboard.
      Each carries its own experience and its own level and grows up on its own
      schedule. */
+  /* And the swords behind you get better at it too. They climb towards your
+     own level and stop there: a company that outgrew its captain would fight
+     the whole game for you. */
+  {
+    int i;
+    for (i = 0; i < HOST_MAX; i++) {
+      Kept *h = &you.host[i];
+      if (h->kind == 255) continue;
+      if (h->level < you.level && roll(3) == 0) {
+        h->level++;
+        h->hp = swornVigour(h->kind, h->level);
+      }
+    }
+  }
   {
     int i, whole = 12 + foeLevel * 6;
     for (i = 0; i < PARTY_MAX; i++) {
@@ -3787,12 +4108,14 @@ static void theyFell(void) {
     you.kills++;
   }
   /* You get some wind back after a win, so a road is walkable without a maester
-     at the end of every field - but an eighth, not a quarter. A quarter was
-     more than an ordinary fight cost you by the middle of the game, which meant
-     the health bar climbed the longer you fought and twenty-six fights in a row
-     was a normal afternoon. Now a long day on the road runs you down, and what
-     a maester's bench brews is worth carrying. */
-  you.hp = mine.hp + (vigourFor(you.level) >> 3);
+     at the end of every field - a sixth of your wind and a little besides, not
+     a quarter. A quarter was more than an ordinary fight cost you by the middle
+     of the game, which meant the health bar climbed the longer you fought and
+     twenty-six fights in a row was a normal afternoon. An eighth was the other
+     way out: once levelling stopped putting you back to full, the audit's own
+     run length said the middle of the game was two fights and a maester, which
+     is a wall. A sixth is the road between the two. */
+  you.hp = mine.hp + vigourFor(you.level) / 6 + 4;
   if (you.hp > vigourFor(you.level)) you.hp = vigourFor(you.level);
   mine.hp = you.hp;
 
@@ -4179,6 +4502,108 @@ static void partyStep(int by) {
   }
 }
 
+/* ------------------------------------------------------------ the kennels ---
+   Two columns: the six walking with you, and the eighteen boarded. Left and
+   right change which side you are on, A moves whatever is under the cursor to
+   the other one. */
+
+static int holdPick, holdSide;
+
+static void paintHoldfast(void) {
+  int i, top;
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
+  drawText(14, 6, "THE KENNELS", C_GOLD);
+  copyString(scratch, "", sizeof scratch);
+  appendNumber(scratch, holdCount(), sizeof scratch);
+  appendString(scratch, " boarded of 18", sizeof scratch);
+  drawText(TXT_W - 14 - textWidth(scratch), 6, scratch, C_DIM);
+  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+
+  drawText(24, 22, "WITH YOU", holdSide ? C_DIM : C_GOLD);
+  drawText(TXT_W - 100, 22, "BOARDED", holdSide ? C_GOLD : C_DIM);
+
+  for (i = 0; i < PARTY_MAX; i++) {
+    int y = 36 + i * 11;
+    const Kept *k = &you.party[i];
+    if (!holdSide && i == partyPick) drawCursor(14, y + 1, C_GOLD);
+    if (k->kind == 255) { drawText(24, y, "-", C_DIM); continue; }
+    drawText(24, y, beasts[k->kind].name,
+      (!holdSide && i == partyPick) ? C_GOLD : (i == you.lead ? C_WELL : C_INK));
+    copyString(scratch, "", sizeof scratch);
+    appendNumber(scratch, k->level, sizeof scratch);
+    drawText(TXT_W - 122 - textWidth(scratch), y, scratch, C_DIM);
+  }
+
+  top = listTop(holdPick, HOLD_MAX);
+  for (i = 0; i < LIST_ROWS && top + i < HOLD_MAX; i++) {
+    int at = top + i, y = 36 + i * 11;
+    const Kept *k = &you.holdfast[at];
+    if (holdSide && at == holdPick) drawCursor(TXT_W - 110, y + 1, C_GOLD);
+    if (k->kind == 255) { drawText(TXT_W - 100, y, "-", C_DIM); continue; }
+    drawText(TXT_W - 100, y, beasts[k->kind].name,
+      (holdSide && at == holdPick) ? C_GOLD : C_INK);
+    copyString(scratch, "", sizeof scratch);
+    appendNumber(scratch, k->level, sizeof scratch);
+    drawText(TXT_W - 20 - textWidth(scratch), y, scratch, C_DIM);
+  }
+  drawText(14, TXT_H - 18,
+    holdSide ? "A: take it out    B: go" : "A: board it    B: go", C_DIM);
+}
+
+/* ------------------------------------------------------------- the muster ---
+   Who has sworn to you, and what each of them is worth when you swing. */
+
+static int hostPick;
+
+static void paintHost(void) {
+  int i, shown = 0;
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
+  drawText(14, 6, "YOUR OWN SWORDS", C_GOLD);
+  copyString(scratch, "", sizeof scratch);
+  appendNumber(scratch, hostCount(), sizeof scratch);
+  appendString(scratch, " of 6", sizeof scratch);
+  drawText(TXT_W - 14 - textWidth(scratch), 6, scratch, C_DIM);
+  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+
+  for (i = 0; i < HOST_MAX; i++) {
+    int y = 24 + shown * 12;
+    const Kept *h = &you.host[i];
+    if (h->kind == 255) continue;
+    if (i == hostPick) drawCursor(14, y + 1, C_GOLD);
+    drawText(24, y, swornKinds[h->kind].name, i == hostPick ? C_GOLD : C_INK);
+    copyString(scratch, "Lv ", sizeof scratch);
+    appendNumber(scratch, h->level, sizeof scratch);
+    drawText(TXT_W - 116, y, scratch, C_DIM);
+    copyString(scratch, "adds ", sizeof scratch);
+    appendNumber(scratch, swornMight(h->kind, h->level) / 6, sizeof scratch);
+    appendString(scratch, " to a blow", sizeof scratch);
+    drawText(TXT_W - 14 - textWidth(scratch), y, scratch, C_DIM);
+    shown++;
+  }
+  if (!shown) {
+    drawText(24, 34, "Nobody has sworn to you.", C_DIM);
+    drawText(24, 48, "Beat somebody on the road down to nearly nothing,", C_DIM);
+    drawText(24, 60, "then put a purse in front of them instead of a sword.", C_DIM);
+  } else {
+    /* Their own numbers, not what they would do to whoever you last fought:
+       `theirs` still holds the last opponent out here, and a card that read
+       differently depending on who you happened to beat an hour ago would be
+       a card nobody could trust. */
+    int sum = 0;
+    for (i = 0; i < HOST_MAX; i++) {
+      if (you.host[i].kind == 255) continue;
+      sum += swornMight(you.host[i].kind, you.host[i].level) / 6;
+    }
+    copyString(scratch, "Together they add about ", sizeof scratch);
+    appendNumber(scratch, sum, sizeof scratch);
+    appendString(scratch, " to every blow you land.", sizeof scratch);
+    drawText(14, TXT_H - 32, scratch, C_WELL);
+  }
+  drawText(14, TXT_H - 18, "B: go", C_DIM);
+}
+
 /* ---------------------------------------------------------- the last act --
  *
  * The one part of this game that is told rather than walked. A page is a sky, a
@@ -4426,13 +4851,37 @@ static void tryTalk(void) {
       you.haven = worldId;
       you.havenX = (hero.px >> 4);
       you.havenY = (hero.py >> 4);
-      if (you.hp < vigourFor(you.level)) {
+      {
+        /* Everybody who came in with you, not only the one out in front. It
+           used to be you and your lead beast, so five of a party of six walked
+           back out of a maester's hall exactly as hurt as they walked in, and
+           the swords you had paid for were never mended at all. */
+        int i, mended = you.hp < vigourFor(you.level);
         you.hp = vigourFor(you.level);
-        if (MY_BEAST.kind != 255) MY_BEAST.hp = beastVigour(MY_BEAST.kind, MY_BEAST.level);
-        openWindow(npc->name,
-          "Sit. There. Whole again, and no charge to a sworn sword of a great "
-          "house. If you go down out there, they will bring you back here.");
-        return;
+        for (i = 0; i < PARTY_MAX; i++) {
+          Kept *k = &you.party[i];
+          int full;
+          if (k->kind == 255) continue;
+          full = beastVigour(k->kind, k->level);
+          if (k->hp < full) mended = 1;
+          k->hp = full;
+        }
+        for (i = 0; i < HOST_MAX; i++) {
+          Kept *h = &you.host[i];
+          int full;
+          if (h->kind == 255) continue;
+          full = swornVigour(h->kind, h->level);
+          if (h->hp < full) mended = 1;
+          h->hp = full;
+        }
+        if (mended) {
+          mine.hp = you.hp;
+          openWindow(npc->name,
+            "Sit. There. Whole again, you and everyone who walked in behind "
+            "you, and no charge to a sworn sword of a great house. If you go "
+            "down out there, they will bring you back here.");
+          return;
+        }
       }
     }
     /* Everybody has something for somebody who stops to speak to them, once.
@@ -4479,9 +4928,17 @@ static void tryTalk(void) {
         appendString(scratch, " gold into your hand.", sizeof scratch);
       }
     }
+    /* Somebody who fights but does not draw on their own account. Nothing in
+       the game ever said which button starts a fight, so people who stood
+       there after saying their piece read as people you were not allowed to
+       fight at all. */
+    if (npc->fights && !npc->challenges && !beaten[worldId][who]) {
+      appendString(scratch, "   [SELECT to draw on them]", sizeof scratch);
+    }
     openWindow(npc->name, scratch);
     if (npc->trade) { afterWindow = npc->trade; }
     if (npc->sails) { afterPort = 1; }
+    if (npc->holds) { afterHold = 1; }
     /* Somebody whose whole purpose is to fight you draws once they have said
        their piece. SELECT still challenges anybody at all; this is so that a
        lord in his own hall does not simply stand there after speaking. */
@@ -4586,6 +5043,31 @@ static void tickSpotted(void) {
 }
 
 /* Everyone who is not waiting to say something has somewhere to be. */
+/* Getting somebody out of your way. They step aside if there is anywhere at all
+   to step; if there is not, the two of you change places, because a game that
+   stops dead is worse than a guardsman who ends up where you were standing. */
+static int shoveDir = -1, shoveHold;
+
+static int shoveAside(int x, int y) {
+  int who = crowdAt(x, y), d;
+  if (who < 0 || crowd[who].walk || hero.walk) return 0;
+  for (d = 0; d < 4; d++) {
+    int tx = x + DIR_X[d], ty = y + DIR_Y[d];
+    if (solidAt(tx, ty) || ledgeAt(tx, ty) || occupied(tx, ty, who)) continue;
+    stepBody(&crowd[who], d);
+    moveBody(&crowd[who], WALK_SPEED);
+    crowdTimer[who] = 120;      /* and they stay out of it for a while */
+    return 1;
+  }
+  crowd[who].px = hero.px;
+  crowd[who].py = hero.py;
+  crowd[who].dir = (u8)(hero.dir ^ 1);
+  hero.px = (s16)(x << 4);
+  hero.py = (s16)(y << 4);
+  crowdTimer[who] = 120;
+  return 1;
+}
+
 static void moveCrowd(void) {
   int i;
   for (i = 0; i < crowdCount; i++) {
@@ -4831,13 +5313,21 @@ int main(void) {
           layoutTextRows(TEXT_TOP);
           paintParty();
         } else if (menuPick == 2) {
+          scene = SCENE_HOST;
+          hostPick = 0;
+          while (hostPick < HOST_MAX && you.host[hostPick].kind == 255) hostPick++;
+          if (hostPick >= HOST_MAX) hostPick = 0;
+          clearPage();
+          layoutTextRows(TEXT_TOP);
+          paintHost();
+        } else if (menuPick == 3) {
           scene = SCENE_BAG;
           bagInDuel = 0;
           bagPick = 0;
           clearPage();
           layoutTextRows(TEXT_TOP);
           paintBag();
-        } else if (menuPick == 3) {
+        } else if (menuPick == 4) {
           keepRecord();
           clearPage();
           layoutTextRows(TEXT_PLAY);
@@ -4848,6 +5338,53 @@ int main(void) {
           clearPage();
           layoutTextRows(TEXT_PLAY);
         }
+      }
+    } else if (scene == SCENE_HOST) {
+      int was = hostPick, i;
+      if (hit(KEY_UP)) {
+        for (i = hostPick - 1; i >= 0; i--) if (you.host[i].kind != 255) { hostPick = i; break; }
+      }
+      if (hit(KEY_DOWN)) {
+        for (i = hostPick + 1; i < HOST_MAX; i++) if (you.host[i].kind != 255) { hostPick = i; break; }
+      }
+      if (hostPick != was) { sfxPick(); paintHost(); }
+      if (hit(KEY_B)) {
+        scene = SCENE_MENU;
+        clearPage();
+        layoutTextRows(TEXT_TOP);
+        paintMenu();
+      }
+    } else if (scene == SCENE_HOLD) {
+      int wasPick = holdPick, wasSide = holdSide, wasParty = partyPick;
+      if (hit(KEY_LEFT)) holdSide = 0;
+      if (hit(KEY_RIGHT)) holdSide = 1;
+      if (holdSide) {
+        if (hit(KEY_UP) && holdPick > 0) holdPick--;
+        if (hit(KEY_DOWN) && holdPick < HOLD_MAX - 1) holdPick++;
+      } else {
+        if (hit(KEY_UP) && partyPick > 0) partyPick--;
+        if (hit(KEY_DOWN) && partyPick < PARTY_MAX - 1) partyPick++;
+      }
+      if (holdPick != wasPick || holdSide != wasSide || partyPick != wasParty) {
+        sfxPick();
+        paintHoldfast();
+      }
+      if (hit(KEY_A)) {
+        int moved = holdSide ? fetchBeast(holdPick) : boardBeast(partyPick);
+        if (moved) {
+          sfxRank();
+          /* Whatever is out in front is the art that is loaded, so moving one
+             across can change what is walking behind you on the map. */
+          if (MY_BEAST.kind != 255) {
+            loadBeastArt(MY_BEAST.kind, MY_BEAST_TILE, MY_BEAST_BANK);
+          }
+        }
+        paintHoldfast();
+      }
+      if (hit(KEY_B)) {
+        scene = SCENE_WORLD;
+        clearPage();
+        layoutTextRows(TEXT_PLAY);
       }
     } else if (scene == SCENE_PARTY) {
       int was = partyPick;
@@ -5154,6 +5691,15 @@ int main(void) {
               afterDuel = -1;
               afterWindow = 0;
               callToArms(world->npcs[who].duellist, world->npcs[who].bank, who);
+            } else if (afterHold) {
+              afterHold = 0;
+              holdPick = 0;
+              holdSide = holdCount() && partyRoom() >= 0 ? 1 : 0;
+              partyPick = 0;
+              scene = SCENE_HOLD;
+              clearPage();
+              layoutTextRows(TEXT_TOP);
+              paintHoldfast();
             } else if (afterPort) {
               int mine = portHere();
               afterPort = 0;
@@ -5249,8 +5795,18 @@ int main(void) {
               moveBody(&hero, 2);
             }
           } else if (!solidAt(nx, ny) && !occupied(nx, ny, -1)) {
+            shoveHold = 0;
             stepBody(&hero, want);
             moveBody(&hero, held(KEY_B) ? RUN_SPEED : WALK_SPEED);
+          } else if (!solidAt(nx, ny)) {
+            /* Not a wall - a person. Somebody standing in a one-tile gap used
+               to close the road for as long as they felt like standing there,
+               and in a dead end with your own beast behind you it closed it for
+               good. Lean on the direction and they give way. */
+            if (shoveDir != want) { shoveDir = want; shoveHold = 0; }
+            if (++shoveHold > 18) { shoveHold = 0; shoveAside(nx, ny); }
+          } else {
+            shoveHold = 0;
           }
         }
       }

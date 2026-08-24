@@ -11,6 +11,7 @@
 /** How each shape of animal fights. Three techniques and no weapon. */
 export const BEAST_TECHNIQUES = {
   wolf:     ['bite', 'claw', 'savage'],
+  horse: ['tackle', 'lastcharge', 'rally'],
   bear:     ['gore', 'crush', 'savage'],
   dragon:   ['fireBreath', 'bite', 'claw'],
   fish:     ['coil', 'bite', 'gust'],
@@ -33,6 +34,7 @@ export const BEAST_TECHNIQUES = {
  * most of the reason to keep the one you caught rather than trading up.
  */
 export const GROWS_INTO = {
+  palfrey: { into: 'courser', at: 24 },
   snowpup:    { into: 'direwolf',    at: 20 },
   direwolf:   { into: 'winterfang',  at: 36 },
   emberling:  { into: 'scaleflight', at: 22 },

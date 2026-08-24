@@ -347,7 +347,7 @@ static int winRate(int level, int who, int tries) {
 }
 
 /* How many fights of your own standing you get through in a row, starting whole
-   and getting a quarter of your wind back on each win, the way the cartridge
+   and getting a sixth of your wind back on each win, the way the cartridge
    gives it back. Averaged over `tries` runs. */
 static int runLength(int level, int tries) {
   int total = 0, t;
@@ -366,7 +366,7 @@ static int runLength(int level, int tries) {
       if (who < 0) break;
       if (!duelOnce(level, who, &hp)) break;
       run++;
-      hp += vigourFor(level) >> 3;
+      hp += vigourFor(level) / 6 + 4;
       if (hp > vigourFor(level)) hp = vigourFor(level);
       (void)guard;
     }
@@ -834,7 +834,7 @@ int main(void) {
 
   /* --- and does it stay a fight afterwards? ------------------------------- */
   /* Per-duel odds are the wrong question. You do not go into every fight whole:
-     a win gives you back a quarter of your wind and nothing else, so what
+     a win gives you back a sixth of your wind and nothing else, so what
      decides the road is how many fights you get through before somebody puts
      you down. Dress a player of each standing in what somebody of that standing
      carries and count the run. Ten in a row and the road is a walk; two and it
@@ -1066,6 +1066,108 @@ int main(void) {
       you.WORN_WEAPON = 0;
       you.bag[at] = 0;
     }
+  }
+
+  /* --- the kennels, and the swords behind you ------------------------------ */
+  /* Neither of these is reachable by a wandering run: boarding an animal wants
+     a full party and a maester's hall in the same afternoon, and taking an oath
+     wants a purse, a person worn down to nothing and a good roll. So the rules
+     are checked here, the same way the party's are. */
+  {
+    int k, n;
+    for (k = 0; k < PARTY_MAX; k++) you.party[k].kind = 255;
+    for (k = 0; k < HOLD_MAX; k++) you.holdfast[k].kind = 255;
+    for (k = 0; k < HOST_MAX; k++) you.host[k].kind = 255;
+    you.lead = 0;
+    you.level = 25;
+
+    if (holdCount()) bad("empty kennels count %d", holdCount());
+    for (k = 0; k < PARTY_MAX; k++) keepBeast(k % BEAST_COUNT, 10 + k);
+    /* Board five of the six, leaving the one that was out in front. */
+    for (k = 1; k < PARTY_MAX; k++) {
+      if (!boardBeast(k)) bad("a beast would not board (place %d)", k);
+    }
+    if (holdCount() != 5) bad("five boarded and %d counted", holdCount());
+    if (partyCount() != 1) bad("five of six boarded and %d left at your heel",
+      partyCount());
+    if (you.party[you.lead].kind == 255) {
+      bad("boarding left you leading an empty place");
+    }
+    /* Board the last one too, and see that lead does not point at a ghost. */
+    if (!boardBeast(you.lead)) bad("the last one at your heel would not board");
+    if (partyCount()) bad("everything boarded and %d still at your heel", partyCount());
+    if (holdCount() != 6) bad("six boarded and %d counted", holdCount());
+    /* And back out again. */
+    for (k = 0; k < 6; k++) {
+      int spot = -1, j;
+      for (j = 0; j < HOLD_MAX; j++) if (you.holdfast[j].kind != 255) { spot = j; break; }
+      if (spot < 0) { bad("the kennels emptied early"); break; }
+      if (!fetchBeast(spot)) bad("a boarded beast would not come back out");
+    }
+    if (partyCount() != 6) bad("six fetched and %d at your heel", partyCount());
+    if (holdCount()) bad("everything fetched and %d still boarded", holdCount());
+    if (you.party[you.lead].kind == 255) bad("fetching left you leading nobody");
+    /* Eighteen is the whole kennel and there is no nineteenth place. */
+    for (k = 0; k < PARTY_MAX; k++) you.party[k].kind = 255;
+    for (k = 0; k < HOLD_MAX; k++) {
+      you.holdfast[k].kind = (u8)(k % BEAST_COUNT);
+      you.holdfast[k].level = 10;
+    }
+    if (holdRoom() >= 0) bad("full kennels still report room at %d", holdRoom());
+    keepBeast(0, 10);
+    if (boardBeast(0)) bad("a nineteenth got into kennels of eighteen");
+    for (k = 0; k < HOLD_MAX; k++) you.holdfast[k].kind = 255;
+    for (k = 0; k < PARTY_MAX; k++) you.party[k].kind = 255;
+
+    /* The host: six swear, a seventh does not, and their numbers rise with
+       their level rather than standing still. */
+    if (hostCount()) bad("an empty host counts %d", hostCount());
+    for (k = 0; k < HOST_MAX; k++) {
+      if (!swearIn(k % SWORN_KINDS, 12 + k)) bad("a sword would not swear (place %d)", k);
+    }
+    if (hostCount() != HOST_MAX) bad("six sworn and %d counted", hostCount());
+    if (hostRoom() >= 0) bad("a full host still reports room at %d", hostRoom());
+    if (swearIn(0, 20)) bad("a seventh sword got into a host of six");
+    for (k = 0; k < SWORN_KINDS; k++) {
+      if (swornMight(k, 10) != swornKinds[k].might10) {
+        bad("%s's might at ten is %d, not the %d in the table",
+          swornKinds[k].name, swornMight(k, 10), swornKinds[k].might10);
+      }
+      if (swornMight(k, 40) != swornKinds[k].might40) {
+        bad("%s's might at forty is %d, not the %d in the table",
+          swornKinds[k].name, swornMight(k, 40), swornKinds[k].might40);
+      }
+      if (swornMight(k, 25) <= swornMight(k, 15)) {
+        bad("%s does not get better with levels", swornKinds[k].name);
+      }
+      if (swornVigour(k, 1) < 8) bad("%s has no health at all at level one",
+        swornKinds[k].name);
+    }
+    /* And what six of them are worth when you swing, which is the whole point
+       of paying for them. */
+    theirs.guard = 20;
+    n = myHostBlow();
+    if (n <= 0) bad("six sworn swords add nothing to a blow");
+    for (k = 0; k < HOST_MAX; k++) you.host[k].kind = 255;
+    if (myHostBlow()) bad("an empty host still adds %d to a blow", myHostBlow());
+  }
+
+  /* --- somebody worth swearing, and something to swear them with ----------- */
+  {
+    int i2, oaths = 0, sworn = 0, named = 0;
+    for (i2 = 0; i2 < WARE_COUNT; i2++) if (wares[i2].kind == WARE_OATH) oaths++;
+    if (oaths < 2) bad("only %d things in the world take somebody's oath", oaths);
+    for (i2 = 0; i2 < WARE_COUNT; i2++) {
+      if (wares[i2].kind == WARE_OATH && !wares[i2].hold) {
+        bad("%s would persuade nobody of anything", wares[i2].name);
+      }
+    }
+    for (i2 = 0; i2 < DUELLIST_COUNT; i2++) {
+      if (duellists[i2].sworn < SWORN_KINDS) sworn++;
+      if (duellists[i2].fixed && duellists[i2].sworn < SWORN_KINDS) named++;
+    }
+    if (!sworn) bad("nobody in the world can be taken into service");
+    if (named) bad("%d people the story knows by name are for hire", named);
   }
 
   /* --- the record, written and read back ---------------------------------- */

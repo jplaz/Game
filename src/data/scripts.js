@@ -79,6 +79,13 @@ export const SCRIPTS = {
   },
 
   /** Maester's Hall healer. */
+  /* The cages at the back of a maester's hall. The cartridge opens its own
+     holdfast screen here; in the browser this is a line and nothing more. */
+  async kennel({ say, npc }) {
+    await say(npc.data?.line
+      ?? 'Kennelmaster: Anything you cannot carry, I will board.');
+  },
+
   async healer({ say, choose, npc, healParty }) {
     const line = npc.data?.line ?? 'Shall I see to your creatures?';
     const answer = await choose(line, ['Yes, please', 'No, thank you']);

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -16,18 +16,6 @@ jobs:
     steps:
       - name: Checkout build harness
         uses: actions/checkout@v4
-
-      - name: Record Actions run ID
-        shell: bash
-        run: |
-          printf '%s\n' "$GITHUB_RUN_ID" > crossroads_westeros/latest_run_id.txt
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add crossroads_westeros/latest_run_id.txt
-          if ! git diff --cached --quiet; then
-            git commit -m "Record Crossroads build run $GITHUB_RUN_ID [skip ci]"
-            git push origin HEAD:chatgpt/crossroads-westeros
-          fi
 
       - name: Install GBA toolchain
         run: |
@@ -44,8 +32,8 @@ jobs:
       - name: Apply Westeros foundation edits
         run: python3 crossroads_westeros/apply_westeros.py crossroads
 
-      - name: Apply Westeros presentation v2
-        run: python3 crossroads_westeros/apply_westeros_v2.py crossroads
+      - name: Apply compile-safe Westeros presentation pass
+        run: python3 crossroads_westeros/apply_westeros_v2_safe.py crossroads
 
       - name: Convert title artwork to GBA 4bpp
         run: python3 crossroads_westeros/fix_title_palette.py crossroads
@@ -82,44 +70,39 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Record build information
+      - name: Verify and record build information
         if: steps.build.outcome == 'success'
         run: |
+          test "$(stat -c%s crossroads/westeros_crossroads.gba)" -ge 16777216
           sha256sum crossroads/westeros_crossroads.gba | tee crossroads/WESTEROS_BUILD_SHA256.txt
           cat > crossroads/WESTEROS_BUILD_NOTES.txt <<'EOF'
-          Game of Thrones / Westeros RPG - Crossroads v2
-          Base: eonlynx/pokecrossroads master
-          Engine: pokeemerald-expansion / Pokemon Crossroads
+          A Song of Ice and Monsters: Thronebound - Crossroads Westeros build
+          Base engine: eonlynx/pokecrossroads / pokeemerald-expansion
 
-          This build intentionally treats Crossroads as an engine rather than a Pokemon presentation.
+          Included in this playable build:
+          - Winterfell opening and Westeros-specific new-game introduction
+          - First quest hook centered on a Winterfell scout
+          - Game of Thrones title treatment and Westeros RPG cartridge identity
+          - Westeros region/location names across the world map
+          - RPG terminology pass: Lorebook, Party, Pack, Realm Map, Healer's Hall, Iron Throne, Book of Deeds, gold and sigils
+          - Early companion/creature renames including direwolf, dragon and knight progressions
+          - Crossroads engine and full 32 MiB GBA ROM output retained
 
-          Added/changed in v2:
-          - Game of Thrones title logo source artwork in native GBA 4bpp format
-          - Removed Rayquaza from title scene
-          - GBA header/title identifies the game as a Thrones RPG
-          - Start-menu terminology: Lore, Party, Pack, Realm Map, Hunt Map
-          - Pokemon-facing terms broadly converted to Westeros RPG terminology in player-facing text
-          - Pokemon Center -> Healer's Hall
-          - Pokemon League -> Iron Throne
-          - Hall of Fame -> Book of Deeds
-          - money -> gold; badges -> sigils; trainer -> fighter; gyms -> keeps
-          - Major Hoenn map-section display names repurposed as Westeros locations
-          - Route labels repurposed as Westeros roads/regions
-          - First starter/early creature display names begin conversion to direwolves, dragon progression, squire/knight and hounds
-          - Winterfell opening and first quest hook from v1 retained
+          Build safety fix:
+          - Player-facing string conversion is restricted to single-line quoted strings so engine constants and script identifiers remain intact.
           EOF
 
       - name: Upload compiled ROM
         if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: westeros-crossroads-v2-rom
+          name: thronebound-westeros-gba
           path: |
             crossroads/westeros_crossroads.gba
             crossroads/WESTEROS_BUILD_SHA256.txt
             crossroads/WESTEROS_BUILD_NOTES.txt
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
 
       - name: Fail workflow if ROM build failed
         if: steps.build.outcome != 'success'

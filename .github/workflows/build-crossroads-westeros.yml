@@ -35,6 +35,9 @@ jobs:
       - name: Apply compile-safe Westeros presentation pass
         run: python3 crossroads_westeros/apply_westeros_v2_safe.py crossroads
 
+      - name: Replace Pokemon visuals, cast, creatures and world presentation
+        run: python3 crossroads_westeros/full_westeros_conversion.py crossroads
+
       - name: Convert title artwork to GBA 4bpp
         run: python3 crossroads_westeros/fix_title_palette.py crossroads
 
@@ -76,27 +79,37 @@ jobs:
           test "$(stat -c%s crossroads/westeros_crossroads.gba)" -ge 16777216
           sha256sum crossroads/westeros_crossroads.gba | tee crossroads/WESTEROS_BUILD_SHA256.txt
           cat > crossroads/WESTEROS_BUILD_NOTES.txt <<'EOF'
-          A Song of Ice and Monsters: Thronebound - Crossroads Westeros build
+          A Song of Ice and Monsters: Thronebound - Full Westeros Conversion Build
           Base engine: eonlynx/pokecrossroads / pokeemerald-expansion
 
-          Included in this playable build:
-          - Winterfell opening and Westeros-specific new-game introduction
-          - First quest hook centered on a Winterfell scout
-          - Game of Thrones title treatment and Westeros RPG cartridge identity
-          - Westeros region/location names across the world map
-          - RPG terminology pass: Lorebook, Party, Pack, Realm Map, Healer's Hall, Iron Throne, Book of Deeds, gold and sigils
-          - Early companion/creature renames including direwolf, dragon and knight progressions
-          - Crossroads engine and full 32 MiB GBA ROM output retained
+          This build intentionally keeps the proven GBA engine internally while replacing its visible identity.
 
-          Build safety fix:
-          - Player-facing string conversion is restricted to single-line quoted strings so engine constants and script identifiers remain intact.
+          Included:
+          - Game of Thrones / Westeros title and cartridge identity
+          - Westeros region and city naming across the world map
+          - Major cast conversion: Eddard, Robb, Sansa, Jon, Jaime, Brienne, Melisandre, Beric, Ygritte, Arya, Bran, Oberyn, Tywin, Euron and others
+          - Faction conversion including Lannister and Greyjoy forces
+          - Broad story/dialogue conversion to Westeros terminology
+          - All creature species display names converted away from Pokemon identity
+          - Procedural GBA battle art replacing Pokemon battlers with direwolves, dragons, lions, ravens, stags, krakens, wights, warhorses, bears and hounds
+          - Starter lines specifically converted to direwolf, dragon and lion progressions
+          - Legendary slots converted to creatures such as Balerion, Drogon and sea drakes
+          - Trainer portraits repainted as armored Westerosi fighters/nobles
+          - Overworld people sprite sheets medievalized into cloaked/armored figures
+          - World tileset palettes shifted darker and earthier for a medieval Westeros presentation
+          - Lorebook, Party, Pack, Realm Map, Healer's Hall, Iron Throne, Book of Deeds, Gold and Sigils UI terminology
+          - Full 32 MiB Crossroads GBA ROM output retained
+
+          Engine-safety protections:
+          - Player-facing conversion does not rewrite GBA control codes inside {...}
+          - String matching cannot cross source lines
           EOF
 
       - name: Upload compiled ROM
         if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: thronebound-westeros-gba
+          name: thronebound-full-westeros-gba
           path: |
             crossroads/westeros_crossroads.gba
             crossroads/WESTEROS_BUILD_SHA256.txt

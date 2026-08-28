@@ -186,6 +186,26 @@ static const u16 NOTES[36] = {
 #define D5 26
 #define Eb5 27
 #define G5 31
+/* And the degrees the regions need. The three tunes this cartridge shipped
+   with were all in C minor, which is why every place in the world sounded like
+   the same place: a hundred and one of the hundred and fifty-seven maps asked
+   for one track and got it. */
+#define Db3 1
+#define E3 4
+#define Gb3 6
+#define A3 9
+#define B3 11
+#define Db4 13
+#define E4 16
+#define Gb4 18
+#define A4 21
+#define B4 23
+#define Db5 25
+#define E5 28
+#define F5 29
+#define Gb5 30
+#define A5 33
+#define Bb5 34
 
 typedef struct {
   const u8 *tune;      /* square one */
@@ -248,15 +268,171 @@ static const u8 HALL_UNDER[32] = {
 };
 static const u8 HALL_DRUM[32] = { 0 };
 
-static const Tune TUNES[3] = {
-  { ROAD_TUNE, ROAD_UNDER, ROAD_DRUM, 32, 11, 2 },
-  { DUEL_TUNE, DUEL_UNDER, DUEL_DRUM, 32,  6, 1 },
-  { HALL_TUNE, HALL_UNDER, HALL_DRUM, 32, 16, 2 },
+/* ----------------------------------------------------------- the regions ---
+ *
+ * Three tunes for a hundred and fifty-seven maps, and a hundred and one of
+ * those maps asked for the same one. Music does half the work of making a
+ * place feel like somewhere, and the Wall, Dorne, Braavos and Winterfell were
+ * all playing the road. These are the rest of them: same three voices, same
+ * thirty-two steps, different country.
+ */
+
+/* The North above the Neck: fifths, no third to speak of, and a great deal of
+   space between the notes. Cold is a tempo more than it is a key. */
+static const u8 NORTH_TUNE[32] = {
+  C4, HOLD, HOLD, HOLD, G4, HOLD, HOLD, HOLD,
+  Eb4, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, REST,
+  Bb3, HOLD, HOLD, HOLD, F4, HOLD, HOLD, HOLD,
+  Eb4, HOLD, C4, HOLD, HOLD, HOLD, HOLD, REST,
+};
+static const u8 NORTH_UNDER[32] = {
+  C3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  C3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  Bb3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  Ab3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+};
+static const u8 NORTH_DRUM[32] = {
+  1, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+  1, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 1, 0, 0, 0,
+};
+
+/* The Reach and the river country: major, and it moves. The richest ground in
+   the world ought not to sound like a funeral. */
+static const u8 REACH_TUNE[32] = {
+  G4, HOLD, A4, B4, HOLD, A4, G4, HOLD,
+  E4, HOLD, G4, A4, HOLD, HOLD, HOLD, REST,
+  A4, HOLD, B4, C5, HOLD, B4, A4, HOLD,
+  G4, HOLD, E4, D4, HOLD, HOLD, HOLD, REST,
+};
+static const u8 REACH_UNDER[32] = {
+  C4, HOLD, HOLD, HOLD, G3, HOLD, HOLD, HOLD,
+  C4, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  F3, HOLD, HOLD, HOLD, C4, HOLD, HOLD, HOLD,
+  G3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+};
+static const u8 REACH_DRUM[32] = {
+  1, 0, 0, 1, 0, 0, 1, 0,  1, 0, 0, 1, 0, 0, 1, 0,
+  1, 0, 0, 1, 0, 0, 1, 0,  1, 0, 1, 0, 1, 0, 1, 0,
+};
+
+/* Dorne and the cities across the water: a flattened second, which is the
+   oldest shorthand there is for somewhere hot and a long way off. */
+static const u8 DORNE_TUNE[32] = {
+  A4, HOLD, Bb4, HOLD, A4, G4, F4, HOLD,
+  E4, HOLD, F4, G4, HOLD, HOLD, HOLD, REST,
+  A4, Bb4, C5, HOLD, Bb4, A4, HOLD, HOLD,
+  G4, HOLD, F4, E4, HOLD, HOLD, HOLD, REST,
+};
+static const u8 DORNE_UNDER[32] = {
+  D3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  D3, HOLD, HOLD, HOLD, Bb3, HOLD, HOLD, HOLD,
+  D3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  A3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+};
+static const u8 DORNE_DRUM[32] = {
+  2, 0, 1, 1, 0, 1, 0, 1,  2, 0, 1, 1, 0, 1, 0, 1,
+  2, 0, 1, 1, 0, 1, 0, 1,  2, 1, 1, 1, 0, 1, 1, 1,
+};
+
+/* Salt and slate: the Iron Islands and the coast that gets the weather. Heavy,
+   modal, and it does not resolve because nothing out there ever does. */
+static const u8 IRON_TUNE[32] = {
+  D4, HOLD, HOLD, F4, HOLD, HOLD, G4, HOLD,
+  A4, HOLD, HOLD, HOLD, G4, HOLD, F4, HOLD,
+  D4, HOLD, HOLD, C4, HOLD, HOLD, D4, HOLD,
+  F4, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, REST,
+};
+static const u8 IRON_UNDER[32] = {
+  D3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  D3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  C3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  D3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+};
+static const u8 IRON_DRUM[32] = {
+  2, 0, 0, 0, 1, 0, 0, 0,  2, 0, 0, 0, 1, 0, 1, 0,
+  2, 0, 0, 0, 1, 0, 0, 0,  2, 0, 1, 0, 2, 0, 1, 0,
+};
+
+/* Dragonstone, the Dragonmont, and the ground past the Wall: chromatic, and it
+   keeps going down. Nothing here is meant to be comfortable. */
+static const u8 ASH_TUNE[32] = {
+  C4, HOLD, B3, HOLD, Bb3, HOLD, A3, HOLD,
+  Ab3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, REST,
+  Eb4, HOLD, D4, HOLD, Db4, HOLD, C4, HOLD,
+  B3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, REST,
+};
+static const u8 ASH_UNDER[32] = {
+  Ab3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  Ab3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  G3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  G3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+};
+static const u8 ASH_DRUM[32] = {
+  2, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 1, 0,
+  2, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 1, 0, 1, 1,
+};
+
+/* Inside four walls, anywhere: a room with people in it, quieter than the road
+   outside it. */
+static const u8 TOWN_TUNE[32] = {
+  Eb4, HOLD, G4, HOLD, F4, HOLD, Eb4, HOLD,
+  D4, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, REST,
+  C4, HOLD, Eb4, HOLD, G4, HOLD, F4, HOLD,
+  Eb4, HOLD, D4, HOLD, C4, HOLD, HOLD, REST,
+};
+static const u8 TOWN_UNDER[32] = {
+  C3, HOLD, HOLD, HOLD, G3, HOLD, HOLD, HOLD,
+  Bb3, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD, HOLD,
+  Ab3, HOLD, HOLD, HOLD, Eb3, HOLD, HOLD, HOLD,
+  F3, HOLD, HOLD, HOLD, G3, HOLD, HOLD, HOLD,
+};
+static const u8 TOWN_DRUM[32] = {
+  1, 0, 0, 0, 1, 0, 0, 0,  1, 0, 0, 0, 1, 0, 1, 0,
+  1, 0, 0, 0, 1, 0, 0, 0,  1, 0, 0, 0, 1, 0, 1, 0,
+};
+
+/* Somebody who holds a seat. The duel tune, wound tighter and pitched up: a
+   sigil-holder should not sound like a bandit on a road. */
+static const u8 BOSS_TUNE[32] = {
+  C5, Bb4, Ab4, G4, F4, Eb4, D4, C4,
+  G4, HOLD, Ab4, HOLD, Bb4, HOLD, C5, REST,
+  Db5, C5, Bb4, Ab4, G4, F4, Eb4, D4,
+  Ab4, HOLD, Bb4, HOLD, C5, HOLD, Eb5, REST,
+};
+static const u8 BOSS_UNDER[32] = {
+  C3, C3, C3, C3, C3, C3, C3, C3,
+  Ab3, Ab3, Ab3, Ab3, G3, G3, G3, G3,
+  Db3, Db3, Db3, Db3, Db3, Db3, Db3, Db3,
+  Ab3, Ab3, G3, G3, C3, C3, C3, C3,
+};
+static const u8 BOSS_DRUM[32] = {
+  2, 1, 1, 1, 2, 1, 1, 1,  2, 1, 1, 1, 2, 1, 2, 1,
+  2, 1, 1, 1, 2, 1, 1, 1,  2, 1, 2, 1, 2, 2, 2, 2,
+};
+
+static const Tune TUNES[10] = {
+  { ROAD_TUNE,  ROAD_UNDER,  ROAD_DRUM,  32, 11, 2 },
+  { DUEL_TUNE,  DUEL_UNDER,  DUEL_DRUM,  32,  6, 1 },
+  { HALL_TUNE,  HALL_UNDER,  HALL_DRUM,  32, 16, 2 },
+  { NORTH_TUNE, NORTH_UNDER, NORTH_DRUM, 32, 14, 2 },
+  { REACH_TUNE, REACH_UNDER, REACH_DRUM, 32,  9, 1 },
+  { DORNE_TUNE, DORNE_UNDER, DORNE_DRUM, 32,  8, 0 },
+  { IRON_TUNE,  IRON_UNDER,  IRON_DRUM,  32, 13, 2 },
+  { ASH_TUNE,   ASH_UNDER,   ASH_DRUM,   32, 15, 3 },
+  { TOWN_TUNE,  TOWN_UNDER,  TOWN_DRUM,  32, 10, 1 },
+  { BOSS_TUNE,  BOSS_UNDER,  BOSS_DRUM,  32,  5, 1 },
 };
 
 #define TUNE_ROAD 0
 #define TUNE_DUEL 1
 #define TUNE_HALL 2
+#define TUNE_NORTH 3
+#define TUNE_REACH 4
+#define TUNE_DORNE 5
+#define TUNE_IRON 6
+#define TUNE_ASH 7
+#define TUNE_TOWN 8
+#define TUNE_BOSS 9
 
 static int tunePlaying = -1, tuneStep, tuneWait;
 static int stingLeft, drumLeft;
@@ -5623,8 +5799,12 @@ int main(void) {
     /* One tune for the road, another once steel is out, and the title's own. */
     if (hit(KEY_A) && scene != SCENE_WORLD && scene != SCENE_DUEL) sfxYes();
     if (scene == SCENE_TITLE || scene == SCENE_HOUSE) playTune(TUNE_HALL);
-    else if (scene == SCENE_DUEL || (scene == SCENE_BAG && bagInDuel)) playTune(TUNE_DUEL);
-    else playTune(TUNE_ROAD);
+    /* Somebody holding one of the nine seats does not get the same music as a
+       bandit on a road. */
+    else if (scene == SCENE_DUEL || (scene == SCENE_BAG && bagInDuel)) {
+      playTune(leaderFor(foeId) >= 0 ? TUNE_BOSS : TUNE_DUEL);
+    }
+    else playTune(world->tune);
 
     if (shift) {
       tickShift();

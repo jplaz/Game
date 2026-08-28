@@ -428,6 +428,18 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   /* What each region's greenery is seen under, as a multiplier on red, green
      and blue. A one is the baseline - the Riverlands and the Crownlands are
      what everything else is a departure from. */
+  /* Which of the ten tunes a region is heard under. Indoors anywhere is the
+     room tune; the rest is country. */
+  const TUNE_FOR = {
+    'The North': 3, 'The Wall': 3, 'Beyond the Wall': 7, 'The Neck': 3,
+    'The Vale': 3,
+    'The Riverlands': 4, 'The Reach': 4, 'The Crownlands': 4,
+    'The Westerlands': 4,
+    'Dorne': 5, 'Pentos': 5, 'Volantis': 5, 'Meereen': 5, 'Braavos': 6,
+    'The Iron Islands': 6, 'The Stormlands': 6, 'The Narrow Sea': 6,
+    'Dragonstone': 7,
+  };
+
   const CLIMATE = {
     'The North':       [0.84, 0.94, 1.02],   // cold, blue, the light thin
     'The Wall':        [0.84, 0.94, 1.06],
@@ -917,6 +929,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
 
     out.maps.push({
       id, name: map.name, width, height, cells, solid, cover, ledge, counter,
+      /* What plays here. Three tunes covered a hundred and fifty-seven maps
+         and a hundred and one of them asked for the same one, so the Wall,
+         Dorne, Braavos and Winterfell were the same piece of music. */
+      tune: TUNE_FOR[REGIONS[id] ?? ''] ?? (map.indoor ? 8 : 0),
       npcs, ambushes, wilds,
       chests: (map.items ?? []).map((it) => ({
         x: it.x, y: it.y,
@@ -1852,6 +1868,7 @@ L.push('  const u8  *cover;     /* where something can be hiding */');
 L.push('  const u8  *ledge;     /* a drop you can take but not climb */');
 L.push('  const u8  *counter;   /* solid, but you can speak across it */');
 L.push('  u8 frost;             /* whether the cover here is under snow */');
+L.push('  u8 tune;              /* what plays here */');
 L.push('  u8 scene;             /* which sky a duel fought here is fought under */');
 L.push('  const u16 *residents; u8 residentCount;');
 L.push('  const Warp *warps; u8 warpCount;');
@@ -1933,7 +1950,7 @@ harvest.maps.forEach((map, i) => {
 L.push('static const Map maps[MAP_COUNT] = {');
 harvest.maps.forEach((map, i) => {
   L.push(`  { ${cstr(map.name)}, ${map.width}, ${map.height}, ${map.bank.length}, tiles_${i},`);
-  L.push(`    entries_${i}, solid_${i}, cover_${i}, ledge_${i}, counter_${i}, ${map.frost}, ${map.scene}, residents_${i}, ${map.residents.length},`);
+  L.push(`    entries_${i}, solid_${i}, cover_${i}, ledge_${i}, counter_${i}, ${map.frost}, ${map.tune}, ${map.scene}, residents_${i}, ${map.residents.length},`);
   L.push(`    warps_${i}, ${map.liveWarps}, signs_${i}, ${map.signs.length},`);
   L.push(`    npcs_${i}, ${map.npcs.length}, ambushes_${i}, ${map.ambushes.length},`);
   L.push(`    wilds_${i}, ${map.wilds.length}, chests_${i}, ${map.chests.length},`);

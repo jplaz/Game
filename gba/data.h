@@ -64444,7 +64444,7 @@ static const Port ports[PORT_COUNT] = {
   { "Volantis", 82, 11, 18, 1, 900 },
   { "Meereen", 84, 11, 18, 1, 1400 },
   { "Eastwatch-by-the-Sea", 138, 11, 18, 1, 700 },
-  { "Hardhome", 148, 11, 22, 1, 1800 },
+  { "Hardhome", 148, 11, 21, 1, 1800 },
 };
 
 /* How hard the ground is on every map, measured from each house seat in
@@ -108069,7 +108069,7 @@ static const Npc npcs_150[4] = {
     "Toll Collector", "Titles are cheap this season. Loyalty is not." },
   { 14, 13, 2, 1, 1, 0, 1, 0, 0, 1, 0, 0, 111,
     "Bridge Guard", "Cold watch. Colder if you make trouble." },
-  { 7, 19, 1, 2, 1, 0, 1, 0, 0, 0, 0, 0, 431,
+  { 8, 21, 1, 2, 1, 0, 1, 0, 0, 0, 0, 0, 431,
     "Frey Daughter", "There are a great many of us. Grandfather counts us the way other men count sheep, and about as fondly." },
   { 17, 8, 2, 3, 1, 0, 1, 0, 0, 0, 0, 0, 432,
     "Trader", "Four days I have been waiting to cross. The toll goes up the longer you wait. That is not an accident." },

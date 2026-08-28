@@ -669,45 +669,52 @@ export const CLIFF_KEY = {
   h: '#b0a488',  // the very top of the cliff, in the sun
 };
 
-// Cut stone in courses, each block lit along its top and shaded down its right,
-// so a cliff face has depth instead of being a speckled wall with lines on it.
+/* Rock, not masonry.
+ *
+ * This was cut stone in courses - regular horizontal bands with vertical
+ * joints - and a cliff is never one tile on its own: a route map is walled
+ * with the thing down both sides, so the courses tiled into a brick wall a
+ * hundred feet high and the outdoors read like the inside of a warehouse.
+ * Rock is hollows and grain, so this is blotches with the light caught on
+ * their upper shoulders and not one straight line anywhere in it. */
 export const CLIFF = [
-  'llllllllllllllll',
-  'mmmmmdmmmmmmmmdm',
-  'mmmmmdmmmmmmmmdm',
-  'dddddkddddddddkd',
-  'kkkkkkkkkkkkkkkk',
-  'llllllllllllllll',
-  'mmdmmmmmmdmmmmmm',
-  'mmdmmmmmmdmmmmmm',
-  'ddkdddddddkddddd',
-  'kkkkkkkkkkkkkkkk',
-  'llllllllllllllll',
-  'mmmmmmmdmmmmmmdm',
-  'mmmmmmmdmmmmmmdm',
-  'dddddddkddddddkd',
-  'kkkkkkkkkkkkkkkk',
-  'llllllllllllllll',
+  'mmldlmmmmmmmmmmm',
+  'mldkdlmmlmmmmlmm',
+  'ldkkkdmldlmmmmmm',
+  'mldkdmldddmlmmmm',
+  'mmldmmmldmldlmmm',
+  'mmmmmmmmmldddlmm',
+  'mmmmmlmmldddddmm',
+  'mlmmmmmmmldddmmm',
+  'mmmmmmlmmmldmmmm',
+  'mmmmmldlmlmmmmmm',
+  'mmmmldkdlmmmmmlm',
+  'mmmldkkkdmmmmldl',
+  'lmlmldkdmmmmlddd',
+  'dmmmmldmmmmldddd',
+  'mmmmmmmmmmlmlddd',
+  'mmmlmmmmmmmmmldm',
 ];
 
-// The lip where a cliff meets the sky above it.
+// The lip where a cliff meets the sky above it: two courses of sunlit top,
+// the lit edge, the shadow it throws, and then the face carrying on down.
 export const CLIFF_TOP = [
   'hhhhhhhhhhhhhhhh',
-  'hhhhhhhhhhhhhhhh',
+  'hhhlhhhhhhhhhhhh',
   'llllllllllllllll',
   'kkkkkkkkkkkkkkkk',
-  'llllllllllllllll',
-  'mmmmmdmmmmmmmmdm',
-  'mmmmmdmmmmmmmmdm',
-  'dddddkddddddddkd',
-  'kkkkkkkkkkkkkkkk',
-  'llllllllllllllll',
-  'mmdmmmmmmdmmmmmm',
-  'mmdmmmmmmdmmmmmm',
-  'ddkdddddddkddddd',
-  'kkkkkkkkkkkkkkkk',
-  'llllllllllllllll',
-  'mmmmmmmdmmmmmmdm',
+  'mmldlmmmmmmmmmmm',
+  'mldkdlmmlmmmmlmm',
+  'ldkkkdmldlmmmmmm',
+  'mldkdmldddmlmmmm',
+  'mmldmmmldmldlmmm',
+  'mmmmmmmmmldddlmm',
+  'mmmmmlmmldddddmm',
+  'mlmmmmmmmldddmmm',
+  'mmmmmmlmmmldmmmm',
+  'mmmmmldlmlmmmmmm',
+  'mmmmldkdlmmmmmlm',
+  'mmmldkkkdmmmmldl',
 ];
 
 // --------------------------------------------------------------- flowers --

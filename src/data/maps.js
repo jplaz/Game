@@ -559,15 +559,31 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
   }
 
   // ---- features, painted over open ground only ---------------------------
+  /* Softened at the edges rather than stamped square. A caller asks for a
+     patch of reeds or a pond as a rectangle because a rectangle is what you
+     can write down, and the map came out with three identical oblongs of long
+     grass and a pond with four right angles in it - which reads as furniture
+     somebody put there rather than as ground. The middle of a patch is kept;
+     the rim is eaten into, hardest at the corners, so nothing outdoors has a
+     straight edge on it any more. */
   for (const f of features) {
     const char = CHAR[f.type] ?? floor;
-    for (let yy = f.y; yy < f.y + (f.h ?? 1); yy++) {
-      for (let x = f.x; x < f.x + (f.w ?? 1); x++) {
+    const w = f.w ?? 1, h = f.h ?? 1;
+    for (let yy = f.y; yy < f.y + h; yy++) {
+      for (let x = f.x; x < f.x + w; x++) {
         if (yy <= 0 || yy >= height - 1 || x <= 0 || x >= width - 1) continue;
         const at = g[yy][x];
         // Never over the road, the water or a wall: a feature decorates the
         // ground somebody can already stand on.
         if (at !== floor && at !== grass) continue;
+        // How far in from the rim this tile is, in both directions at once.
+        const inX = Math.min(x - f.x, f.x + w - 1 - x);
+        const inY = Math.min(yy - f.y, f.y + h - 1 - yy);
+        const rim = Math.min(inX, inY);
+        if (w > 2 && h > 2) {
+          if (rim === 0 && roll(3) === 0) continue;          /* nibble the edge */
+          if (inX === 0 && inY === 0 && roll(3) !== 0) continue;  /* and the corners */
+        }
         g[yy][x] = char;
       }
     }

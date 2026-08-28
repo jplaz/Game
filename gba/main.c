@@ -4415,6 +4415,21 @@ static const u16 SKIES[6][11] = {
 /* One eight-by-eight of ground, speckled between the two courses so the floor of
    a duel is a floor and not two flat stripes. `spread` is how much of the lighter
    colour is in it, which is how the ground fades away towards the horizon. */
+/* Which of the three tones a grain of ground takes.
+   This used to be an even three-way split - a third light, a third mid, a
+   third dark, decided per pixel - which at two hundred and forty pixels across
+   is not ground, it is television static, and every fight in the game was
+   fought standing on it. Ground is one tone with grain in it: the depth still
+   decides which tone that is, and the other two are a few grains scattered
+   through it. */
+static int grainOf(int h, int spread, int dark, int mid, int light) {
+  int base = spread >= 6 ? light : (spread >= 5 ? mid : dark);
+  int grit = spread >= 6 ? mid : (spread >= 5 ? light : mid);
+  if (h < 3) return grit;
+  if (h == 3) return spread >= 5 ? dark : light;
+  return base;
+}
+
 static void groundTile(int tile, int dark, int mid, int light, int spread) {
   int y, x;
   for (y = 0; y < 8; y++) {
@@ -4423,7 +4438,7 @@ static void groundTile(int tile, int dark, int mid, int light, int spread) {
       /* A fixed, cheap hash. The same yard every time, which is what stops the
          ground crawling about while you are standing on it. */
       int h = ((x * 7 + y * 13 + tile * 29) * 2654435761u) >> 24 & 31;
-      int c = h < spread ? light : (h < spread + 12 ? mid : dark);
+      int c = grainOf(h, spread, dark, mid, light);
       word |= (u32)c << (x * 4);
     }
     VRAM_BG_CHR[tile * 16 + y * 2] = word;
@@ -4435,7 +4450,7 @@ static void groundTile(int tile, int dark, int mid, int light, int spread) {
     u32 word = 0;
     for (x = 0; x < 8; x++) {
       int h = ((x * 7 + y * 13 + tile * 29 + 977) * 2654435761u) >> 24 & 31;
-      int c = h < spread ? light : (h < spread + 12 ? mid : dark);
+      int c = grainOf(h, spread, dark, mid, light);
       word |= (u32)c << (x * 4);
     }
     VRAM_BG_CHR[tile * 16 + y * 2 + 1] = word;
@@ -4472,6 +4487,8 @@ static void paintDuelGround(void) {
     int band;
     if (ty < 8) band = ty + 1;                 /* the sky, eight rows of it     */
     else if (ty == 8) band = 14;               /* the far bank, dark and hazy   */
+    /* The seam used to be one row of the noisiest tile in the set, which drew a
+       dotted line across the screen where the world met the sky. */
     else if (ty < 11) band = 13;               /* the middle distance           */
     else band = 12;                            /* and the ground you stand on   */
     {

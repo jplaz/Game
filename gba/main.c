@@ -4444,28 +4444,29 @@ static int grainOf(int h, int spread, int dark, int mid, int light) {
   return base;
 }
 
+/* One eight-by-eight of ground.
+ *
+ * This layer is eight bits a pixel - four pixels to a word, two words to a row
+ * - and this wrote four. It shifted a palette index of about two hundred into
+ * a four-bit field, where it did not remotely fit, so every index spilled into
+ * its neighbours and each pair of pixels was read back as one byte of whatever
+ * the spill left behind. The ground of every duel in the game was that
+ * arithmetic, which is why it looked like a fence: eight pixels of garbage,
+ * repeated across two hundred and forty. The sky bands a few lines above got
+ * this right all along, which is why they never striped. */
 static void groundTile(int tile, int dark, int mid, int light, int spread) {
   int y, x;
   for (y = 0; y < 8; y++) {
-    u32 word = 0;
+    u32 lo = 0, hi = 0;
     for (x = 0; x < 8; x++) {
-      /* A fixed, cheap hash. The same yard every time, which is what stops the
-         ground crawling about while you are standing on it. */
-      int c = grainOf(grainHash(x, y, tile, 0), spread, dark, mid, light);
-      word |= (u32)c << (x * 4);
+      /* A fixed hash. The same yard every time, which is what stops the ground
+         crawling about while you are standing on it. */
+      u32 c = (u32)grainOf(grainHash(x, y, tile, 0), spread, dark, mid, light);
+      if (x < 4) lo |= c << (x * 8);
+      else hi |= c << ((x - 4) * 8);
     }
-    VRAM_BG_CHR[tile * 16 + y * 2] = word;
-    VRAM_BG_CHR[tile * 16 + y * 2 + 1] = 0;
-  }
-  /* Four bits a pixel is two pixels a byte and eight pixels a row: one word per
-     row of the tile, and the second word of each pair is the far half. */
-  for (y = 0; y < 8; y++) {
-    u32 word = 0;
-    for (x = 0; x < 8; x++) {
-      int c = grainOf(grainHash(x, y, tile, 977), spread, dark, mid, light);
-      word |= (u32)c << (x * 4);
-    }
-    VRAM_BG_CHR[tile * 16 + y * 2 + 1] = word;
+    VRAM_BG_CHR[tile * 16 + y * 2] = lo;
+    VRAM_BG_CHR[tile * 16 + y * 2 + 1] = hi;
   }
 }
 

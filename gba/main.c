@@ -4415,6 +4415,20 @@ static const u16 SKIES[6][11] = {
 /* One eight-by-eight of ground, speckled between the two courses so the floor of
    a duel is a floor and not two flat stripes. `spread` is how much of the lighter
    colour is in it, which is how the ground fades away towards the horizon. */
+/* A hash that actually mixes.
+   The old one multiplied a linear combination of x and y by a constant and took
+   the top bits, which carries a period-two ripple along x. An even three-way
+   split hid it; a hard threshold does not, and the far bank of every duel came
+   out as a picket fence of alternating columns. Two rounds of xor-shift are
+   enough to break it. */
+static int grainHash(int x, int y, int tile, int salt) {
+  u32 v = (u32)(x * 374761393 + y * 668265263 + tile * 1013904223 + salt);
+  v ^= v >> 13;
+  v *= 1274126177u;
+  v ^= v >> 16;
+  return (int)(v & 31u);
+}
+
 /* Which of the three tones a grain of ground takes.
    This used to be an even three-way split - a third light, a third mid, a
    third dark, decided per pixel - which at two hundred and forty pixels across
@@ -4437,8 +4451,7 @@ static void groundTile(int tile, int dark, int mid, int light, int spread) {
     for (x = 0; x < 8; x++) {
       /* A fixed, cheap hash. The same yard every time, which is what stops the
          ground crawling about while you are standing on it. */
-      int h = ((x * 7 + y * 13 + tile * 29) * 2654435761u) >> 24 & 31;
-      int c = grainOf(h, spread, dark, mid, light);
+      int c = grainOf(grainHash(x, y, tile, 0), spread, dark, mid, light);
       word |= (u32)c << (x * 4);
     }
     VRAM_BG_CHR[tile * 16 + y * 2] = word;
@@ -4449,8 +4462,7 @@ static void groundTile(int tile, int dark, int mid, int light, int spread) {
   for (y = 0; y < 8; y++) {
     u32 word = 0;
     for (x = 0; x < 8; x++) {
-      int h = ((x * 7 + y * 13 + tile * 29 + 977) * 2654435761u) >> 24 & 31;
-      int c = grainOf(h, spread, dark, mid, light);
+      int c = grainOf(grainHash(x, y, tile, 977), spread, dark, mid, light);
       word |= (u32)c << (x * 4);
     }
     VRAM_BG_CHR[tile * 16 + y * 2 + 1] = word;

@@ -64,6 +64,16 @@ export const REGARD = [
   { needs: 'maestersDebt_fought',
     line: 'You drew on men collecting a debt for the Citadel. That story has legs on it.' },
 
+  // --- somebody has been asking after you ----------------------------------
+  { needs: 'somebodyIsAsking',
+    line: 'Somebody was through here asking after you, and paid well enough to be remembered.' },
+  { needs: 'refusedTheOffer',
+    line: 'Word is you were offered a seat and did not take it. Nobody can decide whether that was brave.' },
+  { needs: 'theyThreatenedYou',
+    line: 'They keep their voice down with you now, and it is not respect, it is not wanting to be seen.' },
+  { needs: 'metTheSpider',
+    line: 'You have had a conversation with a man most people believe does not exist.' },
+
   // --- and the far end of the only road nobody walks -----------------------
   { needs: 'sawHardhome',
     line: 'You have been to Hardhome and come back off that beach, which two men in the world have done.' },

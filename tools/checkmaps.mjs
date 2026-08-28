@@ -31,6 +31,24 @@ for (const [id, map] of Object.entries(MAPS)) {
   // Ground you can come to rest on: not solid, and not the drop itself.
   const stand = (x, y) => !solid(x, y) && !ledge(x, y);
 
+  /* A thing in the ground is a chest, and a chest is solid once the exporter
+     has put one there. Somebody standing on one is standing inside furniture:
+     the boatman who is the only way off Hardhome was doing exactly that, and
+     nothing here was looking, because this file reads the grid as written
+     rather than as the cartridge ends up drawing it. */
+  for (const it of map.items ?? []) {
+    for (const p of map.npcs ?? []) {
+      if (p.x === it.x && p.y === it.y) {
+        say(`${id}: ${p.name ?? 'somebody'} stands on the ${it.item} at ${it.x},${it.y}`);
+      }
+    }
+    for (const w of map.warps ?? []) {
+      if (w.x === it.x && w.y === it.y) {
+        say(`${id}: the door to ${w.to} at ${w.x},${w.y} has a ${it.item} in it`);
+      }
+    }
+  }
+
   /* Somebody who never moves is part of the wall. Somebody who roams shuffles
      about and the cartridge already keeps them out of corridors and doorways,
      so they are not a blockage. */

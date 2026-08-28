@@ -82,6 +82,10 @@ const MAP_IDS = [
   'theGift', 'eastwatch', 'maesterHallEastwatch', 'eastwatchArmoury',
   'eastwatchKeep', 'eastwatchInn', 'eastwatchHouse', 'eastwatchCellar',
   'frostfangs', 'crastersKeep', 'crastersHall', 'hardhome',
+  // The river road: the bridge the Freys charge for, the inn where every road
+  // in the realm meets, and the ruin nobody who has held it has died well in.
+  'theGreenFork', 'theTwins', 'twinsHall', 'maesterHallTwins',
+  'theCrossroads', 'crossroadsInn', 'harrenhal', 'harrenhalHall',
 ];
 
 // What the cartridge's hardware will hold.

@@ -2270,6 +2270,7 @@ export const MAPS = {
       { x: 10, y: 0, to: 'moatCailin', tx: 11, ty: 18, dir: 'up' },
       { x: 10, y: 24, to: 'riverrun', tx: 12, ty: 1, dir: 'down' },
       { x: 19, y: 12, to: 'bloodyGate', tx: 11, ty: 28, dir: 'right' },
+      { x: 18, y: 20, to: 'theGreenFork', tx: 11, ty: 28, dir: 'right' },
       { x: 0, y: 12, to: 'ironCoast', tx: 11, ty: 1, dir: 'left' },
     ],
     signs: [
@@ -4367,6 +4368,263 @@ export const MAPS = {
     ],
   }),
 
+  /* ------------------------------------------------------- the river road ---
+     The Riverlands had six maps and it is the crossroads of the continent.
+     Three places everybody in this story passes through at least once: the
+     bridge the Freys charge for, the inn where the roads meet, and the ruin
+     that nobody who has held it has died well. */
+
+  theGreenFork: makeRoute({
+    seed: 0x6F0C, spurs: 5, river: 17,
+    name: 'The Green Fork', ground: 'grass', wall: '#', floor: '.',
+    music: 'route',
+    features: [
+      { type: 'water', x: 3, y: 6, w: 5, h: 3 },
+      { type: 'flowers', x: 15, y: 10, w: 4, h: 2 },
+      { type: 'rubble', x: 5, y: 22, w: 4, h: 2 },
+    ],
+    encounters: [
+      { roamer: 'bandit', min: 10, max: 15, weight: 30 },
+      { roamer: 'brotherhoodBowman', min: 11, max: 16, weight: 26 },
+      { roamer: 'manAtArms', min: 10, max: 15, weight: 22 },
+      { beast: 'riverfry', min: 10, max: 14, weight: 18 },
+      { beast: 'palfrey', min: 10, max: 15, weight: 16 },
+    ],
+    warps: [
+      { x: 11, y: 29, to: 'riverlands', tx: 18, ty: 20, dir: 'down' },
+      { x: 11, y: 0, to: 'theTwins', tx: 11, ty: 20, dir: 'up' },
+    ],
+    signs: [
+      { x: 9, y: 6, text: 'THE GREEN FORK\nNorth to the Twins.\nThe crossing is not free and never has been.' },
+    ],
+    npcs: [
+      { x: 8, y: 14, dir: 'right', sprite: 'tully', name: 'River Serjeant',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 15, y: 20, dir: 'left', sprite: 'smallfolk', name: 'Ferryman',
+        script: 'hideoutLocal',
+        data: { line: 'Ferryman: I would row you across for a copper, but the Freys '
+          + 'own the water as well as the bridge, and they count boats.' } },
+    ],
+    items: [
+      { x: 6, y: 11, item: 'greenbriar', count: 3, flag: 'item_greenfork_briar' },
+      { x: 16, y: 25, item: 'huntersDraught', count: 1, flag: 'item_greenfork_draught' },
+    ],
+  }),
+
+  /* The Twins. Two castles and the only bridge for a hundred leagues, and a
+     family whose entire fortune is that fact. */
+  theTwins: {
+    name: 'The Twins',
+    music: 'town', ground: 'grass', wall: '#',
+    tiles: [
+      '########################',
+      '#......................#',
+      '#..MMMMM........MMMMM..#',
+      '#..AAAAA........AAAAA..#',
+      '#..AAVAA........AAVAA..#',
+      '#..AAAAA........AAAAA..#',
+      '#..AADAA........AADAA..#',
+      '#....-..............-..#',
+      '#....-..............-..#',
+      '#....----------------..#',
+      '#.......-..............#',
+      '#~~~~~~~t~~~~~~~~~~~~~~#',
+      '#~~~~~~~t~~~~~~~~~~~~~~#',
+      '#.......-..............#',
+      '#....----------------..#',
+      '#....-..............-..#',
+      '#..AADAA........AAAAA..#',
+      '#..AAAAA........AAVAA..#',
+      '#..AAVAA........AAAAA..#',
+      '#..AAAAA........AAAAA..#',
+      '#..MMMMM........MMMMM..#',
+      '#..........-...........#',
+      '###########-############',
+    ],
+    encounters: [],
+    warps: [
+      { x: 11, y: 22, to: 'theGreenFork', tx: 11, ty: 1, dir: 'down' },
+      { x: 5, y: 6, to: 'twinsHall', tx: 8, ty: 9, dir: 'up' },
+      { x: 18, y: 6, to: 'maesterHallTwins', tx: 5, ty: 7, dir: 'up' },
+      { x: 5, y: 16, to: 'theCrossroads', tx: 11, ty: 1, dir: 'up' },
+    ],
+    signs: [
+      { x: 10, y: 10, text: 'THE TWINS\nTwo castles, one bridge, and a toll.\nHouse Frey has grown very large on a very small idea.' },
+      { x: 12, y: 13, text: 'The bridge is older than the castles.\nNobody knows who built it and the Freys do not encourage asking.' },
+    ],
+    npcs: [
+      { x: 9, y: 10, dir: 'down', sprite: 'noble', name: 'Toll Collector',
+        script: 'duel', data: { duel: 'manAtArms', host: 3 } },
+      { x: 14, y: 13, dir: 'left', sprite: 'guard', name: 'Bridge Guard',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 7, y: 19, dir: 'up', sprite: 'goodwife', name: 'Frey Daughter',
+        script: 'hideoutLocal',
+        data: { line: 'Frey Daughter: There are a great many of us. '
+          + 'Grandfather counts us the way other men count sheep, and about as fondly.' } },
+      { x: 17, y: 8, dir: 'left', sprite: 'merchant', name: 'Waiting Trader',
+        script: 'hideoutLocal',
+        data: { line: 'Trader: Four days I have been waiting to cross. '
+          + 'The toll goes up the longer you wait. That is not an accident.' } },
+    ],
+    items: [
+      { x: 3, y: 10, item: 'ironScrap', count: 2, flag: 'item_twins_scrap' },
+      { x: 20, y: 13, item: 'poppyMilk', count: 1, flag: 'item_twins_poppy' },
+    ],
+  },
+
+  twinsHall: {
+    name: 'The Hall of the Crossing',
+    indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIIIIIIIIIII',
+      'I==============II',
+      'I===cccccccc===II',
+      'I===cccXccccc==II',
+      'I===cccccccc===II',
+      'I=B====TT======II',
+      'I=B====TT======II',
+      'I==============II',
+      'I==============II',
+      'IIIIIII__IIIIIIII',
+    ],
+    warps: [
+      { x: 7, y: 9, to: 'theTwins', tx: 5, ty: 7, dir: 'down' },
+      { x: 8, y: 9, to: 'theTwins', tx: 5, ty: 7, dir: 'down' },
+    ],
+    npcs: [
+      { x: 9, y: 2, dir: 'down', sprite: 'noble', name: 'Lord of the Crossing',
+        script: 'duel', data: { duel: 'hedgeKnight', host: 5 } },
+      { x: 5, y: 5, dir: 'right', sprite: 'guard', name: 'Frey Man-at-arms',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 12, y: 6, dir: 'left', sprite: 'septa', name: 'Septa of the Crossing',
+        script: 'hideoutLocal',
+        data: { line: 'Septa: Guest right is bread and salt. '
+          + 'It is the oldest law there is, and it holds because everybody agrees it does.' } },
+    ],
+    items: [
+      { x: 2, y: 8, item: 'kingsRansom', count: 1, flag: 'item_twinshall_ransom' },
+    ],
+  },
+
+  maesterHallTwins: maesterHall({
+    exitTo: 'theTwins', exitX: 18, exitY: 7,
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap', 'antidote', 'silverPurse'],
+    healerLine: 'Sit. Nobody crosses that bridge without something aching.',
+    merchantLine: 'Citadel goods, at the price the Freys let me charge for them.',
+  }),
+
+  theCrossroads: makeRoute({
+    seed: 0xC205, spurs: 6,
+    name: 'The Crossroads', ground: 'grass', wall: '#', floor: '.',
+    music: 'route',
+    features: [
+      { type: 'flowers', x: 4, y: 8, w: 4, h: 2 },
+      { type: 'water', x: 16, y: 18, w: 4, h: 3 },
+      { type: 'rubble', x: 6, y: 24, w: 3, h: 2 },
+    ],
+    encounters: [
+      { roamer: 'sellsword', min: 12, max: 18, weight: 30 },
+      { roamer: 'bandit', min: 12, max: 17, weight: 26 },
+      { roamer: 'brotherhoodBowman', min: 13, max: 19, weight: 24 },
+      { beast: 'palfrey', min: 12, max: 17, weight: 16 },
+      { beast: 'ravenling', min: 12, max: 16, weight: 14 },
+    ],
+    warps: [
+      { x: 11, y: 0, to: 'theTwins', tx: 5, ty: 15, dir: 'down' },
+      { x: 11, y: 29, to: 'harrenhal', tx: 11, ty: 20, dir: 'up' },
+      { x: 17, y: 13, to: 'crossroadsInn', tx: 6, ty: 10, dir: 'up' },
+    ],
+    signs: [
+      { x: 9, y: 8, text: 'THE CROSSROADS\nEvery road in the realm goes through here.\nSo does everybody on them.' },
+    ],
+    npcs: [
+      { x: 8, y: 18, dir: 'right', sprite: 'brotherhood', name: 'Hooded Man',
+        script: 'duel', data: { duel: 'brotherhoodBowman' } },
+      { x: 14, y: 24, dir: 'left', sprite: 'smallfolk', name: 'Beggar',
+        script: 'hideoutLocal',
+        data: { line: 'Beggar: I have sat here eleven years. '
+          + 'Everyone in the songs has walked past me and not one of them looked down.' } },
+    ],
+    items: [
+      { x: 5, y: 15, item: 'stillwater', count: 2, flag: 'item_crossroads_water' },
+      { x: 18, y: 6, item: 'ashHaft', count: 2, flag: 'item_crossroads_haft' },
+    ],
+  }),
+
+  crossroadsInn: makeInn({
+    town: 'theCrossroads', name: 'The Inn at the Crossroads', region: 'The Riverlands',
+    keeper: 'Masha', keeperLine: 'Masha: Beds upstairs, board down here, and whatever you have heard on the road stays on it.',
+    drinkerLine: 'Drinker: Four armies have drunk in this room. Not one of them paid.',
+    fighter: 'Sellsword', fighterLine: 'bronn',
+    stock: ['maesterKit', 'poppyMilk', 'stillwater', 'silverPurse'],
+  }),
+
+  /* Harrenhal. Built to be the largest castle ever raised and melted the day
+     it was finished, and every family given it since has ended. */
+  harrenhal: makeHold({
+    name: 'Harrenhal', town: 'theCrossroads', townGate: [11, 28, 'up'],
+    hall: 'harrenhalHall', ground: 'grass', wall: '#', floor: '.', banner: 'V',
+    encounters: [
+      { roamer: 'sellsword', min: 18, max: 25, weight: 28 },
+      { roamer: 'bandit', min: 18, max: 24, weight: 24 },
+      { beast: 'ravenling', min: 18, max: 24, weight: 18 },
+    ],
+    signs: [
+      { x: 11, y: 16, text: 'HARRENHAL\nFive towers, melted at the tops like candles.\nEvery house given this castle has ended. Every one.' },
+    ],
+    npcs: [
+      { x: 11, y: 15, dir: 'up', sprite: 'sellsword', name: 'Gate Sellsword',
+        script: 'duel', data: { duel: 'sellsword', host: 3 } },
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'sellsword', name: 'Bloody Mummer',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'mountain', name: "Mountain's Man",
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'sellsword', name: 'Bloody Mummer',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'guard', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 18, y: 13, dir: 'left', sprite: 'child', name: 'Cupbearer',
+        script: 'hideoutLocal',
+        data: { line: 'Cupbearer: I pour for whoever is holding it this month. '
+          + 'I have poured for three. I am very good at not being looked at.' } },
+    ],
+    items: [
+      { x: 5, y: 9, item: 'ironScrap', count: 3, flag: 'item_harren_scrap' },
+      { x: 18, y: 9, item: 'boiledHide', count: 2, flag: 'item_harren_hide' },
+      { x: 5, y: 16, item: 'poppyMilk', count: 2, flag: 'item_harren_poppy' },
+      { x: 18, y: 16, item: 'seaChest', count: 1, flag: 'item_harren_chest' },
+    ],
+  }),
+
+  harrenhalHall: makeHoldHall({
+    name: 'The Hall of a Hundred Hearths', hold: 'harrenhal',
+    signs: [
+      { x: 8, y: 7, text: 'THE HALL OF A HUNDRED HEARTHS\nThirty-five of them, in truth. Somebody exaggerated\nand the name stuck for three hundred years.' },
+    ],
+    npcs: [
+      { x: 7, y: 2, dir: 'down', sprite: 'mountain', name: 'The Man Holding It',
+        script: 'duel', data: { duel: 'manAtArms', host: 5 } },
+      { x: 5, y: 3, dir: 'right', roams: true, sprite: 'sellsword', name: 'Bloody Mummer',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 11, y: 3, dir: 'left', roams: true, sprite: 'guard', name: 'Garrison Man',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 4, y: 7, dir: 'right', roams: true, sprite: 'sellsword', name: 'Sellsword',
+        script: 'duel', data: { duel: 'sellsword' } },
+      { x: 8, y: 10, dir: 'down', sprite: 'goodwife', name: 'Kitchen Woman',
+        script: 'hideoutLocal',
+        data: { line: 'Kitchen Woman: The stone sweats in summer. '
+          + 'They say it is the dragon still in it. I say it is a badly built roof.' } },
+    ],
+    items: [
+      { x: 1, y: 2, item: 'valyrianShard', count: 1, flag: 'item_harrenhall_shard' },
+      { x: 15, y: 2, item: 'maestersSalts', count: 1, flag: 'item_harrenhall_salts' },
+      { x: 1, y: 10, item: 'greenbriar', count: 3, flag: 'item_harrenhall_briar' },
+      { x: 15, y: 10, item: 'boarTusk', count: 2, flag: 'item_harrenhall_tusk' },
+      { x: 5, y: 10, item: 'stillwater', count: 2, flag: 'item_harrenhall_water' },
+      { x: 11, y: 10, item: 'lordsWarrant', count: 1, flag: 'item_harrenhall_warrant' },
+    ],
+  }),
+
   /* ------------------------------------------------------------- the east ---
      The road along the Wall to Eastwatch, and what is past it.
 
@@ -5323,6 +5581,11 @@ export const REGIONS = {
   crastersHall: 'Beyond the Wall',
   eastwatchCellar: 'The Wall',
   hardhome: 'Beyond the Wall',
+  /* The river road: the bridge, the inn where the roads meet, and the ruin. */
+  theGreenFork: 'The Riverlands', theTwins: 'The Riverlands',
+  twinsHall: 'The Riverlands', maesterHallTwins: 'The Riverlands',
+  theCrossroads: 'The Riverlands', crossroadsInn: 'The Riverlands',
+  harrenhal: 'The Riverlands', harrenhalHall: 'The Riverlands',
   /* The strongholds, each in the region whose town gate opens onto it. */
   stoneCrowHold: 'The Vale', stoneCrowCave: 'The Vale',
   seaDragonHold: 'Dragonstone', seaDragonVault: 'Dragonstone',

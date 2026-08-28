@@ -832,6 +832,38 @@ int main(void) {
     you.house = wasHouse; worldId = wasWorld; layLadder();
   }
 
+  /* --- is the ladder actually climbable? ---------------------------------- */
+  /* The one question nobody had ever asked in numbers. The ladder tells you
+     what level each seat expects; this fights that leader a thousand times at
+     exactly that level, in exactly what somebody of that level is carrying,
+     with the same half-again health and heavier arm that the cartridge gives a
+     sigil-holder. A rung you win one time in five is not a hard fight, it is
+     the end of the game with the rest of it still written. */
+  {
+    int r, worstAt = -1, worst = 100;
+    int wasW = you.WORN_WEAPON, wasA = you.WORN_ARMOUR, wasS = you.WORN_SHIELD;
+    int wasLevel = you.level;
+    for (r = 0; r < LEADER_COUNT; r++) {
+      int lv = leaderLevel[r], odds;
+      Kit k = kitOf(lv * 7, lv);
+      you.WORN_WEAPON = k.arm == KIT_NONE ? 0 : (u8)(k.arm + 1);
+      you.WORN_ARMOUR = k.mail == KIT_NONE ? 0 : (u8)(k.mail + 1);
+      you.WORN_SHIELD = k.shield == KIT_NONE ? 0 : (u8)(k.shield + 1);
+      odds = winRate(lv, leaders[r].duellist, 400);
+      note("rung %2d  %-22s at level %2d: %d wins in a hundred",
+        r + 1, leaders[r].name, lv, odds);
+      if (odds < worst) { worst = odds; worstAt = r; }
+    }
+    you.WORN_WEAPON = (u8)wasW; you.WORN_ARMOUR = (u8)wasA; you.WORN_SHIELD = (u8)wasS;
+    you.level = wasLevel;
+    reckonTechniques();
+    if (worst < 25) {
+      bad("%s wins %d times in a hundred at the level the ladder sends you in "
+          "at: that rung is where the game stops, not where it gets hard",
+        leaders[worstAt].name, worst);
+    }
+  }
+
   /* --- and does it stay a fight afterwards? ------------------------------- */
   /* Per-duel odds are the wrong question. You do not go into every fight whole:
      a win gives you back a sixth of your wind and nothing else, so what

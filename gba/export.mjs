@@ -903,10 +903,32 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const scenes = [];
   const beats = [];
   const choices = [];
+  /* A scene stands on a tile, and the tile written down for it is a wish: the
+     roads are carved fresh every build, so a coordinate that was open grass
+     last month is inside a wood now. This walks outwards until it finds ground
+     somebody can actually stand on, which is the difference between a scene
+     that fires and a scene that is in the file. */
+  const openTileNear = (map, wx, wy, why) => {
+    for (let r = 0; r < 24; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const x = wx + dx, y = wy + dy;
+          if (x < 1 || y < 1 || x >= map.width - 1 || y >= map.height - 1) continue;
+          if (map.solid[y * map.width + x]) continue;
+          if (map.ledge[y * map.width + x]) continue;
+          if ((map.npcs ?? []).some((n) => n.x === x && n.y === y)) continue;
+          if ((map.warps ?? []).some((w) => w.x === x && w.y === y)) continue;
+          return { x, y };
+        }
+      }
+    }
+    throw new Error(`nowhere on ${map.id} for ${why} to happen`);
+  };
   for (const id of CUTSCENE_IDS) {
     const cs = CUTSCENES[id];
     const map = out.maps.find((m) => m.id === cs.map);
     if (!map) throw new Error(`the cutscene ${id} stands on ${cs.map}, which is not on the cartridge`);
+    const where = openTileNear(map, cs.x, cs.y, id);
     const slots = [];
     const slotOf = (who) => {
       let at = slots.indexOf(who);
@@ -956,9 +978,16 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       }
       beats.push(row);
     }
-    scenes.push({ id, map: cs.map, x: cs.x, y: cs.y,
+    scenes.push({ id, map: cs.map, x: where.x, y: where.y,
       flag: flagAt(cs.flag), first, count: beats.length - first,
-      people: slots.length });
+      people: slots.length,
+      /* What has to have happened first. Without these a scene is a thing that
+         occurs; with them a run of scenes is a story, because the fourth one
+         only happens to somebody the second one happened to. */
+      needs: cs.needs ? flagAt(cs.needs) : 255,
+      denies: cs.unless ? flagAt(cs.unless) : 255,
+      sigils: cs.sigils ?? 0,
+      name: cs.name ?? id });
   }
 
   /* The side quests, which are the same machinery pointed at a person rather
@@ -982,21 +1011,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     /* A tile that is actually open. The coordinate written here is a wish; the
        carved roads move about between builds and a quest-giver standing inside
        a hedge is a quest nobody can start. */
-    let spot = null;
-    for (let r = 0; r < 24 && !spot; r++) {
-      for (let dy = -r; dy <= r && !spot; dy++) {
-        for (let dx = -r; dx <= r && !spot; dx++) {
-          const x = place.x + dx, y = place.y + dy;
-          if (x < 1 || y < 1 || x >= map.width - 1 || y >= map.height - 1) continue;
-          if (map.solid[y * map.width + x]) continue;
-          if (map.ledge[y * map.width + x]) continue;
-          if ((map.npcs ?? []).some((n) => n.x === x && n.y === y)) continue;
-          if ((map.warps ?? []).some((w) => w.x === x && w.y === y)) continue;
-          spot = { x, y };
-        }
-      }
-    }
-    if (!spot) throw new Error(`nowhere on ${place.map} for ${id} to stand`);
+    const spot = openTileNear(map, place.x, place.y, id);
     const opts = q.resolve.slice(0, 3);
     const first = beats.length;
     beats.push({ kind: BEAT.say, slot: 0, a: 0, b: 0, c: 0, d: 0, text: q.giver });
@@ -1018,7 +1033,17 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     });
     scenes.push({ id, map: place.map, x: spot.x, y: spot.y,
       flag: flagAt(`quest_${id}`), first, count: beats.length - first, people: 0,
-      quest: 1, name: q.name });
+      quest: 1, name: q.name,
+      needs: q.needs ? flagAt(q.needs) : 255, denies: 255, sigils: q.sigils ?? 0 });
+  }
+
+  {
+    const seen = new Set();
+    for (const sc of scenes) {
+      const key = `${sc.map} ${sc.x},${sc.y}`;
+      if (seen.has(key)) throw new Error(`two scenes stand on ${key}; the second can never fire`);
+      seen.add(key);
+    }
   }
 
   out.scenes = scenes;
@@ -1602,13 +1627,15 @@ for (const c of harvest.choices) {
 L.push('};');
 L.push('typedef struct {');
 L.push('  u8 map, x, y, flag, people, quest;');
+L.push('  u8 needs, denies, sigils;   /* what has to have happened first */');
 L.push('  u16 first, count;');
 L.push('  const char *name;');
 L.push('} Cut;');
 L.push('static const Cut cuts[CUT_COUNT] = {');
 for (const sc of harvest.scenes) {
   L.push(`  { ${MAP_IDS.indexOf(sc.map)}, ${sc.x}, ${sc.y}, ${sc.flag}, ${sc.people}, `
-    + `${sc.quest ?? 0}, ${sc.first}, ${sc.count}, ${cstr(sc.name ?? sc.id)} },`);
+    + `${sc.quest ?? 0}, ${sc.needs ?? 255}, ${sc.denies ?? 255}, ${sc.sigils ?? 0}, `
+    + `${sc.first}, ${sc.count}, ${cstr(sc.name ?? sc.id)} },`);
 }
 L.push('};');
 L.push('');

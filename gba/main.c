@@ -4877,6 +4877,12 @@ static int cutHere(int x, int y) {
   for (i = 0; i < CUT_COUNT; i++) {
     if (cuts[i].map != worldId || cuts[i].x != x || cuts[i].y != y) continue;
     if (flagSet(cuts[i].flag)) continue;
+    /* And what has to have happened first. Five things that each happen once
+       and never refer to one another is five things happening; a scene that
+       only befalls somebody an earlier one befell is a story. */
+    if (cuts[i].needs != 255 && !flagSet(cuts[i].needs)) continue;
+    if (cuts[i].denies != 255 && flagSet(cuts[i].denies)) continue;
+    if (countSigils() < cuts[i].sigils) continue;
     return i;
   }
   return -1;

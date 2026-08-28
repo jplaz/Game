@@ -107116,7 +107116,7 @@ static const Npc npcs_148[7] = {
     "What Was a Woman", "We took what we needed. You buy it. Which of us is the thief?" },
   { 15, 17, 1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 425,
     "What Was a Man", "Kneelers. Every one of you, born on your knees." },
-  { 11, 20, 0, 3, 0, 0, 1, 0, 0, 0, 1, 0, 426,
+  { 12, 21, 0, 3, 0, 0, 1, 0, 0, 0, 1, 0, 426,
     "The Boatman", "I said I would wait until dark. I lied about that, but I am still here, and I will take you off this beach whenever you have had enough." },
   { 3, 19, 3, 4, 1, 0, 1, 0, 0, 0, 0, 0, 427,
     "The Last Ranger", "I came up on the boat before yours. They do not come at you all at once. They wait until you have counted them." },

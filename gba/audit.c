@@ -863,6 +863,26 @@ int main(void) {
       bad("%s is reached by ship, has no door, and nobody on it will sail you "
           "off again: arriving there ends the game", maps[m].name);
     }
+    /* And having somebody there is not enough if he wants paying. A purse
+       spent fighting across the hardest ground in the world is the normal way
+       to arrive at the far side of it. */
+    {
+      int wasWorld = worldId, wasGold = you.gold, out = 0;
+      worldId = m;
+      world = &maps[m];
+      you.gold = 0;
+      for (k2 = 0; k2 < PORT_COUNT; k2++) {
+        if (ports[k2].map == m) continue;
+        if (!sailTo(k2)) { out = 1; break; }
+      }
+      worldId = wasWorld;
+      world = &maps[wasWorld];
+      you.gold = wasGold;
+      if (!out) {
+        bad("%s can be left by ship only, and only by somebody who can still "
+            "pay the fare", maps[m].name);
+      }
+    }
   }
 
   /* --- does the world ever notice you? ------------------------------------ */

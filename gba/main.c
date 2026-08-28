@@ -3428,6 +3428,18 @@ static void paintPort(void) {
 static const char *sailTo(int which) {
   const Port *p = &ports[which];
   if (p->map == worldId) return "You are already tied up here.";
+  /* Getting off a beach costs nothing.
+     Somewhere with no road on it is somewhere you can only leave by water, and
+     charging a fare to leave it means a purse spent fighting your way across it
+     is a cartridge that has quietly ended: the sweep sailed to Hardhome, won
+     every fight on it, and finished three of its nine playthroughs standing on
+     the shingle with three hundred gold against an eighteen-hundred fare. The
+     man who rowed you in wants to leave more than you do. He is not charging
+     you for it. */
+  if (!world->warpCount) {
+    enterMap(p->map, p->x, p->y, p->dir);
+    return 0;
+  }
   if (you.gold < (int)p->fare) return "The captain looks at your purse and looks away.";
   you.gold -= (int)p->fare;
   enterMap(p->map, p->x, p->y, p->dir);

@@ -821,11 +821,20 @@ static void applyLayout(void) {
 
 /* ---------------------------------------------------------------- words ---- */
 
-#define MAX_LINES 20
+/* Twenty was not enough. A win at the end of the game says what they said as
+   they went down, what you took off them, what your steward sent on, what your
+   swords did at somebody else's wall and which sigil just changed hands - and
+   once the wrapper ran out of lines it went on appending to the last one until
+   that filled up too, and then quietly dropped the rest on the floor. That is
+   the "text after a battle gets cut off" you can see on the screen. */
+#define MAX_LINES 48
 #define LINE_CHARS 46
 
 static char lines[MAX_LINES][LINE_CHARS];
 static int lineCount, lineAt;
+/* And if it ever happens again, say so rather than losing it silently: the
+   tester fails the run on this. */
+static int wrapLost;
 static const char *speaker;
 static int windowOpen;
 static int windowTop, windowRows;
@@ -836,6 +845,7 @@ static void wrapText(const char *s, int width) {
   int wordLen = 0, cur = 0;
   lineCount = 0;
   lines[0][0] = 0;
+  wrapLost = 0;
 
   for (;;) {
     char c = *s;
@@ -849,6 +859,7 @@ static void wrapText(const char *s, int width) {
       int need = textWidth(word) + (cur ? charWidth(' ') : 0);
       if (cur && textWidth(lines[lineCount]) + need > width) {
         if (lineCount < MAX_LINES - 1) lineCount++;
+        else wrapLost = 1;                 /* nowhere left to put the rest */
         lines[lineCount][0] = 0;
         cur = 0;
       }
@@ -1385,6 +1396,7 @@ typedef struct {
      meaningless until you have, and nobody is born with a sigil. */
   u8 arms, charge, tincture, saying;
   char houseName[NAME_MAX + 1];
+  s8 favour[HOUSE_COUNT];       /* where you stand with each of the nine */
 } You;
 
 #define HEIR_MAX 4
@@ -1421,6 +1433,88 @@ typedef struct {
 } Seat;
 
 static Seat seat;
+
+/* ------------------------------------------------------------ the nine ------
+ *
+ * What every house in the realm makes of you, from the first morning to the
+ * last. It starts from the sword you swore: your own house thinks well of you,
+ * the houses they cannot stand do not, and the rest have not heard of you. It
+ * moves when you put one of their men in the dirt, when somebody asks you a
+ * question and you answer it, and when you rule.
+ *
+ * And then it is read back at you everywhere: what a merchant in their town
+ * charges, whether their men in the street let you past or square up, what
+ * anybody says when you stop to talk, and how the end of the game reads.
+ *
+ * All of this has existed in the browser game since the beginning - the
+ * rivalries, the price factors, the bands, which house holds which region -
+ * and not one byte of it had ever reached the cartridge. Swearing to Stark and
+ * swearing to Lannister were the same game with a different colour on the
+ * frames.
+ */
+
+static s8 favour[HOUSE_COUNT];
+
+/* -100 to 100, and never past either. */
+static void moveFavour(int house, int by) {
+  int now;
+  if (house < 0 || house >= HOUSE_COUNT || !by) return;
+  now = favour[house] + by;
+  if (now > 100) now = 100;
+  if (now < -100) now = -100;
+  favour[house] = (s8)now;
+}
+
+/* A word for where you stand, and it is the same five words the browser has
+   always used. */
+static const char *bandWord(int house) {
+  int v = (house < 0 || house >= HOUSE_COUNT) ? 0 : favour[house];
+  if (v >= 60) return "sworn";
+  if (v >= 25) return "friendly";
+  if (v > -25) return "neutral";
+  if (v > -60) return "wary";
+  return "hostile";
+}
+
+/* What a merchant on their ground adds or takes off, in hundredths. Being
+   hated is expensive and being one of theirs is not. */
+static int priceFactor(int house) {
+  int v;
+  if (house < 0 || house >= HOUSE_COUNT) return 100;
+  v = favour[house];
+  if (v >= 60) return 80;
+  if (v >= 25) return 90;
+  if (v > -25) return 100;
+  if (v > -60) return 115;
+  return 135;
+}
+
+/* Killing one of somebody's men is not a private matter. Their friends mind a
+   little and the people who cannot stand them are quietly pleased. */
+static void tookOneOfTheirs(int house, int weight) {
+  int i;
+  if (house < 0 || house >= HOUSE_COUNT) return;
+  moveFavour(house, -weight);
+  for (i = 0; i < HOUSE_COUNT; i++) {
+    if (i == house) continue;
+    if (houses[house].allies & (1u << i)) moveFavour(i, -(weight / 3));
+    else if (houses[house].rivals & (1u << i)) moveFavour(i, weight / 3);
+  }
+}
+
+/* Where everybody starts: the house whose sword you took thinks well of you,
+   the two or three they have been at war with for a generation do not. */
+static void seedFavour(int mine) {
+  int i;
+  for (i = 0; i < HOUSE_COUNT; i++) favour[i] = 0;
+  if (mine < 0 || mine >= HOUSE_COUNT) return;
+  favour[mine] = 45;
+  for (i = 0; i < HOUSE_COUNT; i++) {
+    if (i == mine) continue;
+    if (houses[mine].allies & (1u << i)) favour[i] = 18;
+    else if (houses[mine].rivals & (1u << i)) favour[i] = -25;
+  }
+}
 
 /* Where you have already been, and where you were standing when you left. A
    hundred and fifty-seven maps and no way across them but walking made the back
@@ -1772,6 +1866,14 @@ static int expShare(void) { return shareOf(you.exp); }
 /* ----------------------------------------------------------------- world --- */
 
 static const Map *world;
+
+/* Whose ground you are standing on, or -1 for somewhere nobody holds - which is
+   most of the reason to take a ship east: across the narrow sea nobody cares
+   which Westerosi banner you carry, so nobody prices it either. */
+static int groundHouse(void) {
+  int h = world ? world->holder : 255;
+  return h >= HOUSE_COUNT ? -1 : h;
+}
 static int worldId;
 static int camX, camY;
 
@@ -2088,7 +2190,11 @@ static int foeSlot;              /* which of the crowd is being fought, or -1 */
 static int foeBank;              /* which resident appearance they wear */
 static int foeId;                /* which of the duellists, for what they carry */
 static int duelMenu, duelPhase, duelOver;
-static char scratch[288];
+/* Long enough for the longest thing the game ever says in one box: a defeat
+   line, the purse, the experience, a word from your steward, a word from your
+   swords, a rider from your own hall and a sigil changing hands, all on the
+   same win. It used to be 288 and the end of that sentence went nowhere. */
+static char scratch[640];
 
 static void copyString(char *dst, const char *src, int room) {
   int i = 0;
@@ -3277,6 +3383,43 @@ static void paintArms(void) {
 static int courtCount(void);
 static const char *steadyWord(void);
 
+/* The status card has two pages now. The first is you; the second is the nine,
+   because where you stand with them decides what you pay, who squares up to you
+   in the street and how the last act reads, and none of that was visible
+   anywhere in the game. */
+static int statusPage;
+
+static void paintStanding(void) {
+  int i;
+  clearRows(0, TXT_H);
+  drawFrame(6, 2, TXT_W - 12, TXT_H - 6);
+  drawText(16, 6, "WHERE YOU STAND", C_GOLD);
+  { int i;
+    for (i = 0; i < 5; i++) fillRect(10 - i + 4, 60 - 4 + i, 1, 9 - i * 2, C_GOLD); }
+  fillRect(16, 18, TXT_W - 32, 1, C_EDGE);
+  for (i = 0; i < HOUSE_COUNT; i++) {
+    int y = 22 + (i >> 1) * 12, x = (i & 1) ? (TXT_W >> 1) + 4 : 16;
+    const char *word = bandWord(i);
+    u8 ink = favour[i] >= 25 ? C_WELL : favour[i] <= -25 ? C_HURT : C_DIM;
+    drawText(x, y, houses[i].name, i == you.house ? C_HOUSE : C_INK);
+    drawText(x + 96 - textWidth(word), y, word, ink);
+  }
+  {
+    /* The one line that says what any of it is for. */
+    int worst = 0, best = 0;
+    for (i = 1; i < HOUSE_COUNT; i++) {
+      if (favour[i] < favour[worst]) worst = i;
+      if (favour[i] > favour[best]) best = i;
+    }
+    copyString(scratch, "Cheapest in ", sizeof scratch);
+    appendString(scratch, houses[best].name, sizeof scratch);
+    appendString(scratch, " towns; dear in ", sizeof scratch);
+    appendString(scratch, houses[worst].name, sizeof scratch);
+    appendString(scratch, " ones.", sizeof scratch);
+    drawText(16, TXT_H - 22, scratch, C_GOLD);
+  }
+}
+
 static void paintStatus(void) {
   const House *h = &houses[you.house];
   clearRows(0, TXT_H);
@@ -3327,6 +3470,10 @@ static void paintStatus(void) {
   copyString(scratch, "Killed ", sizeof scratch);
   appendNumber(scratch, you.kills, sizeof scratch);
   drawText(16, 77, scratch, C_DIM);
+  /* A chevron at the edge rather than a sentence: the card is full, and the
+     shield in the corner is already sitting where a sentence would go. */
+  { int i;
+    for (i = 0; i < 5; i++) fillRect(TXT_W - 14 + i, 60 - 4 + i, 1, 9 - i * 2, C_GOLD); }
 
   copyString(scratch, "Sigils ", sizeof scratch);
   appendNumber(scratch, countSigils(), sizeof scratch);
@@ -3392,12 +3539,13 @@ extern unsigned char hostSram[65536];              /* the harness's stand-in */
 #else
 #define SRAM ((volatile u8 *)0x0E000000)
 #endif
-/* "ICE5". The kennels, the host, the cutscene flags, a house of your own and
-   now the roads you have already walked have each changed the shape of the
-   record; an old save read as this one would put animals, sworn swords,
-   scenes-already-seen, a hall you never bought and a horse to somewhere you
-   have never been in places they were never written to. */
-#define RECORD_MAGIC 0x35454349u
+/* "ICE6". The kennels, the host, the cutscene flags, a house of your own, the
+   roads you have already walked and now where you stand with the nine have each
+   changed the shape of the record; an old save read as this one would put
+   animals, sworn swords, scenes-already-seen, a hall you never bought, a horse
+   to somewhere you have never been and nine grudges you never earned in places
+   they were never written to. */
+#define RECORD_MAGIC 0x36454349u
 
 typedef struct {
   u32 magic;
@@ -3430,6 +3578,7 @@ typedef struct {
   u8 backAtX[MAP_COUNT], backAtY[MAP_COUNT];
   u8 arms, charge, tincture, saying;
   char houseName[NAME_MAX + 1];
+  s8 favour[HOUSE_COUNT];       /* where you stand with each of the nine */
   /* Which scenes have played and what you answered when one asked. A cutscene
      that fired again after a reload would be worse than one that never fired. */
   u32 storyFlags[STORY_WORDS];
@@ -3485,6 +3634,7 @@ static void keepRecord(void) {
   record.story = you.story;
   record.seat = seat;
   record.crown = crown;
+  { int k; for (k = 0; k < HOUSE_COUNT; k++) record.favour[k] = favour[k]; }
   { int k;
     for (k = 0; k < BEEN_WORDS; k++) record.beenTo[k] = beenTo[k];
     for (k = 0; k < MAP_COUNT; k++) {
@@ -3574,6 +3724,7 @@ static void takeUpRecord(void) {
   you.story = record.story;
   seat = record.seat;
   crown = record.crown;
+  { int k; for (k = 0; k < HOUSE_COUNT; k++) favour[k] = record.favour[k]; }
   { int k;
     for (k = 0; k < BEEN_WORDS; k++) beenTo[k] = record.beenTo[k];
     for (k = 0; k < MAP_COUNT; k++) {
@@ -3704,11 +3855,26 @@ static int atCounter;
  * asking price, which is what anybody gets for second-hand steel, and nothing
  * at all for what you are wearing - a counter will not buy the shirt off your
  * back while you are standing in it. */
+/* What a merchant on this ground asks for a thing. The list price is what a
+   stranger pays; a house that thinks well of you takes a fifth off and a house
+   that does not adds a third, which is the whole reason it matters where you
+   have been making enemies. */
+static int askingPrice(int at) {
+  int f = priceFactor(groundHouse());
+  int p = wares[at].price;
+  if (!p || f == 100) return p;
+  p = p * f / 100;
+  return p < 1 ? 1 : p;
+}
+
 static int wareWorth(int at) {
   const Ware *w = &wares[at];
   if (!you.bag[at] || worn(at)) return 0;
   if (w->kind == WARE_STUFF) return 6 + wares[at].tier * 20;
-  return w->price >> 1;
+  /* And the other way at the same counter: somebody who likes you gives you a
+     fairer price for what you are selling as well. */
+  { int worth = (w->price >> 1) * (200 - priceFactor(groundHouse())) / 100;
+    return worth < 1 ? 1 : worth; }
 }
 
 static void paintBag(void) {
@@ -4249,9 +4415,9 @@ static void paintShop(void) {
     drawText(24, y, wares[at].name,
       mine ? C_DIM : (top + i == shopPick ? C_GOLD : C_INK));
     copyString(scratch, "", sizeof scratch);
-    appendNumber(scratch, wares[at].price, sizeof scratch);
+    appendNumber(scratch, askingPrice(at), sizeof scratch);
     drawText(TXT_W - 24 - textWidth(scratch), y, scratch,
-      you.gold >= wares[at].price ? C_INK : C_DYING);
+      you.gold >= askingPrice(at) ? C_INK : C_DYING);
   }
   {
     describeWare(stall->ware[shopPick], 0);
@@ -4434,13 +4600,13 @@ static int useInDuel(int at) {
 /* Returns a line about what just happened at the counter. */
 static const char *buyWare(int at) {
   const Ware *w = &wares[at];
-  int how;
-  if (you.gold < w->price) return "You cannot afford that, and it shows.";
+  int how, cost = askingPrice(at);
+  if (you.gold < cost) return "You cannot afford that, and it shows.";
   if (w->kind != WARE_POTION && w->kind != WARE_SNARE && w->kind != WARE_OATH
       && w->kind != WARE_RELIC && you.bag[at]) {
     return "You have one of those already.";
   }
-  you.gold -= w->price;
+  you.gold -= cost;
   how = takeWare(at);
   if (you.hp > vigourFor(you.level)) you.hp = vigourFor(you.level);
   if (w->kind == WARE_POTION || w->kind == WARE_SNARE || w->kind == WARE_OATH
@@ -5075,6 +5241,25 @@ static int houseAct(void) {
   return 0;
 }
 
+/* What somebody standing on their own house's ground makes of you, which is
+   the shortest way the world has of telling you that the last hundred fights
+   were not free. Nobody says any of this in a place no house holds. */
+static const char *houseWord(void) {
+  int h = groundHouse();
+  int v;
+  if (h < 0) return 0;
+  v = favour[h];
+  if (v >= 60) return "\"You are one of ours, whatever your name is. Anything "
+                      "in this town, you have only to ask for it.\"";
+  if (v >= 25) return "\"We have heard well of you here. That is worth more "
+                      "than it sounds.\"";
+  if (v <= -60) return "\"I know your face. If you are still in this town at "
+                       "sundown that will be your own doing.\"";
+  if (v <= -25) return "\"You are not welcome here and you know why. Buy what "
+                       "you came for and go.\"";
+  return 0;
+}
+
 /* What people on the road have heard about your house. There is no point in
    having one if the world never mentions it: a hall bought, a marriage made and
    three halls sworn should all be things a stranger in a tavern knows before
@@ -5197,6 +5382,37 @@ static int holdFeast(void) {
 
 
 
+
+/* Who came, and who did not. Read straight off where the nine stand with you
+   when the crown goes on, which is the sum of every man you killed and every
+   answer you gave on the way here. */
+static void sayWhoStood(void) {
+  int i, with = 0, against = 0;
+  copyString(scratch, "", sizeof scratch);
+  for (i = 0; i < HOUSE_COUNT; i++) {
+    if (favour[i] < 25) continue;
+    appendString(scratch, with ? ", " : "In the hall for it: ", sizeof scratch);
+    appendString(scratch, houses[i].name, sizeof scratch);
+    with++;
+  }
+  if (with) appendString(scratch, ".  ", sizeof scratch);
+  else copyString(scratch, "Nobody of any name stood up for it. The hall was "
+    "full and it was quiet.  ", sizeof scratch);
+  for (i = 0; i < HOUSE_COUNT; i++) {
+    if (favour[i] > -25) continue;
+    appendString(scratch, against ? ", " : "Not in the hall at all: ", sizeof scratch);
+    appendString(scratch, houses[i].name, sizeof scratch);
+    against++;
+  }
+  if (against) {
+    appendString(scratch, ". They sent no one and they sent no word, which is "
+      "its own kind of word.", sizeof scratch);
+  } else {
+    appendString(scratch, "Every house in the realm sent somebody. That has not "
+      "happened in three hundred years.", sizeof scratch);
+  }
+  openWindow("The Crowning", scratch);
+}
 
 /* ---------------------------------------------------------- holding it -----
  *
@@ -5970,6 +6186,10 @@ static void tookAlive(const char *said) {
    and the experience are read out, the rail fills up for it, and every rung it
    passes stops it long enough to say what that rung bought. Only then do you
    walk away. */
+/* What a win paid in coin instead of experience, once there is no more
+   experience to be had. Zero on every fight before that. */
+static int winsPaid;
+
 static void theyFell(void) {
   int won = expFrom(foeLevel, you.level);
   sfxWon();
@@ -5982,11 +6202,30 @@ static void theyFell(void) {
     taleWaitingThen = AFTER_CROWN;
   }
   you.gold += foePurse;
-  you.exp += won;
+  /* Fifty is as high as anybody goes, and a sweep of this game reaches fifty
+     with a hundred maps still unwalked - so from there on every fight paid
+     nothing at all and the back half of the game stopped rewarding anything.
+     What you learn past that point is worth money to somebody instead, which
+     is what the halls, the oaths, the feasts and the campaigns all want. */
+  if (you.level >= 50) {
+    winsPaid = won / 2 + 1;
+    you.gold += winsPaid;
+  } else {
+    winsPaid = 0;
+    you.exp += won;
+  }
   if (foeSlot >= 0) beaten[worldId][foeSlot] = 1;
   if (!foeDef || foeDef->mortal) {
     if (foeSlot >= 0) { slain[worldId][foeSlot] = 1; crowdAlive[foeSlot] = 0; }
     you.kills++;
+    /* And whoever they answered to hears about it. Their friends mind, and the
+       people who have been at war with them for a generation are quietly
+       pleased - which is how you end up welcome in half the realm and shot at
+       in the other half without ever deciding to be. */
+    if (foeDef) tookOneOfTheirs(foeDef->house, 6);
+  } else if (foeDef) {
+    /* Beaten and left standing is a smaller matter, but it is not nothing. */
+    tookOneOfTheirs(foeDef->house, 2);
   }
   /* You get some wind back after a win, so a road is walkable without a maester
      at the end of every field - a sixth of your wind and a little besides, not
@@ -6006,8 +6245,14 @@ static void theyFell(void) {
   appendString(scratch, "  You take ", sizeof scratch);
   appendNumber(scratch, foePurse, sizeof scratch);
   appendString(scratch, " gold and ", sizeof scratch);
-  appendNumber(scratch, won, sizeof scratch);
-  appendString(scratch, " experience.", sizeof scratch);
+  if (winsPaid) {
+    appendNumber(scratch, winsPaid, sizeof scratch);
+    appendString(scratch, " more for what you have learned, which is all "
+      "anybody will give you for it now.", sizeof scratch);
+  } else {
+    appendNumber(scratch, won, sizeof scratch);
+    appendString(scratch, " experience.", sizeof scratch);
+  }
   /* Rents, children, and whoever has decided this is a good week to burn one of
      your halls. Worked out here so that the one line it has to say arrives with
      the spoils, rather than as a box of its own between two fights. */
@@ -6923,6 +7168,10 @@ static void tickCut(void) {
     if (hit(KEY_A)) {
       int said = cutPick;
       setFlag(c->flag[said]);
+      /* And who is pleased and who is not. An answer that costs nothing and
+         moves nobody is a menu; this is what makes it a decision. */
+      if (c->houseA[said] < HOUSE_COUNT) moveFavour(c->houseA[said], c->shiftA[said]);
+      if (c->houseB[said] < HOUSE_COUNT) moveFavour(c->houseB[said], c->shiftB[said]);
       sfxRank();
       cutAsking = 0;
       windowOpen = 0;
@@ -7252,13 +7501,13 @@ static void tryTalk(void) {
        characters in the box, so three of them would push the first one out of
        it anyway. */
     if (roll(100) < 52) {
-      int what = (int)roll(3);
+      int what = (int)roll(4);
       int said = 0, tries;
       /* Counted round by hand. A remainder by three on something the compiler
          can see is never negative becomes __aeabi_uidivmod, which does not
          exist here: there is no divide instruction on an ARM7 and no library
          to borrow one from. */
-      for (tries = 0; tries < 3 && !said; tries++, what = what >= 2 ? 0 : what + 1) {
+      for (tries = 0; tries < 4 && !said; tries++, what = what >= 3 ? 0 : what + 1) {
         if (what == 0) {
           int at = regardOf();
           if (at < 0) continue;
@@ -7272,8 +7521,14 @@ static void tryTalk(void) {
           appendString(scratch, style, sizeof scratch);
           appendString(scratch, "\" before you have finished speaking.", sizeof scratch);
           said = 1;
-        } else {
+        } else if (what == 2) {
           const char *word = houseTalk();
+          if (!word) continue;
+          appendString(scratch, "  ", sizeof scratch);
+          appendString(scratch, word, sizeof scratch);
+          said = 1;
+        } else {
+          const char *word = houseWord();
           if (!word) continue;
           appendString(scratch, "  ", sizeof scratch);
           appendString(scratch, word, sizeof scratch);
@@ -7347,11 +7602,26 @@ static void lookForTrouble(void) {
   for (i = 0; i < crowdCount; i++) {
     const Npc *npc = &world->npcs[i];
     int x, y;
-    if (!crowdAlive[i] || !npc->sight || !npc->fights) continue;
+    int sees = npc->sight;
+    if (!crowdAlive[i] || !npc->fights) continue;
     if (beaten[worldId][i] || crowd[i].walk) continue;
+    /* Men-at-arms in the colours of a house that cannot stand you look harder,
+       and men in the colours of a house you have done well by do not look at
+       all. Somewhere nobody holds, everybody minds their own business. */
+    {
+      int h = groundHouse();
+      if (h >= 0) {
+        if (favour[h] <= -60) sees += 2;
+        else if (favour[h] <= -25) sees += 1;
+        else if (favour[h] >= 60) sees = 0;
+        else if (favour[h] >= 25 && sees) sees -= 1;
+      }
+    }
+    if (!sees) continue;
+    if (sees > 5) sees = 5;
     x = crowd[i].px >> 4;
     y = crowd[i].py >> 4;
-    for (step = 1; step <= npc->sight; step++) {
+    for (step = 1; step <= sees; step++) {
       x += DIR_X[crowd[i].dir];
       y += DIR_Y[crowd[i].dir];
       if (solidAt(x, y)) break;
@@ -7623,6 +7893,12 @@ int main(void) {
         you.story = 0;
         you.bag[START_POTION] = 1;
         reckonTechniques();
+        /* And where the nine stand with you before you have done anything at
+           all: your own house is pleased, the two or three they have been at
+           war with for a generation are not, and the rest have not heard of
+           you. Swearing a sword used to change a colour and a starting town
+           and nothing else in the world. */
+        seedFavour(you.house);
         wearYourColours();
         /* Who you are before where you are. */
         scene = SCENE_NAME;
@@ -7672,7 +7948,15 @@ int main(void) {
         }
       }
     } else if (scene == SCENE_STATUS) {
-      if (hit(KEY_START) || hit(KEY_B) || hit(KEY_A)) {
+      if (hit(KEY_RIGHT) && !statusPage) {
+        statusPage = 1;
+        sfxPick();
+        paintStanding();
+      } else if (hit(KEY_LEFT) && statusPage) {
+        statusPage = 0;
+        sfxPick();
+        paintStatus();
+      } else if (hit(KEY_START) || hit(KEY_B) || hit(KEY_A)) {
         scene = SCENE_MENU;
         clearPage();
         layoutTextRows(TEXT_TOP);
@@ -7690,6 +7974,7 @@ int main(void) {
       } else if (hit(KEY_A)) {
         if (menuPick == 0) {
           scene = SCENE_STATUS;
+          statusPage = 0;
           clearPage();
           layoutTextRows(TEXT_MIDDLE);
           paintStatus();
@@ -8047,6 +8332,11 @@ int main(void) {
               enterMap(worldId, hero.px >> 4, hero.py >> 4, hero.dir);
               layoutTextRows(TEXT_PLAY);
               if (then == AFTER_CHAMPION) callToArms(THRONE_CHAMPION, 0, -1);
+              /* And who is in the hall for it. The last act used to read the
+                 same for a player who had spent the whole game keeping the
+                 North's good opinion and one who had spent it burning Stark
+                 villages, which is the game not noticing what you did in it. */
+              else if (you.story >= 3 && !windowOpen) sayWhoStood();
             }
           }
         }

@@ -89,6 +89,13 @@ static void checkSound(void) {
 static void checkFrame(void) {
   int i;
   checkSound();
+  /* A box that ran out of lines and dropped the rest of what somebody said.
+     This is what "the text after a battle gets cut off" looks like from in
+     here, and nothing in the game ever said a word about it. */
+  if (wrapLost) {
+    finding("a window ran off the end of its lines and lost text");
+    wrapLost = 0;
+  }
   if (scene < 0 || scene > SCENE_RIDE) finding("scene is %d, which is not a scene", scene);
   /* Nothing is standing anywhere yet on the screens that come before the
      world, and there is no map to be standing on. */
@@ -1388,7 +1395,39 @@ int main(int argc, char **argv) {
   printf("\n  played %d frames, about %d minutes of real play\n", frameNo, frameNo / 3600);
   printf("  maps reached   %d of %d\n", seenMaps, MAP_COUNT);
   printf("  people spoken  %d of %d\n", talked, totalNpcs);
+  /* And who, by name. "524 of 533" every single run is nine people standing
+     somewhere nobody can get to, and the report never said which nine, so
+     nobody ever went and looked. */
+  if (talked < totalNpcs) {
+    int m, k, shown = 0;
+    printf("      never reached:");
+    for (m = 0; m < MAP_COUNT && shown < 14; m++) {
+      int n = maps[m].npcCount > MAX_CROWD ? maps[m].npcCount : maps[m].npcCount;
+      if (n > MAX_CROWD) n = MAX_CROWD;
+      if (!mapSeen[m]) continue;
+      for (k = 0; k < n && shown < 14; k++) {
+        if (npcTalked[m][k]) continue;
+        printf(" %s at %s(%d,%d);", maps[m].npcs[k].name[0] ? maps[m].npcs[k].name : "somebody",
+          maps[m].name, maps[m].npcs[k].x, maps[m].npcs[k].y);
+        shown++;
+      }
+    }
+    printf("\n");
+  }
   printf("  signs read     %d of %d\n", signs, totalSigns);
+  if (signs < totalSigns) {
+    int m, k, shown = 0;
+    printf("      never read:");
+    for (m = 0; m < MAP_COUNT && shown < 8; m++) {
+      if (!mapSeen[m]) continue;
+      for (k = 0; k < maps[m].signCount && k < 8 && shown < 8; k++) {
+        if (signRead[m][k]) continue;
+        printf(" %s(%d,%d);", maps[m].name, maps[m].signs[k].x, maps[m].signs[k].y);
+        shown++;
+      }
+    }
+    printf("\n");
+  }
   printf("  doors taken    %d\n", warpsTaken);
   printf("  duels          %d (%d won, %d lost, %d broken off)\n", duels, duelsWon, duelsLost, fled);
   printf("  killed         %d\n", kills);
@@ -1442,6 +1481,24 @@ int main(int argc, char **argv) {
       courtsHeld, courtsAnswered, courtCount(), PETITION_COUNT, crown.steady, you.gold);
     if (crownRun && !courtsAnswered) {
       finding("the chair was taken and not one petition was ever heard");
+    }
+    {
+      /* And whether the crowning had anything to say about how you got here. */
+      int k, with = 0, against = 0;
+      for (k = 0; k < HOUSE_COUNT; k++) {
+        if (favour[k] >= 25) with++;
+        if (favour[k] <= -25) against++;
+      }
+      printf("      %d houses stood for it, %d stayed away\n", with, against);
+    }
+  }
+  {
+    /* Where the nine ended up, which is the whole of what a run of choices and
+       a few hundred dead men adds up to. */
+    int k;
+    printf("  the nine       ");
+    for (k = 0; k < HOUSE_COUNT; k++) {
+      printf("%s %d%s", houses[k].name, favour[k], k == HOUSE_COUNT - 1 ? "\n" : "  ");
     }
   }
   printf("  the road       %d ride lists read, %d horses taken, %d halls to ride to\n",

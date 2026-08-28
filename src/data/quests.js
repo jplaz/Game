@@ -23,6 +23,7 @@ export const QUESTS = {
         standing: { tully: 18, lannister: -20 },
         gold: 0,
         choice: ['hangingTree', 'saved'],
+        favour: { tully: 10, lannister: -8 },
         result: 'You cut the ropes. They run without thanking you, which is sensible of them. '
               + 'The Riverlands will hear a stranger did it. So will the Rock.',
       },
@@ -31,6 +32,7 @@ export const QUESTS = {
         standing: { tully: 10, lannister: 4 },
         gold: -800,
         choice: ['hangingTree', 'paid'],
+        favour: { tully: 6 },
         result: 'Eight hundred gold for one pig. The steward counts it twice, disappointed.',
       },
       {
@@ -38,6 +40,7 @@ export const QUESTS = {
         standing: { tully: -10 },
         gold: 0,
         choice: ['hangingTree', 'ignored'],
+        favour: { tully: -10 },
         result: 'You are half a mile away before the sound reaches you. It still reaches you.',
       },
     ],
@@ -56,6 +59,7 @@ export const QUESTS = {
         standing: { stark: 14 },
         gold: 0,
         choice: ['brokenTower', 'looked'],
+        favour: { stark: 6 },
         result: 'A she-wolf and four pups, and a dead ewe she did not take from anyone. '
               + 'You tell the village. They grumble, and they leave it alone.',
       },
@@ -64,6 +68,7 @@ export const QUESTS = {
         standing: { stark: -14, freefolk: -8 },
         gold: 400,
         choice: ['brokenTower', 'burned'],
+        favour: { stark: -6, lannister: 4 },
         result: 'The tower burns. Something screams in it for a while. The village pays you '
               + 'and does not meet your eye afterwards.',
       },
@@ -83,6 +88,7 @@ export const QUESTS = {
         standing: { tyrell: 16 },
         gold: -1500,
         choice: ['maestersDebt', 'paid'],
+        favour: { tyrell: 10 },
         result: 'He weeps, which is awkward for both of you. Highgarden hears of it, which is not.',
       },
       {
@@ -91,6 +97,7 @@ export const QUESTS = {
         gold: 0,
         roamer: { id: 'sellsword', level: 22 },
         choice: ['maestersDebt', 'fought'],
+        favour: { tyrell: 6, lannister: -6 },
         result: 'The collectors decide the debt is not worth this. Wyllis keeps his hands.',
       },
       {
@@ -98,6 +105,7 @@ export const QUESTS = {
         standing: { tyrell: -12 },
         gold: 300,
         choice: ['maestersDebt', 'abandoned'],
+        favour: { tyrell: -10 },
         result: 'They pay you for the trouble of not being trouble. It spends the same as any coin.',
       },
     ],
@@ -116,6 +124,7 @@ export const QUESTS = {
         standing: { nightswatch: 20, freefolk: -6 },
         gold: 500,
         choice: ['deserterAtTheGate', 'returned'],
+        favour: { stark: 8 },
         result: 'They thank you at Castle Black, and they take his head at dawn. '
               + 'Both of those are what the Watch is.',
       },
@@ -124,6 +133,7 @@ export const QUESTS = {
         standing: { nightswatch: -18, freefolk: 10 },
         gold: 0,
         choice: ['deserterAtTheGate', 'freed'],
+        favour: { stark: -8, arryn: 4 },
         result: 'He goes south and you go north, and one of you is walking toward the thing he saw.',
       },
     ],

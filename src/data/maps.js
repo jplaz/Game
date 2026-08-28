@@ -68,7 +68,7 @@ function maesterHall({ exitTo, exitX, exitY, stock, healerLine, merchantLine, ex
  */
 function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = '.',
                     roof = 'R', ridge = 'r', house = 'H', banner = 'V', dressing = [],
-                    shut = [], quarter = 0,
+                    shut = [], quarter = 0, outskirts = null, gate = 13, outsiders = [],
                     encounters = [], warps = [], npcs = [], signs = [], items = [] }) {
   const W = wall;
   const g = floor;
@@ -243,11 +243,441 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
     return { ...p, x: at[0], y: at[1] };
   });
 
+  /* And whoever lives out past the east gate. Written without coordinates and
+     put down here, on ground this function has just finished drawing: hand-
+     placed people in the outskirts spent three rounds of this landing on market
+     stalls, in canals and, twice, in the gateway itself with the whole district
+     walled off behind them. Nothing that is placed by construction can do
+     that. */
+  if (outskirts && outsiders.length) {
+    const spots = [];
+    for (let y = 2; y < 25; y++) {
+      for (let x = 25; x < 31; x++) {
+        if (y === gate) continue;                     /* never in the gateway */
+        if (solidHere(x, y)) continue;
+        /* Somewhere with room to be spoken to from, and room to get past. */
+        let open = 0;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          if (!solidHere(x + dx, y + dy)) open++;
+        }
+        if (open >= 2) spots.push([x, y]);
+      }
+    }
+    outsiders.forEach((who, i) => {
+      if (!spots.length) return;
+      const at = spots[Math.floor(((i + 1) * spots.length) / (outsiders.length + 1))];
+      movedNpcs.push({ ...who, x: at[0], y: at[1] });
+    });
+  }
+
+  /* ---------------------------------------------------------- the outskirts --
+   * Every town in this game was the same twenty-four by twenty-seven box with a
+   * different roof colour on it. Outside the east wall there is now half a town
+   * again, and it is a different half in every one of them: a rose maze at
+   * Highgarden, a shadow city at Sunspear, canals at Braavos, sea stacks at
+   * Pyke, a switchback sky road under the Eyrie. It is twelve columns wide,
+   * hand-drawn per town, and it holds no doors - what is out here is ground,
+   * water, weather and people, so no town needs a dozen new rooms behind it.
+   */
+  if (outskirts) {
+    grid.forEach((r, y) => {
+      for (let x = 24; x < 32; x++) r[x] = y === 0 || y === 26 ? wall : ground === 'sand' ? 's' : g;
+    });
+    outskirts.forEach((line, y) => {
+      [...line].forEach((c, i) => {
+        if (c === ' ' || !grid[y]) return;
+        grid[y][24 + i] = c;
+      });
+    });
+    /* The far edge is the edge of the world and has to say so. Ground that runs
+       off the side of a map is a place the player walks at and cannot leave. */
+    for (let y = 0; y < grid.length; y++) {
+      if (grid[y][31] !== '~') grid[y][31] = wall;
+    }
+    /* A gate through the old east wall, and a road to it. Clearing only the
+       two tiles either side left three towns with the gate opening onto their
+       own quarter's fish pond: the road has to run back far enough to meet
+       ground the town itself can walk on. */
+    for (let x = 18; x <= 24; x++) grid[gate][x] = g;
+  }
+
   const laid = grid.map((r) => r.join(''));
 
   return { name, music, ground, tiles: laid, encounters, warps,
            npcs: movedNpcs, signs, items };
 }
+
+/* The twelve outskirts, one per town, twelve columns by twenty-seven rows.
+   A space means "leave whatever the ground is". */
+const OUTSKIRTS = {
+  /* Under the Eyrie: the sky road, which is a switchback cut into the side of
+     a mountain with nothing at all on the outside of it. */
+  eyrie: [
+    'CCCCCCCC',
+    'CC-CCC^^',
+    'C--CCC^^',
+    'C-CCCC^^',
+    'C--CCC^^',
+    'CC-CCC^^',
+    'CC--CC^^',
+    'CCC--C^^',
+    'CCCC--^^',
+    'CCCCC-^^',
+    'CCCC--^^',
+    'CCC--C^^',
+    '----CCCC',
+    '----CCCC',
+    'CCC--CCC',
+    'CCCC--CC',
+    'CCCCC--C',
+    'CCCCCC-C',
+    'CCCCC--C',
+    'CCCC--CC',
+    'CCC--CCC',
+    'CC--CCCC',
+    'CC-CCCCC',
+    'CC--CCCC',
+    'CCC--CCC',
+    'CCCC-CCC',
+    'CCCCCCCC',
+  ],
+  /* Highgarden: a briar maze with a fountain at the middle of it, which is the
+     only thing in the Reach anybody will tell you about twice. */
+  roseMaze: [
+    '########',
+    '#*....*#',
+    '#.###.##',
+    '#.#.#.##',
+    '#.#.#.##',
+    '#.#...##',
+    '#.###.##',
+    '#...#.##',
+    '#.#.####',
+    '#.#**.##',
+    '#.*~~*##',
+    '#.*~~*##',
+    '###**.##',
+    '.......#',
+    '#####.##',
+    '#...#.##',
+    '#.#.#.##',
+    '#.#...##',
+    '#.######',
+    '#.#...##',
+    '#.#.#.##',
+    '#.#.#.##',
+    '#.###.##',
+    '#.....##',
+    '#####.##',
+    '#*....*#',
+    '########',
+  ],
+  /* Sunspear: the shadow city, which is not a city and was not built. Ten
+     thousand people living in mud brick against the outside of the walls. */
+  shadowCity: [
+    'MMMMMMMM',
+    'ssssssss',
+    'ssYYsYYs',
+    'ssHHsHHs',
+    'ssssssss',
+    'ssYYsYYs',
+    'ssHHsHHs',
+    'ssssssss',
+    'ssYYsYYs',
+    'ssHHsHHs',
+    'ssssssss',
+    'ssYYsYYs',
+    'ssHHsHHs',
+    'ssssssss',
+    'ssYYsYYs',
+    'ssHHsHHs',
+    'ssssssss',
+    'ssYYsYYs',
+    'ssHHsHHs',
+    'ssssssss',
+    'ssYYsYYs',
+    'ssHHsHHs',
+    'ssssssss',
+    'ssYYsYYs',
+    'ssHHsHHs',
+    'ssssssss',
+    'MMMMMMMM',
+  ],
+  /* Storm's End: the cliff, the sea, and a hull nobody got off. */
+  seaCliff: [
+    'CCCCCCCC',
+    '....C~~~',
+    '....C~~~',
+    '....C~~~',
+    '.U..C~~~',
+    '....C~~~',
+    '....C~~~',
+    '....C~~~',
+    '....C~~~',
+    '....C~~~',
+    '..U.C~~~',
+    '....C~~~',
+    '....C~~~',
+    '.....~~~',
+    '....C~~~',
+    '....C~~~',
+    '.U..C~~~',
+    '....C~~~',
+    '....C~~~',
+    '....C~~~',
+    '....C~~~',
+    '..*.C~~~',
+    '....C~~~',
+    '....C~~~',
+    '....C~~~',
+    '....C~~~',
+    'CCCCCCCC',
+  ],
+  /* Dragonstone: black sand and steam, and nothing growing on any of it. */
+  smokingStrand: [
+    'CCCCCCCC',
+    'ddddC~~~',
+    'dUddC~~~',
+    'ddddC~~~',
+    'ddddC~~~',
+    'ddddC~~~',
+    'dddUC~~~',
+    'ddddC~~~',
+    'ddddC~~~',
+    'ddddC~~~',
+    'ddddC~~~',
+    'ddUdC~~~',
+    'ddddC~~~',
+    'ddddd~~~',
+    'ddddC~~~',
+    'ddddC~~~',
+    'dddUC~~~',
+    'ddddC~~~',
+    'ddddC~~~',
+    'ddddC~~~',
+    'ddddC~~~',
+    'dUddC~~~',
+    'ddddC~~~',
+    'ddddC~~~',
+    'ddUdC~~~',
+    'ddddC~~~',
+    'CCCCCCCC',
+  ],
+  /* Braavos: canals, and bridges over them, and nowhere flat to build. */
+  canals: [
+    'MMMMMMMM',
+    'ooo~~ooo',
+    'ooo~~ooo',
+    'ooottooo',
+    'ooo~~ooo',
+    'ooo~~ooo',
+    '~t~~~~t~',
+    '~t~~~~t~',
+    'ooo~~ooo',
+    'ooo~~ooo',
+    'ooo~~ooo',
+    'ooottooo',
+    'ooo~~ooo',
+    'ooo~~ooo',
+    'ooo~~ooo',
+    '~t~~~~t~',
+    '~t~~~~t~',
+    'ooo~~ooo',
+    'ooo~~ooo',
+    'ooo~~ooo',
+    'ooottooo',
+    'ooo~~ooo',
+    'ooo~~ooo',
+    '~t~~~~t~',
+    '~t~~~~t~',
+    'ooo~~ooo',
+    'MMMMMMMM',
+  ],
+  /* Pentos: awnings, and every one of them selling something you have not
+     heard of. */
+  spiceMarket: [
+    'MMMMMMMM',
+    'oooooooo',
+    'oKoKoKoo',
+    'oooooooo',
+    'oKoKoKoo',
+    'oooooooo',
+    'oKoKoKoo',
+    'oooooooo',
+    'oKoKoKoo',
+    'oooooooo',
+    'oKoKoKoo',
+    'oooooooo',
+    'oKoKoKoo',
+    'oooooooo',
+    'oKoKoKoo',
+    'oooooooo',
+    'oKoKoKoo',
+    'oooooooo',
+    'oKoKoKoo',
+    'oooooooo',
+    'oKoKoKoo',
+    'oooooooo',
+    'oKoKoKoo',
+    'oooooooo',
+    'oKoKoKoo',
+    'oooooooo',
+    'MMMMMMMM',
+  ],
+  /* Volantis: the Black Wall, which is older than anything else standing and
+     which nobody without Valyrian blood may go behind. */
+  blackWall: [
+    'MMMMMMMM',
+    'oooooooo',
+    'AoAAAAAA',
+    'AoAAAAAA',
+    'oooooooo',
+    'oKoooooo',
+    'oooooooo',
+    'AAAoAAAA',
+    'AAAoAAAA',
+    'oooooooo',
+    'ooooooKo',
+    'oooooooo',
+    'AAAAAoAA',
+    'oAAAAoAA',
+    'oooooooo',
+    'oKoooooo',
+    'oooooooo',
+    'AoAAAAAA',
+    'AoAAAAAA',
+    'oooooooo',
+    'ooooooKo',
+    'oooooooo',
+    'AAAoAAAA',
+    'AAAoAAAA',
+    'oooooooo',
+    'oooooooo',
+    'MMMMMMMM',
+  ],
+  /* Meereen: stepped brick, all the way up, and a fighting pit under every
+     one of them. */
+  pyramids: [
+    'MMMMMMMM',
+    'ssssssss',
+    'ssAAAAss',
+    'ssAMMAss',
+    'ssAAAAss',
+    'ssssssss',
+    'ssssssss',
+    'ssssssss',
+    'ssssssss',
+    'ssAAAAss',
+    'ssAMMAss',
+    'ssAAAAss',
+    'ssssssss',
+    'ssssssss',
+    'ssssssss',
+    'ssssssss',
+    'ssAAAAss',
+    'ssAMMAss',
+    'ssAAAAss',
+    'ssssssss',
+    'ssssssss',
+    'ssssssss',
+    'ssAAAAss',
+    'ssAMMAss',
+    'ssAAAAss',
+    'ssssssss',
+    'MMMMMMMM',
+  ],
+  /* Pyke: sea stacks with rope bridges between them, and a long way down. */
+  seaStacks: [
+    '~~~~~~~~',
+    '~~~~~~~~',
+    '~~~~~~~~',
+    '~~~~oooo',
+    'ooo~oooo',
+    'ooomoooo',
+    'ooo~oooo',
+    'ooo~~m~~',
+    '~m~~~m~~',
+    '~m~~oooo',
+    '~m~~oooo',
+    'ooo~oooo',
+    'ooo~oooo',
+    'ooo~~~~~',
+    'ooo~~~~~',
+    'ooo~~~~~',
+    '~m~~~~~~',
+    '~m~~~~~~',
+    '~m~~oooo',
+    'ooo~oooo',
+    'ooomoooo',
+    'ooo~oooo',
+    'ooo~oooo',
+    'ooo~~~~~',
+    '~~~~~~~~',
+    '~~~~~~~~',
+    '~~~~~~~~',
+  ],
+  /* The Dreadfort: bare ground, a great many posts, and crows on all of them. */
+  flayedYard: [
+    'MMMMMMMM',
+    'dddddddd',
+    'dfdfdfdd',
+    'dddddddd',
+    'ddUddddd',
+    'dddddddd',
+    'dfdfdfdd',
+    'dddddddd',
+    'dddddUdd',
+    'dddddddd',
+    'dfdfdfdd',
+    'dddddddd',
+    'dUdddddd',
+    'dddddddd',
+    'dfdfdfdd',
+    'dddddddd',
+    'ddddddUd',
+    'dddddddd',
+    'dfdfdfdd',
+    'dddddddd',
+    'dddUdddd',
+    'dddddddd',
+    'dfdfdfdd',
+    'dddddddd',
+    'dddddUdd',
+    'dddddddd',
+    'MMMMMMMM',
+  ],
+  /* Eastwatch: the shore, the ice, and a hull that came in on a tide and never
+     went out again. */
+  iceShore: [
+    'MMMMMMMM',
+    'SSSii~~~',
+    'SSSii~~~',
+    'SSSii~~~',
+    'SSSii~~~',
+    'SSSii~~~',
+    'SSSii~~~',
+    'SUSii~~~',
+    'SSSii~~~',
+    'SSSii~~~',
+    'SSSii~~~',
+    'SSSii~~~',
+    'SSSii~~~',
+    'SSSSi~~~',
+    'SSSii~~~',
+    'SSUii~~~',
+    'SSSii~~~',
+    'SSSii~~~',
+    'SSSii~~~',
+    'SSSii~~~',
+    'SSSii~~~',
+    'SSSii~~~',
+    'SUSii~~~',
+    'SSSii~~~',
+    'SSSii~~~',
+    'SSSii~~~',
+    'MMMMMMMM',
+  ],
+};
 
 /**
  * What is under the eastern quarter of every town.
@@ -923,12 +1353,208 @@ function makeCommonHouse({ town, name, region, madam, madamLine, voices }) {
         data: { line: voices[2].line } },
     ],
     signs: [
-      { x: 1, y: 1, text: `A red lamp in the window and nobody’s name over the door.\n${region} has one of these in every town.` },
+      { x: 1, y: 1, text: `A red lamp in the window and nobody's name over the door.\n${region} has one of these in every town.` },
     ],
   };
 }
 
+/* ------------------------------------------------------------- Winterfell --
+ *
+ * Winterfell was a snowfield with four buildings on it inside one square wall,
+ * twenty-four tiles by twenty, and so was every other seat in the game. This is
+ * the castle as the show has it: a curtain wall with a winter town living
+ * against its east face, the godswood south of the walls with a heart tree and
+ * a black pool under it, the glass gardens warm against the south wall, the
+ * practice yard, the kennels, the crypt stair, and the First Keep standing
+ * broken where nobody has bothered to pull it down.
+ *
+ * The castle itself is exactly where it was, tile for tile, so every door,
+ * every sign and every person already standing in it is still standing there.
+ * The place grows east and south around them; nothing moves but two gates that
+ * used to be the edge of the world and are now the way through it.
+ */
+function winterfellPlan() {
+  const W = 32, H = 32;
+  /* The castle, unchanged. Twenty-four wide and twenty tall, and every
+     coordinate in it is one somebody is standing on. */
+  const keep = [
+    'MMMMMMMMMMMM-MMMMMMMMMMM',
+    'MSSSSSSSSSSSSSSSSSSSSSSM',
+    'MSSSSSSSSnSSSSSSSSSSSSSM',
+    'MSSSSSSSSzzzMMMSSSSSSSSM',
+    'MSSSSSSSSZZZAAASSSSSSSSM',
+    'vSSSSSSSSZZZAAASSSSSSSSv',
+    'MSSSSSSSSkDADAASSSSSSSSM',
+    'MSSSSSSSS!--SSSSSSSSSSSM',
+    'MSS------------------SSM',
+    'MSSSSSSSSSSS-SSSSSSSSSSM',
+    'MSSggggggSSS-SSSggggSSSM',
+    'MSSGGGGGGSSS-SSSGGGGSSSM',
+    'MSSGGGGGGSSS-SSSHDHwSSS-',
+    'vSSpepDpwSSS-SSSSSSSSSSv',
+    'MSSSSS-SSSSS-SSSSSSSSSSM',
+    'MSS------------------SSM',
+    'MSSSSSSSSSSS-SSSSSSSSSSM',
+    'MSS;;;W;;;SS-SSSSSSSSSSM',
+    'MSS;;;;;;;SS-SSSSSSSSSSM',
+    'MMMMMMMMMMMM-MMMMM-MMMMM',
+  ];
+  const g = [];
+  for (let y = 0; y < H; y++) g.push(new Array(W).fill('S'));
+  keep.forEach((row, y) => [...row].forEach((c, x) => { g[y][x] = c; }));
+
+  const put = (x, y, c) => { if (g[y] && g[y][x] !== undefined) g[y][x] = c; };
+  const box = (x, y, w, h, c) => {
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, y + j, c);
+  };
+  const row = (x, y, text) => [...text].forEach((c, i) => put(x + i, y, c));
+
+  /* ---- the winter town, east of the curtain wall ------------------------ */
+  /* Half a hundred houses that stand empty most of the year and fill up when
+     the snows come. The road in is the east gate the castle already had. */
+  box(24, 0, 8, 1, 'M');
+  box(31, 0, 1, 20, 'M');
+  box(24, 19, 8, 1, 'M');
+  put(28, 19, '-');                          // and out to the godswood road
+  put(31, 12, '-');                          // and the east gate, onto the road
+  put(30, 12, '-');
+
+  row(25, 2, 'n');       row(29, 2, 'n');    // chimneys over the thatch
+  row(25, 3, 'yy');      row(28, 3, 'yy');
+  row(25, 4, 'YY');      row(28, 4, 'YY');
+  row(25, 5, 'YY');      row(28, 5, 'YY');
+  row(25, 6, 'DH');      row(28, 6, 'DH');   // the inn, and the common house
+  box(25, 8, 6, 1, '-');                     // the market street
+  put(25, 9, 'K'); put(26, 9, 'K');          // stalls down both sides of it
+  put(29, 9, 'K'); put(30, 9, 'K');
+  put(27, 10, '!');                          // and a board nailed up at the end
+  row(24, 12, '-----');                      // the road in from the east gate
+  row(25, 14, 'ggg');
+  row(25, 15, 'GGG');
+  row(25, 16, 'GGG');
+  row(25, 17, 'HwH');                        // the granary, shuttered
+  /* A paddock behind it, because the horses have to be somewhere. */
+  row(29, 15, 'ff'); put(29, 16, 'f'); put(29, 17, 'f');   /* open on the east */
+
+  /* ---- the godswood and the south grounds ------------------------------- */
+  /* The wood is old and it is not laid out. Pines thick enough to lose the
+     castle in, a heart tree in the middle of them, and a pool under it that
+     does not freeze. */
+  box(1, 20, 30, 11, 'S');
+  box(0, 20, 1, 12, 'M');
+  box(31, 20, 1, 12, 'M');
+  box(0, 31, 32, 1, 'M');
+  put(12, 31, '-');                          // the hunter's gate, out to the wood
+
+  /* The road down from the castle's south gate, and the one from the town. */
+  box(12, 20, 1, 11, '-');
+  box(28, 20, 1, 4, '-');
+  box(13, 23, 16, 1, '-');
+
+  /* The godswood proper, west of the road. */
+  box(2, 21, 9, 9, ';');
+  for (const [x, y] of [[2, 22], [4, 21], [7, 21], [9, 22], [2, 26], [3, 29],
+                        [6, 29], [9, 28], [10, 26], [1, 24], [10, 21], [1, 28]]) put(x, y, 'P');
+  box(5, 25, 3, 3, '~');                     // the black pool, which never ices
+  put(6, 24, 'W');                           // and the heart tree over it
+  put(4, 24, 'P'); put(8, 24, 'P');
+  put(3, 27, '*'); put(9, 27, '*');
+
+  /* The glass gardens: a walled bed against the south face of the wall, kept
+     warm by the hot springs under the castle, with a gap in the south wall to
+     walk in by. Nothing else in the North grows in winter. */
+  box(14, 20, 6, 1, 'p');
+  row(14, 21, 'p****p');
+  row(14, 22, 'p*SS*p');
+  row(14, 23, 'pp**pp');
+  put(16, 23, 'S'); put(17, 23, 'S');
+
+  /* The practice yard: a fenced square with a rack of arms in it. */
+  box(20, 25, 7, 1, 'f');
+  put(20, 26, 'f'); put(26, 26, 'f');
+  put(20, 27, 'f'); put(26, 27, 'f');
+  box(20, 28, 7, 1, 'f');
+  put(23, 25, 'S');                          // the way in
+  put(23, 28, 'S');                          // and out the far side
+  put(22, 26, 'l');                          // one rack, against the north fence
+
+  /* The kennels: you can hear them from the yard and you are not going in. */
+  row(28, 25, 'zz');
+  row(28, 26, 'ZZ');
+  row(28, 27, 'Hw');
+  box(15, 27, 5, 1, 'A');
+  box(15, 28, 5, 1, 'A');
+  row(15, 29, 'AADAA');
+  put(14, 28, 'U'); put(20, 28, 'U');         // the First Keep, fallen in
+
+  /* A few things to walk round rather than through. */
+  for (const [x, y] of [[22, 21], [25, 21], [30, 22], [30, 26], [22, 30],
+                        [26, 30], [29, 30], [19, 26], [13, 30]]) put(x, y, 'P');
+
+  return g.map((r) => r.join(''));
+}
+
 export const MAPS = {
+  // ------------------------------------------------ the winter town, inside --
+  winterfellInn: makeInn({
+    town: 'winterfell', name: 'The Smoking Log', region: 'The North',
+    keeper: 'Ony', keeperLine: 'Ony: Brown ale, black bread, and a bed if you can pay for one. The fire does not go out between now and spring.',
+    drinkerLine: 'Half the Rills is drinking in here because there is nothing to do on a farm under four feet of snow.',
+    fighter: 'A Drunk Freerider', fighterLine: 'bandit',
+    stock: 'north',
+  }),
+
+  winterfellHouse: makeCommonHouse({
+    town: 'winterfell', name: 'The Long Night', region: 'The North',
+    madam: 'Bessa', madamLine: 'Bessa: Winter town, winter trade. Everybody in the North ends up in this room eventually, and most of them talk.',
+    voices: [
+      { who: 'A Northern Girl', line: 'A Northern Girl: They say the Umbers came down the kingsroad three weeks ago and nobody has seen them since.' },
+      { who: 'A Miller', line: 'A Miller: The lord takes a tenth. The maester writes it down. The winter takes the rest and writes nothing down at all.' },
+      { who: 'A Man of the Rills', line: 'A Man of the Rills: There is a thing about the North. It is not the cold that gets you, it is how long the cold goes on.' },
+    ],
+  }),
+
+  /* The crypt. Eight thousand years of Kings of Winter with iron swords across
+     their knees, and it is the one room in Winterfell nobody keeps a light in. */
+  winterfellCrypt: {
+    name: 'The Crypts of Winterfell',
+    indoor: true,
+    music: 'wild',
+    ground: 'cave',
+    tiles: [
+      '@@@@@@@@@@@@@@@@@',
+      '@%%%%%%%%%%%%%%%@',
+      '@%@@%%%@@@%%%@@%@',
+      '@%@@%%%@@@%%%@@%@',
+      '@%%%%%%%%%%%%%%%@',
+      '@%@@%%%%%%%%%@@%@',
+      '@%@@%%%@@@%%%@@%@',
+      '@%%%%%%@@@%%%%%%@',
+      '@%@@%%%%%%%%%@@%@',
+      '@%@@%%%@@@%%%@@%@',
+      '@%%%%%%@@@%%%%%%@',
+      '@%@@%%%%%%%%%@@%@',
+      '@%@@%%%%%%%%%@@%@',
+      '@%%%%%%%%%%%%%%%@',
+      '@@@@@@@@_@@@@@@@@',
+    ],
+    warps: [
+      { x: 8, y: 14, to: 'winterfell', tx: 17, ty: 30, dir: 'down' },
+    ],
+    signs: [
+      { x: 4, y: 1, text: 'BRANDON THE BUILDER\nHe raised the Wall, they say, and this castle, and half of what is north of the Neck.\nNobody knows which of that is true.' },
+      { x: 12, y: 7, text: 'THE KINGS OF WINTER\nEach with an iron sword across his knees, to keep the vengeful spirits in.\nSomebody has been taking the swords.' },
+    ],
+    items: [
+      { x: 8, y: 3, item: 'valyrianShard' },
+      { x: 3, y: 11, item: 'ironScrap' },
+    ],
+    npcs: [
+      { x: 4, y: 10, dir: 'down', sprite: 'oldman', name: 'The Lamplighter', script: 'townTalk',
+        data: { line: 'The Lamplighter: I go down with a lamp and I come up with a lamp. What I do not do is stop and listen. You should not either.' } },
+    ],
+  },
+
   // =========================================================== hero's home ==
   heroHouse: {
     name: 'Your Chamber',
@@ -961,28 +1587,7 @@ export const MAPS = {
     name: 'Winterfell',
     music: 'town',
     ground: 'snow',
-    tiles: [
-      'MMMMMMMMMMMM-MMMMMMMMMMM',
-      'MSSSSSSSSSSSSSSSSSSSSSSM',
-      'MSSSSSSSSnSSSSSSSSSSSSSM',
-      'MSSSSSSSSzzzMMMSSSSSSSSM',
-      'MSSSSSSSSZZZAAASSSSSSSSM',
-      'vSSSSSSSSZZZAAASSSSSSSSv',
-      'MSSSSSSSSkDADAASSSSSSSSM',
-      'MSSSSSSSS!--SSSSSSSSSSSM',
-      'MSS------------------SSM',
-      'MSSSSSSSSSSS-SSSSSSSSSSM',
-      'MSSggggggSSS-SSSggggSSSM',
-      'MSSGGGGGGSSS-SSSGGGGSSSM',
-      'MSSGGGGGGSSS-SSSHDHwSSS-',
-      'vSSpepDpwSSS-SSSSSSSSSSv',
-      'MSSSSS-SSSSS-SSSSSSSSSSM',
-      'MSS------------------SSM',
-      'MSSSSSSSSSSS-SSSSSSSSSSM',
-      'MSS;;;W;;;SS-SSSSSSSSSSM',
-      'MSS;;;;;;;SS-SSSSSSSSSSM',
-      'MMMMMMMMMMMM-MMMMMMMMMMM',
-    ],
+    get tiles() { return winterfellPlan(); },
     encounters: [
       { roamer: 'bandit', min: 2, max: 4, weight: 30 },
       { roamer: 'poacher', min: 2, max: 5, weight: 30 },
@@ -995,13 +1600,21 @@ export const MAPS = {
       { x: 6, y: 13, to: 'maesterHallWinterfell', tx: 5, ty: 7, dir: 'up' },
       { x: 12, y: 6, to: 'greatKeep', tx: 8, ty: 13, dir: 'up' },
       { x: 10, y: 6, to: 'winterfellForge', tx: 5, ty: 6, dir: 'up' },
-      { x: 12, y: 19, to: 'wolfswood', tx: 10, ty: 1, dir: 'down' },
+      { x: 12, y: 31, to: 'wolfswood', tx: 10, ty: 1, dir: 'down' },
       { x: 12, y: 0, to: 'kingsroadNorth', tx: 11, ty: 28, dir: 'up' },
-      { x: 23, y: 12, to: 'weepingWater', tx: 11, ty: 28, dir: 'right' },
+      { x: 31, y: 12, to: 'weepingWater', tx: 11, ty: 28, dir: 'right' },
+      { x: 25, y: 6, to: 'winterfellInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 28, y: 6, to: 'winterfellHouse', tx: 6, ty: 10, dir: 'up' },
+      { x: 17, y: 29, to: 'winterfellCrypt', tx: 8, ty: 13, dir: 'up' },
     ],
     signs: [
       { x: 9, y: 7, text: 'THE GREAT KEEP OF WINTERFELL\nSeat of House Stark.\nSigil-holder: LORD RICKARD.' },
       { x: 6, y: 17, text: 'THE GODSWOOD\nA heart tree has watched this ground for ten thousand years.\nIt is still watching.' },
+      { x: 26, y: 10, text: 'THE WOOL MARKET\nSix hundred fleeces off the Rills, and every one spoken for.\nCome back in spring.' },
+      { x: 8, y: 25, text: 'THE HEART TREE\nThe old gods have no songs and no septons.\nYou come, and you say it, and you go.' },
+      { x: 28, y: 10, text: 'THE WINTER TOWN\nEmpty in summer. Full when the snows come.\nIt has been full for two years.' },
+      { x: 16, y: 20, text: 'THE GLASS GARDENS\nHot springs run under this ground.\nIt is the only place in the North where anything is green.' },
+      { x: 15, y: 31, text: 'THE FIRST KEEP\nNobody has lived in it for six hundred years.\nThe stair down goes to the crypt.' },
     ],
     npcs: [
       { x: 7, y: 16, dir: 'down', name: 'Landless Knight', sprite: 'noble',
@@ -1015,6 +1628,12 @@ export const MAPS = {
       { x: 19, y: 15, dir: 'left', sprite: 'child', name: 'Stable Boy', script: 'winterfellStable' },
       { x: 5, y: 17, dir: 'right', sprite: 'septa', name: 'Septa Mordane', script: 'winterfellSepta' },
       { x: 4, y: 8, dir: 'down', sprite: 'nightswatch', name: 'Recruiter', script: 'blackBrother' },
+      /* The winter town, which stands empty most of the year and is full now. */
+      { x: 28, y: 16, dir: 'left', sprite: 'child', name: 'Stable Girl', script: 'townTalk',
+        data: { line: 'Stable Girl: That grey is Lord Stark\'s and he does not like you. He does not like me either.' } },
+      /* And the godswood, which people go into alone. */
+      { x: 25, y: 27, dir: 'up', sprite: 'stark', name: 'Master-at-arms', script: 'duel',
+        data: { duel: 'rodrik' } },
     ],
   },
 
@@ -1424,6 +2043,13 @@ export const MAPS = {
   }),
 
   theEyrie: makeTown({
+    outsiders: [
+      { dir: 'down', sprite: 'guard', name: 'Sky Road Warden', script: 'townTalk',
+        data: { line: 'Sky Road Warden: Six hundred steps and a mule track. In winter the mules will not do it and neither will I.' } },
+      { dir: 'down', sprite: 'smallfolk', name: 'A Mule Driver', script: 'townTalk',
+        data: { line: 'A Mule Driver: Do not look left. There is nothing on the left but four thousand feet of nothing.' } },
+    ],
+    outskirts: OUTSKIRTS.eyrie, gate: 13,
     quarter: 0,
     banner: 'v',
     dressing: [[4, 1, 'i'], [5, 1, 'i'], [6, 1, 'i'], [17, 17, 'C'], [18, 17, 'C'],
@@ -1442,6 +2068,7 @@ export const MAPS = {
       { x: 7, y: 14, to: 'eyrieKeep', tx: 7, ty: 8, dir: 'up' },
     ],
     signs: [
+      { x: 24, y: 12, text: 'THE SKY ROAD\nThe only way up, and it is a mule track.\nAn army has never taken the Eyrie. An army has never got up here.' },
       { x: 13, y: 10, text: 'THE EYRIE\nSeat of House Arryn.\nAs high as honour, and a good deal colder.' },
     ],
     npcs: [
@@ -1542,6 +2169,13 @@ export const MAPS = {
   }),
 
   highgarden: makeTown({
+    outsiders: [
+      { dir: 'down', sprite: 'goodwife', name: 'The Gardener', script: 'townTalk',
+        data: { line: 'The Gardener: Forty years I have cut this maze and I still have to think at the third turn. Take the left hand every time and you will come out.' } },
+      { dir: 'down', sprite: 'noble', name: 'A Lost Bannerman', script: 'townTalk',
+        data: { line: 'A Lost Bannerman: I came in here at noon to think about something and I have entirely forgotten what it was.' } },
+    ],
+    outskirts: OUTSKIRTS.roseMaze, gate: 13,
     quarter: 4,
     banner: 'V',
     dressing: [[4, 17, '*'], [5, 17, '*'], [6, 17, '*'], [7, 17, '*'], [4, 18, '*'],
@@ -1561,6 +2195,7 @@ export const MAPS = {
       { x: 17, y: 6, to: 'highgardenArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
+      { x: 22, y: 12, text: 'THE BRIAR MAZE\nPlanted three hundred years ago as a joke and never cut down.\nThe fountain is in the middle. So are several people.' },
       { x: 13, y: 10, text: 'HIGHGARDEN\nSeat of House Tyrell.\nEvery hedge is deliberate.' },
     ],
     npcs: [
@@ -1653,6 +2288,13 @@ export const MAPS = {
   }),
 
   sunspear: makeTown({
+    outsiders: [
+      { dir: 'down', sprite: 'martell', name: 'Orphan of the Greenblood', script: 'townTalk',
+        data: { line: 'Orphan of the Greenblood: We are called orphans because we lost the mother Rhoyne. That was a thousand years ago. Dornishmen hold a grudge.' } },
+      { dir: 'down', sprite: 'merchant', name: 'A Shade Seller', script: 'townTalk',
+        data: { line: 'A Shade Seller: Water, shade, or somewhere to sit. In the shadow city all three cost the same and all three are worth it.' } },
+    ],
+    outskirts: OUTSKIRTS.shadowCity, gate: 13,
     quarter: 1,
     banner: 'V',
     dressing: [[14, 12, '~'], [15, 12, '~'], [16, 12, '~'], [14, 13, '~'], [15, 13, '~'],
@@ -1672,6 +2314,7 @@ export const MAPS = {
       { x: 17, y: 6, to: 'sunspearArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
+      { x: 22, y: 12, text: 'THE SHADOW CITY\nTen thousand people living against the outside of the wall.\nNobody planned any of it and nobody ever will.' },
       { x: 13, y: 10, text: 'SUNSPEAR\nSeat of House Martell.\nUnbowed. Unbent. Unbroken.' },
     ],
     npcs: [
@@ -1771,6 +2414,13 @@ export const MAPS = {
   }),
 
   stormsEnd: makeTown({
+    outsiders: [
+      { dir: 'down', sprite: 'smallfolk', name: 'A Wrecker', script: 'townTalk',
+        data: { line: 'A Wrecker: Everything on this shore came off a ship, including most of the people. Shipbreaker Bay is not a name somebody chose to be pretty.' } },
+      { dir: 'down', sprite: 'oldman', name: 'The Bell Ringer', script: 'townTalk',
+        data: { line: 'The Bell Ringer: When the bell goes, you are already too late to get off the cliff. I ring it anyway.' } },
+    ],
+    outskirts: OUTSKIRTS.seaCliff, gate: 13,
     quarter: 3,
     banner: 'V',
     dressing: [[14, 17, '~'], [15, 17, '~'], [16, 17, '~'], [17, 17, '~'], [14, 18, '~'],
@@ -1790,6 +2440,7 @@ export const MAPS = {
       { x: 17, y: 6, to: 'stormsEndArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
+      { x: 22, y: 12, text: 'SHIPBREAKER BAY\nThe wall on this side is forty feet thick.\nIt has to be.' },
       { x: 13, y: 10, text: "STORM'S END\nSeat of House Baratheon.\nNo storm has ever taken it. Many have tried." },
     ],
     npcs: [
@@ -1842,6 +2493,13 @@ export const MAPS = {
   //  DRAGONSTONE
   // =========================================================================
   dragonstone: makeTown({
+    outsiders: [
+      { dir: 'down', sprite: 'targaryen', name: 'A Stone Cutter', script: 'townTalk',
+        data: { line: 'A Stone Cutter: Nobody cut this castle. It was raised out of the rock while it was still soft, and nobody will say by what.' } },
+      { dir: 'down', sprite: 'smallfolk', name: 'A Sulphur Gatherer', script: 'townTalk',
+        data: { line: 'A Sulphur Gatherer: The ground is warm here in midwinter. That is not comforting once you have thought about why.' } },
+    ],
+    outskirts: OUTSKIRTS.smokingStrand, gate: 13,
     quarter: 1,
     banner: 'V',
     dressing: [[14, 17, 'U'], [15, 17, 'U'], [16, 17, 'U'], [14, 18, 'U'], [17, 17, 'U'],
@@ -1861,6 +2519,7 @@ export const MAPS = {
       { x: 17, y: 6, to: 'dragonstoneArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
+      { x: 22, y: 12, text: 'THE SMOKING STRAND\nBlack sand, and steam coming out of it.\nNothing has grown on this beach in living memory.' },
       { x: 13, y: 10, text: 'DRAGONSTONE\nAncient seat of House Targaryen.\nThe stone here was shaped while it was still soft.' },
     ],
     npcs: [
@@ -2757,6 +3416,13 @@ export const MAPS = {
   // Westerosi house you swore to, which is most of the point of going.
 
   braavos: makeTown({
+    outsiders: [
+      { dir: 'down', sprite: 'braavosi', name: 'A Bravo', script: 'duel',
+        data: { duel: 'sellsword' } },
+      { dir: 'down', sprite: 'merchant', name: 'A Canal Poler', script: 'townTalk',
+        data: { line: 'A Canal Poler: There are no horses in Braavos. There is water, and there is me, and I am cheaper than a horse.' } },
+    ],
+    outskirts: OUTSKIRTS.canals, gate: 12,
     quarter: 0,
     roof: 'G', ridge: 'g', shut: ['forge', 'keep'],
     // Canals rather than walls, which is the one thing everybody knows
@@ -2779,7 +3445,8 @@ export const MAPS = {
         script: 'freeCityLocal', data: { line: 'Bravo: In Braavos we fight with the point. '
           + 'Hacking is for people who chop wood.' } },
     ],
-    signs: [{ x: 13, y: 10, text: 'THE TITAN OF BRAAVOS STANDS BEHIND YOU. IT IS THE ONLY THING THAT DOES.' }],
+    signs: [
+      { x: 22, y: 12, text: 'THE CANALS\nA hundred islands and no ground between them.\nEverything here goes by water or it does not go.' },{ x: 13, y: 10, text: 'THE TITAN OF BRAAVOS STANDS BEHIND YOU. IT IS THE ONLY THING THAT DOES.' }],
     warps: [
       { x: 17, y: 11, to: 'braavosCellar', tx: 6, ty: 8, dir: 'up' },
       { x: 5, y: 21, to: 'braavosInn', tx: 6, ty: 10, dir: 'up' },
@@ -2817,6 +3484,13 @@ export const MAPS = {
   },
 
   pentos: makeTown({
+    outsiders: [
+      { dir: 'down', sprite: 'merchant', name: 'A Spice Factor', script: 'shopHint',
+        data: { line: 'A Spice Factor: Pepper, saffron, cloves and things I will not name in front of a stranger. All of it came further than you did.' } },
+      { dir: 'down', sprite: 'noble', name: 'A Magister\'s Man', script: 'townTalk',
+        data: { line: 'A Magister\'s Man: Pentos has a prince. Every year they ask him to bless the fields, and every so often they cut his throat for a bad harvest.' } },
+    ],
+    outskirts: OUTSKIRTS.spiceMarket, gate: 13,
     quarter: 0,
     roof: 'Q', ridge: 'q', shut: ['hall', 'forge'],
     name: 'Pentos', music: 'town', ground: 'sand', wall: 'C', floor: 's',
@@ -2834,7 +3508,8 @@ export const MAPS = {
         script: 'freeCityLocal', data: { line: 'Dothraki Rider: A khal who cannot ride is no khal. '
           + 'You walk everywhere. It is very strange.' } },
     ],
-    signs: [{ x: 13, y: 10, text: 'PENTOS. NO WALLS WORTH THE NAME, AND NO NEED OF THEM YET.' }],
+    signs: [
+      { x: 22, y: 12, text: 'THE SPICE MARKET\nPentos sells what everyone else grows.\nThat is the whole of the city, and it has made it very rich.' },{ x: 13, y: 10, text: 'PENTOS. NO WALLS WORTH THE NAME, AND NO NEED OF THEM YET.' }],
     warps: [
       { x: 17, y: 11, to: 'pentosCellar', tx: 6, ty: 8, dir: 'up' },
       { x: 5, y: 21, to: 'pentosInn', tx: 6, ty: 10, dir: 'up' },
@@ -2846,6 +3521,13 @@ export const MAPS = {
   }),
 
   volantis: makeTown({
+    outsiders: [
+      { dir: 'down', sprite: 'braavosi', name: 'A Tiger Cloak', script: 'townTalk',
+        data: { line: 'A Tiger Cloak: Behind that wall live men who can trace their blood to Valyria. In front of it live the rest of us. Nobody crosses it.' } },
+      { dir: 'down', sprite: 'smallfolk', name: 'A Marked Woman', script: 'townTalk',
+        data: { line: 'A Marked Woman: Five slaves to every free man. You can read what a person does off their cheek here, which saves a good deal of conversation.' } },
+    ],
+    outskirts: OUTSKIRTS.blackWall, gate: 13,
     quarter: 1,
     roof: 'Q', ridge: 'q', shut: ['hall', 'forge'],
     name: 'Volantis', music: 'town', ground: 'sand', wall: 'C', floor: 's',
@@ -2864,7 +3546,8 @@ export const MAPS = {
         script: 'freeCityLocal', data: { line: 'Bridge Guard: The Long Bridge has stood a thousand '
           + 'years. Walk on the left.' } },
     ],
-    signs: [{ x: 13, y: 10, text: 'THE LONG BRIDGE. BUILT BY VALYRIA. NOBODY LEFT KNOWS HOW.' }],
+    signs: [
+      { x: 22, y: 12, text: 'THE BLACK WALL\nTwo hundred feet high and fused from dragonstone.\nIt was old when Valyria fell.' },{ x: 13, y: 10, text: 'THE LONG BRIDGE. BUILT BY VALYRIA. NOBODY LEFT KNOWS HOW.' }],
     warps: [
       { x: 17, y: 11, to: 'volantisCellar', tx: 6, ty: 8, dir: 'up' },
       { x: 5, y: 21, to: 'volantisInn', tx: 6, ty: 10, dir: 'up' },
@@ -2876,6 +3559,13 @@ export const MAPS = {
   }),
 
   meereen: makeTown({
+    outsiders: [
+      { dir: 'down', sprite: 'unsullied', name: 'A Freed Spear', script: 'townTalk',
+        data: { line: 'A Freed Spear: I was told I am free. I have not yet worked out what to do about it. In the meantime I stand here.' } },
+      { dir: 'down', sprite: 'noble', name: 'A Son of the Harpy', script: 'duel',
+        data: { duel: 'sellsword' } },
+    ],
+    outskirts: OUTSKIRTS.pyramids, gate: 13,
     quarter: 2,
     roof: 'Q', ridge: 'q', shut: ['hall', 'forge'],
     name: 'Meereen', music: 'town', ground: 'sand', wall: 'C', floor: 's',
@@ -2894,7 +3584,8 @@ export const MAPS = {
       { x: 4, y: 9, dir: 'right', name: 'Daario Naharis', sprite: 'braavosi',
         script: 'duel', data: { duel: 'daario' } },
     ],
-    signs: [{ x: 13, y: 10, text: 'THE GREAT PYRAMID OF MEEREEN. A DRAGON QUEEN SITS AT THE TOP OF IT.' }],
+    signs: [
+      { x: 22, y: 12, text: 'THE GREAT PYRAMIDS\nEight hundred feet, and a family in every one.\nThe bricks are held together with blood, they say, and they may be right.' },{ x: 13, y: 10, text: 'THE GREAT PYRAMID OF MEEREEN. A DRAGON QUEEN SITS AT THE TOP OF IT.' }],
     warps: [
       { x: 17, y: 11, to: 'meereenCellar', tx: 6, ty: 8, dir: 'up' },
       { x: 5, y: 21, to: 'meereenInn', tx: 6, ty: 10, dir: 'up' },
@@ -3190,6 +3881,13 @@ export const MAPS = {
   },
 
   pyke: makeTown({
+    outsiders: [
+      { dir: 'down', sprite: 'ironborn', name: 'A Drowned Man', script: 'townTalk',
+        data: { line: 'A Drowned Man: What is dead may never die. We hold them under until they stop, and then we bring them back. Most of them.' } },
+      { dir: 'down', sprite: 'ironborn', name: 'A Reaver', script: 'duel',
+        data: { duel: 'ironborn' } },
+    ],
+    outskirts: OUTSKIRTS.seaStacks, gate: 13,
     quarter: 4,
     // A castle on broken rock, walled by the sea itself.
     roof: 'G', ridge: 'g', house: 'A', banner: 'v',
@@ -3214,6 +3912,7 @@ export const MAPS = {
           + 'Mostly we bring them back.' } },
     ],
     signs: [
+      { x: 25, y: 12, text: 'THE SEA STACKS\nThe castle stands on rocks the sea has not finished with yet.\nOne of the bridges goes down every year.' },
       { x: 11, y: 10, text: 'PYKE\nSeat of House Greyjoy.\nWe Do Not Sow.' },
     ],
     warps: [
@@ -3383,6 +4082,13 @@ export const MAPS = {
   }),
 
   dreadfort: makeTown({
+    outsiders: [
+      { dir: 'down', sprite: 'bolton', name: 'A Kennel Boy', script: 'townTalk',
+        data: { line: 'A Kennel Boy: They are named after girls. He names them after the last one. You should not ask me anything else.' } },
+      { dir: 'down', sprite: 'smallfolk', name: 'A Crow Counter', script: 'townTalk',
+        data: { line: 'A Crow Counter: Nine on the posts this morning. There is no work to do here but count them, and I would rather not.' } },
+    ],
+    outskirts: OUTSKIRTS.flayedYard, gate: 13,
     quarter: 2,
     roof: 'Z', ridge: 'z', house: 'A', banner: 'v',
     name: 'The Dreadfort', music: 'town', ground: 'snow', wall: 'P', floor: 'S',
@@ -3401,6 +4107,7 @@ export const MAPS = {
         data: { line: 'Kitchen Maid: Do not ask what is in the pie. Do not ask.' } },
     ],
     signs: [
+      { x: 22, y: 12, text: 'THE FLAYED YARD\nA very great many posts and nothing growing between them.\nThe crows here are fat and unafraid.' },
       { x: 11, y: 10, text: 'THE DREADFORT\nSeat of House Bolton.\nOur Blades are Sharp.' },
     ],
     warps: [
@@ -3929,7 +4636,7 @@ export const MAPS = {
     voices: [
       { who: 'Falconer', line: 'Falconer: The birds go where I send them and come back knowing things. I do not ask.' },
       { who: 'Stone Mason', line: 'Stone Mason: Six hundred steps. I cut two hundred of them and my father cut the rest.' },
-      { who: 'Lord’s Cousin', line: 'Lord’s Cousin: As high as honour, they say. Nobody says how far the fall is.' },
+      { who: 'Lord\'s Cousin', line: 'Lord\'s Cousin: As high as honour, they say. Nobody says how far the fall is.' },
     ],
   }),
 
@@ -3953,7 +4660,7 @@ export const MAPS = {
 
   sunspearInn: makeInn({
     town: 'sunspear', name: 'The Shaded Court', region: 'Dorne',
-    keeper: 'Areo’s Widow', keeperLine: 'Areo’s Widow: Sit in the shade. Drink the strong red. Nobody hurries in Dorne.',
+    keeper: 'Areo\'s Widow', keeperLine: 'Areo\'s Widow: Sit in the shade. Drink the strong red. Nobody hurries in Dorne.',
     drinkerLine: 'Drinker: The heat is not the problem. The heat is honest. It is the shade you want to watch.',
     fighter: 'Sand Steed Rider', fighterLine: 'bronn',
     stock: ['maesterKit', 'poppyMilk', 'weirwoodSap'],
@@ -3978,18 +4685,18 @@ export const MAPS = {
   }),
 
   stormsEndHouse: makeCommonHouse({
-    town: 'stormsEnd', name: 'The Storm’s Rest', region: 'The Stormlands',
-    madam: 'Bess', madamLine: 'Bess: When it blows like this nobody goes home. That is not my doing, it is the wind’s.',
+    town: 'stormsEnd', name: 'The Storm\'s Rest', region: 'The Stormlands',
+    madam: 'Bess', madamLine: 'Bess: When it blows like this nobody goes home. That is not my doing, it is the wind\'s.',
     voices: [
       { who: 'Smuggler', line: 'Smuggler: Onions. That is all I brought in. Ask anybody.' },
       { who: 'Rain-Soaked Guard', line: 'Guard: Two shifts on that wall and I have forgotten what dry feels like.' },
-      { who: 'Maester’s Boy', line: 'Maester’s Boy: He says the storms here are older than the castle. I say the castle agrees.' },
+      { who: 'Maester\'s Boy', line: 'Maester\'s Boy: He says the storms here are older than the castle. I say the castle agrees.' },
     ],
   }),
 
   dragonstoneInn: makeInn({
     town: 'dragonstone', name: 'The Black Sail', region: 'Dragonstone',
-    keeper: 'Fisher’s Wife', keeperLine: 'Fisher’s Wife: Fish, black bread, and whatever the mountain has coughed up this week.',
+    keeper: 'Fisher\'s Wife', keeperLine: 'Fisher\'s Wife: Fish, black bread, and whatever the mountain has coughed up this week.',
     drinkerLine: 'Drinker: The stone here is warm at the bottom. Nobody has ever explained that to my satisfaction.',
     fighter: 'Dragonstone Man', fighterLine: 'bronn',
     stock: ['maesterKit', 'poppyMilk', 'weirwoodSap'],
@@ -4015,7 +4722,7 @@ export const MAPS = {
 
   braavosHouse: makeCommonHouse({
     town: 'braavos', name: 'The Happy Port', region: 'Braavos',
-    madam: 'The Sailor’s Wife', madamLine: 'The Sailor’s Wife: I only lie with men who marry me. I have been married a great many times.',
+    madam: 'The Sailor\'s Wife', madamLine: 'The Sailor\'s Wife: I only lie with men who marry me. I have been married a great many times.',
     voices: [
       { who: 'Lanna', line: 'Lanna: The Iron Bank owns everything here except this room, and they are working on it.' },
       { who: 'Mummer', line: 'Mummer: We do the whole history of Westeros in an hour. It is mostly people falling over.' },
@@ -4043,7 +4750,7 @@ export const MAPS = {
 
   volantisInn: makeInn({
     town: 'volantis', name: 'The Long Bridge', region: 'Volantis',
-    keeper: 'Kinvara’s Cousin', keeperLine: 'Kinvara’s Cousin: The fire is lit, the pot is on and the night is dark. Sit down.',
+    keeper: 'Kinvara\'s Cousin', keeperLine: 'Kinvara\'s Cousin: The fire is lit, the pot is on and the night is dark. Sit down.',
     drinkerLine: 'Drinker: The bridge has been standing a thousand years and I still walk in the middle of it.',
     fighter: 'Tiger Cloak', fighterLine: 'bronn',
     stock: ['maesterKit', 'poppyMilk', 'weirwoodSap'],
@@ -4053,7 +4760,7 @@ export const MAPS = {
     town: 'volantis', name: 'The Merling King', region: 'Volantis',
     madam: 'Sunset', madamLine: 'Sunset: Old Volantis, they call it. Old is a polite word for what it is.',
     voices: [
-      { who: 'Slave’s Daughter', line: 'Slave’s Daughter: You can tell what a man does by his cheek. Mine is a teardrop. That is a slave.' },
+      { who: 'Slave\'s Daughter', line: 'Slave\'s Daughter: You can tell what a man does by his cheek. Mine is a teardrop. That is a slave.' },
       { who: 'Elephant Voter', line: 'Elephant Voter: Tigers want war, elephants want trade. The elephants have won every year of my life.' },
       { who: 'Widow of the Waterfront', line: 'Widow: Nobody leaves Volantis on my river without me knowing why.' },
     ],
@@ -4061,7 +4768,7 @@ export const MAPS = {
 
   meereenInn: makeInn({
     town: 'meereen', name: 'The Broken Pyramid', region: 'Meereen',
-    keeper: 'Missandei’s Aunt', keeperLine: 'Missandei’s Aunt: The Queen has views about what may be sold. Food is still allowed.',
+    keeper: 'Missandei\'s Aunt', keeperLine: 'Missandei\'s Aunt: The Queen has views about what may be sold. Food is still allowed.',
     drinkerLine: 'Drinker: They freed us. Nobody has yet explained what we are supposed to eat.',
     fighter: 'Pit Fighter', fighterLine: 'greyWorm',
     stock: ['maesterKit', 'poppyMilk', 'weirwoodSap'],
@@ -4072,7 +4779,7 @@ export const MAPS = {
     madam: 'Rhaella', madamLine: 'Rhaella: The pits are shut and everybody misses them and nobody will say so.',
     voices: [
       { who: 'Freedman', line: 'Freedman: I was a bedslave. Now I am a man with no work. Both are complicated.' },
-      { who: 'Harpy’s Man', line: 'Harpy’s Man: The Sons come at night. You did not hear that from me.' },
+      { who: 'Harpy\'s Man', line: 'Harpy\'s Man: The Sons come at night. You did not hear that from me.' },
       { who: 'Ghiscari Noble', line: 'Ghiscari Noble: Old Ghis was an empire when Valyria was a village. We remember.' },
     ],
   }),
@@ -4089,7 +4796,7 @@ export const MAPS = {
     town: 'pyke', name: 'The Salt Wife', region: 'The Iron Islands',
     madam: 'Esgred', madamLine: 'Esgred: Rock wife or salt wife, we all end up looking at the same sea.',
     voices: [
-      { who: 'Captain’s Girl', line: 'Captain’s Girl: He pays the iron price for everything except me. That took some arranging.' },
+      { who: 'Captain\'s Girl', line: 'Captain\'s Girl: He pays the iron price for everything except me. That took some arranging.' },
       { who: 'Netmender', line: 'Netmender: Mend a net, catch a fish. Mend a hundred, catch a hundred. Simple work.' },
       { who: 'Thrall', line: 'Thrall: They took me off a green shore. I have stopped counting the years.' },
     ],
@@ -4108,7 +4815,7 @@ export const MAPS = {
     madam: 'Myranda', madamLine: 'Myranda: Everyone here is very careful. It gets tiring. Be careless with me.',
     voices: [
       { who: 'Kennel Girl', line: 'Kennel Girl: The girls are named after the last ones. There have been a lot of last ones.' },
-      { who: 'Steward’s Son', line: 'Steward’s Son: I keep the accounts. I have learned to write very small numbers.' },
+      { who: 'Steward\'s Son', line: 'Steward\'s Son: I keep the accounts. I have learned to write very small numbers.' },
       { who: 'Northman', line: 'Northman: The North remembers. The Dreadfort remembers differently and writes it down.' },
     ],
   }),
@@ -4683,6 +5390,13 @@ export const MAPS = {
   }),
 
   eastwatch: makeTown({
+    outsiders: [
+      { dir: 'down', sprite: 'nightswatch', name: 'A Shore Watch', script: 'townTalk',
+        data: { line: 'A Shore Watch: Ships came in here twice a moon once. The last one was in autumn and it came in on the tide with nobody aboard.' } },
+      { dir: 'down', sprite: 'wildling', name: 'A Free Folk Woman', script: 'townTalk',
+        data: { line: 'A Free Folk Woman: You southerners think we came through the Wall to raid you. We came through it to get away from what is behind us.' } },
+    ],
+    outskirts: OUTSKIRTS.iceShore, gate: 13,
     quarter: 3,
     roof: 'Z', ridge: 'z', house: 'A', banner: 'v',
     name: 'Eastwatch-by-the-Sea', music: 'town', ground: 'snow', wall: 'P', floor: 'S',
@@ -4701,6 +5415,7 @@ export const MAPS = {
       { x: 7, y: 14, to: 'eastwatchKeep', tx: 7, ty: 8, dir: 'up' },
     ],
     signs: [
+      { x: 22, y: 12, text: 'THE ICE SHORE\nThe sea freezes here from the shore outward.\nWhat is on it in winter is not always ice.' },
       { x: 13, y: 10, text: 'EASTWATCH-BY-THE-SEA\nThe eastern end of the Wall.\nShips leave from here and some of them come back.' },
     ],
     npcs: [
@@ -5354,7 +6069,7 @@ export const MAPS = {
     name: 'The Water Gardens', town: 'sunspear', townGate: [11, 25, 'up'], hall: 'pavilionOfOranges',
     ground: 'sand', wall: 'C', floor: 's', banner: 'V',
     signs: [
-      { x: 11, y: 16, text: 'THE WATER GARDENS\nChildren of every birth swim in the same pools here.\nThat was somebody’s idea, once.' },
+      { x: 11, y: 16, text: 'THE WATER GARDENS\nChildren of every birth swim in the same pools here.\nThat was somebody\'s idea, once.' },
     ],
     npcs: [
       { x: 11, y: 15, dir: 'up', sprite: 'martell', name: 'Gate Sentry', script: 'duel',

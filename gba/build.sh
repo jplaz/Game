@@ -27,7 +27,9 @@ if [ ! -f data.h ] || [ -n "$(find ../src ../tools export.mjs -newer data.h 2>/d
   echo "data.h is behind the sources. Re-exporting."
   # export.mjs serves the repository over http for the browser painters, so it
   # has to be run from the root rather than from here.
-  ( cd .. && node gba/export.mjs )
+  # The heap: thirteen towns grew by half and Winterfell nearly tripled, and
+  # the default eight gigabytes stopped being enough on the build that did it.
+  ( cd .. && node --max-old-space-size=13000 gba/export.mjs )
 fi
 
 # Every file the exporter reads, parsed before the browser gets near it. A

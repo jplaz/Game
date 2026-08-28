@@ -27,6 +27,7 @@ const ROOT = resolve(process.cwd());
 // the yard you start in.
 const MAP_IDS = [
   'winterfell', 'heroHouse', 'maesterHallWinterfell', 'greatKeep', 'winterfellForge',
+  'winterfellInn', 'winterfellHouse', 'winterfellCrypt',
   'wolfswood', 'kingsroadNorth', 'castleBlack', 'maesterHallCastleBlack',
   'castleBlackArmoury', 'castleBlackHall', 'beyondTheWall', 'moatCailin',
   'maesterHallMoat',
@@ -129,7 +130,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const { TRAINERS, trainerAsDuellist } = await import('/src/data/trainers.js');
   const { ITEMS } = await import('/src/data/items.js');
   const { WEAPONS, ARMOUR, SHIELDS, HELMS, GLOVES } = await import('/src/data/gear.js');
-  const { HOUSES, SWEARABLE } = await import('/src/data/houses.js');
+  const { HOUSES, SWEARABLE, SPRITE_HOUSE, REGION_HOUSE } = await import('/src/data/houses.js');
   const { TALES, TALE_ORDER, TALE_HOUSES } = await import('/src/data/tale.js');
   const { MATERIALS, MATERIAL_IDS, SPOILS, FORAGE, RECIPES, SNARES, EGG_ITEMS,
           RELICS, OATHS } =
@@ -279,8 +280,25 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     return {
       id, name: h.name, full: h.full, words: h.words, sworn: h.sworn,
       seat: h.seat, colour: h.colour, accent: h.accent, looks,
+      /* Who they cannot stand and who they can, as bits over the nine. The
+         browser has had this since the beginning and the cartridge has never
+         seen it, which is why swearing to Stark and swearing to Lannister were
+         the same game with a different colour on the frames. */
+      rivals: (h.rivals ?? []).reduce((m, r) =>
+        SWEARABLE.indexOf(r) < 0 ? m : m | (1 << SWEARABLE.indexOf(r)), 0),
+      allies: (h.allies ?? []).reduce((m, a) =>
+        SWEARABLE.indexOf(a) < 0 ? m : m | (1 << SWEARABLE.indexOf(a)), 0),
     };
   });
+  /* Which of the nine somebody on the road answers to, read off how they are
+     dressed. Outlaws, hedge knights, the Watch and the free folk answer to
+     nobody who can be sworn to, so killing them costs you nothing with anyone -
+     which is most of the reason the roads are full of them. */
+  const houseOfSprite = (sprite) => {
+    const id = SPRITE_HOUSE[sprite];
+    const at = id ? SWEARABLE.indexOf(id) : -1;
+    return at < 0 ? 255 : at;
+  };
 
   // Where a sworn sword of each house walks out of their own gate. Every one of
   // these is a tile some door already lands you on, so it is walkable ground
@@ -366,6 +384,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     record.intro = unprefix(record.intro, record.name);
     record.defeat = unprefix(record.defeat, record.name);
     record.fixed = record.fixed ? 1 : 0;
+    if (record.house === undefined) record.house = 255;
     const key = record.name + '|' + record.level;
     if (duellistIndex.has(key)) return duellistIndex.get(key);
     const at = duellists.length;
@@ -848,7 +867,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         x: n.x, y: n.y, dir: actors.DIRECTIONS.indexOf(n.dir ?? 'down'), said,
         name: n.name ?? '', script: n.script ?? '', sprite, trade, sight,
         actor: actorFor(personLook(sprite, n.name ?? ''), `${sprite}|${n.name ?? ''}`),
-        duellist: pushDuellist(fighter),
+        duellist: pushDuellist({ ...fighter, house: houseOfSprite(sprite) }),
         // A town is not a waxwork. Everybody has somewhere to be except the
         // people whose whole job is to stand behind something.
         roams: /healer|merchant|shop|smith|innkeep|steward|harbour|ship|court|stable|kennel/i
@@ -974,6 +993,14 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
          hundreds of gold. Zero everywhere but the halls behind a stronghold
          gate: a house you can buy on the high street is not a house. */
       seat: Math.min(255, map.seat ?? 0),
+      /* Who holds this ground. Standing with them is what a merchant here is
+         reading when they name a price, and what the men-at-arms in the street
+         are reading when they decide whether to let you past. */
+      holder: (() => {
+        const id = REGION_HOUSE[region];
+        const at = id ? SWEARABLE.indexOf(id) : -1;
+        return at < 0 ? 255 : at;
+      })(),
       /* Where the Iron Throne stands, on the one map that has one. */
       courtX: map.court ? map.court.x : 255,
       courtY: map.court ? map.court.y : 255,
@@ -1069,11 +1096,32 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         row.a = flagAt(beat[1]);
       } else if (kind === 'choose') {
         const opts = beat[2].slice(0, 3);
+        const how = beat[3] ?? {};
         row.a = choices.length;
         choices.push({ ask: beat[1], opts,
-          /* What you said is remembered, one flag per answer. */
-          flags: opts.map((_, i) => flagAt(`${beat[3]?.record ?? 'said'}_${i}`)),
+          /* What you said is remembered, one flag per answer - and the name of
+             the flag is the scene's own, not a shared one. It used to fall back
+             to "said", so every unrecorded answer in the game set the same
+             three bits: agreeing with a man in the Riverlands and agreeing with
+             a man at the Wall were the same fact, and anything waiting on
+             either of them fired on both. */
+          flags: opts.map((_, i) => flagAt(`${how.record ?? id}_${i}`)),
           gold: opts.map(() => 0), result: opts.map(() => ''),
+          /* And what it does to the nine. Answers that cost nothing and please
+             nobody are a menu; these are the reason to think before pressing A.
+             Authored per option as { stark: +12, lannister: -8 }. */
+          favour: opts.map((_, i) => {
+            const moves = Object.entries((how.favour ?? [])[i] ?? {})
+              .map(([h, d]) => [SWEARABLE.indexOf(h), d])
+              .filter(([at]) => at >= 0);
+            if (moves.length > 2) {
+              throw new Error(`a choice in ${id} moves ${moves.length} houses; there is room for two`);
+            }
+            return {
+              a: moves[0] ? moves[0][0] : 255, da: moves[0] ? moves[0][1] : 0,
+              b: moves[1] ? moves[1][0] : 255, db: moves[1] ? moves[1][1] : 0,
+            };
+          }),
           duel: opts.map(() => 0xFFFF) });
       }
       beats.push(row);
@@ -1123,6 +1171,19 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       flags: opts.map((o) => flagAt(`${o.choice[0]}_${o.choice[1]}`)),
       gold: opts.map((o) => o.gold ?? 0),
       result: opts.map((o) => o.result ?? ''),
+      /* And who is pleased or offended by how you settled it. */
+      favour: opts.map((o) => {
+        const moves = Object.entries(o.favour ?? {})
+          .map(([h, dd]) => [SWEARABLE.indexOf(h), dd])
+          .filter(([at]) => at >= 0);
+        if (moves.length > 2) {
+          throw new Error(`the quest ${id} moves ${moves.length} houses on one answer`);
+        }
+        return {
+          a: moves[0] ? moves[0][0] : 255, da: moves[0] ? moves[0][1] : 0,
+          b: moves[1] ? moves[1][0] : 255, db: moves[1] ? moves[1][1] : 0,
+        };
+      }),
       /* One of these has to be argued with steel before it is settled. */
       duel: opts.map((o) => (o.roamer
         ? pushDuellist(Object.assign(
@@ -1582,7 +1643,8 @@ L.push('');
 // Houses.
 L.push(`#define HOUSE_COUNT ${harvest.houses.length}`);
 L.push('typedef struct { const char *name, *full, *words, *sworn, *seat; u16 colour, accent;'
-     + ' u16 looks[4]; u8 startMap, startX, startY, startDir, startLevel; } House;');
+     + ' u16 looks[4]; u8 startMap, startX, startY, startDir, startLevel;'
+     + ' u16 rivals, allies; } House;');
 L.push('static const House houses[HOUSE_COUNT] = {');
 for (const h of harvest.houses) {
   L.push(`  { ${cstr(h.name)}, ${cstr(h.full)}, ${cstr(h.words)},`);
@@ -1591,7 +1653,7 @@ for (const h of harvest.houses) {
     const at = MAP_IDS.indexOf(h.start.map);
     if (at < 0) throw new Error(`${h.id} starts on ${h.start.map}, which is not exported`);
     L.push(`    { ${h.looks.join(', ')} }, ${at}, ${h.start.x}, ${h.start.y}, `
-      + `${h.start.dir}, ${h.start.level} },`);
+      + `${h.start.dir}, ${h.start.level}, ${h.rivals}, ${h.allies} },`);
   }
 }
 L.push('};');
@@ -1734,6 +1796,7 @@ L.push('  const char *name;');
 L.push('  u16 vigour; u8 level, might, guard, swiftness, mortal, fixed, dead;');
 L.push('  u8 sworn;             /* which sort of sworn sword, or 255 for nobody */');
 L.push('  u8 host;              /* how many swords stand behind them */');
+L.push('  u8 house;             /* whose colours they are in, 255 for nobody */');
 L.push('  u8 tech[4];');
 L.push('  u16 reward, exp;');
 L.push('  const char *intro, *defeat;');
@@ -1741,7 +1804,7 @@ L.push('} Duellist;');
 L.push('static const Duellist duellists[DUELLIST_COUNT] = {');
 for (const d of harvest.duellists) {
   L.push(`  { ${cstr(d.name)}, ${d.vigour}, ${d.level}, ${d.might}, ${d.guard}, ${d.swiftness}, ${d.mortal}, ${d.fixed ?? 0}, ${d.dead ?? 0},`);
-  L.push(`    ${d.sworn ?? 255}, ${d.host ?? 0},`);
+  L.push(`    ${d.sworn ?? 255}, ${d.host ?? 0}, ${d.house ?? 255},`);
   L.push(`    { ${d.techs.join(', ')} }, ${d.reward}, ${d.exp},`);
   L.push(`    ${cstr(d.intro)}, ${cstr(d.defeat)} },`);
 }
@@ -1784,10 +1847,15 @@ L.push('  const char *said[3];   /* what happens when you say it */');
 L.push('  short gold[3];         /* what saying it costs, or pays */');
 L.push('  u16 duel[3];           /* whoever has to be argued with first, or 65535 */');
 L.push('  u8 count, flag[3];');
+L.push('  /* Who is pleased and who is not, per answer. Two houses is as many as');
+L.push('     one sentence can honestly move. 255 is nobody. */');
+L.push('  u8 houseA[3], houseB[3];');
+L.push('  s8 shiftA[3], shiftB[3];');
 L.push('} Choice;');
 L.push('static const Choice choices[CHOICE_COUNT] = {');
 if (!harvest.choices.length) {
-  L.push('  { 0, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 65535, 65535, 65535 }, 0, { 0, 0, 0 } },');
+  L.push('  { 0, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 65535, 65535, 65535 }, 0, { 0, 0, 0 },'
+       + ' { 255, 255, 255 }, { 255, 255, 255 }, { 0, 0, 0 }, { 0, 0, 0 } },');
 }
 for (const c of harvest.choices) {
   const opts = [0, 1, 2].map((i) => (c.opts[i] ? cstr(c.opts[i]) : '0')).join(', ');
@@ -1795,8 +1863,14 @@ for (const c of harvest.choices) {
   const gold = [0, 1, 2].map((i) => c.gold?.[i] ?? 0).join(', ');
   const duel = [0, 1, 2].map((i) => c.duel?.[i] ?? 65535).join(', ');
   const flags = [0, 1, 2].map((i) => c.flags[i] ?? 0).join(', ');
+  const fv = (i) => c.favour?.[i] ?? { a: 255, da: 0, b: 255, db: 0 };
+  const hA = [0, 1, 2].map((i) => fv(i).a).join(', ');
+  const hB = [0, 1, 2].map((i) => fv(i).b).join(', ');
+  const sA = [0, 1, 2].map((i) => fv(i).da).join(', ');
+  const sB = [0, 1, 2].map((i) => fv(i).db).join(', ');
   L.push(`  { ${cstr(c.ask)}, { ${opts} }, { ${said} }, { ${gold} }, { ${duel} }, `
-    + `${c.opts.length}, { ${flags} } },`);
+    + `${c.opts.length}, { ${flags} },`);
+  L.push(`    { ${hA} }, { ${hB} }, { ${sA} }, { ${sB} } },`);
 }
 L.push('};');
 L.push('typedef struct {');
@@ -1994,6 +2068,7 @@ L.push('  const Chest *chests; u8 chestCount;');
 L.push('  u8 nest;              /* the egg that is found here, or 255 */');
 L.push('  u8 seat;              /* what this hall costs in hundreds, 0 not for sale */');
 L.push('  u8 courtX, courtY;    /* where the chair is, 255 if there is no chair */');
+L.push('  u8 holder;            /* which of the nine holds this ground, 255 none */');
 L.push('} Map;');
 L.push('');
 
@@ -2070,7 +2145,7 @@ harvest.maps.forEach((map, i) => {
   L.push(`    warps_${i}, ${map.liveWarps}, signs_${i}, ${map.signs.length},`);
   L.push(`    npcs_${i}, ${map.npcs.length}, ambushes_${i}, ${map.ambushes.length},`);
   L.push(`    wilds_${i}, ${map.wilds.length}, chests_${i}, ${map.chests.length},`);
-  L.push(`    ${map.nest}, ${map.seat}, ${map.courtX}, ${map.courtY} },`);
+  L.push(`    ${map.nest}, ${map.seat}, ${map.courtX}, ${map.courtY}, ${map.holder} },`);
 });
 L.push('};');
 L.push('');

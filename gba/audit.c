@@ -2078,6 +2078,163 @@ int main(void) {
     }
   }
 
+  /* --- where you stand with the nine --------------------------------------- */
+  /* None of this existed on the cartridge until now: the rivalries, who holds
+     which ground, whose colours a man on the road is in, and what any of it
+     does to a price. A table of 255s and zeroes would look exactly like it
+     still not existing, so it is checked rather than assumed. */
+  {
+    int k, j2, held = 0, coloured = 0, rivalled = 0, moved = 0;
+    extern void newGameState(void);
+
+    for (k = 0; k < HOUSE_COUNT; k++) {
+      if (houses[k].rivals) rivalled++;
+      if (houses[k].rivals & (1u << k)) bad("%s is its own rival", houses[k].name);
+      if (houses[k].allies & (1u << k)) bad("%s is its own ally", houses[k].name);
+      if (houses[k].rivals & houses[k].allies) {
+        bad("%s counts somebody as both friend and enemy", houses[k].name);
+      }
+      if (houses[k].rivals >> HOUSE_COUNT) bad("%s has a rival past the ninth house", houses[k].name);
+      if (houses[k].allies >> HOUSE_COUNT) bad("%s has an ally past the ninth house", houses[k].name);
+    }
+    if (rivalled < 5) bad("only %d of the nine have anybody they cannot stand", rivalled);
+
+    for (k = 0; k < MAP_COUNT; k++) {
+      if (maps[k].holder == 255) continue;
+      held++;
+      if (maps[k].holder >= HOUSE_COUNT) {
+        bad("%s is held by house %d, and there are %d", maps[k].name, maps[k].holder, HOUSE_COUNT);
+      }
+    }
+    if (held < 60) bad("only %d of %d maps are held by anybody", held, MAP_COUNT);
+    note("%d of %d maps are somebody's ground", held, MAP_COUNT);
+
+    for (k = 0; k < DUELLIST_COUNT; k++) {
+      if (duellists[k].house == 255) continue;
+      coloured++;
+      if (duellists[k].house >= HOUSE_COUNT) {
+        bad("%s wears the colours of house %d", duellists[k].name, duellists[k].house);
+      }
+    }
+    if (coloured < 30) bad("only %d of %d fighters answer to anybody", coloured, DUELLIST_COUNT);
+    note("%d of %d people on the road wear somebody's colours", coloured, DUELLIST_COUNT);
+
+    /* Swearing a sword decides where you start with everybody. */
+    for (k = 0; k < HOUSE_COUNT; k++) {
+      int friends = 0, enemies = 0;
+      seedFavour(k);
+      if (favour[k] < 25) bad("%s does not think well of its own sworn sword", houses[k].name);
+      for (j2 = 0; j2 < HOUSE_COUNT; j2++) {
+        if (j2 == k) continue;
+        if (favour[j2] > 0) friends++;
+        if (favour[j2] < 0) enemies++;
+      }
+      if (!enemies) bad("swearing to %s makes nobody an enemy", houses[k].name);
+      if (friends + enemies == 0) bad("swearing to %s moves nothing at all", houses[k].name);
+    }
+
+    /* It is bounded either way, and killing somebody's men costs you with them
+       and gains you with the people who cannot stand them. */
+    seedFavour(0);
+    for (k = 0; k < 400; k++) tookOneOfTheirs(1, 6);
+    if (favour[1] != -100) bad("four hundred dead Tullys and their standing is %d", favour[1]);
+    for (k = 0; k < 400; k++) tookOneOfTheirs(1, -6);
+    if (favour[1] != 100) bad("standing runs past the top: %d", favour[1]);
+    seedFavour(0);
+    {
+      int rival = -1;
+      for (j2 = 0; j2 < HOUSE_COUNT; j2++) if (houses[4].rivals & (1u << j2)) { rival = j2; break; }
+      if (rival < 0) bad("house 4 has nobody who cannot stand it");
+      else {
+        int wasR = favour[rival], wasH = favour[4];
+        tookOneOfTheirs(4, 9);
+        if (favour[4] >= wasH) bad("killing their men costs nothing with them");
+        if (favour[rival] <= wasR) bad("killing their men pleases nobody");
+        moved = 1;
+      }
+    }
+    if (!moved) bad("nothing at all moves when somebody goes down");
+
+    /* And what it does at a counter. */
+    seedFavour(0);
+    favour[0] = 100;
+    if (priceFactor(0) >= 100) bad("a house that loves you charges full price");
+    favour[0] = -100;
+    if (priceFactor(0) <= 100) bad("a house that hates you charges no more");
+    if (priceFactor(-1) != 100) bad("ground nobody holds still has a price factor");
+    /* The five words, and every one of them reachable. */
+    {
+      int bands = 0;
+      static const int at[5] = { 80, 40, 0, -40, -80 };
+      const char *seen[5];
+      for (k = 0; k < 5; k++) {
+        favour[0] = (s8)at[k];
+        seen[k] = bandWord(0);
+        bands++;
+        for (j2 = 0; j2 < k; j2++) if (seen[j2] == seen[k]) bad("two of the five bands read the same");
+      }
+      if (bands != 5) bad("%d bands of standing", bands);
+    }
+
+    /* Every answer in the game moves somebody, or it is a menu. */
+    {
+      int dead = 0, alive = 0;
+      for (k = 0; k < CHOICE_COUNT; k++) {
+        for (j2 = 0; j2 < choices[k].count; j2++) {
+          if (choices[k].houseA[j2] == 255 && choices[k].houseB[j2] == 255
+              && !choices[k].gold[j2] && choices[k].duel[j2] == 0xFFFF) dead++;
+          else alive++;
+          if (choices[k].houseA[j2] != 255 && choices[k].houseA[j2] >= HOUSE_COUNT) {
+            bad("an answer moves house %d", choices[k].houseA[j2]);
+          }
+          if (choices[k].houseA[j2] != 255 && !choices[k].shiftA[j2]) {
+            bad("an answer names a house and moves it by nothing");
+          }
+        }
+      }
+      if (alive < 20) bad("only %d answers in the game do anything at all", alive);
+      note("%d of %d answers move gold, steel or somebody's opinion",
+        alive, alive + dead);
+    }
+
+    /* And no two answers anywhere share a flag, which is what made agreeing
+       with a man in the Riverlands the same fact as agreeing with a man at the
+       Wall. */
+    {
+      int clash = 0;
+      for (k = 0; k < CHOICE_COUNT; k++) {
+        for (j2 = 0; j2 < choices[k].count; j2++) {
+          int m, n2;
+          for (m = k; m < CHOICE_COUNT; m++) {
+            for (n2 = (m == k ? j2 + 1 : 0); n2 < choices[m].count; n2++) {
+              if (choices[k].flag[j2] == choices[m].flag[n2]) clash++;
+            }
+          }
+        }
+      }
+      if (clash) bad("%d pairs of answers in the game set the same flag", clash);
+    }
+
+    seedFavour(0);
+    newGameState();
+  }
+
+  /* --- is a fight still worth having at the top of the ladder? ------------- */
+  {
+    extern void newGameState(void);
+    newGameState();
+    you.level = 50;
+    you.exp = expForLevel(50);
+    you.gold = 0;
+    /* Nothing in a wandering run ever reaches fifty inside the frame budget by
+       any road but grinding, and every sweep of this game ends there with a
+       hundred maps unwalked. From fifty on, a win used to pay nothing at all. */
+    if (expShare() != 100) note("the rail at the cap reads %d", expShare());
+    if (expForLevel(51) > expForLevel(50)) {
+      note("there is a level 51 in the table; the cap is the game's, not the maths'");
+    }
+  }
+
   /* --- the record, written and read back ---------------------------------- */
   {
     int ok = 1;

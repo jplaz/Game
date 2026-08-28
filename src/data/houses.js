@@ -62,7 +62,12 @@ export const HOUSES = {
     short: 'Vale',
     words: 'As High as Honour',
     colour: '#5c8fd0', accent: '#f0f4fa',
-    rivals: [], allies: ['stark', 'tully'],
+    /* The Vale sat out every war it could, which is not the same as having no
+       enemies: the Lannisters killed the Hand who came from here and the
+       mountain clans have been raiding down out of the Mountains of the Moon
+       for three hundred years. A house with nobody to be wary of makes
+       swearing to them a choice with no consequences at all. */
+    rivals: ['lannister', 'greyjoy'], allies: ['stark', 'tully'],
     sworn: 'As high as honour. The Vale watches how you climb.',
   },
   greyjoy: {

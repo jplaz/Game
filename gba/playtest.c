@@ -89,7 +89,7 @@ static void checkSound(void) {
 static void checkFrame(void) {
   int i;
   checkSound();
-  if (scene < 0 || scene > SCENE_SEAT) finding("scene is %d, which is not a scene", scene);
+  if (scene < 0 || scene > SCENE_RIDE) finding("scene is %d, which is not a scene", scene);
   /* Nothing is standing anywhere yet on the screens that come before the
      world, and there is no map to be standing on. */
   if (scene == SCENE_TITLE || scene == SCENE_HOUSE || scene == SCENE_NAME) return;
@@ -231,7 +231,7 @@ static int deedsSeen, cutsPlayed, cutsChosen, courtsHeld, courtsAnswered;
 /* The house card and the arms builder: how many times the run opened each, how
    far down the card it has walked this visit, and whether it ever took arms of
    its own, bought a hall, or married anybody. */
-static int housesSeen, houseLooks, armsSeen, armsLooks;
+static int housesSeen, houseLooks, armsSeen, armsLooks, ridesSeen, rideLooks, rodeTo;
 static unsigned char cutSeen[CUT_COUNT];
 static int eggsFound, eggsHatched, dragonEgg;
 static int boughtOf[WARE_COUNT];
@@ -625,6 +625,12 @@ static void completeGoal(void) {
          times, and counting every visit made the tally read "568 of 161". */
       if (!npcTalked[worldId][goalIndex]) talked++;
       npcTalked[worldId][goalIndex] = 1;
+      /* Having been mended, ask him for a horse. */
+      if (world->npcs[goalIndex].heals && ridesSeen < 40) {
+        goalStage = 2;
+        interacting = 0;
+        return;
+      }
       /* Having heard them out, draw on them — but only up to a quota, or the
          whole of Westeros ends up dead before it has been walked. */
       /* Somebody a great deal better than you is a fight a player would not
@@ -830,6 +836,17 @@ void hostFrame(void) {
     if (armsLooks < 8) { keys = (armsLooks & 1) ? tap(KEY_RIGHT) : tap(KEY_DOWN); if (keys) armsLooks++; }
     else if (armsLooks == 8) { keys = tap(KEY_A); if (keys) armsLooks++; }
     else { keys = tap(KEY_START); if (keys) armsLooks = 0; }
+  } else if (scene == SCENE_RIDE) {
+    /* Read the list, take a horse now and then, and go. A run that only ever
+       walked would never once prove the horse puts you down somewhere you can
+       stand - which is the only interesting thing about it. */
+    ridesSeen++;
+    if (rideLooks < 3) { rideLooks++; keys = tap(KEY_DOWN); }
+    else if (rideLooks == 3 && rideCount() && you.gold >= rideCost()) {
+      rideLooks++;
+      keys = tap(KEY_A);
+      if (keys) rodeTo++;
+    } else { keys = tap(KEY_B); if (keys) rideLooks = 0; }
   } else if (scene == SCENE_DEEDS) {
     deedsSeen++;
     keys = tap(KEY_B);
@@ -1195,6 +1212,11 @@ void hostFrame(void) {
           } else if (goalStage == 1) {
             keys = tap(KEY_SELECT);
             if (keys) { duels++; interacting = 1; }
+          } else if (goalStage == 2) {
+            /* A maester. SELECT at one asks about a horse, which is the only
+               way into the ride list and so the only way it is ever tested. */
+            keys = tap(KEY_SELECT);
+            if (keys) interacting = 1;
           } else {
             keys = tap(KEY_A);
             if (keys) interacting = 1;
@@ -1422,6 +1444,10 @@ int main(int argc, char **argv) {
       finding("the chair was taken and not one petition was ever heard");
     }
   }
+  printf("  the road       %d ride lists read, %d horses taken, %d halls to ride to\n",
+    ridesSeen, rodeTo, rideCount());
+  printf("  your swords    %s\n", seat.warLive ? maps[seat.warMap].name
+                                                : "at home, or nowhere to send them");
   printf("  your own house %d cards read, %d arms screens, arms %s, seat %s\n",
     housesSeen, armsSeen, you.arms ? "taken" : "none",
     seat.has ? maps[seat.map].name : "none");

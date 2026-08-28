@@ -1628,6 +1628,60 @@ int main(void) {
       }
     }
 
+    /* Sending your swords at a hall: it costs, it takes a season, the odds are
+       bounded either way, and a losing throw never empties the company. */
+    newGameState();
+    seat.has = 1;
+    seat.map = 0;
+    you.level = 25;
+    you.gold = 999999;
+    you.kills = 0;
+    if (sendHost()) bad("swords were sent with nobody sworn to send");
+    for (k = 0; k < HOST_MAX; k++) { you.host[k].kind = (u8)(k % SWORN_KINDS); you.host[k].level = 30; }
+    for (k = 0; k < MAP_COUNT; k++) beenTo[k >> 3] = 0;
+    if (warTarget() >= 0) bad("swords are sent at a hall nobody has found");
+    for (k = 0; k < MAP_COUNT; k++) if (maps[k].seat) beenTo[k >> 3] |= (u8)(1u << (k & 7));
+    {
+      int m = warTarget();
+      if (m < 0) bad("nowhere at all to send swords");
+      else {
+        int odds = warOddsOn(m), lean;
+        if (odds < 12 || odds > 88) bad("the odds on a hall are %d in a hundred", odds);
+        /* Better men, better odds. */
+        for (k = 0; k < HOST_MAX; k++) you.host[k].level = 5;
+        lean = warOddsOn(m);
+        for (k = 0; k < HOST_MAX; k++) you.host[k].level = 45;
+        if (warOddsOn(m) <= lean && lean < 88) {
+          bad("six better swords are worth nothing on a wall: %d then %d", lean, warOddsOn(m));
+        }
+        was = you.gold;
+        if (!sendHost()) bad("swords would not be sent with everything in hand");
+        if (you.gold >= was) bad("putting a company in the field cost nothing");
+        if (!seat.warLive) bad("swords were sent and are not in the field");
+        if (sendHost()) bad("a second company was sent while the first was out");
+        /* Nothing happens until the season is up, and then it happens once. */
+        seat.warOdds = 100;
+        for (k = 0; k < 200 && seat.warLive; k++) { you.kills++; houseAfterWin(); }
+        if (seat.warLive) bad("swords sent out are still in the field after 200 fights");
+        if (!mapCleared(m)) bad("a hall taken by your swords is not cleared");
+        /* And a losing throw takes a man, but never the last one. */
+        for (k = 0; k < MAP_COUNT; k++) {
+          int j2;
+          for (j2 = 0; j2 < MAX_CROWD; j2++) beaten[k][j2] = 0;
+        }
+        for (k = 0; k < HOST_MAX; k++) { you.host[k].kind = 255; }
+        you.host[0].kind = 0; you.host[0].level = 30;
+        you.host[1].kind = 1; you.host[1].level = 30;
+        you.gold = 999999;
+        for (i2 = 0; i2 < 6 && hostCount() > 1; i2++) {
+          if (!sendHost()) break;
+          seat.warOdds = 0;
+          for (k = 0; k < 200 && seat.warLive; k++) { you.kills++; houseAfterWin(); }
+        }
+        if (!hostCount()) bad("a run of bad throws left you with no swords at all");
+      }
+    }
+
     /* A feast: only in your own hall, only if you can pay for it, and it puts
        everybody who walked in with you back on their feet. */
     newGameState();
@@ -1858,6 +1912,77 @@ int main(void) {
     }
   }
 
+  /* --- a horse to somewhere you have already been -------------------------- */
+  {
+    int k, havens = 0;
+    extern void newGameState(void);
+    newGameState();
+
+    for (k = 0; k < MAP_COUNT; k++) if (isHaven(k)) havens++;
+    if (havens < 8) bad("only %d halls in the world have a maester in them", havens);
+    note("%d halls a horse can be taken to", havens);
+
+    /* Nowhere, until you have been somewhere. */
+    worldId = 0;
+    world = &maps[0];
+    if (rideCount()) bad("a new game can already ride to %d places", rideCount());
+    if (nthRide(0) >= 0) bad("a new game is offered a horse to map %d", nthRide(0));
+
+    /* Walking into a hall is what puts it on the list, and the list never
+       offers you the room you are standing in. */
+    {
+      int first = -1, second = -1;
+      for (k = 0; k < MAP_COUNT; k++) {
+        if (!isHaven(k)) continue;
+        if (first < 0) first = k; else { second = k; break; }
+      }
+      if (second < 0) bad("fewer than two halls with a maester");
+      else {
+        /* Walked into the way an actual player walks into them: through the
+           door, which is the only spot the game ever writes down. */
+        int inA = firstWayIn(&maps[first], first);
+        int inB = firstWayIn(&maps[second], second);
+        if (inA < 0 || inB < 0) bad("a maester's hall with no way into it");
+        enterMap(first, inA % maps[first].w, inA / maps[first].w, 0);
+        enterMap(second, inB % maps[second].w, inB / maps[second].w, 0);
+        if (rideCount() != 1) {
+          bad("two halls walked into and %d offered from the second", rideCount());
+        }
+        if (nthRide(0) != first) bad("the horse is offered to the wrong hall");
+        worldId = first;
+        world = &maps[first];
+        if (nthRide(0) != second) bad("the list does not turn round with you");
+        /* And a horse costs, and cannot be taken without the coin. */
+        you.level = 20;
+        you.gold = rideCost() - 1;
+        if (rideTo(second)) bad("a horse was taken with nothing to pay for it");
+        you.gold = rideCost();
+        if (!rideTo(second)) bad("a horse would not be taken with the price in hand");
+        if (worldId != second) bad("the horse went to map %d, not %d", worldId, second);
+        if (you.gold) bad("a horse cost %d less than it said", you.gold);
+        /* Wherever it put you down has to be ground you can stand on: being set
+           down inside a wall is worse than the walk. */
+        if (solidOn(&maps[worldId], hero.px >> 4, hero.py >> 4)) {
+          bad("%s sets you down inside a wall at %d,%d", maps[worldId].name,
+            hero.px >> 4, hero.py >> 4);
+        }
+      }
+    }
+
+    /* Every hall with a maester in it: somewhere you can be put back down. */
+    for (k = 0; k < MAP_COUNT; k++) {
+      if (!isHaven(k)) continue;
+      if (firstWayIn(&maps[k], k) < 0) {
+        bad("%s has a maester in it and no way in", maps[k].name);
+      }
+    }
+
+    newGameState();
+    worldId = 0;
+    world = &maps[0];
+    you.gold = 0;
+  }
+
   /* --- the record, written and read back ---------------------------------- */
   {
     int ok = 1;
@@ -1876,6 +2001,11 @@ int main(void) {
     you.lead = 2;
     for (i = 0; i < WARE_COUNT; i++) you.bag[i] = (u8)(i * 3 % 7);
     for (i = 0; i < MAP_COUNT; i++) for (j = 0; j < MAX_CROWD; j++) slain[i][j] = (u8)((i + j) & 1);
+    for (i = 0; i < MAP_COUNT; i++) {
+      beenTo[i >> 3] |= (u8)(1u << (i & 7));
+      backAtX[i] = 3;
+      backAtY[i] = 4;
+    }
     keepRecord();
 
     you.house = 0; you.level = 1; you.exp = 0; you.gold = 0; you.hp = 1; you.kills = 0;
@@ -1884,6 +2014,8 @@ int main(void) {
     for (i = 0; i < WARE_KINDS; i++) you.worn[i] = 0;
     for (i = 0; i < WARE_COUNT; i++) you.bag[i] = 0;
     for (i = 0; i < MAP_COUNT; i++) for (j = 0; j < MAX_CROWD; j++) slain[i][j] = 0;
+    for (i = 0; i < BEEN_WORDS; i++) beenTo[i] = 0;
+    for (i = 0; i < MAP_COUNT; i++) { backAtX[i] = 0; backAtY[i] = 0; }
 
     if (!findRecord()) { bad("a record written and read straight back does not check out"); ok = 0; }
     if (ok) {
@@ -1910,6 +2042,14 @@ int main(void) {
       for (i = 0; i < MAP_COUNT; i++) {
         for (j = 0; j < MAX_CROWD; j++) {
           if (slain[i][j] != (u8)((i + j) & 1)) { bad("the dead do not survive a save"); i = MAP_COUNT; break; }
+        }
+      }
+      /* And the roads you have walked, or a reload takes the horse away. */
+      for (i = 0; i < MAP_COUNT; i++) {
+        if (!haveBeen(i)) continue;
+        if (backAtX[i] != 3 || backAtY[i] != 4) {
+          bad("where a horse sets you down does not survive a save");
+          break;
         }
       }
       hostSram[7] ^= 0xFF;

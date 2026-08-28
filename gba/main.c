@@ -1413,9 +1413,29 @@ typedef struct {
   u8 vassal[VASSAL_WORDS];      /* which halls have sworn to you */
   u16 raidAt;                   /* the kill count a raid lands on; 0 for none */
   u8 raidMap, raidLive;         /* which hall it lands on, and is it burning */
+  /* And your swords, sent off to take a hall while you are somewhere else.
+     Six sworn men who only ever added a number to a blow were six numbers; a
+     company you can send away and get back short-handed is a company. */
+  u8 warMap, warLive, warOdds;
+  u16 warAt;
 } Seat;
 
 static Seat seat;
+
+/* Where you have already been, and where you were standing when you left. A
+   hundred and fifty-seven maps and no way across them but walking made the back
+   half of the game a commute; a maester will put you on a horse to any hall you
+   have already found, and this is what he has to work from. Zero is a real map
+   and a real corner of one, so both of these have to be written rather than
+   assumed. */
+#define BEEN_WORDS ((MAP_COUNT + 7) / 8)
+static u8 beenTo[BEEN_WORDS];
+static u8 backAtX[MAP_COUNT], backAtY[MAP_COUNT];
+
+static int haveBeen(int m) {
+  if (m < 0 || m >= MAP_COUNT) return 0;
+  return (beenTo[m >> 3] >> (m & 7)) & 1;
+}
 
 typedef struct {
   u32 judged;                 /* which petitions have been answered */
@@ -1915,6 +1935,15 @@ static void enterMap(int id, int tx, int ty, int dir) {
   int i;
   u16 was = REG_DISPCNT;
   sfxDoor();
+  /* Been here, and this is the spot to put you back down on. Recorded on the
+     way in rather than on the way out because the way in is always somewhere
+     you can stand - a door you came through, a berth you were rowed to - and
+     the way out might be a ledge you jumped off. */
+  if (id >= 0 && id < MAP_COUNT) {
+    beenTo[id >> 3] |= (u8)(1u << (id & 7));
+    backAtX[id] = (u8)tx;
+    backAtY[id] = (u8)ty;
+  }
   worldId = id;
   world = &maps[id];
   hero.px = (s16)(tx * 16);
@@ -3138,11 +3167,12 @@ extern unsigned char hostSram[65536];              /* the harness's stand-in */
 #else
 #define SRAM ((volatile u8 *)0x0E000000)
 #endif
-/* "ICE4". The kennels, the host, the cutscene flags and now a house of your own
-   have each changed the shape of the record; an old save read as this one would
-   put animals, sworn swords, scenes-already-seen and a hall you never bought in
-   places they were never written to. */
-#define RECORD_MAGIC 0x34454349u
+/* "ICE5". The kennels, the host, the cutscene flags, a house of your own and
+   now the roads you have already walked have each changed the shape of the
+   record; an old save read as this one would put animals, sworn swords,
+   scenes-already-seen, a hall you never bought and a horse to somewhere you
+   have never been in places they were never written to. */
+#define RECORD_MAGIC 0x35454349u
 
 typedef struct {
   u32 magic;
@@ -3169,6 +3199,10 @@ typedef struct {
      later does not mean a new record format. */
   Seat seat;
   Crown crown;
+  /* Where you have been and where to put you back down, so a horse to
+     somewhere you found last week still knows the way after a reload. */
+  u8 beenTo[BEEN_WORDS];
+  u8 backAtX[MAP_COUNT], backAtY[MAP_COUNT];
   u8 arms, charge, tincture, saying;
   char houseName[NAME_MAX + 1];
   /* Which scenes have played and what you answered when one asked. A cutscene
@@ -3226,6 +3260,12 @@ static void keepRecord(void) {
   record.story = you.story;
   record.seat = seat;
   record.crown = crown;
+  { int k;
+    for (k = 0; k < BEEN_WORDS; k++) record.beenTo[k] = beenTo[k];
+    for (k = 0; k < MAP_COUNT; k++) {
+      record.backAtX[k] = backAtX[k];
+      record.backAtY[k] = backAtY[k];
+    } }
   record.arms = you.arms;
   record.charge = you.charge;
   record.tincture = you.tincture;
@@ -3309,6 +3349,12 @@ static void takeUpRecord(void) {
   you.story = record.story;
   seat = record.seat;
   crown = record.crown;
+  { int k;
+    for (k = 0; k < BEEN_WORDS; k++) beenTo[k] = record.beenTo[k];
+    for (k = 0; k < MAP_COUNT; k++) {
+      backAtX[k] = record.backAtX[k];
+      backAtY[k] = record.backAtY[k];
+    } }
   you.arms = record.arms;
   you.charge = record.charge;
   you.tincture = record.tincture;
@@ -3754,6 +3800,9 @@ void newGameState(void) {
   you.houseName[0] = 0;
   { u8 *p = (u8 *)&seat; unsigned n = sizeof seat; while (n--) *p++ = 0; }
   for (k = 0; k < OFFICE_COUNT; k++) seat.office[k] = 255;
+  { int k;
+    for (k = 0; k < BEEN_WORDS; k++) beenTo[k] = 0;
+    for (k = 0; k < MAP_COUNT; k++) { backAtX[k] = 0; backAtY[k] = 0; } }
   /* And nobody starts having already ruled. */
   { u8 *p = (u8 *)&crown; unsigned n = sizeof crown; while (n--) *p++ = 0; }
   courtAt = -1;
@@ -4376,6 +4425,30 @@ static const char *houseAfterWin(void) {
       : "  A rider catches you on the road. Your household has a daughter.";
   }
 
+  /* Word back from wherever you sent your swords. */
+  if (!said && seat.warLive && (u16)you.kills >= seat.warAt) {
+    int m = seat.warMap, k;
+    seat.warLive = 0;
+    if ((int)roll(100) < seat.warOdds) {
+      for (k = 0; k < MAX_CROWD; k++) beaten[m][k] = 1;
+      said = "  Word from your swords: the hall is taken and standing empty for "
+             "you.";
+    } else {
+      /* Somebody does not come back. The last man is spared, because a company
+         that can be wiped out by one bad roll is a company nobody sends. */
+      int lost = -1;
+      for (k = HOST_MAX - 1; k >= 0; k--) if (you.host[k].kind != 255) { lost = k; break; }
+      if (lost >= 0 && hostCount() > 1) {
+        you.host[lost].kind = 255;
+        said = "  Word from your swords: they were thrown off the wall, and one "
+               "of them is not coming back.";
+      } else {
+        said = "  Word from your swords: they were thrown off the wall and are "
+               "limping home.";
+      }
+    }
+  }
+
   /* And somebody who wants what you have. Only once you have holds worth
      taking, and never while one is already burning. */
   if (!said && !seat.raidLive && vassalCount() && !seat.raidAt)
@@ -4438,6 +4511,54 @@ static int oathsReady(void) {
 }
 
 static int oathPrice(void) { return 500 + vassalCount() * 700; }
+
+/* ------------------------------------------------------- sending the host ---
+   Six sworn swords who did nothing but add a number to a blow were six numbers.
+   Sent away at a hall, they are a company: it costs to put them in the field,
+   it takes a season to hear anything, and now and then one of them does not
+   come back.
+
+   How hard a hall is: the biggest fighter standing in it. */
+static int hallStrength(int m) {
+  int i, n, worst = 0;
+  if (m < 0 || m >= MAP_COUNT) return 0;
+  n = maps[m].npcCount > MAX_CROWD ? MAX_CROWD : maps[m].npcCount;
+  for (i = 0; i < n; i++) {
+    int lv;
+    if (!maps[m].npcs[i].fights) continue;
+    lv = duellists[maps[m].npcs[i].duellist].level;
+    if (lv > worst) worst = lv;
+  }
+  return worst;
+}
+
+/* Which hall your swords would be sent at: somewhere you have found, that is
+   for sale, that nobody has cleared, and that is not already yours. The
+   cheapest first, because price is how hard a place is in this world. */
+static int warTarget(void) {
+  int m, pick = -1;
+  for (m = 0; m < MAP_COUNT; m++) {
+    if (!maps[m].seat || isVassal(m)) continue;
+    if (seat.has && m == seat.map) continue;
+    if (!haveBeen(m) || mapCleared(m)) continue;
+    if (pick < 0 || maps[m].seat < maps[pick].seat) pick = m;
+  }
+  return pick;
+}
+
+static int warPrice(int m) { return m < 0 ? 0 : maps[m].seat * 30; }
+
+/* In a hundred. Your swords against whoever is holding it, with a floor and a
+   ceiling: a company that always wins is not a decision and one that never wins
+   is not worth having. */
+static int warOddsOn(int m) {
+  int mine = hostBonus() * 3, theirs = hallStrength(m) * 4 + 20, odds;
+  if (mine + theirs <= 0) return 0;
+  odds = mine * 100 / (mine + theirs);
+  if (odds > 88) odds = 88;
+  if (odds < 12) odds = 12;
+  return odds;
+}
 
 /* A hall counts as cleared when everybody in it who would fight you has been
    put down at least once. Somewhere with nobody in it who fights is not a hall
@@ -4502,7 +4623,12 @@ static void paintHouse(void) {
     else if (housePick == HROW_COFFER) hint = "A: send for what the rents have made";
     else if (housePick == HROW_HOUSEHOLD) hint = OFFICE_DOES[officeShown];
     else if (housePick == HROW_WED) hint = "A septon will arrange it. Find a sept.";
-    else hint = "A: call on the halls you have cleared";
+    else if (seat.warLive) {
+      copyString(scratch, "Your swords are at ", sizeof scratch);
+      appendString(scratch, maps[seat.warMap].name, sizeof scratch);
+      hint = scratch;
+    }
+    else hint = "A: call on cleared halls   SELECT: send your swords";
     drawText(34, 20, hint, raidedMap() >= 0 && !houseSaid ? C_HURT : C_WELL);
   }
 
@@ -4752,6 +4878,47 @@ static const char *houseTalk(void) {
   return said;
 }
 
+/* Send them. Returns 1 when the order was given. */
+static int sendHost(void) {
+  int m = warTarget(), price;
+  if (!seat.has) { houseSaid = "Swords are sent from somewhere. Buy a hall."; return 0; }
+  if (seat.warLive) {
+    copyString(scratch, "Your swords are already at ", sizeof scratch);
+    appendString(scratch, maps[seat.warMap].name, sizeof scratch);
+    appendString(scratch, ". Word will come.", sizeof scratch);
+    houseSaid = scratch;
+    return 0;
+  }
+  if (hostCount() < 2) {
+    houseSaid = "Two swords is a company. One is a man going for a walk.";
+    return 0;
+  }
+  if (m < 0) {
+    houseSaid = "Nothing you have found needs taking. Go and find something.";
+    return 0;
+  }
+  price = warPrice(m);
+  if (you.gold < price) {
+    copyString(scratch, "Putting them in the field costs ", sizeof scratch);
+    appendNumber(scratch, price, sizeof scratch);
+    appendString(scratch, " gold in wages and carts.", sizeof scratch);
+    houseSaid = scratch;
+    return 0;
+  }
+  you.gold -= price;
+  seat.warMap = (u8)m;
+  seat.warLive = 1;
+  seat.warOdds = (u8)warOddsOn(m);
+  seat.warAt = (u16)(you.kills + 12 + roll(10));
+  copyString(scratch, "They ride for ", sizeof scratch);
+  appendString(scratch, maps[m].name, sizeof scratch);
+  appendString(scratch, ". About ", sizeof scratch);
+  appendNumber(scratch, seat.warOdds, sizeof scratch);
+  appendString(scratch, " in a hundred, your master-at-arms says.", sizeof scratch);
+  houseSaid = scratch;
+  return 1;
+}
+
 /* A feast in your own hall. It costs what a hall of that size costs to feed for
    a night, it puts everybody who came back with you right, and if the realm is
    yours it buys a little of the goodwill that ruling spends. It is also the one
@@ -4985,6 +5152,91 @@ static void crownCheckRising(void) {
     "realm ever does.");
 }
 
+
+/* --------------------------------------------------------------- the road --
+ *
+ * A hundred and fifty-seven maps, and the only way between any two of them was
+ * to walk it. That is fine for the first twenty and a commute for the rest: by
+ * the middle of the game the distance between a hall you want to be at and the
+ * hall you are at is twenty doors of ground you have already cleared, and
+ * walking it proves nothing about you except that you are willing to.
+ *
+ * So: a maester will find you a horse. Only to somewhere you have already been
+ * and only to a maester's hall, so it can never take you anywhere the road
+ * would not have, and it costs coin, so it is never the cheap answer at the
+ * start of the game when coin is the whole of the difficulty.
+ */
+
+/* Somewhere you could be put down: a hall with a maester in it. */
+static int isHaven(int m) {
+  int i, n;
+  if (m < 0 || m >= MAP_COUNT) return 0;
+  n = maps[m].npcCount > MAX_CROWD ? MAX_CROWD : maps[m].npcCount;
+  for (i = 0; i < n; i++) if (maps[m].npcs[i].heals) return 1;
+  return 0;
+}
+
+static int rideCost(void) { return 90 + you.level * 6; }
+
+static int rideCount(void) {
+  int m, n = 0;
+  for (m = 0; m < MAP_COUNT; m++) if (m != worldId && haveBeen(m) && isHaven(m)) n++;
+  return n;
+}
+
+/* The nth hall you could ride to, or -1. Counted rather than indexed, because
+   the list changes as you find places and an array of it would be one more
+   thing to keep in step with the record. */
+static int nthRide(int at) {
+  int m, n = 0;
+  for (m = 0; m < MAP_COUNT; m++) {
+    if (m == worldId || !haveBeen(m) || !isHaven(m)) continue;
+    if (n == at) return m;
+    n++;
+  }
+  return -1;
+}
+
+static int ridePick, rideTop;
+
+static void paintRide(void) {
+  int i, have = rideCount();
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 6);
+  drawText(14, 6, "WHERE ARE YOU RIDING?", C_GOLD);
+  copyString(scratch, "", sizeof scratch);
+  appendNumber(scratch, rideCost(), sizeof scratch);
+  appendString(scratch, " gold, and you have ", sizeof scratch);
+  appendNumber(scratch, you.gold, sizeof scratch);
+  drawText(TXT_W - 14 - textWidth(scratch), 6, scratch,
+    you.gold >= rideCost() ? C_GOLD : C_HURT);
+  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+
+  if (!have) {
+    drawText(24, 34, "You have not found another maester's hall yet.", C_DIM);
+    drawText(24, 48, "Walk somewhere. Then he can send you back to it.", C_DIM);
+  }
+  for (i = 0; i < LIST_ROWS && i + rideTop < have; i++) {
+    int m = nthRide(i + rideTop), y = 24 + i * 12;
+    int here = (i + rideTop) == ridePick;
+    if (m < 0) break;
+    if (here) drawCursor(14, y + 1, C_GOLD);
+    drawText(24, y, maps[m].name, here ? C_GOLD : C_INK);
+    if (seat.has && m == seat.map) {
+      drawText(TXT_W - 14 - textWidth("your own hall"), y, "your own hall", C_HOUSE);
+    }
+  }
+  drawText(14, TXT_H - 18, have ? "A: ride   B: stay" : "B: go", C_DIM);
+}
+
+/* Take the horse. Returns 0 when you cannot. */
+static int rideTo(int m) {
+  if (m < 0 || you.gold < rideCost()) return 0;
+  you.gold -= rideCost();
+  enterMap(m, backAtX[m], backAtY[m], 0);
+  return 1;
+}
+
 /* ------------------------------------------------------------- the menu --- */
 
 /* Eight is the most that fits: the frame is fourteen high plus twelve a line,
@@ -5069,6 +5321,7 @@ static void paintTitle(void) {
 #define SCENE_DEEDS 15    /* what you have walked into, and what you said */
 #define SCENE_ARMS 16     /* the charge, the field and the words, being chosen */
 #define SCENE_SEAT 17     /* your own house, and everything hanging off it */
+#define SCENE_RIDE 18     /* where a maester will find you a horse to */
 
 static int scene;
 
@@ -6589,7 +6842,9 @@ static void tryTalk(void) {
           openWindow(npc->name,
             "Sit. There. Whole again, you and everyone who walked in behind "
             "you, and no charge to a sworn sword of a great house. If you go "
-            "down out there, they will bring you back here.");
+            "down out there, they will bring you back here."
+            "   [SELECT and I will have a horse saddled for anywhere you have "
+            "already been]");
           return;
         }
       }
@@ -7228,6 +7483,11 @@ int main(void) {
         holdFeast();
         sfxPick();
         paintHouse();
+      } else if (hit(KEY_SELECT) && housePick == HROW_OATHS) {
+        houseSaid = 0;
+        sendHost();
+        sfxPick();
+        paintHouse();
       } else if (hit(KEY_A)) {
         if (houseAct()) {
           scene = SCENE_ARMS;
@@ -7301,6 +7561,36 @@ int main(void) {
         clearPage();
         layoutTextRows(TEXT_TOP);
         paintMenu();
+      }
+    } else if (scene == SCENE_RIDE) {
+      int was = ridePick, have = rideCount();
+      if (hit(KEY_UP) && ridePick > 0) ridePick--;
+      if (hit(KEY_DOWN) && ridePick < have - 1) ridePick++;
+      if (ridePick < rideTop) rideTop = ridePick;
+      if (ridePick >= rideTop + LIST_ROWS) rideTop = ridePick - LIST_ROWS + 1;
+      if (ridePick != was) { sfxPick(); paintRide(); }
+      if (hit(KEY_A) && have) {
+        int m = nthRide(ridePick);
+        if (you.gold < rideCost()) {
+          scene = SCENE_WORLD;
+          clearPage();
+          layoutTextRows(TEXT_PLAY);
+          openWindow(0, "\"A horse is a horse and I am not a charity. Come "
+                        "back with the coin for it.\"");
+        } else if (rideTo(m)) {
+          scene = SCENE_WORLD;
+          clearPage();
+          layoutTextRows(TEXT_PLAY);
+          copyString(scratch, "You are set down at ", sizeof scratch);
+          appendString(scratch, world->name, sizeof scratch);
+          appendString(scratch, " two days later, saddle-sore and no worse.",
+            sizeof scratch);
+          openWindow(0, scratch);
+        }
+      } else if (hit(KEY_B)) {
+        scene = SCENE_WORLD;
+        clearPage();
+        layoutTextRows(TEXT_PLAY);
       }
     } else if (scene == SCENE_DEEDS) {
       int was = deedPick;
@@ -7761,7 +8051,19 @@ int main(void) {
         layoutTextRows(TEXT_TOP);
         paintMenu();
       } else if (hit(KEY_SELECT)) {
-        tryChallenge();
+        /* A maester will not fight you, so SELECT in front of one was a button
+           that did nothing. It finds you a horse instead. */
+        int who = facing();
+        if (who >= 0 && world->npcs[who].heals) {
+          scene = SCENE_RIDE;
+          ridePick = 0;
+          rideTop = 0;
+          clearPage();
+          layoutTextRows(TEXT_TOP);
+          paintRide();
+        } else {
+          tryChallenge();
+        }
       } else if (hit(KEY_A)) {
         tryTalk();
       } else if (turnHold) {

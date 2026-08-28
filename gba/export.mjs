@@ -77,6 +77,11 @@ const MAP_IDS = [
   'cheesemongerHold', 'cheesemongerCellar', 'blackWallHold', 'elephantCourt',
   'fightingPits', 'pitMasterRooms', 'waterGardens', 'pavilionOfOranges',
   'wreckersHold', 'wreckersHall',
+  // East along the Wall to Eastwatch, where the raven that starts all of this
+  // was written and signed, and then past it.
+  'theGift', 'eastwatch', 'maesterHallEastwatch', 'eastwatchArmoury',
+  'eastwatchKeep', 'eastwatchInn', 'eastwatchHouse', 'eastwatchCellar',
+  'frostfangs', 'crastersKeep', 'crastersHall', 'hardhome',
 ];
 
 // What the cartridge's hardware will hold.

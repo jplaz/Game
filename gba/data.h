@@ -58014,6 +58014,33 @@ static const Cut cuts[CUT_COUNT] = {
   { 7, 3, 16, 51, 0, 1, 255, 255, 0, 79, 3, "The Deserter" },
 };
 
+#define REGARD_COUNT 19
+typedef struct {
+  const char *line;
+  u8 sigils, host, kills, needs, denies;
+} Regard;
+static const Regard regard[REGARD_COUNT] = {
+  { "They notice the sigil you are carrying and their voice changes a little.", 1, 0, 0, 255, 255 },
+  { "Three seats have bent to you. Word of that arrived before you did.", 3, 0, 0, 255, 255 },
+  { "They know your name. That is new, and you are not sure you like it.", 5, 0, 0, 255, 255 },
+  { "They stand when you stop, and are embarrassed about standing.", 7, 0, 0, 255, 255 },
+  { "Nine seats. Nobody in living memory has held nine, and they know it.", 9, 0, 0, 255, 255 },
+  { "They count the swords behind you before they say anything at all.", 0, 2, 0, 255, 255 },
+  { "Four swords at your back. They speak to you the way people speak to a lord.", 0, 4, 0, 255, 255 },
+  { "Six sworn and armed behind you: they choose their words like a man on ice.", 0, 6, 0, 255, 255 },
+  { "They have heard how the last few ended, and they keep the table between you.", 0, 0, 20, 255, 255 },
+  { "They will not meet your eye. Somewhere behind theirs they are counting.", 0, 0, 60, 255, 255 },
+  { "Somebody cut three men down at a crossroads for the price of a pig, and they have worked out it was you.", 0, 0, 0, 38, 255 },
+  { "They ask, without asking, whether you were the one who rode past the hanging tree.", 0, 0, 0, 40, 255 },
+  { "You are the one who let the crow go. Half of them think you a fool and the other half do not say.", 0, 0, 0, 50, 255 },
+  { "You have seen one in the sky, and they can tell, because you keep looking up.", 0, 0, 0, 30, 255 },
+  { "You mention the Wall and they find something to do with their hands.", 0, 0, 0, 8, 255 },
+  { "You have stood in front of one of them. Nothing they say afterwards quite reaches you.", 0, 0, 0, 19, 255 },
+  { "Eleven days of silence out of the North, and you are the only one in the room who has counted them.", 0, 0, 0, 25, 255 },
+  { "They heard about the tower and the fire. Nobody has said whether that was the right way of it.", 0, 0, 0, 43, 255 },
+  { "You drew on men collecting a debt for the Citadel. That story has legs on it.", 0, 0, 0, 46, 255 },
+};
+
 #define SWORN_KINDS 16
 typedef struct {
   const char *name;

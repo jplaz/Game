@@ -63,4 +63,8 @@ export const REGARD = [
     line: 'They heard about the tower and the fire. Nobody has said whether that was the right way of it.' },
   { needs: 'maestersDebt_fought',
     line: 'You drew on men collecting a debt for the Citadel. That story has legs on it.' },
+
+  // --- and the far end of the only road nobody walks -----------------------
+  { needs: 'sawHardhome',
+    line: 'You have been to Hardhome and come back off that beach, which two men in the world have done.' },
 ];

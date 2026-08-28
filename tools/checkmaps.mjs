@@ -9,6 +9,7 @@
 // corridor closes the road for good.
 import { MAPS } from '/home/user/Game/src/data/maps.js';
 import { TILE_DEFS } from '/home/user/Game/src/art/tiles.js';
+import { PORT_MAPS } from '/home/user/Game/src/data/ports.js';
 
 const kindOf = (c) => TILE_DEFS[c]?.kind ?? 'missing';
 const SOLID = new Set(['solid', 'water']);
@@ -69,7 +70,15 @@ for (const [id, map] of Object.entries(MAPS)) {
   };
 
   const ways = (map.warps ?? []);
-  if (!ways.length) { if (!map.indoor) say(`${id}: no way in or out`); continue; }
+  /* A berth is a way in and out that is not a door. Hardhome has no road to
+     it at all - a ship out of Eastwatch is the only way anybody gets there,
+     which is most of the point of the place. */
+  const berth = PORT_MAPS.includes(id);
+  if (!ways.length && !berth) {
+    if (!map.indoor) say(`${id}: no way in or out`);
+    continue;
+  }
+  if (!ways.length) continue;
   // You may arrive by any door, so everything any door reaches counts as reached.
   const seen = flood(ways.map((w) => [w.x, w.y]), false);
   const loose = flood(ways.map((w) => [w.x, w.y]), true);

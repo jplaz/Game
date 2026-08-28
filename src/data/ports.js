@@ -11,6 +11,11 @@ export const PORTS = [
   { map: 'pentos', name: 'Pentos', x: 11, y: 18, dir: 'up', fare: 450 },
   { map: 'volantis', name: 'Volantis', x: 11, y: 18, dir: 'up', fare: 900 },
   { map: 'meereen', name: 'Meereen', x: 11, y: 18, dir: 'up', fare: 1400 },
+  /* North along the coast rather than east across the sea. Eastwatch is the
+     only berth on the Wall, and Hardhome is the only place anybody sails to
+     from it - which is why the fare is what it is: nobody wants the work. */
+  { map: 'eastwatch', name: 'Eastwatch-by-the-Sea', x: 11, y: 18, dir: 'up', fare: 700 },
+  { map: 'hardhome', name: 'Hardhome', x: 11, y: 22, dir: 'up', fare: 1800 },
 ];
 
 export const PORT_MAPS = PORTS.map((p) => p.map);

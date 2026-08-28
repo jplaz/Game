@@ -36,6 +36,45 @@ export const CUTSCENES = {
    * league you walk to take a seat is a league the thing behind it walks too.
    */
 
+  /** The man who signed the raven, at the end of the road it came down. */
+  theHandThatWroteIt: {
+    map: 'eastwatch', x: 11, y: 20, flag: 'cs_wroteIt', name: 'The Hand That Wrote It',
+    beats: [
+      ['say', 'The gate here is smaller than the one at Castle Black and there '
+            + 'are half as many men on it, and every one of them watches the sea '
+            + 'rather than the ice.'],
+      ['say', 'A maester comes down off the wall to meet you, which maesters do '
+            + 'not do, and he is looking at your hands rather than your face.'],
+      ['say', 'Maester Harmune: You have come up the Gift in winter. Nobody does '
+            + 'that for trade. So you read it, and you believed enough of it to walk.'],
+      ['choose', 'He is waiting.',
+        ['I came to see for myself', 'Who else did you write to?', 'Tell me what you saw'],
+        { record: 'theHandThatWroteIt' }],
+      ['say', 'Maester Harmune: Then you are the first, and you are four hundred '
+            + 'leagues from anybody who could send you help. Walk carefully.'],
+      ['flag', 'metTheWatch'],
+      ['flag', 'heardTheRaven'],
+    ],
+  },
+
+  /** Hardhome, which is what all of it has been about. */
+  whatIsLeftOfHardhome: {
+    map: 'hardhome', x: 11, y: 19, flag: 'cs_hardhome', name: 'What Is Left of Hardhome',
+    needs: 'metTheWatch',
+    beats: [
+      ['say', 'The boat puts you on a shingle beach and the man rowing it does '
+            + 'not tie up. He says he will wait until dark. He is lying.'],
+      ['wait', 0.9],
+      ['say', 'Six thousand people lived here. The houses are standing. '
+            + 'The cookfires are laid and never lit. Nothing has been looted.'],
+      ['shake', 1.0],
+      ['say', 'And then, further up the beach, something that was a woman turns '
+            + 'its head towards you with the whole slow patience of a thing that '
+            + 'has nowhere else to be.'],
+      ['flag', 'sawHardhome'],
+    ],
+  },
+
   /** The raven that starts it, in the yard you woke up in. */
   theRaven: {
     map: 'winterfell', x: 12, y: 16, flag: 'cs_raven', name: 'The Raven',

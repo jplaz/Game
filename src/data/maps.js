@@ -1173,6 +1173,7 @@ export const MAPS = {
     ],
     warps: [
       { x: 11, y: 19, to: 'kingsroadNorth', tx: 11, ty: 1, dir: 'down' },
+      { x: 20, y: 10, to: 'theGift', tx: 11, ty: 28, dir: 'right' },
       { x: 11, y: 0, to: 'beyondTheWall', tx: 11, ty: 28, dir: 'up' },
       { x: 4, y: 7, to: 'maesterHallCastleBlack', tx: 5, ty: 7, dir: 'up' },
       { x: 18, y: 7, to: 'castleBlackArmoury', tx: 5, ty: 6, dir: 'up' },
@@ -4268,6 +4269,350 @@ export const MAPS = {
     ],
   },
 
+  maesterHallEastwatch: maesterHall({
+    exitTo: 'eastwatch', exitX: 6, exitY: 7,
+    stock: ['maesterKit', 'poppyMilk', 'frostTonic', 'weirwoodSap', 'kissOfFire'],
+    healerLine: 'You are cold all the way through. Sit by it a while.',
+    merchantLine: 'Watch stores. Everything here is issued, and I am pretending it is sold.',
+  }),
+
+  eastwatchArmoury: {
+    name: 'The Eastwatch Armoury',
+    indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIIIIII',
+      'Ixx=a===l=lI',
+      'I=====KKK==I',
+      'I==========I',
+      'I=a=====a==I',
+      'I==========I',
+      'I=T=F==F=T=I',
+      'IIIII__IIIII',
+    ],
+    warps: [
+      { x: 5, y: 7, to: 'eastwatch', tx: 17, ty: 7, dir: 'down' },
+      { x: 6, y: 7, to: 'eastwatch', tx: 17, ty: 7, dir: 'down' },
+    ],
+    npcs: [
+      { x: 5, y: 1, dir: 'down', sprite: 'nightswatch', name: 'Watch Armourer', script: 'smith',
+        data: {
+          line: 'Watch Armourer: Black, and it fits nobody. Take what you can carry.',
+          stock: {
+            weapon: ['ironSword', 'longsword', 'boarSpear', 'castleForged'],
+            armour: ['ringmail', 'scaleArmour', 'bandedMail'],
+            helm: ['kettleHat', 'bascinet', 'greatHelm'],
+            gloves: ['mailMittens', 'splintedGauntlets'],
+            shield: ['oakShield', 'ironboundShield'],
+          },
+        } },
+    ],
+  },
+
+  eastwatchKeep: {
+    name: 'The Shieldhall',
+    indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIIIIIIIIIII',
+      'I==============II',
+      'I===cccccccc===II',
+      'I===cccXccccc==II',
+      'I===cccccccc===II',
+      'I=B============II',
+      'I=B====TT======II',
+      'I======TT======II',
+      'I==============II',
+      'IIIIIII__IIIIIIII',
+    ],
+    warps: [
+      { x: 7, y: 9, to: 'eastwatch', tx: 7, ty: 15, dir: 'down' },
+      { x: 8, y: 9, to: 'eastwatch', tx: 7, ty: 15, dir: 'down' },
+    ],
+    npcs: [
+      { x: 9, y: 2, dir: 'down', sprite: 'nightswatch', name: 'The Lord Commander',
+        script: 'duel', data: { duel: 'manAtArms', host: 4 } },
+      { x: 6, y: 4, dir: 'down', sprite: 'maester', name: 'Maester Harmune',
+        script: 'healer',
+        data: { line: 'Maester Harmune: I wrote the raven you are carrying. '
+          + 'I signed it, which was the only part that took courage.' } },
+      { x: 3, y: 7, dir: 'right', sprite: 'nightswatch', name: 'Ranger', script: 'duel',
+        data: { duel: 'deserter' } },
+    ],
+  },
+
+  eastwatchInn: makeInn({
+    town: 'eastwatch', name: 'The Last Warm Room', region: 'The Wall',
+    keeper: 'Old Flea', keeperLine: 'Old Flea: Bed, broth, and no questions about the coast road.',
+    drinkerLine: 'Drinker: Three ships due in this month. None of them came.',
+    fighter: 'Sealed Brother', fighterLine: 'bronn',
+    stock: ['maesterKit', 'frostTonic', 'poppyMilk'],
+  }),
+
+  eastwatchHouse: makeCommonHouse({
+    town: 'eastwatch', name: 'The Salt House', region: 'The Wall',
+    madam: 'Wenda', madamLine: 'Wenda: Black brothers are not supposed to come here. They come here.',
+    voices: [
+      { who: 'Sailor', line: 'Sailor: I have been up that coast. I will not go again for any money you have.' },
+      { who: 'Steward', line: 'Steward: We keep counting the stores as if the counting were the problem.' },
+      { who: 'Wildling Girl', line: 'Wildling Girl: Your side of the Wall is not safer. It is only further away.' },
+    ],
+  }),
+
+  eastwatchCellar: makeCellar({
+    town: 'eastwatch', name: 'The Ice Cellar',
+    keeper: 'Watch Steward', keeperDuel: 'deserter',
+    line: 'Cellarman: Whatever they bring back from up the coast, it comes down here first.',
+    loot: [
+      { x: 2, y: 1, item: 'dragonglass', count: 2, flag: 'item_ew_glass' },
+      { x: 10, y: 1, item: 'maestersSalts', count: 1, flag: 'item_ew_salts' },
+    ],
+  }),
+
+  /* ------------------------------------------------------------- the east ---
+     The road along the Wall to Eastwatch, and what is past it.
+
+     The raven that starts this whole story is signed at Eastwatch, and until
+     now Eastwatch was a word in a letter: the Wall had exactly one gate on it
+     and nothing to the east at all. Four days' ride of it now, a port at the
+     end, and beyond that the two places everyone in the North says the name of
+     quietly - Craster's, and Hardhome. */
+
+  theGift: makeRoute({
+    seed: 0x5E17, spurs: 5,
+    name: 'The Gift', ground: 'snow', wall: 'P', floor: 'S', grass: ';',
+    music: 'wild',
+    features: [
+      { type: 'rubble', x: 4, y: 7, w: 4, h: 3 },
+      { type: 'ice', x: 16, y: 12, w: 5, h: 3 },
+      { type: 'rubble', x: 15, y: 22, w: 4, h: 2 },
+    ],
+    encounters: [
+      { roamer: 'deserter', min: 16, max: 21, weight: 30 },
+      { roamer: 'wildlingRaider', min: 17, max: 22, weight: 26 },
+      { roamer: 'bandit', min: 16, max: 20, weight: 20 },
+      { beast: 'snowpup', min: 16, max: 21, weight: 18 },
+      { beast: 'falconet', min: 17, max: 21, weight: 14 },
+    ],
+    warps: [
+      { x: 11, y: 29, to: 'castleBlack', tx: 20, ty: 10, dir: 'down' },
+      { x: 11, y: 0, to: 'eastwatch', tx: 11, ty: 25, dir: 'up' },
+    ],
+    signs: [
+      { x: 9, y: 5, text: 'THE GIFT\nTwenty-five leagues the Watch was given to farm.\nNobody farms it now.' },
+      { x: 13, y: 20, text: 'A holdfast, roofless.\nThe hearth is cold and has been for a long time.' },
+    ],
+    npcs: [
+      { x: 7, y: 12, dir: 'right', sprite: 'nightswatch', name: 'Ranger of the Gift',
+        script: 'duel', data: { duel: 'deserter' } },
+      { x: 15, y: 8, dir: 'left', sprite: 'smallfolk', name: 'Last Farmer',
+        script: 'hideoutLocal',
+        data: { line: 'Last Farmer: Eleven families on this stretch when I was a boy. '
+          + 'Now it is me, and I am only here because I have nowhere southward to be.' } },
+    ],
+    items: [
+      { x: 6, y: 18, item: 'frostTonic', count: 1, flag: 'item_gift_tonic' },
+      { x: 17, y: 25, item: 'ironScrap', count: 2, flag: 'item_gift_scrap' },
+    ],
+  }),
+
+  eastwatch: makeTown({
+    quarter: 3,
+    roof: 'Z', ridge: 'z', house: 'A', banner: 'v',
+    name: 'Eastwatch-by-the-Sea', music: 'town', ground: 'snow', wall: 'P', floor: 'S',
+    dressing: [
+      [3, 2, 'i'], [4, 2, 'i'], [20, 3, 'i'], [3, 18, 'i'], [20, 17, 'i'],
+      [2, 9, 'U'], [21, 12, 'U'], [19, 24, 'U'],
+    ],
+    warps: [
+      { x: 17, y: 11, to: 'eastwatchCellar', tx: 6, ty: 8, dir: 'up' },
+      { x: 5, y: 21, to: 'eastwatchInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 16, y: 21, to: 'eastwatchHouse', tx: 6, ty: 10, dir: 'up' },
+      { x: 11, y: 26, to: 'theGift', tx: 11, ty: 1, dir: 'down' },
+      { x: 11, y: 0, to: 'frostfangs', tx: 11, ty: 26, dir: 'up' },
+      { x: 6, y: 6, to: 'maesterHallEastwatch', tx: 5, ty: 7, dir: 'up' },
+      { x: 17, y: 6, to: 'eastwatchArmoury', tx: 5, ty: 6, dir: 'up' },
+      { x: 7, y: 14, to: 'eastwatchKeep', tx: 7, ty: 8, dir: 'up' },
+    ],
+    signs: [
+      { x: 13, y: 10, text: 'EASTWATCH-BY-THE-SEA\nThe eastern end of the Wall.\nShips leave from here and some of them come back.' },
+    ],
+    npcs: [
+      { x: 9, y: 9, dir: 'down', sprite: 'nightswatch', name: 'Cotter Pyke',
+        script: 'duel', data: { duel: 'hedgeKnight', host: 3 } },
+      { x: 14, y: 10, dir: 'left', sprite: 'nightswatch', name: 'Steward of Eastwatch',
+        script: 'hideoutLocal',
+        data: { line: 'Steward: We sent nine ravens south this year. Nine. '
+          + 'Not one of them has been answered by anybody who could send men.' } },
+      { x: 5, y: 17, dir: 'right', sprite: 'braavosi', name: 'Braavosi Captain',
+        script: 'hideoutLocal',
+        data: { line: 'Captain: I take cargo, not passengers, and not north. '
+          + 'Whatever is up that coast has stopped buying and started taking.' } },
+    ],
+  }),
+
+  frostfangs: makeRoute({
+    seed: 0xF20F, spurs: 4,
+    name: 'The Frostfangs', ground: 'snow', wall: 'C', floor: 'S', grass: ';',
+    music: 'wild', height: 28,
+    features: [
+      { type: 'ice', x: 3, y: 5, w: 6, h: 3 },
+      { type: 'ice', x: 14, y: 15, w: 6, h: 3 },
+      { type: 'rubble', x: 16, y: 6, w: 3, h: 2 },
+      { type: 'cliff', x: 4, y: 20, w: 4, h: 3 },
+    ],
+    encounters: [
+      { roamer: 'wildlingRaider', min: 28, max: 34, weight: 30 },
+      { roamer: 'spearwife', min: 28, max: 34, weight: 26 },
+      { roamer: 'gravedigger', min: 30, max: 36, weight: 18 },
+      { beast: 'wightling', min: 29, max: 35, weight: 22 },
+      { beast: 'palewalker', min: 32, max: 38, weight: 10 },
+    ],
+    warps: [
+      { x: 11, y: 27, to: 'eastwatch', tx: 11, ty: 1, dir: 'down' },
+      { x: 11, y: 0, to: 'crastersKeep', tx: 11, ty: 20, dir: 'up' },
+    ],
+    signs: [
+      { x: 10, y: 6, text: 'THE FROSTFANGS\nThere is no road. There is a way people have gone,\nand a great many who did not come back down it.' },
+    ],
+    npcs: [
+      { x: 14, y: 12, dir: 'left', sprite: 'wildling', name: 'Thenn Scout',
+        script: 'duel', data: { duel: 'wildlingRaider' } },
+    ],
+    items: [
+      { x: 6, y: 9, item: 'dragonglass', count: 2, flag: 'item_frostfangs_glass' },
+      { x: 16, y: 22, item: 'maestersSalts', count: 1, flag: 'item_frostfangs_salts' },
+    ],
+  }),
+
+  crastersKeep: makeHold({
+    name: "Craster's Keep", town: 'frostfangs', townGate: [11, 1, 'down'],
+    hall: 'crastersHall', ground: 'snow', wall: 'P', floor: 'S', banner: 'v',
+    grass: ';',
+    encounters: [
+      { roamer: 'wildlingRaider', min: 30, max: 38, weight: 28 },
+      { roamer: 'spearwife', min: 30, max: 38, weight: 24 },
+      { beast: 'wightling', min: 31, max: 39, weight: 18 },
+    ],
+    signs: [
+      { x: 11, y: 16, text: "CRASTER'S KEEP\nA man who feeds what is out there, and is left alone for it.\nThe Watch have been guests here. It went badly." },
+    ],
+    npcs: [
+      { x: 11, y: 15, dir: 'up', sprite: 'wildling', name: 'Gate Man', script: 'duel',
+        data: { duel: 'wildlingRaider', host: 3 } },
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'wildling', name: "Craster's Man",
+        script: 'duel', data: { duel: 'wildlingRaider' } },
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'wildling', name: "Craster's Man",
+        script: 'duel', data: { duel: 'spearwife' } },
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'wildlingWoman', name: 'Wife',
+        script: 'duel', data: { duel: 'spearwife' } },
+      { x: 18, y: 13, dir: 'left', sprite: 'girl', name: 'Gilly',
+        script: 'hideoutLocal',
+        data: { line: 'Gilly: He gives the boys to them. Every one. '
+          + 'If you have any thought of taking me out of here, have it quickly.' } },
+    ],
+    items: [
+      { x: 5, y: 9, item: 'boiledHide', count: 2, flag: 'item_craster_hide' },
+      { x: 18, y: 9, item: 'dragonglass', count: 1, flag: 'item_craster_glass' },
+      { x: 5, y: 16, item: 'frostTonic', count: 2, flag: 'item_craster_tonic' },
+      { x: 18, y: 16, item: 'direwolfPelt', count: 1, flag: 'item_craster_pelt' },
+    ],
+  }),
+
+  crastersHall: makeHoldHall({
+    name: "Craster's Longhall", hold: 'crastersKeep',
+    signs: [
+      { x: 8, y: 7, text: 'A longhall that stinks of smoke and pig.\nThere are nineteen women here and not one boy.' },
+    ],
+    npcs: [
+      { x: 7, y: 2, dir: 'down', sprite: 'wildling', name: 'Craster', script: 'duel',
+        data: { duel: 'wildlingRaider', host: 5 } },
+      { x: 5, y: 3, dir: 'right', roams: true, sprite: 'wildlingWoman', name: 'Wife',
+        script: 'duel', data: { duel: 'spearwife' } },
+      { x: 11, y: 3, dir: 'left', roams: true, sprite: 'wildling', name: 'Guest of the Watch',
+        script: 'duel', data: { duel: 'deserter' } },
+      { x: 4, y: 7, dir: 'right', roams: true, sprite: 'nightswatch', name: 'Sworn Brother',
+        script: 'duel', data: { duel: 'deserter' } },
+      { x: 8, y: 10, dir: 'down', sprite: 'goodwife', name: 'Old Wife',
+        script: 'hideoutLocal',
+        data: { line: 'Old Wife: You are the fourth lot of southerners through that door. '
+          + 'The other three ate his bread and made him promises. He is still here.' } },
+    ],
+    items: [
+      { x: 1, y: 2, item: 'valyrianShard', count: 1, flag: 'item_crastershall_shard' },
+      { x: 15, y: 2, item: 'poppyMilk', count: 2, flag: 'item_crastershall_poppy' },
+      { x: 1, y: 10, item: 'ashHaft', count: 2, flag: 'item_crastershall_haft' },
+      { x: 15, y: 10, item: 'boarTusk', count: 2, flag: 'item_crastershall_tusk' },
+      { x: 5, y: 10, item: 'stillwater', count: 2, flag: 'item_crastershall_water' },
+      { x: 11, y: 10, item: 'greatNet', count: 1, flag: 'item_crastershall_net' },
+    ],
+  }),
+
+  /* Hardhome. There is no road here; a ship out of Eastwatch is the only way,
+     and the only reason anybody sails it is that the Watch keep asking whether
+     the people who lived here are still dead. */
+  hardhome: {
+    name: 'Hardhome',
+    music: 'battleBoss', ground: 'snow', wall: 'C',
+    tiles: [
+      'CCCCCCCCCCCCCCCCCCCCCCCC',
+      'CSSSSSSSSSSSSSSSSSSSSSSC',
+      'CSUUSSSSUUSSSSSSUUSSSUSC',
+      'CSSSSSSSSSSSSSSSSSSSSSSC',
+      'CSSAAASSSSAAAASSSSAAASSC',
+      'CSSAAASSSSAAAASSSSAAASSC',
+      'CSSSSSSSSSSSSSSSSSSSSSSC',
+      'CSUUSSSUUSSSSSUUSSSSSUSC',
+      'CSSSSSSSSSSSSSSSSSSSSSSC',
+      'CSSSSAAAASSSSSSAAAASSSSC',
+      'CSSSSAAAASSSSSSAAAASSSSC',
+      'CSSSSSSSSSSSSSSSSSSSSSSC',
+      'CSUUSSSSSSUUSSSSSSUUSSSC',
+      'CSSSSSSSSSSSSSSSSSSSSSSC',
+      'CSSSAAASSSSSAAASSSSAAASC',
+      'CSSSAAASSSSSAAASSSSAAASC',
+      'CSSSSSSSSSSSSSSSSSSSSSSC',
+      'CSSSSSSSSSSSSSSSSSSSSSSC',
+      'CSSSSSSSSSSSSSSSSSSSSSSC',
+      'CSSSSSSSSSSSSSSSSSSSSSSC',
+      'CSSSSSSSSSSSSSSSSSSSSSSC',
+      'CSSSSSSSSSSSSSSSSSSSSSSC',
+      'CCCCCCCCCC~~~~CCCCCCCCCC',
+    ],
+    encounters: [
+      { beast: 'wightling', min: 34, max: 42, weight: 34 },
+      { beast: 'barrowlord', min: 36, max: 44, weight: 26 },
+      { beast: 'palewalker', min: 38, max: 46, weight: 16 },
+      { roamer: 'gravedigger', min: 34, max: 42, weight: 20 },
+    ],
+    warps: [],
+    signs: [
+      { x: 11, y: 6, text: 'HARDHOME\nSix thousand free folk lived here.\nThe Watch have counted them twice since and got the same number.' },
+      { x: 6, y: 13, text: 'A cookfire, laid and never lit.\nThe wood is dry. Nobody has touched it in years.' },
+    ],
+    npcs: [
+      { x: 11, y: 8, dir: 'down', sprite: 'whitewalker', name: 'A Walker',
+        script: 'duel', data: { duel: 'gravedigger', host: 4 } },
+      { x: 5, y: 11, dir: 'right', roams: true, sprite: 'wildling', name: 'What Was a Man',
+        script: 'duel', data: { duel: 'gravedigger' } },
+      { x: 18, y: 11, dir: 'left', roams: true, sprite: 'wildling', name: 'What Was a Man',
+        script: 'duel', data: { duel: 'gravedigger' } },
+      { x: 8, y: 17, dir: 'up', roams: true, sprite: 'wildlingWoman', name: 'What Was a Woman',
+        script: 'duel', data: { duel: 'gravedigger' } },
+      { x: 15, y: 17, dir: 'up', roams: true, sprite: 'wildling', name: 'What Was a Man',
+        script: 'duel', data: { duel: 'gravedigger' } },
+      { x: 3, y: 19, dir: 'right', sprite: 'nightswatch', name: 'The Last Ranger',
+        script: 'hideoutLocal',
+        data: { line: 'The Last Ranger: I came up on the boat before yours. '
+          + 'They do not come at you all at once. They wait until you have counted them.' } },
+    ],
+    items: [
+      { x: 2, y: 5, item: 'dragonglass', count: 3, flag: 'item_hh_glass' },
+      { x: 21, y: 5, item: 'valyrianShard', count: 1, flag: 'item_hh_shard' },
+      { x: 2, y: 15, item: 'maestersSalts', count: 2, flag: 'item_hh_salts' },
+      { x: 21, y: 15, item: 'dragonchain', count: 1, flag: 'item_hh_chain' },
+      { x: 11, y: 20, item: 'weirwoodPaste', count: 1, flag: 'item_hh_paste' },
+    ],
+  },
+
   /* --------------------------------------------------------- strongholds ---
      Somebody else's walls. Nine towns had a main street that ran the whole
      length of the map with a gate at only one end of it, so half the
@@ -4970,6 +5315,14 @@ export const REGIONS = {
   hauntedForest: 'Beyond the Wall', fistOfTheFirstMen: 'Beyond the Wall',
   hollowHill: 'The Crownlands', stoneCrypt: 'The Reach',
   illyriosManse: 'Pentos', templeOfRhllor: 'Volantis', greatPyramid: 'Meereen',
+  /* The road east along the Wall, the port at the end of it, and the two
+     places everyone in the North says the name of quietly. */
+  theGift: 'The Wall', eastwatch: 'The Wall', maesterHallEastwatch: 'The Wall',
+  eastwatchArmoury: 'The Wall', eastwatchKeep: 'The Wall',
+  frostfangs: 'Beyond the Wall', crastersKeep: 'Beyond the Wall',
+  crastersHall: 'Beyond the Wall',
+  eastwatchCellar: 'The Wall',
+  hardhome: 'Beyond the Wall',
   /* The strongholds, each in the region whose town gate opens onto it. */
   stoneCrowHold: 'The Vale', stoneCrowCave: 'The Vale',
   seaDragonHold: 'Dragonstone', seaDragonVault: 'Dragonstone',

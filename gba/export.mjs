@@ -425,6 +425,27 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     };
   }
 
+  /* What each region's greenery is seen under, as a multiplier on red, green
+     and blue. A one is the baseline - the Riverlands and the Crownlands are
+     what everything else is a departure from. */
+  const CLIMATE = {
+    'The North':       [0.84, 0.94, 1.02],   // cold, blue, the light thin
+    'The Wall':        [0.84, 0.94, 1.06],
+    'Beyond the Wall': [0.80, 0.90, 1.06],
+    'The Neck':        [0.86, 1.00, 0.78],   // bog: yellow-green and murky
+    'The Vale':        [0.92, 0.98, 1.04],   // high and pale
+    'The Westerlands': [1.10, 1.02, 0.80],   // dry gold over the hills
+    'The Reach':       [1.06, 1.06, 0.76],   // the richest country in the world
+    'The Stormlands':  [0.86, 0.94, 1.00],   // dark under weather
+    'Dorne':           [1.16, 1.00, 0.72],   // sun, and not much else
+    'The Iron Islands':[0.88, 0.96, 0.94],   // salt-burnt and slate
+    'Dragonstone':     [0.94, 0.84, 0.86],   // ash on everything
+    'Braavos':         [0.92, 0.98, 1.00],
+    'Pentos':          [1.12, 1.02, 0.80],
+    'Volantis':        [1.14, 1.00, 0.76],
+    'Meereen':         [1.16, 1.02, 0.74],
+  };
+
   // What can be bought. Only what a person with no beasts has any use for:
   // something to drink when you are hurt, and better steel.
   const wares = [];
@@ -681,12 +702,34 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
        a thing you walk up to and open, rather than a tile you happen to tread
        on and a line of text you may not have read. */
     const chestAt = new Set((map.items ?? []).map((it) => `${it.x},${it.y}`));
+    /* The light a region is seen under.
+     *
+     * Seven regions are floored in the same grass, walled with the same trees
+     * and dressed with the same flowers, so the Wolfswood, the Reach and the
+     * Stormlands were three names for one picture. This shifts the living
+     * ground - and only the living ground - towards the colour each place is
+     * actually described in.
+     *
+     * Only grass, reeds, trees and blossom, because the palette is two hundred
+     * and thirty-nine colours shared by every map on the cartridge and the
+     * frequent colours win the slots. Tinting the whole world would spend the
+     * palette on nine versions of a roof tile. */
+    const tint = CLIMATE[REGIONS[id] ?? ''] ?? null;
+    const LIVING = new Set([',', ';', '#', 'P', 'W', '*', '.']);
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const char = chestAt.has(`${x},${y}`) ? 'j' : (map.grid[y][x] ?? '.');
         const canvas = tileCanvas(char, 0, maskFor(map, char, x, y),
           map.ground ?? 'grass', pixels.variantFor(x, y, 4));
-        cells.push(read(canvas));
+        const px = read(canvas);
+        if (tint && LIVING.has(char)) {
+          for (let q = 0; q < px.length; q += 4) {
+            px[q] = Math.max(0, Math.min(255, Math.round(px[q] * tint[0])));
+            px[q + 1] = Math.max(0, Math.min(255, Math.round(px[q + 1] * tint[1])));
+            px[q + 2] = Math.max(0, Math.min(255, Math.round(px[q + 2] * tint[2])));
+          }
+        }
+        cells.push(px);
         solid.push(isSolid(char) ? 1 : 0);
         // Cover: the tall grass and the reeds. Nothing jumps you on a paved road.
         cover.push(tileDef(char).kind === 'encounter' ? 1 : 0);

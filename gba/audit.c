@@ -164,6 +164,16 @@ static int firstWayIn(const Map *mp, int m) {
       }
     }
   }
+  /* A berth is a way in that is not a door. Hardhome has no road to it at all
+     - a ship out of Eastwatch is the only way anybody gets there, which is most
+     of the point of the place - and without this the whole map read as ground
+     nobody could stand on and everybody on it as unreachable. */
+  for (i = 0; i < PORT_COUNT; i++) {
+    if (ports[i].map == m) {
+      flood(mp, ports[i].x, ports[i].y);
+      return ports[i].y * mp->w + ports[i].x;
+    }
+  }
   return -1;
 }
 

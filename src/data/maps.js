@@ -4457,7 +4457,7 @@ export const MAPS = {
         script: 'duel', data: { duel: 'manAtArms', host: 3 } },
       { x: 14, y: 13, dir: 'left', sprite: 'guard', name: 'Bridge Guard',
         script: 'duel', data: { duel: 'manAtArms' } },
-      { x: 7, y: 19, dir: 'up', sprite: 'goodwife', name: 'Frey Daughter',
+      { x: 8, y: 21, dir: 'up', sprite: 'goodwife', name: 'Frey Daughter',
         script: 'hideoutLocal',
         data: { line: 'Frey Daughter: There are a great many of us. '
           + 'Grandfather counts us the way other men count sheep, and about as fondly.' } },

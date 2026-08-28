@@ -9,7 +9,7 @@
 // corridor closes the road for good.
 import { MAPS } from '/home/user/Game/src/data/maps.js';
 import { TILE_DEFS } from '/home/user/Game/src/art/tiles.js';
-import { PORT_MAPS } from '/home/user/Game/src/data/ports.js';
+import { PORTS, PORT_MAPS } from '/home/user/Game/src/data/ports.js';
 
 const kindOf = (c) => TILE_DEFS[c]?.kind ?? 'missing';
 const SOLID = new Set(['solid', 'water']);
@@ -74,6 +74,16 @@ for (const [id, map] of Object.entries(MAPS)) {
      it at all - a ship out of Eastwatch is the only way anybody gets there,
      which is most of the point of the place. */
   const berth = PORT_MAPS.includes(id);
+  /* And a berth has to be somewhere a person can stand. A ship that puts you
+     down in the water is worse than a ship that does not sail: the audit found
+     Hardhome landing you on open sea, and nothing in this file was looking. */
+  if (berth) {
+    const p = PORTS.find((q) => q.map === id);
+    const there = kindOf(at(p.x, p.y));
+    if (SOLID.has(there) || there === 'ledge') {
+      say(`${id}: the berth at ${p.x},${p.y} is '${at(p.x, p.y)}', which is not somewhere to stand`);
+    }
+  }
   if (!ways.length && !berth) {
     if (!map.indoor) say(`${id}: no way in or out`);
     continue;

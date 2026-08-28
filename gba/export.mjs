@@ -330,6 +330,22 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       bite: ['crush', 'sweep', 'headbutt', 'gore', 'shieldBash', 'grapple'].includes(id) ? 1
           : ['thrust', 'lunge', 'skewer', 'backstab', 'loose', 'volley', 'harry',
              'bite', 'claw'].includes(id) ? 2 : 0,
+      /* And everything a technique has always had in the browser and had no
+         field to arrive in: what it costs you in wind, whether it goes first,
+         and what it does to somebody besides taking their health off. All of
+         this was written years ago and never once reached the cartridge, which
+         is why every fight in it was pick the biggest number and press A. */
+      wind: Math.min(15, TECHNIQUES[id].stamina ?? 0),
+      first: Math.min(3, TECHNIQUES[id].priority ?? 0),
+      stun: TECHNIQUES[id].effect?.stun ? 1 : 0,
+      guardBreak: TECHNIQUES[id].effect?.guardBreak ? 1 : 0,
+      bleed: TECHNIQUES[id].effect?.bleed || TECHNIQUES[id].effect?.burn ? 1 : 0,
+      /* A wound that keeps costing you is one idea; whether it is a cut or a
+         burn only changes the word, and the word is worth having. */
+      burn: TECHNIQUES[id].effect?.burn ? 1 : 0,
+      /* How often the effect lands, in a hundred. */
+      chance: Math.round((TECHNIQUES[id].chance ?? 0) * 100),
+      needsShield: TECHNIQUES[id].needsShield ? 1 : 0,
     }));
   const techSlot = new Map(techniques.map((t, i) => [t.id, i]));
   // What levelling teaches, in the order it teaches it.
@@ -1677,10 +1693,18 @@ L.push('');
 
 // Techniques.
 L.push(`#define TECH_COUNT ${harvest.techniques.length}`);
-L.push('typedef struct { const char *name; u8 power, accuracy, defend, highCrit, bite; } Tech;');
+L.push('typedef struct {');
+L.push('  const char *name;');
+L.push('  u8 power, accuracy, defend, highCrit, bite;');
+L.push('  u8 wind;         /* what swinging it costs you */');
+L.push('  u8 first;        /* 0 in turn, higher goes before */');
+L.push('  u8 stun, guardBreak, bleed, burn, chance, needsShield;');
+L.push('} Tech;');
 L.push('static const Tech techniques[TECH_COUNT] = {');
 for (const t of harvest.techniques) {
-  L.push(`  { ${cstr(t.name)}, ${t.power}, ${t.accuracy}, ${t.defend}, ${t.highCrit}, ${t.bite} },`);
+  L.push(`  { ${cstr(t.name)}, ${t.power}, ${t.accuracy}, ${t.defend}, ${t.highCrit}, ${t.bite},`
+    + ` ${t.wind}, ${t.first}, ${t.stun}, ${t.guardBreak}, ${t.bleed}, ${t.burn},`
+    + ` ${t.chance}, ${t.needsShield} },`);
 }
 L.push('};');
 L.push('');

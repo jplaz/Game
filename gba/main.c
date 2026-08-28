@@ -2071,6 +2071,14 @@ typedef struct {
      Valyrian steel take it apart. It is the whole reason the Haunted Forest is
      worth walking. */
   int dead, obsidian;
+  /* What is left in your lungs, and what is currently wrong with you. A fight
+     used to be two numbers going down at a fixed rate, which is why a hundred
+     of them felt like one: nothing ever happened in a fight except damage. */
+  int wind, maxWind;
+  int stagger;                /* half-turns spent getting back off the ground */
+  int broken;                 /* half-turns of a guard that is not there */
+  int bleeding;               /* rounds still bleeding, whatever the guard */
+  int burning;                /* and whether it is a cut or a burn */
   const u8 *tech;
 } Fighter;
 
@@ -2129,10 +2137,51 @@ static int biteTells(const Fighter *d, const Tech *t) {
   return 0;
 }
 
+/* ------------------------------------------------------------ the ground ---
+   A fight was fought in front of a picture. The picture is already chosen by
+   where you are standing - snow, wood, a riverbank, ash, a hall - so it may as
+   well be the ground under your feet as well. Nothing here is large; the point
+   is that the same fight goes differently on the Wall and in a sept. */
+
+#define GROUND_KINDS 6
+typedef struct {
+  const char *word;
+  s8 windCost;      /* added to what every swing costs */
+  s8 windBack;      /* added to what a guard gets back */
+  s8 guardShift;    /* per cent, on everybody's guard */
+  s8 heavyShift;    /* per cent, on the power of a weight */
+  s8 pointShift;    /* per cent, on the power of a point */
+  s8 aimShift;      /* on the accuracy of everything */
+} Ground;
+
+static const Ground grounds[GROUND_KINDS] = {
+  /* open field  */ { "Open ground. Nothing to help either of you.",  0,  0,   0,   0,   0,  0 },
+  /* snow        */ { "Snow to the knee. Everything costs more.",     1, -1,   0,   0,   0, -4 },
+  /* wood        */ { "Trees close in. There is something to get behind.", 0, 0, 15, -8,  0, -3 },
+  /* river, vale */ { "Wet footing. A heavy swing wants both feet.",   0,  0,   0,   0,   0, -6 },
+  /* ash, rock   */ { "Heat off the rock. Nobody gets their breath back.", 0, -2, 0,  0,   0,  0 },
+  /* indoors     */ { "No room to swing. A point is worth more than an edge.", 0, 0, 0, -15, 12, 0 },
+};
+
+static const Ground *underfoot(void) {
+  int k = world ? world->scene : 0;
+  if (k < 0 || k >= GROUND_KINDS) k = 0;
+  return &grounds[k];
+}
+
+/* How much wind somebody of this level carries, and what a guard gets back. */
+static int windFor(int level) { return 12 + level / 2; }
+
 static int computeDamage(const Fighter *a, const Fighter *d, const Tech *t, int *crit) {
-  int dmg, tells;
+  int dmg, tells, guard = d->guard;
   if (!t->power) return 0;
-  dmg = (int)udiv((u32)(t->power * a->might * 11), (u32)(15 * (d->guard + 55)));
+  /* A guard that has been dragged aside is half a guard, and trees to get
+     behind are worth something to whoever is behind them. */
+  if (d->broken > 0) guard = guard / 2;
+  { const Ground *g = underfoot();
+    if (g->guardShift) guard += guard * g->guardShift / 100; }
+  if (guard < 0) guard = 0;
+  dmg = (int)udiv((u32)(t->power * a->might * 11), (u32)(15 * (guard + 55)));
   tells = biteTells(d, t);
   if (tells > 0) dmg = dmg * 15 / 10;
   else if (tells < 0) dmg = dmg * 7 / 10;
@@ -2175,10 +2224,49 @@ static void drawBar(int x, int y, int w, int hp, int max) {
    between a number changing and a blow landing. */
 static int shownMine, shownTheirs, shownExp;
 
+/* Wind, drawn as a thin rail under the health it belongs to, in a colour that
+   is not one of the health colours: it is a different thing and it should not
+   be mistaken for one at a glance. */
+static void drawWind(int x, int y, int w, int now, int max) {
+  int filled;
+  if (max < 1) max = 1;
+  if (now < 0) now = 0;
+  filled = now * w / max;
+  fillRect(x - 1, y - 1, w + 2, 4, C_DEEP);
+  fillRect(x, y, w, 2, C_BACK);
+  if (filled) fillRect(x, y, filled, 2, now * 4 <= max ? C_HURT : C_TRIM);
+}
+
+/* And a word for whatever is currently wrong with somebody. Two things at once
+   is the interesting case, so the worse one wins. */
+static const char *ailment(const Fighter *f) {
+  if (f->stagger > 0) return "down";
+  if (f->bleeding > 0) return f->burning ? "burning" : "bleeding";
+  if (f->broken > 0) return "no guard";
+  if (f->wind * 5 <= f->maxWind) return "blown";
+  return 0;
+}
+
 static void paintDuelBars(void) {
+  const char *what;
   drawBar(12, 19, 132, shownTheirs, theirs.maxHp);
-  drawBar(TXT_W - 148, 43, 132, shownMine, mine.maxHp);
-  drawRail(TXT_W - 148, 51, 132, shareOf(shownExp));
+  drawWind(12, 27, 132, theirs.wind, theirs.maxWind);
+  drawBar(TXT_W - 148, 41, 132, shownMine, mine.maxHp);
+  drawWind(TXT_W - 148, 48, 132, mine.wind, mine.maxWind);
+  drawRail(TXT_W - 148, 53, 132, shareOf(shownExp));
+  /* What is currently wrong with each of you, in a word. Both in the strip of
+     yard to the right of their plate, because it is the only part of the screen
+     the plates, the bars, the detail panel and the window are not all fighting
+     over. */
+  fillRect(158, 3, TXT_W - 160, 22, C_CLEAR);
+  what = ailment(&theirs);
+  if (what) drawText(TXT_W - 6 - textWidth(what), 4, what, C_HURT);
+  what = ailment(&mine);
+  if (what) {
+    copyString(scratch, "you ", sizeof scratch);
+    appendString(scratch, what, sizeof scratch);
+    drawText(TXT_W - 6 - textWidth(scratch), 15, scratch, C_HURT);
+  }
 }
 
 static void paintDuelPlates(void) {
@@ -2253,11 +2341,17 @@ static void paintDuelMenu(void) {
     } else {
       copyString(scratch, "No blow", sizeof scratch);
     }
-    drawText(8, 34, scratch, C_DIM);
+    drawText(6, 32, scratch, C_DIM);
     copyString(scratch, "Lands ", sizeof scratch);
     appendNumber(scratch, t->accuracy, sizeof scratch);
-    appendString(scratch, "/100", sizeof scratch);
-    drawText(8, 45, scratch, C_DIM);
+    drawText(6, 40, scratch, C_DIM);
+    /* And what it takes out of you, which is the whole of why the biggest
+       number on this menu is no longer the answer every turn. */
+    copyString(scratch, "Wind ", sizeof scratch);
+    appendNumber(scratch, t->wind, sizeof scratch);
+    appendString(scratch, " of ", sizeof scratch);
+    appendNumber(scratch, mine.wind, sizeof scratch);
+    drawText(6, 48, scratch, t->wind > mine.wind ? C_HURT : C_DIM);
   }
 }
 
@@ -2436,7 +2530,12 @@ static void openTheDuel(const char *intro) {
   clearPage();
   layoutTextRows(TEXT_DUEL);
   paintDuelPlates();
-  duelSay(theirs.name, intro);
+  /* And where you are standing, which is now a thing that changes the fight
+     rather than a thing that changes the picture behind it. */
+  copyString(scratch, intro, sizeof scratch);
+  appendString(scratch, "  ", sizeof scratch);
+  appendString(scratch, underfoot()->word, sizeof scratch);
+  duelSay(theirs.name, scratch);
 }
 
 /* What people call you, which is not the same as your name. A game where the
@@ -2468,6 +2567,11 @@ static void readyYourself(void) {
   mine.tech = myTechs;
   mine.defending = 0;
   mine.dead = 0;
+  mine.maxWind = mine.wind = windFor(you.level);
+  mine.stagger = 0;
+  mine.broken = 0;
+  mine.bleeding = 0;
+  mine.burning = 0;
   mine.obsidian = you.WORN_WEAPON && wares[you.WORN_WEAPON - 1].obsidian;
   beastActed = 0;
   /* And whatever is at your heel, if the other side is not itself an animal -
@@ -2497,6 +2601,11 @@ static void beginWild(int which, int level) {
   theirs.swiftness = beastSwift(which, foeLevel);
   theirs.tech = beasts[which].tech;
   theirs.defending = 0;
+  theirs.maxWind = theirs.wind = windFor(foeLevel);
+  theirs.stagger = 0;
+  theirs.broken = 0;
+  theirs.bleeding = 0;
+  theirs.burning = 0;
   theirs.dead = beasts[which].dead;
   theirs.obsidian = 0;
   loadBeastArt(which, FOE_BEAST_TILE, FOE_BEAST_BANK);
@@ -2549,6 +2658,11 @@ static void beginDuel(int duellist, int bank, int slot) {
   }
   theirs.tech = foeDef->tech;
   theirs.defending = 0;
+  theirs.maxWind = theirs.wind = windFor(foeLevel);
+  theirs.stagger = 0;
+  theirs.broken = 0;
+  theirs.bleeding = 0;
+  theirs.burning = 0;
   theirs.dead = foeDef->dead;
   theirs.obsidian = 0;
 
@@ -2596,14 +2710,64 @@ static void beginDuel(int duellist, int bank, int slot) {
    duel ended on it. */
 static int swingQuiet(Fighter *actor, Fighter *target, int techId) {
   const Tech *t = &techniques[techId];
-  int crit = 0, dmg;
+  const Ground *g = underfoot();
+  int crit = 0, dmg, spent, winded = 0;
   actor->defending = 0;
-  if (t->defend) { actor->defending = 1; return 0; }
-  if ((int)roll(100) >= t->accuracy) return 0;
+  /* Everything the written-out swing does, without the writing. It has to be
+     everything: a check that fights whole duels on an easier set of rules than
+     the game uses is a check that has proved nothing about the game. */
+  if (actor->stagger > 0) {
+    actor->stagger--;
+    actor->wind += 2;
+    if (actor->wind > actor->maxWind) actor->wind = actor->maxWind;
+    return 0;
+  }
+  if (t->defend) {
+    int back = 6 + actor->level / 8 + g->windBack;
+    actor->defending = 1;
+    if (back < 1) back = 1;
+    actor->wind += back;
+    if (actor->wind > actor->maxWind) actor->wind = actor->maxWind;
+    return 0;
+  }
+  spent = t->wind + g->windCost;
+  if (spent < 0) spent = 0;
+  if (spent > actor->wind) { winded = 1; actor->wind = 0; }
+  else actor->wind -= spent;
+  if ((int)roll(100) >= t->accuracy + g->aimShift - (winded ? 8 : 0)) return 0;
   dmg = computeDamage(actor, target, t, &crit);
+  if (t->bite == 1 && g->heavyShift) dmg += dmg * g->heavyShift / 100;
+  if (t->bite == 2 && g->pointShift) dmg += dmg * g->pointShift / 100;
+  if (winded) dmg = dmg * 7 / 10 + 1;
+  if (dmg < 1) dmg = 1;
   target->hp -= dmg;
   if (target->hp < 0) target->hp = 0;
+  if (t->chance && (int)roll(100) < t->chance) {
+    if (t->stun && !target->stagger) target->stagger = 1;
+    else if (t->guardBreak) { target->broken = 3; target->defending = 0; }
+    else if (t->bleed && target->bleeding < 4) { target->bleeding = 4; target->burning = t->burn; }
+  }
   return target->hp <= 0;
+}
+
+/* And the end of a round, for the same reason. */
+static void roundEndsQuiet(Fighter *a, Fighter *b) {
+  Fighter *side[2];
+  int i;
+  side[0] = a;
+  side[1] = b;
+  for (i = 0; i < 2; i++) {
+    Fighter *f = side[i];
+    if (f->broken > 0) f->broken--;
+    if (f->bleeding > 0) {
+      f->bleeding--;
+      f->hp -= 3 + f->maxHp / 40;
+      if (f->hp < 0) f->hp = 0;
+    }
+    f->wind += 2 + underfoot()->windBack;
+    if (f->wind < 0) f->wind = 0;
+    if (f->wind > f->maxWind) f->wind = f->maxWind;
+  }
 }
 #endif
 
@@ -2611,24 +2775,54 @@ static int swingQuiet(Fighter *actor, Fighter *target, int techId) {
 /* One side's swing, written out. Returns 1 if the duel ended on it. */
 static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
   const Tech *t = &techniques[techId];
-  int crit = 0, dmg;
+  const Ground *g = underfoot();
+  int crit = 0, dmg, spent, winded = 0, aim;
 
   actor->defending = 0;
   copyString(scratch, isYou ? "You" : actor->name, sizeof scratch);
 
+  /* Somebody who has been put on the ground spends this go getting off it. */
+  if (actor->stagger > 0) {
+    actor->stagger--;
+    actor->wind += 2;
+    if (actor->wind > actor->maxWind) actor->wind = actor->maxWind;
+    appendString(scratch, isYou ? " are still getting your feet back under you."
+                                : " is still getting up.", sizeof scratch);
+    duelSay(0, scratch);
+    return 0;
+  }
+
   if (t->defend) {
+    int back = 6 + actor->level / 8 + g->windBack;
     sfxHit(0);
     startFx(isYou ? 0 : 1, FX_GUARD);
     actor->defending = 1;
+    if (back < 1) back = 1;
+    actor->wind += back;
+    if (actor->wind > actor->maxWind) actor->wind = actor->maxWind;
     appendString(scratch, isYou ? " raise your guard and catch a breath."
                                 : " raises a guard.", sizeof scratch);
     duelSay(0, scratch);
     return 0;
   }
+
+  /* What the swing costs, and what happens when it is more than you have got.
+     Nothing in this fight ever ran out of anything, so the biggest number on
+     the menu was the right answer every single turn. */
+  spent = t->wind + g->windCost;
+  if (spent < 0) spent = 0;
+  if (spent > actor->wind) {
+    winded = 1;
+    actor->wind = 0;
+  } else {
+    actor->wind -= spent;
+  }
+
   /* Somebody who has drunk the shade sees the blow before it is thrown, and
      what you can see coming you do not miss. */
+  aim = t->accuracy + g->aimShift - (winded ? 8 : 0);
   if (isYou && mySureShots) mySureShots--;
-  else if ((int)roll(100) >= t->accuracy) {
+  else if ((int)roll(100) >= aim) {
     sfxHit(0);
     startFx(isYou ? 0 : 1, FX_MISS);
     appendString(scratch, isYou ? " swing " : " swings ", sizeof scratch);
@@ -2638,6 +2832,12 @@ static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
     return 0;
   }
   dmg = computeDamage(actor, target, t, &crit);
+  /* The ground, on the way in. A weight wants room and a point wants a gap, and
+     a hall has one of those and not the other. */
+  if (t->bite == 1 && g->heavyShift) dmg += dmg * g->heavyShift / 100;
+  if (t->bite == 2 && g->pointShift) dmg += dmg * g->pointShift / 100;
+  if (winded) dmg = dmg * 7 / 10 + 1;
+  if (dmg < 1) dmg = 1;
   sfxHit(crit ? 1 : 0);
   startFx(target == &mine, crit ? FX_CLEAN : FX_HIT);
   target->hp -= dmg;
@@ -2655,6 +2855,31 @@ static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
     } else if (tells < 0) {
       appendString(scratch, t->bite == 1 ? "  Nothing there to break."
                                          : "  The point turns on the plate.", sizeof scratch);
+    }
+    /* And what the blow does besides taking health off. All of this has been
+       written on every technique in the game since the beginning and had no
+       field on the cartridge to arrive in, which is why the answer to every
+       turn of every fight was the biggest number on the menu. */
+    if (t->chance && (int)roll(100) < t->chance) {
+      if (t->stun && !target->stagger) {
+        target->stagger = 1;
+        appendString(scratch, target == &mine ? "  It puts you on the ground."
+                                              : "  It puts them on the ground.",
+          sizeof scratch);
+      } else if (t->guardBreak) {
+        target->broken = 3;
+        target->defending = 0;
+        appendString(scratch, target == &mine
+          ? "  Your shield is dragged aside and stays there."
+          : "  Their guard is dragged aside and stays there.", sizeof scratch);
+      } else if (t->bleed && target->bleeding < 4) {
+        target->bleeding = 4;
+        target->burning = t->burn;
+        appendString(scratch, t->burn
+          ? (target == &mine ? "  You are burning." : "  They are burning.")
+          : (target == &mine ? "  You are bleeding." : "  They are bleeding."),
+          sizeof scratch);
+      }
     }
     /* And the one thing that matters north of the Wall. */
     if (target->dead) {
@@ -5918,11 +6143,55 @@ static void readyBeast(void) {
   yours.swiftness = beastSwift(b, lv);
   yours.tech = beasts[b].tech;
   yours.defending = 0;
+  yours.maxWind = yours.wind = windFor(lv);
+  yours.stagger = 0;
+  yours.broken = 0;
+  yours.bleeding = 0;
+  yours.burning = 0;
   /* Your own animal is alive and has claws, not obsidian: it can hold a wight
      off and it will not put one down. That is the point of carrying glass. */
   yours.dead = beasts[b].dead;
   yours.obsidian = 0;
 }
+
+/* Somebody who is bleeding goes on bleeding, a guard that was dragged aside
+   comes back up eventually, and both of you get a breath back between rounds.
+   Returns 1 when the round finished the fight, which bleeding can. */
+static int roundEnds(void) {
+  Fighter *side[2]; int i, said = 0;
+  side[0] = &mine;
+  side[1] = &theirs;
+  copyString(scratch, "", sizeof scratch);
+  for (i = 0; i < 2; i++) {
+    Fighter *f = side[i];
+    if (f->broken > 0) f->broken--;
+    if (f->bleeding > 0) {
+      int lost = 3 + f->maxHp / 40;
+      f->bleeding--;
+      f->hp -= lost;
+      if (f->hp < 0) f->hp = 0;
+      appendString(scratch,
+        f->burning ? (i ? "They are still burning: " : "You are still burning: ")
+                   : (i ? "They are still bleeding: " : "You are still bleeding: "),
+        sizeof scratch);
+      appendNumber(scratch, lost, sizeof scratch);
+      appendString(scratch, ".  ", sizeof scratch);
+      said = 1;
+    }
+    /* And a breath. Not much: standing still is what gets it back. */
+    f->wind += 2 + underfoot()->windBack;
+    if (f->wind < 0) f->wind = 0;
+    if (f->wind > f->maxWind) f->wind = f->maxWind;
+  }
+  if (said) duelSay(0, scratch);
+  if (mine.hp <= 0) { duelPhase = DUEL_END; duelOver = 2; return 1; }
+  if (theirs.hp <= 0) { duelPhase = DUEL_END; duelOver = 1; return 1; }
+  return 0;
+}
+
+/* Who takes the first half of the round. Swiftness decides it, and a technique
+   that is meant to go first goes first whatever anybody's swiftness is. */
+static int roundFirst;
 
 static void duelTurn(void) {
   /* Whichever of you is swinging on your side of it, and with what. */
@@ -5942,27 +6211,34 @@ static void duelTurn(void) {
   int myTech = beastSwinging ? beasts[MY_BEAST.kind].tech[roll(4)] : mine.tech[duelMenu];
   /* Both sides swing; who goes first is decided by swiftness. */
   if (duelPhase == DUEL_MINE) {
-    int mineFirst = firstMover;
-    Fighter *a = mineFirst ? me : &theirs;
-    Fighter *d = mineFirst ? &theirs : &mine;
-    int tech = mineFirst ? myTech : theirs.tech[roll(4)];
-    if (swing(a, d, tech, mineFirst)) {
-      duelPhase = DUEL_END;
-      duelOver = (d == &mine) ? 2 : 1;
-    } else {
-      duelPhase = DUEL_THEIRS;
+    int mineFirst;
+    Fighter *a;
+    roundFirst = firstMover || techniques[myTech].first > 0;
+    mineFirst = roundFirst;
+    a = mineFirst ? me : &theirs;
+    {
+      Fighter *d = mineFirst ? &theirs : &mine;
+      int tech = mineFirst ? myTech : theirs.tech[roll(4)];
+      if (swing(a, d, tech, mineFirst)) {
+        duelPhase = DUEL_END;
+        duelOver = (d == &mine) ? 2 : 1;
+      } else {
+        duelPhase = DUEL_THEIRS;
+      }
     }
   } else {
-    int mineFirst = !firstMover;
+    int mineFirst = !roundFirst;
     Fighter *a = mineFirst ? me : &theirs;
     Fighter *d = mineFirst ? &theirs : &mine;
     int tech = mineFirst ? myTech : theirs.tech[roll(4)];
     if (swing(a, d, tech, mineFirst)) {
       duelPhase = DUEL_END;
       duelOver = (d == &mine) ? 2 : 1;
-    } else {
+    } else if (!roundEnds()) {
       duelPhase = DUEL_TOP;
       beastSwinging = 0;               /* one turn at a time, chosen each time */
+    } else {
+      beastSwinging = 0;
     }
   }
 }

@@ -246,6 +246,8 @@ static int duelOnce(int level, int who, int *hp) {
   mine.swiftness = swiftFor(level);
   mine.tech = myTechs;
   mine.defending = 0;
+  mine.maxWind = mine.wind = windFor(level);
+  mine.stagger = mine.broken = mine.bleeding = mine.burning = 0;
 
   theirs.name = d->name; theirs.level = lv;
   theirs.maxHp = theirs.hp = scaleTo(d->vigour, d->level, lv);
@@ -254,6 +256,8 @@ static int duelOnce(int level, int who, int *hp) {
   theirs.swiftness = scaleTo(d->swiftness, d->level, lv);
   theirs.tech = d->tech;
   theirs.defending = 0;
+  theirs.maxWind = theirs.wind = windFor(lv);
+  theirs.stagger = theirs.broken = theirs.bleeding = theirs.burning = 0;
   /* Weapon and mail only, the way the cartridge fights them: the shield is on
      their back until you take it off them. */
   piece[0] = k.arm; piece[1] = k.mail;
@@ -268,10 +272,15 @@ static int duelOnce(int level, int who, int *hp) {
 
   first = mine.swiftness >= theirs.swiftness;
   for (turn = 0; turn < 200 && mine.hp > 0 && theirs.hp > 0; turn++) {
-    int mineTech = myTechs[0], best = -1, j3;
+    /* The best thing you have the wind for, and a guard when you have not the
+       wind for anything. Picking the biggest number every single turn is what
+       the wind was put in to punish, so a check that still does it is measuring
+       a player nobody would be. */
+    int mineTech = myTechs[3], best = -1, j3;
     for (j3 = 0; j3 < 3; j3++) {
       const Tech *tt = &techniques[myTechs[j3]];
       int score = tt->power * tt->accuracy;
+      if (tt->wind > mine.wind) continue;
       if (score > best) { best = score; mineTech = myTechs[j3]; }
     }
     if (first) {
@@ -281,6 +290,8 @@ static int duelOnce(int level, int who, int *hp) {
       if (swingQuiet(&theirs, &mine, d->tech[roll(4)])) break;
       if (swingQuiet(&mine, &theirs, mineTech)) break;
     }
+    roundEndsQuiet(&mine, &theirs);
+    if (mine.hp <= 0 || theirs.hp <= 0) break;
   }
   *hp = mine.hp;
   return theirs.hp <= 0 && mine.hp > 0;
@@ -313,6 +324,8 @@ static int winRate(int level, int who, int tries) {
     mine.swiftness = swiftFor(level);
     mine.tech = myTechs;
     mine.defending = 0;
+    mine.maxWind = mine.wind = windFor(level);
+    mine.stagger = mine.broken = mine.bleeding = mine.burning = 0;
 
     theirs.name = d->name; theirs.level = lv;
     theirs.maxHp = theirs.hp = scaleTo(d->vigour, d->level, lv);
@@ -321,6 +334,8 @@ static int winRate(int level, int who, int tries) {
     theirs.swiftness = scaleTo(d->swiftness, d->level, lv);
     theirs.tech = d->tech;
     theirs.defending = 0;
+    theirs.maxWind = theirs.wind = windFor(lv);
+    theirs.stagger = theirs.broken = theirs.bleeding = theirs.burning = 0;
     piece[0] = k.arm; piece[1] = k.mail; piece[2] = k.shield;
     for (j2 = 0; j2 < 3; j2++) {
       if (piece[j2] == KIT_NONE) continue;
@@ -332,12 +347,14 @@ static int winRate(int level, int who, int tries) {
 
     first = mine.swiftness >= theirs.swiftness;
     for (turn = 0; turn < 200 && mine.hp > 0 && theirs.hp > 0; turn++) {
-      /* A player picks their best technique; the foe picks at random, which is
-         what the cartridge has them do. */
-      int mineTech = myTechs[0], best = -1, j3;
+      /* A player picks the best technique they have the wind for and guards
+         when they have not; the foe picks at random, which is what the
+         cartridge has them do. */
+      int mineTech = myTechs[3], best = -1, j3;
       for (j3 = 0; j3 < 3; j3++) {
         const Tech *tt = &techniques[myTechs[j3]];
         int score = tt->power * tt->accuracy;
+        if (tt->wind > mine.wind) continue;
         if (score > best) { best = score; mineTech = myTechs[j3]; }
       }
       if (first) {
@@ -347,6 +364,7 @@ static int winRate(int level, int who, int tries) {
         if (swingQuiet(&theirs, &mine, d->tech[roll(4)])) break;
         if (swingQuiet(&mine, &theirs, mineTech)) break;
       }
+      roundEndsQuiet(&mine, &theirs);
     }
     if (theirs.hp <= 0 && mine.hp > 0) wins++;
   }
@@ -1981,6 +1999,83 @@ int main(void) {
     worldId = 0;
     world = &maps[0];
     you.gold = 0;
+  }
+
+  /* --- what a fight is made of -------------------------------------------- */
+  /* Every one of these numbers has been on every technique in the game since
+     the beginning and none of them had a field on the cartridge to arrive in,
+     which is why the answer to every turn of every fight was the biggest number
+     on the menu. A table of zeroes would look exactly like a table that had
+     never been wired up, so it is checked rather than assumed. */
+  {
+    int k, costing = 0, stunning = 0, breaking = 0, bleeding = 0, quick = 0;
+    for (k = 0; k < TECH_COUNT; k++) {
+      const Tech *t = &techniques[k];
+      if (t->wind) costing++;
+      if (t->stun) stunning++;
+      if (t->guardBreak) breaking++;
+      if (t->bleed) bleeding++;
+      if (t->first) quick++;
+      if (t->wind > 15) bad("%s costs %d wind, and nobody has that much", t->name, t->wind);
+      /* An effect with no chance of landing never lands, and a chance with no
+         effect behind it is a number that does nothing. */
+      if ((t->stun || t->guardBreak || t->bleed) && !t->chance) {
+        bad("%s has an effect and no chance of it landing", t->name);
+      }
+      if (t->chance && !(t->stun || t->guardBreak || t->bleed)) {
+        bad("%s has a %d in a hundred chance of nothing at all", t->name, t->chance);
+      }
+      if (t->chance > 100) bad("%s lands its effect %d times in a hundred", t->name, t->chance);
+      if (t->defend && t->power) bad("%s both guards and swings", t->name);
+    }
+    if (costing < 10) bad("only %d of %d techniques cost anything to swing", costing, TECH_COUNT);
+    if (!stunning) bad("nothing in the game puts anybody on the ground");
+    if (!breaking) bad("nothing in the game breaks a guard");
+    if (!bleeding) bad("nothing in the game makes anybody bleed");
+    if (!quick) bad("nothing in the game goes first");
+    note("%d techniques cost wind, %d stagger, %d break a guard, %d draw blood, %d go first",
+      costing, stunning, breaking, bleeding, quick);
+
+    /* Wind: it runs out if you keep swinging, and a guard gets it back. */
+    {
+      Fighter f;
+      int heavy = -1;
+      for (k = 0; k < TECH_COUNT; k++) if (techniques[k].wind > (heavy < 0 ? 0 : techniques[heavy].wind)) heavy = k;
+      f.level = 20;
+      f.maxWind = f.wind = windFor(20);
+      if (f.maxWind < 8) bad("a level 20 fighter carries %d wind", f.maxWind);
+      if (windFor(40) <= windFor(10)) bad("wind does not grow with the man");
+      if (heavy >= 0) {
+        int swings = 0;
+        while (f.wind >= techniques[heavy].wind && swings < 99) { f.wind -= techniques[heavy].wind; swings++; }
+        if (swings > 12) {
+          bad("%s can be swung %d times on one lungful, which is not a cost",
+            techniques[heavy].name, swings);
+        }
+        note("the heaviest swing in the game is %s at %d wind, %d of them on a full chest",
+          techniques[heavy].name, techniques[heavy].wind, swings);
+      }
+    }
+
+    /* And the ground: six of them, each with something to say. */
+    for (k = 0; k < GROUND_KINDS; k++) {
+      if (!grounds[k].word[0]) bad("ground %d says nothing about itself", k);
+    }
+    {
+      int flat = 0;
+      for (k = 0; k < GROUND_KINDS; k++) {
+        if (!grounds[k].windCost && !grounds[k].windBack && !grounds[k].guardShift
+            && !grounds[k].heavyShift && !grounds[k].pointShift && !grounds[k].aimShift) flat++;
+      }
+      if (flat > 1) bad("%d of the six grounds do nothing at all", flat);
+    }
+    /* Every map's ground is one of them. */
+    for (k = 0; k < MAP_COUNT; k++) {
+      if (maps[k].scene >= GROUND_KINDS) {
+        bad("%s is fought on ground %d, and there are %d",
+          maps[k].name, maps[k].scene, GROUND_KINDS);
+      }
+    }
   }
 
   /* --- the record, written and read back ---------------------------------- */

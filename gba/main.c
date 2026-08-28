@@ -836,16 +836,37 @@ static void placeObject(int slot, int x, int y, int tile, int bank) {
   oam[slot * 4 + 0] = (u16)((y & 0xFF) | 0x8000);              /* tall */
   oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0x8000);             /* size 2 => 16x32 */
   oam[slot * 4 + 2] = (u16)(tile | (1 << 10) | (bank << 12));
-  oam[slot * 4 + 3] = 0;
 }
 
-/* The same body half again as large, for a duel, where the two of you are the
-   whole scene. */
+/* The matrix an enlarged body is drawn through.
+ *
+ * It lives in the fourth attribute of the first four objects - the hardware
+ * interleaves the affine sets with object memory - and nothing in this file
+ * had ever written it. Worse, every placer here cleared that attribute, so
+ * whichever object was drawn into slot nought wiped the horizontal scale and
+ * slot three wiped the vertical. What a duel looked like therefore depended on
+ * which objects the world happened to have used a frame earlier, which is not
+ * a thing a picture is allowed to depend on. On real hardware an affine object
+ * with an undefined matrix is not "a bit off"; it is a rectangle of one colour.
+ *
+ * Screen to texture, so a number below one enlarges: 0x90 is a hundred and
+ * forty-four two-hundred-and-fifty-sixths, near enough seven-quarters, which
+ * fills the double-size box the two fighters are given without pushing an
+ * elbow off the edge of it. */
+#define DUEL_SCALE 0x0090
+
+static void setDuelScale(void) {
+  oam[3]  = DUEL_SCALE;   /* pa */
+  oam[7]  = 0;            /* pb */
+  oam[11] = 0;            /* pc */
+  oam[15] = DUEL_SCALE;   /* pd */
+}
+
+/* The same body larger, for a duel, where the two of you are the whole scene. */
 static void placeBigObject(int slot, int x, int y, int tile, int bank) {
   oam[slot * 4 + 0] = (u16)((y & 0xFF) | 0x8000 | 0x0100 | 0x0200); /* affine, double */
   oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0x8000);
   oam[slot * 4 + 2] = (u16)(tile | (1 << 10) | (bank << 12));
-  oam[slot * 4 + 3] = 0;
 }
 
 /* An animal, sixty-four pixels square, which is one object on this hardware.
@@ -862,7 +883,6 @@ static void placeBeast(int slot, int x, int y, int tile, int bank) {
   oam[slot * 4 + 0] = (u16)(y & 0xFF);                        /* square */
   oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0xC000);            /* size 3 => 64x64 */
   oam[slot * 4 + 2] = (u16)(tile | (1 << 10) | (bank << 12));
-  oam[slot * 4 + 3] = 0;
 }
 
 static void loadBeastArt(int which, int tile, int bank) {
@@ -1066,7 +1086,6 @@ static void placeGrass(int slot, int x, int y, int frame, int bank) {
   oam[slot * 4 + 0] = (u16)(y & 0xFF);
   oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0x4000);
   oam[slot * 4 + 2] = (u16)((GRASS_TILE + frame * 4) | (bank << 12));
-  oam[slot * 4 + 3] = 0;
 }
 
 static void placeMote(int slot, int x, int y, int kind) {
@@ -1074,7 +1093,6 @@ static void placeMote(int slot, int x, int y, int kind) {
   oam[slot * 4 + 0] = (u16)(y & 0xFF);                       /* square, size 0 */
   oam[slot * 4 + 1] = (u16)(x & 0x1FF);
   oam[slot * 4 + 2] = (u16)((MOTE_TILE + kind) | (SPOT_BANK << 12));
-  oam[slot * 4 + 3] = 0;
 }
 
 static void placeSpark(int slot, int x, int y, int frame) {
@@ -1082,7 +1100,6 @@ static void placeSpark(int slot, int x, int y, int frame) {
   oam[slot * 4 + 0] = (u16)(y & 0xFF);                      /* square */
   oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0x8000);          /* size 2 => 32x32 */
   oam[slot * 4 + 2] = (u16)((SPARK_TILE + frame * 16) | (SPOT_BANK << 12));
-  oam[slot * 4 + 3] = 0;
 }
 
 static void placeBubble(int slot, int x, int y) {
@@ -1090,7 +1107,6 @@ static void placeBubble(int slot, int x, int y) {
   oam[slot * 4 + 0] = (u16)(y & 0xFF);                       /* square */
   oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0x4000);           /* size 1 => 16x16 */
   oam[slot * 4 + 2] = (u16)(SPOT_TILE | (SPOT_BANK << 12));
-  oam[slot * 4 + 3] = 0;
 }
 
 static void pushObjects(void) {
@@ -6265,7 +6281,11 @@ int main(void) {
     tickWindow(held(KEY_A) || held(KEY_B));
 
     if (scene == SCENE_DUEL) {
-      /* The two of you, half again life size, facing each other across the yard.
+      /* The matrix first, every frame. Object memory is shared between the
+         objects and the affine sets, so anything the world drew a frame ago
+         could have sat on it. */
+      setDuelScale();
+      /* The two of you, larger than life, facing each other across the yard.
          They face you; you are seen from behind, which is the facing the walk
          sheet already has. Where they stand this frame is where the swing that
          is playing has put them. */

@@ -1202,10 +1202,12 @@ typedef struct {
 /* Every flag a cutscene can set, and what you answered when one asked you
    something. Kept in the record: a scene that fired again after a reload would
    be worse than one that never fired at all. */
-static u32 storyFlags;
+static u32 storyFlags[STORY_WORDS];
 
-static int flagSet(int at) { return (int)((storyFlags >> at) & 1u); }
-static void setFlag(int at) { storyFlags |= 1u << at; }
+static int flagSet(int at) {
+  return (int)((storyFlags[at >> 5] >> (at & 31)) & 1u);
+}
+static void setFlag(int at) { storyFlags[at >> 5] |= 1u << (at & 31); }
 
 static int swornVigour(int kind, int level);
 static int myHostBlow(void);
@@ -2699,7 +2701,7 @@ typedef struct {
   u8 haven, havenX, havenY, story;
   /* Which scenes have played and what you answered when one asked. A cutscene
      that fired again after a reload would be worse than one that never fired. */
-  u32 storyFlags;
+  u32 storyFlags[STORY_WORDS];
   u8 emptied[MAP_COUNT][8];
   u32 exp, gold, hp, kills;
   u8 bag[WARE_COUNT];
@@ -2750,7 +2752,7 @@ static void keepRecord(void) {
     }
   }
   record.story = you.story;
-  record.storyFlags = storyFlags;
+  { int k; for (k = 0; k < STORY_WORDS; k++) record.storyFlags[k] = storyFlags[k]; }
   record.eggWins = you.eggWins;
   record.tamed = you.tamed;
   record.haven = (u8)(you.haven < 0 ? 255 : you.haven);
@@ -2826,7 +2828,7 @@ static void takeUpRecord(void) {
     }
   }
   you.story = record.story;
-  storyFlags = record.storyFlags;
+  { int k; for (k = 0; k < STORY_WORDS; k++) storyFlags[k] = record.storyFlags[k]; }
   you.eggWins = record.eggWins;
   you.tamed = record.tamed;
   you.haven = record.haven == 255 ? -1 : record.haven;
@@ -3248,7 +3250,7 @@ void newGameState(void) {
   for (k = 0; k < HOLD_MAX; k++) you.holdfast[k].kind = 255;
   for (k = 0; k < HOST_MAX; k++) you.host[k].kind = 255;
   you.lead = 0;
-  storyFlags = 0;
+  for (k = 0; k < STORY_WORDS; k++) storyFlags[k] = 0;
 }
 
 /* Takes somebody's oath. Returns 0 when there is nobody left to take it. */

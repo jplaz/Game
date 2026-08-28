@@ -897,7 +897,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const flagAt = (name) => {
     let at = sceneFlags.indexOf(name);
     if (at < 0) { at = sceneFlags.length; sceneFlags.push(name); }
-    if (at >= 32) throw new Error('more story flags than a word holds');
+    /* Three words of them. One was not enough the moment the scenes became a
+       story: ten scenes with three answers apiece is thirty flags before a
+       single quest is counted. */
+    if (at >= 96) throw new Error('more story flags than three words hold');
     return at;
   };
   const scenes = [];
@@ -1582,6 +1585,7 @@ L.push(`#define CUT_COUNT ${harvest.scenes.length}`);
 L.push(`#define BEAT_COUNT ${harvest.beats.length}`);
 L.push(`#define CHOICE_COUNT ${Math.max(1, harvest.choices.length)}`);
 L.push(`#define STORY_FLAGS ${harvest.sceneFlags.length}`);
+L.push('#define STORY_WORDS 3   /* ninety-six of them, in three words */');
 L.push('#define BEAT_SAY     0');
 L.push('#define BEAT_WAIT    1');
 L.push('#define BEAT_SHAKE   2');

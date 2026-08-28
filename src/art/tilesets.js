@@ -316,31 +316,93 @@ const COBBLE = [
 
 // --------------------------------------------------------- keep flagstone --
 
+/* Paving, laid back so a wall can come forward.
+ *
+ * A stone town had the floor you walk on and the walls you cannot at the
+ * same value, in the same grey, in the same size of block - so the Eyrie
+ * read as one continuous surface and nothing in it said where the ground
+ * ended. This is darker and flatter, with the joint coming up out of near
+ * black, and there are four courses of it rather than one, so a yard does
+ * not tile into graph paper. */
 const FLAG_KEY = {
-  m: '#6e6b64',
-  s: '#8d8a80',
-  h: '#9a978d',
-  d: '#7f7c74',
+  m: '#3f3c36',   // the joint, near black, so paving reads as laid
+  s: '#605d56',   // the face of a flag
+  h: '#6e6a63',   // its lit top edge
+  d: '#514e48',   // and the shadow at its foot
 };
 
 const FLAGSTONE = [
   [
     'mmmmmmmmmmmmmmmm',
-    'mhhhhhhhmhhhhhhm',
+    'mhhhhhhhmhhhhhhh',
     'msssssssmsssssss',
-    'msssssssmssssssm',
-    'msssssssmssssssm',
-    'msssssssmssssssm',
-    'mddddddmmmdddddm',
+    'msssssssmsssssss',
+    'msssssssmsssssss',
+    'msssssssmsssssss',
+    'mdddddddmddddddd',
     'mmmmmmmmmmmmmmmm',
-    'mhhhhhhmhhhhhhhm',
-    'mssssssmsssssssm',
-    'mssssssmsssssssm',
-    'mssssssmsssssssm',
-    'mssssssmsssssssm',
-    'mdddddmmmddddddm',
+    'hhhhmhhhhhhhmhhh',
+    'ssssmsssssssmsss',
+    'ssssmsssssssmsss',
+    'ssssmsssssssmsss',
+    'ssssmsssssssmsss',
+    'ddddmdddddddmddd',
     'mmmmmmmmmmmmmmmm',
-    'mhhhhhhhmhhhhhhm',
+    'mhhhhhhhmhhhhhhh',
+  ],
+  [
+    'mmmmmmmmmmmmmmmm',
+    'hhmhhhhhhhhmhhhh',
+    'ssmssssssssmssss',
+    'ssmssssssssmssss',
+    'ssmssssssssmssss',
+    'ddmddddddddmdddd',
+    'mmmmmmmmmmmmmmmm',
+    'hhhhhhmhhhhhhhmh',
+    'ssssssmsssssssms',
+    'ssssssmsssssssms',
+    'ddddddmdddddddmd',
+    'mmmmmmmmmmmmmmmm',
+    'hhmhhhhhhhhmhhhh',
+    'ssmssssssssmssss',
+    'ssmssssssssmssss',
+    'ddmddddddddmdddd',
+  ],
+  [
+    'mmmmmmmmmmmmmmmm',
+    'hhhhhmhhhhhhhhhh',
+    'sssssmssssssssss',
+    'sssssmssssssssss',
+    'sssssmssssssssss',
+    'sssssmssssssssss',
+    'sssssmssssssssss',
+    'dddddmdddddddddd',
+    'mmmmmmmmmmmmmmmm',
+    'hmhhhhhhhhmhhhhh',
+    'smssssssssmsssss',
+    'smssssssssmsssss',
+    'smssssssssmsssss',
+    'smssssssssmsssss',
+    'smssssssssmsssss',
+    'dmddddddddmddddd',
+  ],
+  [
+    'mmmmmmmmmmmmmmmm',
+    'hhhmhhhhhhhhmhhh',
+    'sssmssssssssmsss',
+    'sssmssssssssmsss',
+    'dddmddddddddmddd',
+    'mmmmmmmmmmmmmmmm',
+    'hhhhhhhmhhhhhhhh',
+    'sssssssmssssssss',
+    'sssssssmssssssss',
+    'dddddddmdddddddd',
+    'mmmmmmmmmmmmmmmm',
+    'hmhhhhhhhmhhhhmh',
+    'smsssssssmssssms',
+    'smsssssssmssssms',
+    'dmdddddddmddddmd',
+    'mmmmmmmmmmmmmmmm',
   ],
 ];
 

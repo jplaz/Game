@@ -244,12 +244,13 @@ export const CUTSCENES = {
 
   /** Who has been doing it, on the steps of the place it was all for. */
   theSpiderHimself: {
-    map: 'kingsLanding', x: 25, y: 12, flag: 'cs_spider', name: 'The Spider',
+    map: 'redKeep', x: 9, y: 20, flag: 'cs_spider', name: 'The Spider',
     needs: 'theyThreatenedYou', sigils: 8,
     beats: [
-      ['say', 'A soft man in a soft robe is sitting on the steps of the Red '
-            + 'Keep as if he has been there since the building went up.'],
-      ['spawn', 'spider', { x: 25, y: 9, dir: 'down', sprite: 'noble',
+      ['say', 'A soft man in a soft robe is standing on the carpet inside the '
+            + 'doors of the Red Keep as if he has been there since the '
+            + 'building went up.'],
+      ['spawn', 'spider', { x: 9, y: 17, dir: 'down', sprite: 'noble',
         name: 'The Spider' }],
       ['say', 'The Spider: I have had eleven men watch you and nine of them '
             + 'came back saying you were nobody. It is a very good disguise. '

@@ -356,9 +356,13 @@ function makeHold({ name, town, townGate, hall, ground = 'grass', wall = '#',
  * two larders and a kitchen, all of them worth going through. Six rooms off one
  * corridor, so the fight comes to you a room at a time rather than all at once.
  */
-function makeHoldHall({ name, hold, npcs = [], signs = [], items = [] }) {
+/* `seat` is what somebody will take for the place once you have cleared it out,
+   in hundreds of gold. Every stronghold hall is for sale to somebody who has
+   already taken it by force, which is how most halls in this world changed
+   hands anyway. */
+function makeHoldHall({ name, hold, seat = 45, npcs = [], signs = [], items = [] }) {
   return {
-    name, indoor: true, music: 'town',
+    name, indoor: true, music: 'town', seat,
     tiles: [
       'IIIIIIIIIIIIIIIII',
       'I=bI=========Ib=I',
@@ -4224,6 +4228,10 @@ export const MAPS = {
     name: 'The Red Keep',
     indoor: true,
     music: 'town',
+    /* The Iron Throne itself. Once it is yours, standing in front of it and
+       pressing A is how you hold court, which is the whole of what there is to
+       do after the crowning. */
+    court: { x: 9, y: 3 },
     tiles: [
       'IIIIIIIIIIIIIIIIIII',
       'I=================I',
@@ -4473,6 +4481,7 @@ export const MAPS = {
   },
 
   twinsHall: {
+    seat: 80,
     name: 'The Hall of the Crossing',
     indoor: true, music: 'town',
     tiles: [
@@ -4597,6 +4606,7 @@ export const MAPS = {
   }),
 
   harrenhalHall: makeHoldHall({
+    seat: 120,
     name: 'The Hall of a Hundred Hearths', hold: 'harrenhal',
     signs: [
       { x: 8, y: 7, text: 'THE HALL OF A HUNDRED HEARTHS\nThirty-five of them, in truth. Somebody exaggerated\nand the name stuck for three hundred years.' },
@@ -4776,6 +4786,7 @@ export const MAPS = {
   }),
 
   crastersHall: makeHoldHall({
+    seat: 35,
     name: "Craster's Longhall", hold: 'crastersKeep',
     signs: [
       { x: 8, y: 7, text: 'A longhall that stinks of smoke and pig.\nThere are nineteen women here and not one boy.' },
@@ -4920,6 +4931,7 @@ export const MAPS = {
   }),
 
   stoneCrowCave: makeHoldHall({
+    seat: 30,
     name: 'The Chieftain\'s Cave', hold: 'stoneCrowHold',
     signs: [
       { x: 8, y: 7, text: 'THE CHIEFTAIN\'S CAVE\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
@@ -4983,6 +4995,7 @@ export const MAPS = {
   }),
 
   seaDragonVault: makeHoldHall({
+    seat: 55,
     name: 'The Vault Beneath the Tower', hold: 'seaDragonHold',
     signs: [
       { x: 8, y: 7, text: 'THE VAULT BENEATH THE TOWER\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
@@ -5046,6 +5059,7 @@ export const MAPS = {
   }),
 
   flayedHall: makeHoldHall({
+    seat: 60,
     name: 'The Flayed Man\'s Hall', hold: 'kennelHold',
     signs: [
       { x: 8, y: 7, text: 'THE FLAYED MAN\'S HALL\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
@@ -5109,6 +5123,7 @@ export const MAPS = {
   }),
 
   sealordPalace: makeHoldHall({
+    seat: 110,
     name: 'The Sealord\'s Palace', hold: 'sealordHold',
     signs: [
       { x: 8, y: 7, text: 'THE SEALORD\'S PALACE\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
@@ -5172,6 +5187,7 @@ export const MAPS = {
   }),
 
   cheesemongerCellar: makeHoldHall({
+    seat: 70,
     name: 'Illyrio\'s Undercellar', hold: 'cheesemongerHold',
     signs: [
       { x: 8, y: 7, text: 'ILLYRIO\'S UNDERCELLAR\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
@@ -5235,6 +5251,7 @@ export const MAPS = {
   }),
 
   elephantCourt: makeHoldHall({
+    seat: 95,
     name: 'The Elephant Court', hold: 'blackWallHold',
     signs: [
       { x: 8, y: 7, text: 'THE ELEPHANT COURT\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
@@ -5298,6 +5315,7 @@ export const MAPS = {
   }),
 
   pitMasterRooms: makeHoldHall({
+    seat: 85,
     name: 'The Pit Master\'s Rooms', hold: 'fightingPits',
     signs: [
       { x: 8, y: 7, text: 'THE PIT MASTER\'S ROOMS\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
@@ -5361,6 +5379,7 @@ export const MAPS = {
   }),
 
   pavilionOfOranges: makeHoldHall({
+    seat: 90,
     name: 'The Pavilion of Oranges', hold: 'waterGardens',
     signs: [
       { x: 8, y: 7, text: 'THE PAVILION OF ORANGES\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },
@@ -5424,6 +5443,7 @@ export const MAPS = {
   }),
 
   wreckersHall: makeHoldHall({
+    seat: 40,
     name: 'The Wreckers\' Hall', hold: 'wreckersHold',
     signs: [
       { x: 8, y: 7, text: 'THE WRECKERS\' HALL\nThe larders are down the far end and the beds are\nstill warm. Somebody left in a hurry.' },

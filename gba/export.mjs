@@ -138,6 +138,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const { CUTSCENES, CUTSCENE_IDS } = await import('/src/data/cutscenes.js');
   const { QUESTS } = await import('/src/data/quests.js');
   const { REGARD } = await import('/src/data/regard.js');
+  const { PETITIONS, PETITION_IDS } = await import('/src/data/petitions.js');
   const { BEAST_TECHNIQUES, GROWS_INTO, NEVER_TAMED, EGGS, NESTS } =
     await import('/src/data/beasts.js');
   const creatures = await import('/src/art/creatures.js');
@@ -857,6 +858,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         /* A kennelmaster boards what you cannot carry. Speaking to one opens
            the holdfast rather than a counter or a conversation. */
         holds: /^kennel/i.test(n.script ?? '') ? 1 : 0,
+        /* Somebody who will arrange a match. A sept is where that has always
+           been done, so it is whoever is standing in one: no new role, no new
+           art, and a septa is already somebody who will not fight you. */
+        weds: sprite === 'septa' || /sept(on|a)/i.test(n.name ?? '') ? 1 : 0,
       };
     });
 
@@ -949,6 +954,13 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       nest: (NESTS[id] ?? []).map((it) => wareIndex.get(`egg:${it}`))
         .filter((n) => n !== undefined)[0] ?? 255,
       scene,
+      /* What somebody will take for this hall once you have cleared it out, in
+         hundreds of gold. Zero everywhere but the halls behind a stronghold
+         gate: a house you can buy on the high street is not a house. */
+      seat: Math.min(255, map.seat ?? 0),
+      /* Where the Iron Throne stands, on the one map that has one. */
+      courtX: map.court ? map.court.x : 255,
+      courtY: map.court ? map.court.y : 255,
       frost: (map.ground ?? 'grass') === 'snow' ? 1 : 0,
       warps: (map.warps ?? []).map((w) => ({ ...w })),
       signs: (map.signs ?? []).map((s) => ({ x: s.x, y: s.y, text: s.text })),
@@ -1139,6 +1151,49 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     };
   });
   out.regard = regard;
+
+  /* What comes before the throne once the throne is yours.
+     Written a long time ago, imported by nothing, and so never once read by
+     anybody playing the cartridge - which is the whole of the postgame sitting
+     in a file. Each answer moves the treasury, how steady the realm is, and
+     what at most two houses make of you; a house named here that nobody can
+     swear to (the Watch, the free folk, the Boltons) has no slot to move, so
+     what it would have moved goes into steadiness instead, which is the honest
+     translation rather than a silent nothing. */
+  const houseAt = (id) => houses.findIndex((h) => h.id === id);
+  const petitions = PETITION_IDS.map((id) => {
+    const p = PETITIONS[id];
+    return {
+      id,
+      text: p.text,
+      /* The only gate any of them has is an empty treasury. */
+      needsPoor: p.requires?.treasuryBelow ?? 0,
+      options: p.options.map((o) => {
+        const named = Object.entries(o.standing ?? {});
+        const placed = named.filter(([h]) => houseAt(h) >= 0);
+        const homeless = named.filter(([h]) => houseAt(h) < 0);
+        if (placed.length > 2) {
+          throw new Error(`${id}: "${o.label}" moves ${placed.length} houses; there is room for two`);
+        }
+        let steady = o.stability ?? 0;
+        for (const [, d] of homeless) steady += Math.round(d / 6);
+        return {
+          label: o.label,
+          result: o.result,
+          gold: o.gold ?? 0,
+          steady,
+          houseA: placed[0] ? houseAt(placed[0][0]) : 255,
+          shiftA: placed[0] ? placed[0][1] : 0,
+          houseB: placed[1] ? houseAt(placed[1][0]) : 255,
+          shiftB: placed[1] ? placed[1][1] : 0,
+        };
+      }),
+    };
+  });
+  if (petitions.some((p) => p.options.length < 2)) {
+    throw new Error('a petition with fewer than two answers is not a decision');
+  }
+  out.petitions = petitions;
 
   out.scenes = scenes;
   out.beats = beats;
@@ -1750,6 +1805,41 @@ for (const r of harvest.regard) {
 L.push('};');
 L.push('');
 
+// What comes before the throne once the throne is yours. Every answer costs
+// something: the treasury, how steady the realm is, or what a house makes of
+// you. That is the whole of ruling, which is why the postgame is a run of these
+// rather than another run of fights.
+{
+  const opts = harvest.petitions.flatMap((p) => p.options);
+  L.push(`#define PETITION_COUNT ${harvest.petitions.length}`);
+  L.push(`#define ANSWER_COUNT ${opts.length}`);
+  L.push('typedef struct {');
+  L.push('  const char *label, *result;');
+  L.push('  short gold;');
+  L.push('  signed char steady, shiftA, shiftB;');
+  L.push('  u8 houseA, houseB;');
+  L.push('} Answer;');
+  L.push('static const Answer answers[ANSWER_COUNT] = {');
+  for (const o of opts) {
+    L.push(`  { ${cstr(o.label)}, ${cstr(o.result)}, ${o.gold}, ${o.steady}, `
+      + `${o.shiftA}, ${o.shiftB}, ${o.houseA}, ${o.houseB} },`);
+  }
+  L.push('};');
+  L.push('typedef struct {');
+  L.push('  const char *text;');
+  L.push('  u16 needsPoor;        /* only asked of a crown with less than this */');
+  L.push('  u8 first, count;');
+  L.push('} Petition;');
+  L.push('static const Petition petitions[PETITION_COUNT] = {');
+  let at = 0;
+  for (const p of harvest.petitions) {
+    L.push(`  { ${cstr(p.text)}, ${p.needsPoor}, ${at}, ${p.options.length} },`);
+    at += p.options.length;
+  }
+  L.push('};');
+  L.push('');
+}
+
 // Who can be taken into service, and what they are worth at any level.
 L.push(`#define SWORN_KINDS ${harvest.swornKinds.length}`);
 L.push('typedef struct {');
@@ -1853,7 +1943,7 @@ L.push('typedef struct { u16 duellist; u8 bank; } Ambush;');
 L.push('typedef struct { u8 beast, level; } Wild;');
 L.push('typedef struct { u8 x, y, ware; u16 gold; } Chest;');
 L.push('typedef struct {');
-L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sails, holds;');
+L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sails, holds, weds;');
 L.push('  u16 duellist;');
 L.push('  const char *name, *line;');
 L.push('} Npc;');
@@ -1878,6 +1968,8 @@ L.push('  const Ambush *ambushes; u8 ambushCount;');
 L.push('  const Wild *wilds; u8 wildCount;');
 L.push('  const Chest *chests; u8 chestCount;');
 L.push('  u8 nest;              /* the egg that is found here, or 255 */');
+L.push('  u8 seat;              /* what this hall costs in hundreds, 0 not for sale */');
+L.push('  u8 courtX, courtY;    /* where the chair is, 255 if there is no chair */');
 L.push('} Map;');
 L.push('');
 
@@ -1939,10 +2031,10 @@ harvest.maps.forEach((map, i) => {
       name = n.name.startsWith(spoken[1]) ? n.name : spoken[1];
       line = spoken[2];
     }
-    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.duellist},`);
+    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.duellist},`);
     L.push(`    ${cstr(name)}, ${cstr(line.trim())} },`);
   }
-  if (!map.npcs.length) L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');
+  if (!map.npcs.length) L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');
   L.push('};');
   L.push('');
 });
@@ -1954,7 +2046,7 @@ harvest.maps.forEach((map, i) => {
   L.push(`    warps_${i}, ${map.liveWarps}, signs_${i}, ${map.signs.length},`);
   L.push(`    npcs_${i}, ${map.npcs.length}, ambushes_${i}, ${map.ambushes.length},`);
   L.push(`    wilds_${i}, ${map.wilds.length}, chests_${i}, ${map.chests.length},`);
-  L.push(`    ${map.nest} },`);
+  L.push(`    ${map.nest}, ${map.seat}, ${map.courtX}, ${map.courtY} },`);
 });
 L.push('};');
 L.push('');

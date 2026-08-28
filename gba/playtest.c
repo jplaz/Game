@@ -89,7 +89,7 @@ static void checkSound(void) {
 static void checkFrame(void) {
   int i;
   checkSound();
-  if (scene < 0 || scene > SCENE_DEEDS) finding("scene is %d, which is not a scene", scene);
+  if (scene < 0 || scene > SCENE_SEAT) finding("scene is %d, which is not a scene", scene);
   /* Nothing is standing anywhere yet on the screens that come before the
      world, and there is no map to be standing on. */
   if (scene == SCENE_TITLE || scene == SCENE_HOUSE || scene == SCENE_NAME) return;
@@ -218,6 +218,7 @@ static int stepToward(int gx, int gy) {
 #define GOAL_NPC 1
 #define GOAL_SIGN 2
 #define GOAL_WARP 3
+#define GOAL_CHAIR 4                /* the Iron Throne, once it is yours */
 
 static int goalKind, goalIndex, goalFrames, goalStage;
 static int npcDuelled[MAP_COUNT][MAX_CROWD];
@@ -226,7 +227,11 @@ static int wantHouse, runAway, statusChecks, sinceStatus, wantTech, techUsed[4];
 static int menusSeen, bagsSeen, shopsSeen, bought, records, menuWant = -1;
 static int mustersSeen, kennelsSeen, holdLooks, boarded, fetched, oathsOffered;
 static int oathWanted = -1;
-static int deedsSeen, cutsPlayed, cutsChosen;
+static int deedsSeen, cutsPlayed, cutsChosen, courtsHeld, courtsAnswered;
+/* The house card and the arms builder: how many times the run opened each, how
+   far down the card it has walked this visit, and whether it ever took arms of
+   its own, bought a hall, or married anybody. */
+static int housesSeen, houseLooks, armsSeen, armsLooks;
 static unsigned char cutSeen[CUT_COUNT];
 static int eggsFound, eggsHatched, dragonEgg;
 static int boughtOf[WARE_COUNT];
@@ -419,6 +424,17 @@ static void pickLadderGoal(void) {
         if (door >= 0) { goalKind = GOAL_WARP; goalIndex = door; return; }
       }
     }
+    /* The chair is yours, and the game is not over: eighteen petitions are
+       waiting on it and nothing else in the tester ever hears one. Taking the
+       throne used to end the run on the spot, which is exactly the mistake the
+       game itself used to make. */
+    if (crownRun && you.story >= 3 && petitionWaiting() >= 0) {
+      if (worldId == THRONE_MAP) { goalKind = GOAL_CHAIR; goalIndex = 0; return; }
+      {
+        int back = warpTowardMap(THRONE_MAP);
+        if (back >= 0) { goalKind = GOAL_WARP; goalIndex = back; return; }
+      }
+    }
     printf("      the realm is yours: ten sigils at level %d, %d gold\n",
       you.level, you.gold);
     hostFramesLeft = 0;
@@ -541,6 +557,13 @@ static void pickGoal(void) {
   interacting = 0;
   if (ladderMode) { pickLadderGoal(); return; }
 
+  /* The chair, once it is yours and somebody is still waiting on it. Nothing
+     else in the tester ever sits it, so without this the whole postgame is
+     eighteen petitions nobody has ever read. */
+  if (you.story >= 3 && world->courtX < 255 && petitionWaiting() >= 0) {
+    goalKind = GOAL_CHAIR; goalIndex = 0; return;
+  }
+
   for (i = 0; i < crowdCount; i++) {
     /* Anyone who drew on you from across the road and lost is dealt with,
        whether or not there was ever a conversation. */
@@ -591,6 +614,7 @@ static void standTile(int gx, int gy, int *sx, int *sy) {
 static void goalTile(int *gx, int *gy) {
   if (goalKind == GOAL_NPC) { *gx = crowd[goalIndex].px >> 4; *gy = crowd[goalIndex].py >> 4; }
   else if (goalKind == GOAL_SIGN) { *gx = world->signs[goalIndex].x; *gy = world->signs[goalIndex].y; }
+  else if (goalKind == GOAL_CHAIR) { *gx = world->courtX; *gy = world->courtY; }
   else { *gx = world->warps[goalIndex].x; *gy = world->warps[goalIndex].y; }
 }
 
@@ -618,6 +642,7 @@ static void completeGoal(void) {
       npcDuelled[worldId][goalIndex] = 1;
     }
   } else if (goalKind == GOAL_SIGN) { signRead[worldId][goalIndex] = 1; signs++; }
+  else if (goalKind == GOAL_CHAIR) { courtsHeld++; }
   goalKind = GOAL_NONE;
 }
 
@@ -674,6 +699,8 @@ void hostFrame(void) {
     else if (scene == SCENE_HOUSE) catchOnce(1, "02-swear-your-sword");
     else if (scene == SCENE_MENU) catchOnce(2, "05-the-menu");
     else if (scene == SCENE_STATUS) catchOnce(3, "06-your-sigil");
+    else if (scene == SCENE_SEAT) catchOnce(27, "08-your-own-house");
+    else if (scene == SCENE_ARMS) catchOnce(26, "08b-your-own-arms");
     else if (scene == SCENE_BAG) catchOnce(4, "07-the-pouch");
     else if (scene == SCENE_CRAFT) catchOnce(24, craftAt ? "12b-at-the-anvil" : "11b-at-the-bench");
     else if (scene == SCENE_SHOP) catchOnce(shopStall ? 5 : 6,
@@ -721,6 +748,17 @@ void hostFrame(void) {
   /* A cutscene has the screen. Read it, and answer when it asks: a run that
      walked over five scenes and never saw one would look exactly like a run
      that never walked over any. */
+  /* And a petition, once the chair is yours: read it out, pick an answer, read
+     what it cost. Nothing else in the tester ever answers one. */
+  if (courtAsking) {
+    if (roll(3) == 0 && courtPick < petitions[courtAt].count - 1) keys = tap(KEY_DOWN);
+    else { keys = tap(KEY_A); if (keys) courtsAnswered++; }
+    lastKeys = keys;
+    REG_KEYINPUT = (unsigned short)(~keys & 0x03FF);
+    frameNo++;
+    return;
+  }
+
   if (cutAt >= 0) {
     if (!cutSeen[cutAt]) { cutSeen[cutAt] = 1; cutsPlayed++; }
     if (cutAsking) {
@@ -761,7 +799,7 @@ void hostFrame(void) {
        the tester ever looking in the pouch. */
     if (menuWant == MENU_ENTRIES - 1) { keys = tap(KEY_B); if (keys) menuWant = -1; }
     else if (menuPick != menuWant) keys = tap(menuPick < menuWant ? KEY_DOWN : KEY_UP);
-    else { keys = tap(KEY_A); if (keys) { if (menuWant == 5) records++; menuWant = -1; } }
+    else { keys = tap(KEY_A); if (keys) { if (menuWant == 6) records++; menuWant = -1; } }
   } else if (scene == SCENE_PARTY) {
     /* Read down whatever is at your heel, put a different one in front now and
        then, and go. */
@@ -769,6 +807,29 @@ void hostFrame(void) {
     if (partyLooks < 3) { partyLooks++; keys = tap(KEY_DOWN); }
     else if (partyLooks == 3) { partyLooks++; keys = tap(KEY_A); if (keys) swaps++; }
     else { keys = tap(KEY_B); if (keys) partyLooks = 0; }
+  } else if (scene == SCENE_SEAT) {
+    /* Walk down the card pressing A on every line of it: take arms, try to buy
+       whatever hall is underfoot, send for the rents, turn each office, and
+       call for oaths. Every one of those is a line of the game that nothing
+       else in the tester ever reaches. */
+    housesSeen++;
+    if (houseLooks < HOUSE_ROWS * 4) {
+      /* A on every line, SELECT on every line as well, and then down one. The
+         only line SELECT does anything on is the seat, and a feast is exactly
+         the sort of thing nothing else in the tester would ever press. */
+      int step = houseLooks - (houseLooks / 4) * 4;
+      keys = step == 0 ? tap(KEY_A) : step == 1 ? tap(KEY_SELECT)
+           : step == 2 ? tap(KEY_RIGHT) : tap(KEY_DOWN);
+      if (keys) houseLooks++;
+    } else { keys = tap(KEY_B); if (keys) houseLooks = 0; }
+  } else if (scene == SCENE_ARMS) {
+    /* Walk the four lines, change something on each, name the house, and take
+       them. The interesting failure here is a shield drawn off the edge of the
+       page or a charge index that runs past the end of the table. */
+    armsSeen++;
+    if (armsLooks < 8) { keys = (armsLooks & 1) ? tap(KEY_RIGHT) : tap(KEY_DOWN); if (keys) armsLooks++; }
+    else if (armsLooks == 8) { keys = tap(KEY_A); if (keys) armsLooks++; }
+    else { keys = tap(KEY_START); if (keys) armsLooks = 0; }
   } else if (scene == SCENE_DEEDS) {
     deedsSeen++;
     keys = tap(KEY_B);
@@ -1099,6 +1160,9 @@ void hostFrame(void) {
         } else if (goalKind == GOAL_SIGN) {
           signRead[worldId][goalIndex] = 1;
           finding("%s: could not reach the sign at %d,%d", world->name, gx, gy);
+        } else if (goalKind == GOAL_CHAIR) {
+          finding("%s: could not reach the chair at %d,%d", world->name, gx, gy);
+          you.story = 2;                          /* stop trying to sit it */
         } else {
           finding("%s: could not reach the door at %d,%d", world->name, gx, gy);
           mapSeen[world->warps[goalIndex].to]++;   /* stop trying for this one */
@@ -1350,6 +1414,17 @@ int main(int argc, char **argv) {
     dragonEgg ? "yes" : "not this run");
   printf("  the kennels    %d visits, %d boarded, %d fetched, %d still there\n",
     kennelsSeen, boarded, fetched, holdCount());
+  if (you.story >= 3 || courtsHeld) {
+    printf("  the court       %d sittings, %d answered, %d of %d petitions heard, "
+           "realm %d, treasury %d\n",
+      courtsHeld, courtsAnswered, courtCount(), PETITION_COUNT, crown.steady, you.gold);
+    if (crownRun && !courtsAnswered) {
+      finding("the chair was taken and not one petition was ever heard");
+    }
+  }
+  printf("  your own house %d cards read, %d arms screens, arms %s, seat %s\n",
+    housesSeen, armsSeen, you.arms ? "taken" : "none",
+    seat.has ? maps[seat.map].name : "none");
   printf("  the host       %d musters read, %d purses offered, %d sworn\n",
     mustersSeen, oathsOffered, hostCount());
   if (MY_BEAST.kind != 255) {

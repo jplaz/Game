@@ -1425,6 +1425,439 @@ int main(void) {
     if (named) bad("%d people the story knows by name are for hire", named);
   }
 
+  /* --- a house of your own ------------------------------------------------ */
+  /* None of this is reachable by a wandering run either: buying a hall wants a
+     stronghold cleared out and six thousand gold in the same afternoon, and a
+     marriage wants a great house already knelt. So the rules are checked here,
+     directly, the same way the party's and the host's are. */
+  {
+    int k, halls = 0, was, i2;
+    extern void newGameState(void);
+
+    /* Nought is a real charge, a real field and a real map, so an unwritten
+       house reads as a full one: arms you never took, over a hall you never
+       bought. */
+    you.arms = 1; you.charge = 3; you.tincture = 2; you.saying = 9;
+    seat.has = 1; seat.map = 7; seat.wed = 4; seat.heirs = 3; seat.coffers = 900;
+    for (k = 0; k < VASSAL_WORDS; k++) seat.vassal[k] = 0xFF;
+    newGameState();
+    if (you.arms) bad("a new game begins with arms already taken");
+    if (seat.has) bad("a new game begins holding %s", maps[seat.map].name);
+    if (seat.wed) bad("a new game begins married");
+    if (seat.heirs) bad("a new game begins with %d children", seat.heirs);
+    if (seat.coffers) bad("a new game begins with %d gold in coffers", (int)seat.coffers);
+    if (vassalCount()) bad("a new game begins with %d halls sworn to it", vassalCount());
+    for (k = 0; k < OFFICE_COUNT; k++) {
+      if (officeHolder(k) >= 0) bad("a new game begins with a %s", OFFICES[k]);
+    }
+
+    /* Somewhere to buy. A game with a house system and nothing for sale in it
+       is a menu that never does anything. */
+    for (k = 0; k < MAP_COUNT; k++) {
+      if (!maps[k].seat) continue;
+      halls++;
+      /* A hall you cannot clear is a hall you can never buy, because the price
+         is only asked of somebody who has already taken it. */
+      {
+        int f = 0, n = maps[k].npcCount > MAX_CROWD ? MAX_CROWD : maps[k].npcCount, j2;
+        for (j2 = 0; j2 < n; j2++) if (maps[k].npcs[j2].fights) f++;
+        if (!f) bad("%s is for sale and has nobody in it to take it from", maps[k].name);
+      }
+      /* And there has to be a way in, or the hall is a price on a page. */
+      if (firstWayIn(&maps[k], k) < 0) {
+        bad("%s is for sale and there is no way into it", maps[k].name);
+      }
+      if (maps[k].seat > 200) note("%s costs %d gold", maps[k].name, maps[k].seat * 100);
+    }
+    if (halls < 4) bad("only %d halls in the whole world are for sale", halls);
+    note("%d halls can be bought", halls);
+
+    /* mapCleared: no while anybody in it is still standing, yes once they are
+       not, and never yes for somewhere with nobody in it to fight. */
+    for (k = 0; k < MAP_COUNT; k++) {
+      if (!maps[k].seat) continue;
+      { int j2; for (j2 = 0; j2 < MAX_CROWD; j2++) beaten[k][j2] = 0; }
+      if (mapCleared(k)) { bad("%s counts as cleared with everybody standing", maps[k].name); break; }
+      { int j2; for (j2 = 0; j2 < MAX_CROWD; j2++) beaten[k][j2] = 1; }
+      if (!mapCleared(k)) { bad("%s never counts as cleared", maps[k].name); break; }
+      { int j2; for (j2 = 0; j2 < MAX_CROWD; j2++) beaten[k][j2] = 0; }
+    }
+
+    /* The vassal roll: every map id in and back out again, and a count that
+       agrees with what went in. One byte holds eight halls, so an off-by-one
+       here swears the hall next door instead of the one you paid for. */
+    for (k = 0; k < VASSAL_WORDS; k++) seat.vassal[k] = 0;
+    for (k = 0; k < MAP_COUNT; k++) {
+      swearVassal(k);
+      if (!isVassal(k)) { bad("map %d would not swear", k); break; }
+      if (vassalCount() != 1) { bad("one hall sworn and %d counted", vassalCount()); break; }
+      breakVassal(k);
+      if (isVassal(k)) { bad("map %d would not be released", k); break; }
+    }
+    if (vassalCount()) bad("every hall released and %d still sworn", vassalCount());
+
+    /* Standing goes up when you get something and never down. */
+    for (k = 0; k < HOST_MAX; k++) you.host[k].kind = 255;
+    you.story = 0;
+    sigils = 0;
+    was = standing();
+    you.arms = 1;
+    if (standing() <= was) bad("taking your own arms is worth nothing");
+    was = standing();
+    seat.has = 1; seat.map = 0;
+    if (standing() <= was) bad("a hall of your own is worth nothing");
+    was = standing();
+    for (k = 0; k < HOST_MAX; k++) { you.host[k].kind = (u8)(k % SWORN_KINDS); you.host[k].level = 20; }
+    turnOffice(0);
+    if (officeHolder(0) < 0) bad("an office would not be filled from six sworn swords");
+    if (standing() <= was) bad("appointing a steward is worth nothing");
+    was = standing();
+    seat.wed = 1;
+    if (standing() <= was) bad("a marriage is worth nothing");
+    was = standing();
+    seat.heirs = 1;
+    if (standing() <= was) bad("an heir is worth nothing");
+    was = standing();
+    swearVassal(1);
+    if (standing() <= was) bad("a hall sworn to you is worth nothing");
+
+    /* An office goes round every sworn sword and then back to vacant, and no
+       two offices are ever held by the same person. */
+    {
+      int seen[HOST_MAX], vacancies = 0;
+      for (k = 0; k < HOST_MAX; k++) seen[k] = 0;
+      for (k = 0; k < OFFICE_COUNT; k++) seat.office[k] = 255;
+      for (k = 0; k < (HOST_MAX + 1) * 2; k++) {
+        int at;
+        turnOffice(0);
+        at = officeHolder(0);
+        if (at < 0) vacancies++; else seen[at] = 1;
+      }
+      for (k = 0; k < HOST_MAX; k++) if (!seen[k]) bad("sworn sword %d can never hold an office", k);
+      if (!vacancies) bad("an office once filled can never be left vacant again");
+      /* Two offices cannot be the same person. */
+      for (k = 0; k < OFFICE_COUNT; k++) seat.office[k] = 255;
+      for (k = 0; k < OFFICE_COUNT; k++) turnOffice(k);
+      for (k = 0; k < OFFICE_COUNT; k++) {
+        for (i2 = k + 1; i2 < OFFICE_COUNT; i2++) {
+          if (officeHolder(k) >= 0 && officeHolder(k) == officeHolder(i2)) {
+            bad("one person holds both %s and %s", OFFICES[k], OFFICES[i2]);
+          }
+        }
+      }
+    }
+
+    /* What the offices are actually for. A title with no consequence attached
+       is furniture, and the card promises all three of them do something. */
+    for (k = 0; k < OFFICE_COUNT; k++) seat.office[k] = 255;
+    for (k = 0; k < VASSAL_WORDS; k++) seat.vassal[k] = 0;
+    was = rentPerWin();
+    swearVassal(2);
+    if (rentPerWin() <= was) bad("a hall sworn to you pays nothing");
+    was = rentPerWin();
+    turnOffice(0);
+    if (rentPerWin() <= was) bad("a steward is worth nothing in rent");
+    theirs.guard = 0;
+    was = myHostBlow();
+    seat.office[1] = seat.office[0] == 1 ? 2 : 1;
+    if (myHostBlow() <= was) bad("a master-at-arms is worth nothing in a fight");
+
+    /* Rent arrives on a win, and only for somebody who has a hall. */
+    seat.has = 0;
+    seat.coffers = 0;
+    houseAfterWin();
+    if (seat.coffers) bad("rent comes in to somebody with no hall");
+    seat.has = 1;
+    houseAfterWin();
+    if (!seat.coffers) bad("a win pays no rent into your own hall");
+
+    /* Children: only once wed, on a schedule, and never more than four. */
+    seat.wed = 0;
+    seat.heirs = 0;
+    seat.lastHeir = 0;
+    you.kills = 500;
+    for (k = 0; k < 40; k++) { you.kills++; houseAfterWin(); }
+    if (seat.heirs) bad("an unwed lord has %d children", seat.heirs);
+    seat.wed = 1;
+    seat.lastHeir = (u16)you.kills;
+    for (k = 0; k < HEIR_EVERY * (HEIR_MAX + 3); k++) { you.kills++; houseAfterWin(); }
+    if (seat.heirs != HEIR_MAX) {
+      bad("%d children after %d wins wed, not the %d there is room for",
+        seat.heirs, HEIR_EVERY * (HEIR_MAX + 3), HEIR_MAX);
+    }
+    for (k = 0; k < seat.heirs; k++) {
+      if (!seat.heirName[k][0]) bad("child %d of your house has no name", k);
+    }
+
+    /* And a raid: it picks a hall you hold, puts the people who were cleared
+       out of it back in, and stops the moment you go and take it again. */
+    seat.raidLive = 0;
+    seat.raidAt = 0;
+    for (k = 0; k < VASSAL_WORDS; k++) seat.vassal[k] = 0;
+    /* Somewhere real, with people in it, so that refilling it means something. */
+    { int pick = -1;
+      for (k = 0; k < MAP_COUNT; k++) if (maps[k].seat) { pick = k; break; }
+      if (pick < 0) bad("no hall to raid");
+      else {
+        int j2;
+        swearVassal(pick);
+        for (j2 = 0; j2 < MAX_CROWD; j2++) beaten[pick][j2] = 1;
+        for (j2 = 0; j2 < 400 && !seat.raidLive; j2++) { you.kills++; houseAfterWin(); }
+        if (!seat.raidLive) bad("nobody ever comes to burn a hall of yours");
+        else {
+          if (!isVassal(seat.raidMap)) bad("a raid landed on a hall you do not hold");
+          if (mapCleared(seat.raidMap)) bad("a raided hall is still standing empty");
+          /* Beat them, and it is yours again. */
+          for (j2 = 0; j2 < MAX_CROWD; j2++) beaten[seat.raidMap][j2] = 1;
+          worldId = seat.raidMap;
+          world = &maps[worldId];
+          windowOpen = 0;
+          was = (int)seat.coffers;
+          houseCheckRaid();
+          if (seat.raidLive) bad("a hall taken back is still burning");
+          if ((int)seat.coffers <= was) bad("taking a hall back is worth nothing");
+        }
+        /* And ignoring one loses it. */
+        seat.raidLive = 1;
+        seat.raidMap = (u8)pick;
+        seat.raidAt = (u16)you.kills;
+        swearVassal(pick);
+        you.kills++;
+        houseAfterWin();
+        if (isVassal(pick)) bad("a hall left to burn is still sworn to you");
+      }
+    }
+
+    /* A feast: only in your own hall, only if you can pay for it, and it puts
+       everybody who walked in with you back on their feet. */
+    newGameState();
+    seat.has = 1;
+    seat.map = 0;
+    worldId = 1;
+    world = &maps[worldId];
+    you.gold = 999999;
+    you.level = 20;
+    you.hp = 1;
+    if (holdFeast()) bad("a feast was held in somebody else's hall");
+    if (you.hp != 1) bad("a feast held nowhere still mended you");
+    worldId = 0;
+    world = &maps[0];
+    you.gold = 0;
+    if (holdFeast()) bad("a feast was held with no money for it");
+    you.gold = feastPrice();
+    was = you.gold;
+    for (k = 0; k < HOST_MAX; k++) { you.host[k].kind = 0; you.host[k].level = 15; you.host[k].hp = 1; }
+    if (!holdFeast()) bad("a feast could not be held in your own hall with the price in hand");
+    if (you.gold != was - feastPrice()) note("a feast's price moves with standing, which is intended");
+    if (you.hp != vigourFor(you.level)) bad("a feast left you at %d of %d", you.hp, vigourFor(you.level));
+    for (k = 0; k < HOST_MAX; k++) {
+      if (you.host[k].hp != swornVigour(you.host[k].kind, you.host[k].level)) {
+        bad("a feast left a sworn sword at %d", you.host[k].hp);
+        break;
+      }
+    }
+
+    /* And the style you are addressed by climbs, and never says nothing at the
+       top of the game. */
+    newGameState();
+    sigils = 0;
+    you.story = 0;
+    if (yourStyle()) bad("somebody with nothing is addressed as \"%s\"", yourStyle());
+    if (yourPrefix()[0]) bad("somebody with nothing has \"%s\" on their plate", yourPrefix());
+    sigils = 1;
+    if (!yourStyle()) bad("a seat has bent to you and nobody has a word for you");
+    seat.has = 1;
+    if (!yourStyle()) bad("a lord of a hall has no style");
+    you.story = 3;
+    if (!yourStyle() || !yourPrefix()[0]) bad("the crowned ruler of the realm has no style");
+
+    /* Put everything back the way the rest of the audit expects it. */
+    newGameState();
+    you.kills = 0;
+    sigils = 0;
+    for (k = 0; k < MAP_COUNT; k++) {
+      int j2;
+      for (j2 = 0; j2 < MAX_CROWD; j2++) beaten[k][j2] = 0;
+    }
+  }
+
+  /* --- holding the chair after you have taken it --------------------------- */
+  /* Nothing in a wandering run ever sits the throne, and the crowning run stops
+     the moment the crown goes on. So every rule of the postgame is checked
+     here: that there is a postgame at all, that each answer costs what it says
+     it costs, and that the realm can be neglected into trouble and put right
+     again. */
+  {
+    int i2, k;
+    extern void newGameState(void);
+    newGameState();
+
+    if (PETITION_COUNT < 8) bad("only %d petitions in the whole postgame", PETITION_COUNT);
+    if (PETITION_COUNT > 32) {
+      bad("%d petitions and only thirty-two bits to remember them by", PETITION_COUNT);
+    }
+    note("%d petitions, %d answers between them", PETITION_COUNT, ANSWER_COUNT);
+    for (i2 = 0; i2 < PETITION_COUNT; i2++) {
+      const Petition *p = &petitions[i2];
+      if (p->count < 2) bad("petition %d has %d answers, which is not a decision", i2, p->count);
+      if (p->first + p->count > ANSWER_COUNT) bad("petition %d runs off the end of the answers", i2);
+      if (!p->text[0]) bad("petition %d says nothing", i2);
+      for (k = 0; k < p->count; k++) {
+        const Answer *a = &answers[p->first + k];
+        if (!a->label[0]) bad("petition %d, answer %d has no label", i2, k);
+        if (!a->result[0]) bad("petition %d, answer %d has no consequence", i2, k);
+        if (a->houseA != 255 && a->houseA >= HOUSE_COUNT) {
+          bad("petition %d, answer %d moves house %d, and there are %d",
+            i2, k, a->houseA, HOUSE_COUNT);
+        }
+        if (a->houseB != 255 && a->houseB >= HOUSE_COUNT) {
+          bad("petition %d, answer %d moves house %d, and there are %d",
+            i2, k, a->houseB, HOUSE_COUNT);
+        }
+        /* An answer that costs nothing at all is not a decision either. */
+        if (!a->gold && !a->steady && a->houseA == 255 && a->houseB == 255) {
+          bad("petition %d, answer \"%s\" costs nothing whatever", i2, a->label);
+        }
+      }
+    }
+
+    /* There is a chair, and exactly one of them. */
+    {
+      int chairs = 0;
+      for (i2 = 0; i2 < MAP_COUNT; i2++) {
+        if (maps[i2].courtX == 255) continue;
+        chairs++;
+        if (maps[i2].courtX >= maps[i2].w || maps[i2].courtY >= maps[i2].h) {
+          bad("%s puts its chair at %d,%d and is %dx%d", maps[i2].name,
+            maps[i2].courtX, maps[i2].courtY, maps[i2].w, maps[i2].h);
+        } else if (!solidOn(&maps[i2], maps[i2].courtX, maps[i2].courtY)) {
+          /* You stand in front of it and press A. Ground you can walk onto is
+             ground you walk over without ever facing it. */
+          bad("%s's chair at %d,%d is somewhere you can stand", maps[i2].name,
+            maps[i2].courtX, maps[i2].courtY);
+        }
+      }
+      if (chairs != 1) bad("%d maps have an Iron Throne on them", chairs);
+    }
+
+    /* Every petition can be reached: pull them off the table one at a time and
+       none of them should ever be unreachable except the one gated on an empty
+       treasury, which needs an empty treasury. */
+    crown.judged = 0;
+    you.gold = 0;
+    for (k = 0; k < PETITION_COUNT; k++) {
+      int at = petitionWaiting();
+      if (at < 0) { bad("the court ran dry after %d petitions of %d", k, PETITION_COUNT); break; }
+      if (judged(at)) { bad("the court raised a petition it had already heard"); break; }
+      crown.judged |= (u32)1u << at;
+    }
+    if (petitionWaiting() >= 0) bad("every petition heard and the court still has one");
+    if (courtCount() != PETITION_COUNT) {
+      bad("%d of %d petitions counted as heard", courtCount(), PETITION_COUNT);
+    }
+    /* A rich crown is never asked to fill an empty treasury. */
+    crown.judged = 0;
+    you.gold = 999999;
+    for (k = 0; k < PETITION_COUNT * 8; k++) {
+      int at = petitionWaiting();
+      if (at < 0) break;
+      if (petitions[at].needsPoor && you.gold >= (int)petitions[at].needsPoor) {
+        bad("a crown with %d gold was asked about an empty treasury", you.gold);
+        break;
+      }
+      crown.judged |= (u32)1u << at;
+    }
+
+    /* Answering one costs what the table says it costs, and never twice. */
+    crown.judged = 0;
+    crown.steady = 0;
+    for (k = 0; k < HOUSE_COUNT; k++) crown.favour[k] = 0;
+    you.gold = 50000;
+    for (i2 = 0; i2 < PETITION_COUNT; i2++) {
+      const Petition *p = &petitions[i2];
+      const Answer *a;
+      int wasGold, wasSteady, wasA;
+      courtAt = i2;
+      courtPick = 0;
+      a = &answers[p->first];
+      wasGold = you.gold;
+      wasSteady = crown.steady;
+      wasA = a->houseA < HOUSE_COUNT ? crown.favour[a->houseA] : 0;
+      answerCourt();
+      if (you.gold != wasGold + a->gold) {
+        bad("petition %d moved the treasury by %d, not %d", i2, you.gold - wasGold, a->gold);
+      }
+      if (crown.steady != wasSteady + a->steady) {
+        bad("petition %d moved the realm by %d, not %d", i2,
+          crown.steady - wasSteady, a->steady);
+      }
+      if (a->houseA < HOUSE_COUNT && crown.favour[a->houseA] != wasA + a->shiftA) {
+        bad("petition %d moved a house by %d, not %d", i2,
+          crown.favour[a->houseA] - wasA, a->shiftA);
+      }
+      if (!judged(i2)) bad("petition %d was answered and is still on the table", i2);
+    }
+    if (courtCount() != PETITION_COUNT) bad("every petition answered and %d counted", courtCount());
+    if (crown.courts != PETITION_COUNT) bad("%d courts held for %d petitions", crown.courts, PETITION_COUNT);
+
+    /* Steadiness is bounded either way, so a hundred bad decisions cannot wrap
+       it round into a quiet realm. */
+    crown.steady = 0;
+    for (k = 0; k < 200; k++) {
+      crown.judged = 0;
+      courtAt = 0;
+      courtPick = 0;
+      answerCourt();
+    }
+    if (crown.steady > 100 || crown.steady < -100) {
+      bad("the realm's steadiness ran to %d", crown.steady);
+    }
+
+    /* Neglect it and somebody raises a banner; go and take it down and the
+       realm settles. */
+    newGameState();
+    you.story = 3;
+    crown.steady = -40;
+    you.kills = 100;
+    for (k = 0; k < 400 && !crown.riseLive; k++) { you.kills++; crownAfterWin(); }
+    if (!crown.riseLive) bad("a realm left at -40 never produces a single rebel");
+    else {
+      int j2;
+      if (mapCleared(crown.riseMap)) bad("a hall that has risen against you is standing empty");
+      for (j2 = 0; j2 < MAX_CROWD; j2++) beaten[crown.riseMap][j2] = 1;
+      worldId = crown.riseMap;
+      world = &maps[worldId];
+      windowOpen = 0;
+      i2 = crown.steady;
+      crownCheckRising();
+      if (crown.riseLive) bad("a rising put down is still flying its banner");
+      if (crown.steady <= i2) bad("putting down a rising does nothing for the realm");
+    }
+    /* And a realm nobody is neglecting stays where it is. */
+    newGameState();
+    you.story = 3;
+    crown.steady = 80;
+    you.kills = 0;
+    for (k = 0; k < 200; k++) { you.kills++; crownAfterWin(); }
+    if (crown.steady >= 80) bad("a realm nobody governs never slips at all");
+    if (crown.riseLive) bad("a realm at 80 threw up a rebel anyway");
+    /* Nothing at all happens to somebody who is not king. */
+    newGameState();
+    you.story = 2;
+    crown.steady = 0;
+    for (k = 0; k < 200; k++) { you.kills++; crownAfterWin(); }
+    if (crown.steady || crown.riseLive) bad("the realm moves for somebody who does not rule it");
+
+    newGameState();
+    you.kills = 0;
+    you.gold = 0;
+    courtAt = -1;
+    for (k = 0; k < MAP_COUNT; k++) {
+      int j2;
+      for (j2 = 0; j2 < MAX_CROWD; j2++) beaten[k][j2] = 0;
+    }
+  }
+
   /* --- the record, written and read back ---------------------------------- */
   {
     int ok = 1;

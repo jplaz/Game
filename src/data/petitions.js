@@ -1,7 +1,7 @@
 // What comes before the throne.
 //
 // Each petition is a decision with no clean answer: every option costs
-// something — gold, the realm's steadiness, or a house's opinion of you. That
+// something  -  gold, the realm's steadiness, or a house's opinion of you. That
 // is the whole of ruling, and it is why the postgame is a series of these
 // rather than a series of fights.
 //
@@ -169,6 +169,229 @@ export const PETITIONS = {
         label: 'Order it shipped',
         gold: 1200, stability: -6, standing: { stark: -24 },
         result: 'The carts roll south past people who watched them being loaded.',
+      },
+    ],
+  },
+
+  /* --- and what comes after the first year on the chair --------------------- */
+
+  vanishedFleet: {
+    text: 'Nine ships out of Gulltown have not come back. The Vale wants an '
+        + 'escort. Pyke says the sea takes ships and always has.',
+    options: [
+      {
+        label: 'Escort every convoy',
+        gold: -1800, stability: 5, standing: { arryn: 24, greyjoy: -10 },
+        result: 'The tenth convoy goes out under sail and comes back under sail. It costs what it costs.',
+      },
+      {
+        label: 'Send a man to look',
+        gold: -300, stability: 1, standing: { arryn: 6 },
+        result: 'He comes back in a month with a report nobody reads and a name nobody expected.',
+      },
+      {
+        label: 'Tell the Vale to arm its own ships',
+        gold: 400, stability: -5, standing: { arryn: -20 },
+        result: 'They do. Within a year the Vale has a fleet, and it does not answer to you.',
+      },
+    ],
+  },
+
+  theOldDebt: {
+    text: 'The Iron Bank writes. The crown has owed them for three reigns and '
+        + 'they would like to know which of those reigns you consider yours.',
+    options: [
+      {
+        label: 'Pay it in full',
+        gold: -4000, stability: 8, standing: {},
+        result: 'The letter that comes back is two lines long and very warm. That is what four thousand buys.',
+      },
+      {
+        label: 'Pay what this reign owes',
+        gold: -1500, stability: 2, standing: {},
+        result: 'A reasonable answer, and reasonable answers are filed rather than forgotten.',
+      },
+      {
+        label: 'Repudiate the whole of it',
+        gold: 0, stability: -12, standing: {},
+        result: 'The Iron Bank does not threaten. It funds. Somebody, somewhere, has just become very well armed.',
+      },
+    ],
+  },
+
+  theBastardClaim: {
+    text: "A boy in Storm's End is being called Robert's son by people who "
+        + 'stand to gain by it. He is fourteen and has said nothing.',
+    options: [
+      {
+        label: 'Legitimise him',
+        gold: -600, stability: -6, standing: { baratheon: 26, lannister: -14 },
+        result: 'The Stormlands have an heir and you have a claimant. Both of those are true at once.',
+      },
+      {
+        label: 'Send him to the Wall',
+        gold: 0, stability: 6, standing: { baratheon: -18 },
+        result: 'He goes north without complaining, which is the part that stays with you.',
+      },
+      {
+        label: 'Leave him where he is',
+        gold: 0, stability: -3, standing: { baratheon: 4 },
+        result: 'Nothing happens for two years. Then it does.',
+      },
+    ],
+  },
+
+  theRedTemple: {
+    text: 'A red priestess has been preaching in the Street of Steel. Two septs '
+        + 'have burned. She says she lit neither.',
+    options: [
+      {
+        label: 'Expel her from the city',
+        gold: 0, stability: 4, standing: { targaryen: -16 },
+        result: 'She goes east without arguing. Her congregation stays, and now it has a grievance.',
+      },
+      {
+        label: 'Let her preach',
+        gold: 500, stability: -7, standing: { targaryen: 18 },
+        result: 'The temple pays its tithe on time, every time, and the Faith writes you a long letter.',
+      },
+      {
+        label: 'Have the fires looked into properly',
+        gold: -400, stability: 2, standing: {},
+        result: 'It was not her. It was a man with a grudge and a lamp. Nobody is pleased to hear it.',
+      },
+    ],
+  },
+
+  drySummer: {
+    text: 'The Blackwater has run low and the wells in Flea Bottom are foul. '
+        + 'The city will have a bad summer or a very bad one.',
+    options: [
+      {
+        label: "Dig new wells at the crown's cost",
+        gold: -2200, stability: 10, standing: {},
+        result: 'It is the least glorious thing you will ever do and the one they will remember.',
+      },
+      {
+        label: 'Have the guilds pay for them',
+        gold: -400, stability: 2, standing: { lannister: -8 },
+        result: 'The wells go in. So does the price of everything the guilds sell.',
+      },
+      {
+        label: 'Ration the wells you have',
+        gold: 0, stability: -9, standing: {},
+        result: 'Queues, and then a queue that stops being a queue.',
+      },
+    ],
+  },
+
+  theDornishRoad: {
+    text: 'Sunspear asks leave to build a road through the Boneway at the '
+        + "crown's expense. The Marcher lords would rather it stayed a goat track.",
+    options: [
+      {
+        label: 'Build it',
+        gold: -2600, stability: 3, standing: { martell: 26, baratheon: -12 },
+        result: 'Trade doubles in a year. So does the speed at which an army could come north.',
+      },
+      {
+        label: 'Let Dorne build it themselves',
+        gold: 0, stability: 0, standing: { martell: 8, baratheon: -4 },
+        result: 'They do, slowly, and they own every yard of it when it is done.',
+      },
+      {
+        label: 'Refuse',
+        gold: 0, stability: -4, standing: { martell: -20 },
+        result: 'The Boneway stays a goat track and Dorne stays Dorne, which is the point.',
+      },
+    ],
+  },
+
+  theTourney: {
+    text: 'The court wants a tourney. It would cost a great deal and it would '
+        + 'be the first happy thing in the capital in six years.',
+    options: [
+      {
+        label: 'Hold it, and spare no expense',
+        gold: -3000, stability: 12, standing: { tyrell: 14, baratheon: 10 },
+        result: 'Eleven days of it. For a season afterwards people in the street look at each other.',
+      },
+      {
+        label: 'A small one',
+        gold: -900, stability: 5, standing: { tyrell: 4 },
+        result: 'Modest, well run, and remembered fondly by everyone who was not competing.',
+      },
+      {
+        label: 'There is nothing to celebrate',
+        gold: 0, stability: -5, standing: { tyrell: -10 },
+        result: 'You are right, and being right about this turns out to cost more than the tourney would have.',
+      },
+    ],
+  },
+
+  theSilentSister: {
+    text: 'A woman has come from the Riverlands with a list of everyone your '
+        + 'army killed on the way south, and she would like it read aloud.',
+    options: [
+      {
+        label: 'Read it, all of it',
+        gold: 0, stability: -8, standing: { tully: 28 },
+        result: 'It takes four hours. Nobody in the hall moves. The Riverlands hear about it before the week is out.',
+      },
+      {
+        label: 'Pay the families instead',
+        gold: -2000, stability: 3, standing: { tully: 14 },
+        result: 'Gold arrives at two hundred doors. At a hundred and ninety of them it is taken.',
+      },
+      {
+        label: 'Have her removed',
+        gold: 0, stability: 2, standing: { tully: -26 },
+        result: 'She is put outside the gate and reads it there, to whoever is passing, every day for a month.',
+      },
+    ],
+  },
+
+  thePretender: {
+    text: 'A boy across the narrow sea is calling himself a dragon and has '
+        + "bought two thousand spears with somebody else's money.",
+    options: [
+      {
+        label: 'Send men to kill him',
+        gold: -2400, stability: 4, standing: { targaryen: -28 },
+        result: 'It is done in Myr, quietly and badly, and everyone knows within the month who paid for it.',
+      },
+      {
+        label: 'Offer him a place at court',
+        gold: -800, stability: -4, standing: { targaryen: 22 },
+        result: 'He comes. He is nineteen and frightened and rather clever, and now he is inside the walls.',
+      },
+      {
+        label: 'Ignore him',
+        gold: 0, stability: -7, standing: {},
+        result: 'Two thousand spears becomes six thousand while nobody is counting.',
+      },
+    ],
+  },
+
+  theLongNight: {
+    text: 'Eastwatch sends a raven with four words on it: they are coming south. '
+        + 'The council would like to discuss whether it is genuine.',
+    requires: {},
+    options: [
+      {
+        label: 'Muster the realm',
+        gold: -5000, stability: -10, standing: { stark: 30, nightswatch: 40 },
+        result: 'Every lord in the Seven Kingdoms is told to march north in winter on the word of one raven. Some of them do.',
+      },
+      {
+        label: 'Send the fleet to Eastwatch and see',
+        gold: -1600, stability: 0, standing: { stark: 12, nightswatch: 18 },
+        result: 'Nine ships go north. Six come back, and what the captains say is not written down.',
+      },
+      {
+        label: 'It is four words on a scrap',
+        gold: 0, stability: 5, standing: { stark: -26, nightswatch: -30 },
+        result: 'The council is relieved. You are not, and you keep that to yourself, which is the job.',
       },
     ],
   },

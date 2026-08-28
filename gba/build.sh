@@ -30,6 +30,14 @@ if [ ! -f data.h ] || [ -n "$(find ../src ../tools export.mjs -newer data.h 2>/d
   ( cd .. && node gba/export.mjs )
 fi
 
+# Every file the exporter reads, parsed before the browser gets near it. A
+# broken quote in one of them used to surface twenty-five minutes into an export
+# as "Unexpected identifier" from inside page.evaluate, with no file and no line;
+# node --check names both in under a second.
+for f in ../src/data/*.js ../src/art/*.js; do
+  node --check "$f" || exit 1
+done
+
 # The font is indexed by byte, so a curly quote or an em dash in a line the game
 # draws comes out as three wrong glyphs. Catch it before it is ever seen.
 node -e '
@@ -89,7 +97,7 @@ done
 # her champion, the chair and the crowning - for two houses, because the writing
 # differs by the house you swore to.
 for h in 0 8; do
-  CROWN=1 FRAMES=900000 SEED=7 ./playtest $h | sed -n '/the last act/p;/nothing went wrong/p;/thing to look at/,$p'
+  CROWN=1 FRAMES=900000 SEED=7 ./playtest $h | sed -n '/the last act/p;/the court /p;/nothing went wrong/p;/thing to look at/,$p'
 done
 
 # hosttest still walks one fixed route, as a second opinion.

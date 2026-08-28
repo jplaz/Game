@@ -1379,7 +1379,58 @@ typedef struct {
   /* How far through the last act you are. 0 nothing yet, 1 the raven has come,
      2 you have stood in the throne room, 3 the chair is yours. */
   u8 story;
+  /* Your own arms. You start the game sworn to somebody else's house and
+     wearing somebody else's colours; this is the point at which you stop.
+     `arms` is whether you have declared any at all - everything else is
+     meaningless until you have, and nobody is born with a sigil. */
+  u8 arms, charge, tincture, saying;
+  char houseName[NAME_MAX + 1];
 } You;
+
+#define HEIR_MAX 4
+#define OFFICE_COUNT 3
+#define VASSAL_WORDS ((MAP_COUNT + 7) / 8)
+
+/* What a child has to have lived through before they are any use in a fight,
+   counted in fights you have won since they were born. Fifty is most of a
+   region: an heir is a thing you have for a long time before they are a thing
+   you can lean on. */
+#define HEIR_GROWN 50
+/* And how often one arrives. */
+#define HEIR_EVERY 30
+
+typedef struct {
+  u8 has;                       /* is any of the rest of this real yet */
+  u8 map, x, y;                 /* which hall, and the spot inside it   */
+  u32 coffers;                  /* rent that has come in and not been taken */
+  u8 office[OFFICE_COUNT];      /* who holds each, as a host slot, 255 vacant */
+  u8 wed;                       /* a house index plus one; 0 unwed */
+  char spouse[NAME_MAX + 1];
+  u8 heirs, heirBoy, heirOut;   /* how many, which are sons, which have ridden out */
+  char heirName[HEIR_MAX][NAME_MAX + 1];
+  u16 heirBorn[HEIR_MAX];       /* your kill count on the day each arrived */
+  u16 lastHeir;                 /* and on the day the last one did */
+  u8 vassal[VASSAL_WORDS];      /* which halls have sworn to you */
+  u16 raidAt;                   /* the kill count a raid lands on; 0 for none */
+  u8 raidMap, raidLive;         /* which hall it lands on, and is it burning */
+} Seat;
+
+static Seat seat;
+
+typedef struct {
+  u32 judged;                 /* which petitions have been answered */
+  s16 steady;                 /* how the realm is holding, -100 to 100 */
+  s8 favour[HOUSE_COUNT];     /* and what each of the nine makes of you */
+  u16 courts;                 /* how many times you have held it */
+  u16 riseAt;                 /* the kill count a rising lands on, 0 for none */
+  u8 riseMap, riseLive;
+} Crown;
+
+static Crown crown;
+
+/* Which petition is on the table, which answer the cursor is on, and whether
+   the court is asking or telling. */
+static int courtAt = -1, courtPick, courtAsking, courtDone;
 
 /* The animal currently at your heel. Everything that used to say `MY_BEAST`
    says this, so gaining a party of six did not mean rewriting every line that
@@ -2359,9 +2410,25 @@ static void openTheDuel(const char *intro) {
   duelSay(theirs.name, intro);
 }
 
+/* What people call you, which is not the same as your name. A game where the
+   only thing that ever changed about you was a number went the whole way from a
+   boy at a gate to the crowned ruler of the Seven Kingdoms without one person
+   ever addressing you differently. Both forms are kept with the rest of your
+   house, a long way down. */
+static const char *yourStyle(void);
+static const char *yourPrefix(void);
+
 /* You, as you walk into it. The same whoever is on the other side. */
 static void readyYourself(void) {
-  mine.name = you.name[0] ? you.name : houses[you.house].name;
+  /* What is written over you in the yard. Nothing about you used to change
+     between the first fight and the last but a number, which is most of why a
+     hundred fights felt like one fight. */
+  {
+    static char plate[NAME_MAX + 12];
+    copyString(plate, yourPrefix(), sizeof plate);
+    appendString(plate, you.name[0] ? you.name : houses[you.house].name, sizeof plate);
+    mine.name = plate;
+  }
   mine.level = you.level;
   mine.maxHp = vigourFor(you.level);
   mine.hp = you.hp > mine.maxHp ? mine.maxHp : you.hp;
@@ -2707,15 +2774,23 @@ static const char NAME_KEYS[NAME_COLS * NAME_ROWS + 1] = "ABCDEFGHIJKLMNOPQRSTUV
 static int nameCol, nameRow, nameLen;
 #define namePick (nameRow * NAME_COLS + nameCol)
 
+/* Which string the letters are going into, and where to go when the player is
+   done. There are two things in the game you get to name - yourself, at the
+   start, and your house, once you have one - and they are the same twenty-eight
+   keys and the same ruled line, so they are the same screen. */
+static char *nameInto;
+static const char *nameAsking;
+static int nameThen;
+
 static void paintNamer(void) {
   clearPage();
   drawFrame(6, 2, TXT_W - 12, TXT_H - 8);
-  centreText(8, "WHAT ARE YOU CALLED?", C_GOLD);
+  centreText(8, nameAsking, C_GOLD);
 
   /* What you have spelled so far, on a ruled line, with a place marked for the
      next letter so an empty name still looks like somewhere to type. */
   fillRect(60, 30, TXT_W - 120, 1, C_EDGE);
-  copyString(scratch, you.name, sizeof scratch);
+  copyString(scratch, nameInto, sizeof scratch);
   drawText(62, 19, scratch, C_INK);
   if (nameLen < NAME_MAX) fillRect(62 + textWidth(scratch), 26, 6, 1, C_GOLD);
 
@@ -2779,17 +2854,205 @@ static void paintHousePicker(void) {
   }
 }
 
+/* --------------------------------------------------------- your own arms ---
+   You begin the game sworn to somebody else, wearing their colours and
+   answering to their name. Sixteen charges, eight fields and sixteen sets of
+   words is enough that no two players end up with the same shield, and few
+   enough that picking one is a minute rather than an afternoon.
+
+   Each charge is sixteen rows of sixteen bits, drawn one pixel at a time onto
+   the text layer. It is not a sprite: the shield hangs on menu screens, which
+   have no object slots to spare, and a bit per pixel is small enough that all
+   sixteen of them cost half a kilobyte. */
+
+#define CHARGE_COUNT 16
+typedef struct { const char *name; u16 row[16]; } Charge;
+static const Charge charges[CHARGE_COUNT] = {
+  { "Direwolf", { 0x300C, 0x781E, 0x7C3E, 0x7FFE, 0xFFFF, 0xFFFF, 0xE7E7, 0xE7E7, 0xFFFF, 0x7FFE, 0x3FFC, 0x1FF8, 0x0FF0, 0x0C30, 0x1C38, 0x0C30 } },
+  { "Lion", { 0x0FF0, 0x3FFC, 0x7FFE, 0xFFFF, 0xE7E7, 0xE7E7, 0xFFFF, 0xF99F, 0xFC3F, 0x7BDE, 0xDFFB, 0x9FF9, 0x3FFC, 0x9FF9, 0xCFF3, 0x47E2 } },
+  { "Stag", { 0x4812, 0x4812, 0x2814, 0x1818, 0x0810, 0x0C30, 0x07E0, 0x0FF0, 0x1FF8, 0x1BD8, 0x1FF8, 0x0FF0, 0x07E0, 0x07E0, 0x0420, 0x03C0 } },
+  { "Dragon", { 0x7000, 0x7800, 0x6C00, 0x7C04, 0x3C1E, 0x1E3F, 0x1F7F, 0x1FFF, 0x0FFE, 0x07FC, 0x01FC, 0x03BC, 0x070E, 0x0607, 0x0E03, 0x3C00 } },
+  { "Kraken", { 0x07E0, 0x0FF0, 0x1FF8, 0x1BD8, 0x1FF8, 0x0FF0, 0x2FF4, 0x6FF6, 0xC7E3, 0x97E9, 0x33CC, 0x65A6, 0xCDB3, 0x9999, 0xC30C, 0x0606 } },
+  { "Rose", { 0x07E0, 0x1FF8, 0x3C3C, 0x73CE, 0xE7E7, 0xCFF3, 0xDE7B, 0xDC3B, 0xDC3B, 0xDE7B, 0xE7E7, 0x73CE, 0x3C3C, 0x1FF8, 0x07E0, 0x03C0 } },
+  { "Sun", { 0x0408, 0x0210, 0x81E0, 0x43F1, 0x27FA, 0x0FFC, 0x0FFC, 0x07FF, 0x07FC, 0x1BFC, 0x31FA, 0x60F1, 0xC060, 0x4210, 0x0408, 0x0000 } },
+  { "Trout", { 0x0000, 0x6000, 0x7800, 0x79F0, 0x77FC, 0x6FFE, 0x7FEF, 0x7FFB, 0x7FFF, 0x7FEF, 0x6FFE, 0x77FC, 0x79F0, 0x7800, 0x6000, 0x0000 } },
+  { "Falcon", { 0x0018, 0x003C, 0x007E, 0x18FC, 0x3CFC, 0x7EF8, 0x7EF0, 0x3EF0, 0x3CF0, 0x3CF8, 0x38FC, 0x387E, 0x303C, 0x3018, 0x3800, 0x3C00 } },
+  { "Flayed Man", { 0x03C0, 0x07E0, 0x0660, 0x07E0, 0x03C0, 0x3FFC, 0xBFFD, 0xDFFB, 0x8FF1, 0x0FF0, 0x0FF0, 0x0E70, 0x0C30, 0x1818, 0x1818, 0x381C } },
+  { "Tower", { 0x366C, 0x3FFC, 0x3FFC, 0x1FF8, 0x1BD8, 0x1FF8, 0x1FF8, 0x1BD8, 0x1FF8, 0x3FFC, 0x3FFC, 0x37EC, 0x3FFC, 0x3E7C, 0x3C3C, 0x3C3C } },
+  { "Raven", { 0x0000, 0x3800, 0xBC00, 0xEC00, 0x3F00, 0x3FC0, 0x1FF8, 0x1FFE, 0x3FFF, 0x3FFF, 0x1FFE, 0x07FC, 0x03F8, 0x01F0, 0x18C0, 0x3060 } },
+  { "Bear", { 0x300C, 0x781E, 0x781E, 0x3FFC, 0x7FFE, 0xFFFF, 0xE7E7, 0xE7E7, 0xFFFF, 0xFFFF, 0x7C3E, 0x7BDE, 0x3C3C, 0x1FF8, 0x0FF0, 0x07E0 } },
+  { "Hand", { 0x3330, 0x3BB8, 0x3BB8, 0x3BBB, 0x3FF7, 0x3FEF, 0x3FFF, 0x3FFF, 0x3FFE, 0x3FFC, 0x3FFC, 0x1FF8, 0x1FF8, 0x0FF0, 0x0FF0, 0x07E0 } },
+  { "Crown", { 0x0000, 0x0000, 0xC3C3, 0xC7E3, 0xCFF3, 0xEFF7, 0xEFF7, 0xFFFF, 0xFFFF, 0xFFFF, 0xDBDB, 0xFFFF, 0xFFFF, 0x7FFE, 0x3FFC, 0x0000 } },
+  { "Longship", { 0x0180, 0x01F0, 0x01F8, 0x01FC, 0x01FE, 0x01FF, 0x0180, 0x0180, 0x3D80, 0x0180, 0x0180, 0x3FFF, 0x3FFF, 0x1FFE, 0x0FFC, 0x07F8 } },
+};
+
+/* Eight fields. Every one of them has to read at a glance against the ink the
+   rest of the interface is drawn in, so there is no white and no near-black:
+   a shield you cannot see is not a shield. */
+#define TINCTURE_COUNT 8
+typedef struct { const char *name; u16 field, metal; } Tincture;
+static const Tincture tinctures[TINCTURE_COUNT] = {
+  { "Grey",    RGB15(12, 12, 14), RGB15(28, 28, 30) },
+  { "Crimson", RGB15(21,  4,  6), RGB15(29, 24,  8) },
+  { "Gold",    RGB15(26, 20,  5), RGB15( 6,  5,  4) },
+  { "Sable",   RGB15( 5,  5,  8), RGB15(28, 26, 20) },
+  { "Azure",   RGB15( 6, 10, 24), RGB15(29, 28, 26) },
+  { "Verdant", RGB15( 5, 16,  8), RGB15(28, 25, 12) },
+  { "Violet",  RGB15(14,  6, 20), RGB15(28, 27, 24) },
+  { "Rust",    RGB15(20, 10,  4), RGB15(26, 24, 20) },
+};
+
+/* Words, and none of them belong to a house already in the game: taking the
+   Starks' is not building your own arms, it is borrowing theirs. */
+#define SAYING_COUNT 16
+static const char *const sayings[SAYING_COUNT] = {
+  "The Long Road",     "We Remember",
+  "Nothing Forgotten", "By Steel Or Fire",
+  "The Debt Is Paid",  "We Do Not Kneel",
+  "First In The Field","Steadfast",
+  "Blood For Blood",   "Sharper Than Grief",
+  "We Keep The Gate",  "Unbought",
+  "The Night Ends",    "Loyal To The Last",
+  "We Rise Again",     "Ask No Quarter",
+};
+
+/* The shield itself, at whatever size the caller has room for. `scale` is how
+   many screen pixels one pixel of the charge is worth, so the same sixteen
+   rows hang small in the corner of the status card and large on the screen
+   where you are choosing them. */
+/* How wide the shield is on each of its sixteen rows, in half-widths out of
+   eight. Straight down the sides and then drawn in to a point, which is what
+   makes it a shield rather than a banner. Authored rather than worked out, so
+   there is no divide anywhere in here and no rounding to argue with. */
+static const u8 SHIELD_HALF[16] = { 8,8,8,8,8,8,8,8,8,8,8,8,7,6,4,2 };
+
+static void paintShield(int x, int y, int scale, int which, int tint) {
+  const Charge *c = &charges[which % CHARGE_COUNT];
+  int i, j;
+  PAL_BG[TXT_BANK * 16 + C_HOUSE] = tinctures[tint % TINCTURE_COUNT].field;
+  PAL_BG[TXT_BANK * 16 + C_TRIM] = tinctures[tint % TINCTURE_COUNT].metal;
+  /* The rim first, one row taller and one half-width wider all round, then the
+     field inside it. */
+  for (j = 0; j < 16; j++) {
+    int half = SHIELD_HALF[j];
+    int rim = half < 8 ? half + 1 : half;
+    fillRect(x + (8 - rim) * scale - 1, y + j * scale - (j ? 0 : 1),
+      rim * 2 * scale + 2, scale + (j == 15 ? 2 : (j ? 0 : 1)), C_DEEP);
+  }
+  for (j = 0; j < 16; j++) {
+    int half = SHIELD_HALF[j];
+    fillRect(x + (8 - half) * scale, y + j * scale, half * 2 * scale, scale, C_HOUSE);
+  }
+  /* And the charge on it, clipped to the field: a wing that hangs off the side
+     of the shield is a wing floating in the air. */
+  for (j = 0; j < 16; j++) {
+    u16 row = c->row[j];
+    int half = SHIELD_HALF[j];
+    for (i = 0; i < 16; i++) {
+      if (!((row >> i) & 1)) continue;
+      if (i < 8 - half || i >= 8 + half) continue;
+      fillRect(x + i * scale, y + j * scale, scale, scale, C_TRIM);
+    }
+  }
+}
+
+/* What people call you, which is not the same as your name.
+   A game where the only thing that ever changes about you is a number went the
+   whole way from a boy at a gate to the man on the chair without anybody once
+   addressing you differently. This is on the duel plate, the status card and
+   your own house's card, so it turns up wherever you do. */
+/* What your house is called, or what it will be called once you have said so. */
+static const char *houseCalled(void) {
+  return you.arms && you.houseName[0] ? you.houseName : houses[you.house].name;
+}
+
+/* Once your own colours exist they are the interface's colours. Swearing to a
+   house at the start of the game paints every frame and every heading in that
+   house's red or grey; the moment you stop being somebody's sworn sword and
+   start being somebody, the game should stop wearing their colours too. */
+static void wearYourColours(void) {
+  if (you.arms) {
+    PAL_BG[TXT_BANK * 16 + C_HOUSE] = tinctures[you.tincture % TINCTURE_COUNT].field;
+    PAL_BG[TXT_BANK * 16 + C_TRIM] = tinctures[you.tincture % TINCTURE_COUNT].metal;
+    PAL_BG[TXT_BANK * 16 + C_EDGE] = tinctures[you.tincture % TINCTURE_COUNT].field;
+  } else {
+    PAL_BG[TXT_BANK * 16 + C_HOUSE] = houses[you.house].colour;
+    PAL_BG[TXT_BANK * 16 + C_TRIM] = houses[you.house].accent;
+    PAL_BG[TXT_BANK * 16 + C_EDGE] = houses[you.house].colour;
+  }
+}
+
+/* Which of the four lines the cursor is on, on the arms screen. */
+static int armsRow;
+#define ARMS_ROWS 4
+
+static void paintArms(void) {
+  int i;
+  clearPage();
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 6);
+  centreText(7, you.arms ? "YOUR ARMS" : "TAKE YOUR OWN ARMS", C_GOLD);
+
+  paintShield(12, 22, 3, you.charge, you.tincture);
+
+  {
+    static const char *const LABEL[ARMS_ROWS] =
+      { "Charge", "Field", "Words", "Name" };
+    for (i = 0; i < ARMS_ROWS; i++) {
+      int y = 24 + i * 14;
+      const char *what;
+      if (i == 0) what = charges[you.charge % CHARGE_COUNT].name;
+      else if (i == 1) what = tinctures[you.tincture % TINCTURE_COUNT].name;
+      else if (i == 2) what = sayings[you.saying % SAYING_COUNT];
+      else what = you.houseName[0] ? you.houseName : "(unnamed)";
+      if (i == armsRow) drawCursor(66, y + 1, C_GOLD);
+      drawText(76, y, LABEL[i], C_DIM);
+      drawText(132, y, what, i == armsRow ? C_GOLD : C_INK);
+    }
+  }
+
+  centreText(88, you.arms ? "LEFT RIGHT change   A name   START done"
+                          : "LEFT RIGHT change   A name   START take them", C_DIM);
+}
+
+
+
+
+/* How much of the court you have held and how the realm is taking it. Both are
+   kept with the rest of the crown, a long way down; the status card is the one
+   screen a lost player opens, so it has to be able to ask. */
+static int courtCount(void);
+static const char *steadyWord(void);
+
 static void paintStatus(void) {
   const House *h = &houses[you.house];
   clearRows(0, TXT_H);
   drawFrame(6, 2, TXT_W - 12, TXT_H - 6);
-  drawText(16, 6, h->full, C_HOUSE);
-  drawText(16, 19, h->words, C_DIM);
+  /* Whose card this is. Somebody who has taken their own arms is not a sworn
+     sword of anybody any more, and the top of their own card should not still
+     be reading out somebody else's motto. */
+  if (you.arms) {
+    paintShield(TXT_W - 34, 6, 1, you.charge, you.tincture);
+    drawText(16, 6, houseCalled(), C_HOUSE);
+    drawText(16, 19, sayings[you.saying % SAYING_COUNT], C_DIM);
+  } else {
+    drawText(16, 6, h->full, C_HOUSE);
+    drawText(16, 19, h->words, C_DIM);
+  }
   fillRect(16, 32, TXT_W - 32, 1, C_EDGE);
 
   copyString(scratch, "Level ", sizeof scratch);
   appendNumber(scratch, you.level, sizeof scratch);
   drawText(16, 38, scratch, C_INK);
+
+  /* And what people call you, which is not the same as your name and is the
+     shortest way the world has of saying it has noticed. */
+  { const char *style = yourStyle();
+    if (style) {
+      copyString(scratch, "Addressed as ", sizeof scratch);
+      appendString(scratch, style, sizeof scratch);
+      drawText(TXT_W - 16 - textWidth(scratch), 19, scratch, C_TRIM);
+    }
+  }
 
   copyString(scratch, "Gold ", sizeof scratch);
   appendNumber(scratch, you.gold, sizeof scratch);
@@ -2835,9 +3098,18 @@ static void paintStatus(void) {
      one. */
   {
     int at = nextRung();
-    if (at < 0) {
-      drawText(16, 105, you.story >= 3 ? "The Iron Throne is yours. Holding it is the rest."
-                                       : "Every sigil taken. The Red Keep is open.", C_GOLD);
+    if (at < 0 && you.story >= 3) {
+      /* Once the chair is yours the card stops pointing at a fight and starts
+         pointing at the other thing there is to do, which is keep it. */
+      copyString(scratch, "Court: ", sizeof scratch);
+      appendNumber(scratch, courtCount(), sizeof scratch);
+      appendString(scratch, " of ", sizeof scratch);
+      appendNumber(scratch, PETITION_COUNT, sizeof scratch);
+      appendString(scratch, " heard. Sit the chair in the Red Keep.", sizeof scratch);
+      drawText(16, 105, scratch, C_GOLD);
+      drawText(16, 118, steadyWord(), crown.steady < 0 ? C_HURT : C_DIM);
+    } else if (at < 0) {
+      drawText(16, 105, "Every sigil taken. The Red Keep is open.", C_GOLD);
     } else {
       const Leader *l = &leaders[atRung[at]];
       copyString(scratch, "Next: ", sizeof scratch);
@@ -2866,10 +3138,11 @@ extern unsigned char hostSram[65536];              /* the harness's stand-in */
 #else
 #define SRAM ((volatile u8 *)0x0E000000)
 #endif
-/* "ICE3". The kennels, the host and then the cutscene flags each changed the
-   shape of the record; an old save read as this one would put animals, sworn
-   swords and scenes-already-seen in places they were never written to. */
-#define RECORD_MAGIC 0x33454349u
+/* "ICE4". The kennels, the host, the cutscene flags and now a house of your own
+   have each changed the shape of the record; an old save read as this one would
+   put animals, sworn swords, scenes-already-seen and a hall you never bought in
+   places they were never written to. */
+#define RECORD_MAGIC 0x34454349u
 
 typedef struct {
   u32 magic;
@@ -2891,6 +3164,13 @@ typedef struct {
   u16 holdExp[HOLD_MAX];
   u8 hostKind[HOST_MAX], hostLevel[HOST_MAX];
   u8 haven, havenX, havenY, story;
+  /* Your own house, entire. It is one struct in memory for exactly this
+     reason: writing it down is one line, and adding an office or an heir to it
+     later does not mean a new record format. */
+  Seat seat;
+  Crown crown;
+  u8 arms, charge, tincture, saying;
+  char houseName[NAME_MAX + 1];
   /* Which scenes have played and what you answered when one asked. A cutscene
      that fired again after a reload would be worse than one that never fired. */
   u32 storyFlags[STORY_WORDS];
@@ -2944,6 +3224,13 @@ static void keepRecord(void) {
     }
   }
   record.story = you.story;
+  record.seat = seat;
+  record.crown = crown;
+  record.arms = you.arms;
+  record.charge = you.charge;
+  record.tincture = you.tincture;
+  record.saying = you.saying;
+  for (i = 0; i <= NAME_MAX; i++) record.houseName[i] = you.houseName[i];
   { int k; for (k = 0; k < STORY_WORDS; k++) record.storyFlags[k] = storyFlags[k]; }
   record.eggWins = you.eggWins;
   record.tamed = you.tamed;
@@ -3020,6 +3307,13 @@ static void takeUpRecord(void) {
     }
   }
   you.story = record.story;
+  seat = record.seat;
+  crown = record.crown;
+  you.arms = record.arms;
+  you.charge = record.charge;
+  you.tincture = record.tincture;
+  you.saying = record.saying;
+  { int i; for (i = 0; i <= NAME_MAX; i++) you.houseName[i] = record.houseName[i]; }
   { int k; for (k = 0; k < STORY_WORDS; k++) storyFlags[k] = record.storyFlags[k]; }
   you.eggWins = record.eggWins;
   you.tamed = record.tamed;
@@ -3392,9 +3686,15 @@ static int hostRoom(void) {
   return -1;
 }
 
+/* Who holds an office of your house, if anybody does. Declared here because
+   the master-at-arms is the difference between six swords and six drilled
+   swords, and a blow is worked out a long way above where a house is kept. */
+static int officeLevel(int which);
+
 /* What your six add to a blow of yours. Each of them lands something small;
    together they are worth about as much again as you are, which is what four
-   thousand gold and a fight you had to win first ought to buy. */
+   thousand gold and a fight you had to win first ought to buy - and rather
+   more than that once somebody is drilling them in your own yard. */
 static int myHostBlow(void) {
   int i, total = 0;
   for (i = 0; i < HOST_MAX; i++) {
@@ -3404,6 +3704,7 @@ static int myHostBlow(void) {
     if (hit < 1) hit = 1;
     total += hit;
   }
+  total += total * officeLevel(1) / 120;
   return total;
 }
 
@@ -3443,6 +3744,21 @@ void newGameState(void) {
   for (k = 0; k < HOST_MAX; k++) you.host[k].kind = 255;
   you.lead = 0;
   for (k = 0; k < STORY_WORDS; k++) storyFlags[k] = 0;
+  /* Nobody starts with arms, a hall, a wife or anybody sworn to them. Zero is
+     a real charge and a real map, so this has to be written rather than
+     assumed: an unwritten seat reads as owning map nought. */
+  you.arms = 0;
+  you.charge = 0;
+  you.tincture = 0;
+  you.saying = 0;
+  you.houseName[0] = 0;
+  { u8 *p = (u8 *)&seat; unsigned n = sizeof seat; while (n--) *p++ = 0; }
+  for (k = 0; k < OFFICE_COUNT; k++) seat.office[k] = 255;
+  /* And nobody starts having already ruled. */
+  { u8 *p = (u8 *)&crown; unsigned n = sizeof crown; while (n--) *p++ = 0; }
+  courtAt = -1;
+  courtAsking = 0;
+  courtDone = 0;
 }
 
 /* Takes somebody's oath. Returns 0 when there is nobody left to take it. */
@@ -3876,11 +4192,807 @@ static const char *sellWare(int at) {
   return scratch;
 }
 
+/* --------------------------------------------------------- a seat of your own
+ *
+ * Everything up to here is somebody else's. You are sworn to a house you picked
+ * on the first morning, you sleep in their maesters' halls, you fight up a
+ * ladder of other people's seats, and when it is over you sit in a chair that
+ * has been in King's Landing for three hundred years. This is the other half:
+ * a hall that is yours, a name over the door, people in offices under you,
+ * holds that have sworn to you and pay for the privilege, a marriage, children,
+ * and somebody over the hill who would rather you had none of it.
+ *
+ * The whole thing is one struct so that saving it is one block of the record
+ * and so that "have you a house yet" is one question with one answer.
+ */
+
+
+static const char *const OFFICES[OFFICE_COUNT] =
+  { "Steward", "Master-at-arms", "Maester" };
+/* What each office is actually for, in the words the card uses. A list of three
+   titles with no consequences attached is furniture. */
+static const char *const OFFICE_DOES[OFFICE_COUNT] = {
+  "counts the rents, and finds more of them",
+  "drills your swords, and they hit harder for it",
+  "patches your company up after every fight you win",
+};
+
+static int isVassal(int map) {
+  if (map < 0 || map >= MAP_COUNT) return 0;
+  return (seat.vassal[map >> 3] >> (map & 7)) & 1;
+}
+
+static void swearVassal(int map) {
+  if (map < 0 || map >= MAP_COUNT) return;
+  seat.vassal[map >> 3] |= (u8)(1u << (map & 7));
+}
+
+static void breakVassal(int map) {
+  if (map < 0 || map >= MAP_COUNT) return;
+  seat.vassal[map >> 3] &= (u8)~(1u << (map & 7));
+}
+
+static int vassalCount(void) {
+  int i, n = 0;
+  for (i = 0; i < MAP_COUNT; i++) if (isVassal(i)) n++;
+  return n;
+}
+
+/* Whoever holds an office, or -1. An office held by somebody who has since
+   left your service is a vacant office, not a crash. */
+static int officeHolder(int which) {
+  int at = seat.office[which];
+  if (at >= HOST_MAX) return -1;
+  if (you.host[at].kind == 255) return -1;
+  return at;
+}
+
+static int officeLevel(int which) {
+  int at = officeHolder(which);
+  return at < 0 ? 0 : you.host[at].level;
+}
+
+/* How well the world thinks of your house, as one number, so that the card has
+   something to say and so that things can be gated on it. Sigils count because
+   nine great houses bending is the loudest thing anybody in this world can do;
+   everything else counts because it is yours. */
+static int standing(void) {
+  int n = countSigils() * 3 + you.story * 5;
+  int i;
+  if (seat.has) n += 5;
+  for (i = 0; i < OFFICE_COUNT; i++) if (officeHolder(i) >= 0) n += 2;
+  if (seat.wed) n += 4;
+  n += seat.heirs * 2;
+  n += vassalCount() * 3;
+  if (you.arms) n += 2;
+  return n;
+}
+
+/* A title, earned rather than picked. Nothing at all until a seat has bent to
+   you, then Ser, then Lord once you have a hall of your own, and at the top of
+   it the style you are addressed by rather than called. Two forms, because
+   "Your Grace" is what somebody says to your face and is not a thing you write
+   in front of a name on a duelling plate. */
+static const char *yourStyle(void) {
+  if (you.story >= 3) return "Your Grace";
+  if (seat.has && vassalCount() >= 3 && countSigils() >= 5) return "my lord paramount";
+  if (seat.has) return "my lord";
+  if (countSigils() >= 1) return "ser";
+  return 0;
+}
+
+static const char *yourPrefix(void) {
+  if (you.story >= 3) return "Sovereign ";
+  if (seat.has && vassalCount() >= 3 && countSigils() >= 5) return "Lord ";
+  if (seat.has) return "Lord ";
+  if (countSigils() >= 1) return "Ser ";
+  return "";
+}
+
+static const char *standingWord(void) {
+  int n = standing();
+  if (n >= 60) return "a great house";
+  if (n >= 45) return "a house with a name";
+  if (n >= 30) return "a rising house";
+  if (n >= 18) return "a house of some note";
+  if (n >= 8) return "a small house";
+  return "a name and not much else";
+}
+
+/* What comes in from a win. The steward is the difference between owning halls
+   and being paid by them. */
+static int rentPerWin(void) {
+  int n = 6 + vassalCount() * 7;
+  n += officeLevel(0) / 2;
+  return n;
+}
+
+/* Your swords hit harder when somebody has been drilling them. */
+static int hostBonus(void) {
+  int i, sum = 0;
+  for (i = 0; i < HOST_MAX; i++) {
+    if (you.host[i].kind == 255) continue;
+    sum += swornMight(you.host[i].kind, you.host[i].level) / 6;
+  }
+  sum += sum * officeLevel(1) / 120;
+  return sum;
+}
+
+/* Whether a hall of yours is on fire right now, and which. */
+static int raidedMap(void) { return seat.raidLive ? seat.raidMap : -1; }
+
+/* What a child of your house is called. Eight and eight, because a name that
+   turns up twice in one household reads as a bug rather than as a family. */
+static const char *const BRIDE_NAMES[8] = {
+  "Alys", "Jeyne", "Roslin", "Meera", "Wylla", "Elenei", "Barba", "Serena"
+};
+static const char *const GROOM_NAMES[8] = {
+  "Ronnel", "Harwin", "Beric", "Dorren", "Alester", "Quenten", "Torrhen", "Lucion"
+};
+
+/* Called on every win. Rent, children, and the neighbours. Returns a line to
+   hang off the end of the spoils message when something happened, or 0. */
+static const char *houseAfterWin(void) {
+  const char *said = 0;
+  if (!seat.has) return 0;
+  seat.coffers += (u32)rentPerWin();
+
+  /* A maester of your own is worth more than the sentence on the card: a little
+     back into everybody who fought, every time, which over a road is the
+     difference between walking it and walking back to a hall halfway along. */
+  if (officeLevel(2)) {
+    int i, mend = 4 + officeLevel(2) / 3, full = vigourFor(you.level);
+    you.hp += mend;
+    if (you.hp > full) you.hp = full;
+    mine.hp = you.hp;
+    for (i = 0; i < PARTY_MAX; i++) {
+      Kept *k = &you.party[i];
+      if (k->kind == 255) continue;
+      full = beastVigour(k->kind, k->level);
+      k->hp += mend;
+      if (k->hp > full) k->hp = full;
+    }
+    for (i = 0; i < HOST_MAX; i++) {
+      Kept *h = &you.host[i];
+      if (h->kind == 255) continue;
+      full = swornVigour(h->kind, h->level);
+      h->hp += mend;
+      if (h->hp > full) h->hp = full;
+    }
+  }
+
+  /* A child, on a schedule slow enough that four of them is most of a game. */
+  if (seat.wed && seat.heirs < HEIR_MAX &&
+      (u16)you.kills >= (u16)(seat.lastHeir + HEIR_EVERY)) {
+    int at = seat.heirs++;
+    seat.heirBorn[at] = (u16)you.kills;
+    seat.lastHeir = (u16)you.kills;
+    if (roll(2)) seat.heirBoy |= (u8)(1u << at);
+    copyString(seat.heirName[at],
+      (seat.heirBoy >> at) & 1 ? GROOM_NAMES[roll(8)] : BRIDE_NAMES[roll(8)],
+      sizeof seat.heirName[at]);
+    said = (seat.heirBoy >> at) & 1
+      ? "  A rider catches you on the road. Your household has a son."
+      : "  A rider catches you on the road. Your household has a daughter.";
+  }
+
+  /* And somebody who wants what you have. Only once you have holds worth
+     taking, and never while one is already burning. */
+  if (!said && !seat.raidLive && vassalCount() && !seat.raidAt)
+    seat.raidAt = (u16)(you.kills + 35 + roll(25));
+  if (!seat.raidLive && seat.raidAt && (u16)you.kills >= seat.raidAt) {
+    int i, pick = -1, n = 0;
+    for (i = 0; i < MAP_COUNT; i++)
+      if (isVassal(i)) { n++; if (roll((u32)n) == 0) pick = i; }
+    if (pick >= 0) {
+      int k;
+      seat.raidMap = (u8)pick;
+      seat.raidLive = 1;
+      seat.raidAt = (u16)(you.kills + 45);       /* how long you have to answer */
+      /* Whoever you cleared out of it is back, and worse, because somebody has
+         moved into an empty hall. Clearing the slate is exactly what the game
+         already does when a stronghold refills. */
+      for (k = 0; k < MAX_CROWD; k++) { slain[pick][k] = 0; beaten[pick][k] = 0; }
+      for (k = 0; k < 8; k++) emptied[pick][k] = 0;
+      said = "  A rider catches you on the road. One of your halls is burning.";
+    }
+  } else if (seat.raidLive && (u16)you.kills >= seat.raidAt) {
+    /* You did not go. It is not yours any more. */
+    breakVassal(seat.raidMap);
+    seat.raidLive = 0;
+    seat.raidAt = 0;
+    if (seat.coffers > 200) seat.coffers -= 200; else seat.coffers = 0;
+    said = "  Word comes late: the hall you did not ride for has changed hands.";
+  }
+  return said;
+}
+
+/* Standing in a burning hall with nobody left standing in it puts the fire out
+   and fills the coffers. Called whenever a map is entered and whenever a fight
+   in one ends. */
+static int mapCleared(int id);
+
+static void houseCheckRaid(void) {
+  if (!seat.raidLive || worldId != seat.raidMap) return;
+  if (windowOpen) return;                    /* not over the top of a line */
+  if (!mapCleared(worldId)) return;
+  seat.raidLive = 0;
+  seat.raidAt = 0;
+  seat.coffers += 400;
+  openWindow(houseCalled(),
+    "The last of them goes down in the yard and the rest go over the wall. "
+    "Your people come out of the cellars. Somebody has already started on the "
+    "gate. Four hundred gold of what the raiders were carrying goes into your "
+    "coffers, and the hall is yours again.");
+}
+
+/* Which halls would swear to you if you asked: somewhere you have cleared out
+   and are not already holding. */
+static int oathsReady(void) {
+  int i, n = 0;
+  for (i = 0; i < MAP_COUNT; i++) {
+    if (isVassal(i) || (seat.has && i == seat.map)) continue;
+    if (maps[i].seat && mapCleared(i)) n++;
+  }
+  return n;
+}
+
+static int oathPrice(void) { return 500 + vassalCount() * 700; }
+
+/* A hall counts as cleared when everybody in it who would fight you has been
+   put down at least once. Somewhere with nobody in it who fights is not a hall
+   you took, so it does not count at all. */
+static int mapCleared(int id) {
+  const Map *m = &maps[id];
+  int i, any = 0, n = m->npcCount > MAX_CROWD ? MAX_CROWD : m->npcCount;
+  if (id < 0 || id >= MAP_COUNT) return 0;
+  for (i = 0; i < n; i++) {
+    if (!m->npcs[i].fights) continue;
+    any = 1;
+    if (!beaten[id][i]) return 0;
+  }
+  return any;
+}
+
+/* ------------------------------------------------------------- the house ---
+   One card for the whole of it, because the whole of it is one thing: your
+   arms at the top left, what the world makes of you underneath, and a column
+   of the things you can actually do about any of it. */
+
+/* Six lines, because six is what a hundred and twelve pixels of text will hold
+   under a heading and over a line of explanation. The three offices used to be
+   three lines of their own, and the card ran off the bottom of the screen. */
+#define HOUSE_ROWS 6
+#define HROW_ARMS   0
+#define HROW_SEAT   1
+#define HROW_COFFER 2
+#define HROW_HOUSEHOLD 3
+#define HROW_WED    4
+#define HROW_OATHS  5
+
+static int housePick, officeShown;
+static const char *houseSaid;         /* one line of feedback under the heading */
+
+static void paintHouse(void) {
+  int i;
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 6);
+
+  paintShield(11, 6, 1, you.charge, you.tincture);
+  wearYourColours();
+
+  drawText(34, 6, houseCalled(), C_HOUSE);
+  copyString(scratch, standingWord(), sizeof scratch);
+  drawText(TXT_W - 12 - textWidth(scratch), 6, scratch, C_GOLD);
+
+  /* One line about whatever the cursor is on, right under the name, so nothing
+     on this card is a word with no explanation attached to it. */
+  {
+    const char *hint;
+    if (houseSaid) hint = houseSaid;
+    else if (raidedMap() >= 0) {
+      copyString(scratch, "Burning: ", sizeof scratch);
+      appendString(scratch, maps[seat.raidMap].name, sizeof scratch);
+      appendString(scratch, ". Ride for it.", sizeof scratch);
+      hint = scratch;
+    }
+    else if (housePick == HROW_ARMS) hint = "A: your own charge, colours and words";
+    else if (housePick == HROW_SEAT) hint = seat.has ? "A: sleep here   SELECT: hold a feast"
+                                                     : "A: buy the hall you are standing in";
+    else if (housePick == HROW_COFFER) hint = "A: send for what the rents have made";
+    else if (housePick == HROW_HOUSEHOLD) hint = OFFICE_DOES[officeShown];
+    else if (housePick == HROW_WED) hint = "A septon will arrange it. Find a sept.";
+    else hint = "A: call on the halls you have cleared";
+    drawText(34, 20, hint, raidedMap() >= 0 && !houseSaid ? C_HURT : C_WELL);
+  }
+
+  fillRect(10, 33, TXT_W - 20, 1, C_EDGE);
+
+  for (i = 0; i < HOUSE_ROWS; i++) {
+    int y = 37 + i * 11;
+    const char *what = "", *side = 0;
+    if (i == HROW_ARMS) {
+      what = "Arms";
+      side = you.arms ? sayings[you.saying % SAYING_COUNT] : "none of your own";
+    } else if (i == HROW_SEAT) {
+      what = "Seat";
+      side = seat.has ? maps[seat.map].name
+                      : (maps[worldId].seat ? "this hall is for sale" : "none");
+    } else if (i == HROW_COFFER) {
+      what = "Coffers";
+      copyString(scratch, "", sizeof scratch);
+      appendNumber(scratch, (int)seat.coffers, sizeof scratch);
+      appendString(scratch, " gold", sizeof scratch);
+      side = scratch;
+    } else if (i == HROW_HOUSEHOLD) {
+      int at = officeHolder(officeShown);
+      what = OFFICES[officeShown];
+      side = at < 0 ? "vacant" : swornKinds[you.host[at].kind].name;
+    } else if (i == HROW_WED) {
+      what = "Marriage";
+      if (!seat.wed) side = "unwed";
+      else {
+        int hw = seat.wed - 1;
+        if (hw < 0 || hw >= HOUSE_COUNT) hw = 0;
+        copyString(scratch, seat.spouse, sizeof scratch);
+        appendString(scratch, " ", sizeof scratch);
+        appendString(scratch, houses[hw].name, sizeof scratch);
+        if (seat.heirs) {
+          appendString(scratch, ", ", sizeof scratch);
+          appendNumber(scratch, seat.heirs, sizeof scratch);
+          appendString(scratch, seat.heirs == 1 ? " child" : " children", sizeof scratch);
+        }
+        side = scratch;
+      }
+    } else {
+      what = "Oaths";
+      copyString(scratch, "", sizeof scratch);
+      appendNumber(scratch, vassalCount(), sizeof scratch);
+      appendString(scratch, " halls sworn", sizeof scratch);
+      side = scratch;
+    }
+    if (i == housePick) drawCursor(10, y + 1, C_GOLD);
+    drawText(20, y, what, i == housePick ? C_GOLD : C_INK);
+    if (side) drawText(TXT_W - 12 - textWidth(side), y, side,
+                       i == housePick ? C_GOLD : C_DIM);
+  }
+}
+
+/* Pressing A on an office walks it on to the next sword who could hold it, and
+   round to vacant again. No second screen: appointing somebody is one press on
+   the line with the title on it. */
+static void turnOffice(int which) {
+  int cur = seat.office[which] >= HOST_MAX ? HOST_MAX : seat.office[which];
+  int step;
+  /* Seven places on the wheel: the six who could hold it and vacant. Counted
+     round by subtraction rather than a remainder, because there is no divide
+     instruction on this thing and no library to borrow one from. */
+  for (step = 1; step <= HOST_MAX + 1; step++) {
+    int at = cur + step, k, taken = 0;
+    while (at > HOST_MAX) at -= HOST_MAX + 1;
+    if (at == HOST_MAX) { seat.office[which] = 255; return; }
+    if (you.host[at].kind == 255) continue;
+    for (k = 0; k < OFFICE_COUNT; k++)
+      if (k != which && seat.office[k] == at) taken = 1;
+    if (taken) continue;
+    seat.office[which] = (u8)at;
+    return;
+  }
+  seat.office[which] = 255;
+}
+
+
+static int bridePrice(void) { return 1200 + standing() * 90; }
+
+/* What pressing A on a line of the house card actually does. Returns 1 when it
+   wants a whole screen of its own (the arms builder), 0 when it has done its
+   business and only has a line to say about it. */
+static int houseAct(void) {
+  houseSaid = 0;
+  if (housePick == HROW_ARMS) return 1;
+
+  if (housePick == HROW_SEAT) {
+    if (!seat.has) {
+      int price = maps[worldId].seat ? maps[worldId].seat * 100 : 0;
+      if (!price) { houseSaid = "Nobody here has a hall to sell you."; return 0; }
+      if (!mapCleared(worldId)) {
+        houseSaid = "Whoever holds this hall is still standing in it."; return 0;
+      }
+      if (you.gold < price) {
+        copyString(scratch, "They want ", sizeof scratch);
+        appendNumber(scratch, price, sizeof scratch);
+        appendString(scratch, " gold for it. You have not got it.", sizeof scratch);
+        houseSaid = scratch;
+        return 0;
+      }
+      you.gold -= price;
+      seat.has = 1;
+      seat.map = (u8)worldId;
+      seat.x = (u8)(hero.px >> 4);
+      seat.y = (u8)(hero.py >> 4);
+      { int k; for (k = 0; k < OFFICE_COUNT; k++) seat.office[k] = 255; }
+      you.haven = worldId;
+      you.havenX = seat.x;
+      you.havenY = seat.y;
+      houseSaid = "It is yours. Somebody had better hang a banner.";
+      return 0;
+    }
+    if (worldId == seat.map) {
+      int i;
+      you.hp = vigourFor(you.level);
+      mine.hp = you.hp;
+      for (i = 0; i < PARTY_MAX; i++)
+        if (you.party[i].kind != 255)
+          you.party[i].hp = beastVigour(you.party[i].kind, you.party[i].level);
+      for (i = 0; i < HOST_MAX; i++)
+        if (you.host[i].kind != 255)
+          you.host[i].hp = swornVigour(you.host[i].kind, you.host[i].level);
+      you.haven = worldId;
+      you.havenX = (u8)(hero.px >> 4);
+      you.havenY = (u8)(hero.py >> 4);
+      houseSaid = "You sleep in your own hall. Everyone is whole in the morning.";
+      /* And whichever of your children has got old enough to be a nuisance
+         about it asks to come with you. They ride out as a hedge knight,
+         because that is what a lord's child with no land of their own has
+         always had to be. */
+      for (i = 0; i < HEIR_MAX; i++) {
+        if (i >= seat.heirs || ((seat.heirOut >> i) & 1)) continue;
+        if ((u16)you.kills < (u16)(seat.heirBorn[i] + HEIR_GROWN)) continue;
+        if (!swearIn(3, you.level > 4 ? you.level - 4 : 1)) {
+          houseSaid = "Your eldest wants to ride out with you, and there is "
+                      "nowhere in your company to put them.";
+          break;
+        }
+        seat.heirOut |= (u8)(1u << i);
+        copyString(scratch, seat.heirName[i], sizeof scratch);
+        appendString(scratch, " is grown, and rides out with you.", sizeof scratch);
+        houseSaid = scratch;
+        break;
+      }
+      return 0;
+    }
+    copyString(scratch, "Your seat is ", sizeof scratch);
+    appendString(scratch, maps[seat.map].name, sizeof scratch);
+    appendString(scratch, ". Sleep there and you wake whole.", sizeof scratch);
+    houseSaid = scratch;
+    return 0;
+  }
+
+  if (housePick == HROW_COFFER) {
+    if (!seat.has) { houseSaid = "No hall, no rents."; return 0; }
+    if (!seat.coffers) { houseSaid = "Nothing has come in since you last asked."; return 0; }
+    you.gold += (int)seat.coffers;
+    copyString(scratch, "Your steward sends on ", sizeof scratch);
+    appendNumber(scratch, (int)seat.coffers, sizeof scratch);
+    appendString(scratch, " gold.", sizeof scratch);
+    seat.coffers = 0;
+    houseSaid = scratch;
+    return 0;
+  }
+
+  if (housePick == HROW_HOUSEHOLD) {
+    if (!seat.has) { houseSaid = "Offices want a hall to hold them in."; return 0; }
+    if (!hostCount()) { houseSaid = "Nobody has sworn to you yet."; return 0; }
+    turnOffice(officeShown);
+    return 0;
+  }
+
+  if (housePick == HROW_WED) {
+    if (!seat.has) {
+      houseSaid = "A match wants a roof to put somebody under first.";
+    } else if (seat.wed) {
+      houseSaid = "You are wed. That is generally the end of the matter.";
+    } else {
+      copyString(scratch, "A septon arranges these. It will cost about ", sizeof scratch);
+      appendNumber(scratch, bridePrice(), sizeof scratch);
+      appendString(scratch, " gold.", sizeof scratch);
+      houseSaid = scratch;
+    }
+    return 0;
+  }
+
+  /* Oaths. Every hall you have cleared and can pay for bends at once, because
+     making the player press A eleven times is not a decision, it is a chore. */
+  {
+    int i, took = 0;
+    if (!seat.has) { houseSaid = "A house with no hall has nothing to swear to."; return 0; }
+    for (i = 0; i < MAP_COUNT; i++) {
+      int price;
+      if (isVassal(i) || i == seat.map) continue;
+      if (!maps[i].seat || !mapCleared(i)) continue;
+      price = oathPrice();
+      if (you.gold < price) break;
+      you.gold -= price;
+      swearVassal(i);
+      took++;
+    }
+    if (took) {
+      copyString(scratch, "", sizeof scratch);
+      appendNumber(scratch, took, sizeof scratch);
+      appendString(scratch, took == 1 ? " hall bends the knee." : " halls bend the knee.",
+        sizeof scratch);
+      houseSaid = scratch;
+    } else if (oathsReady()) {
+      copyString(scratch, "They will swear for ", sizeof scratch);
+      appendNumber(scratch, oathPrice(), sizeof scratch);
+      appendString(scratch, " gold apiece. Come back richer.", sizeof scratch);
+      houseSaid = scratch;
+    } else {
+      houseSaid = "Clear a hall out first. Nobody swears to a stranger.";
+    }
+  }
+  return 0;
+}
+
+/* What people on the road have heard about your house. There is no point in
+   having one if the world never mentions it: a hall bought, a marriage made and
+   three halls sworn should all be things a stranger in a tavern knows before
+   you have told them. Last match wins, so the newest thing about you is the
+   thing they bring up. */
+static const char *houseTalk(void) {
+  const char *said = 0;
+  if (you.arms) said = "\"That sigil is new. Somebody drew it well.\"";
+  if (seat.has) said = "\"They say you have a hall of your own now. Half the "
+                       "room here does not believe it.\"";
+  if (seat.wed) said = "\"Your lady's people came through in the spring. They "
+                       "spoke about you, and not badly.\"";
+  if (seat.heirs) said = "\"You have children now. That changes what a man will "
+                         "risk, in my experience.\"";
+  if (vassalCount() >= 3) said = "\"Three halls between here and the river fly "
+                                 "your colours. People have started counting.\"";
+  if (officeHolder(1) >= 0) said = "\"Somebody has been drilling your swords. "
+                                   "It shows in how they stand.\"";
+  if (seat.raidLive) said = "\"There is smoke off toward one of your holdings. "
+                            "You will have heard.\"";
+  if (you.story >= 3 && crown.steady < -30)
+    said = "\"There is talk in here most nights, and it is not about the "
+           "weather. I have said nothing.\"";
+  else if (you.story >= 3)
+    said = "\"Your Grace. There is not a great deal a man can add to that.\"";
+  return said;
+}
+
+/* A feast in your own hall. It costs what a hall of that size costs to feed for
+   a night, it puts everybody who came back with you right, and if the realm is
+   yours it buys a little of the goodwill that ruling spends. It is also the one
+   thing on the card that is not about getting more of something. */
+static int feastPrice(void) { return 400 + standing() * 40; }
+
+static int holdFeast(void) {
+  int i, price = feastPrice();
+  if (!seat.has) { houseSaid = "Feast where? You have no hall."; return 0; }
+  if (worldId != seat.map) {
+    copyString(scratch, "A feast is held at ", sizeof scratch);
+    appendString(scratch, maps[seat.map].name, sizeof scratch);
+    appendString(scratch, ", which is where you are not.", sizeof scratch);
+    houseSaid = scratch;
+    return 0;
+  }
+  if (you.gold < price) {
+    copyString(scratch, "Feeding this hall for a night is ", sizeof scratch);
+    appendNumber(scratch, price, sizeof scratch);
+    appendString(scratch, " gold. You have not got it.", sizeof scratch);
+    houseSaid = scratch;
+    return 0;
+  }
+  you.gold -= price;
+  you.hp = vigourFor(you.level);
+  mine.hp = you.hp;
+  for (i = 0; i < PARTY_MAX; i++)
+    if (you.party[i].kind != 255)
+      you.party[i].hp = beastVigour(you.party[i].kind, you.party[i].level);
+  for (i = 0; i < HOST_MAX; i++)
+    if (you.host[i].kind != 255)
+      you.host[i].hp = swornVigour(you.host[i].kind, you.host[i].level);
+  if (you.story >= 3) {
+    crown.steady += 6;
+    if (crown.steady > 100) crown.steady = 100;
+  }
+  /* And whoever you married hears about it, and so does their house. */
+  if (seat.wed) {
+    int hw = seat.wed - 1;
+    if (hw >= 0 && hw < HOUSE_COUNT) {
+      int f = crown.favour[hw] + 5;
+      crown.favour[hw] = (s8)(f > 100 ? 100 : f);
+    }
+  }
+  houseSaid = "Four hours of it, and a hall that smells of it in the morning.";
+  return 1;
+}
+
+/* A match. Somebody in a sept arranges it; what it costs is what your standing
+   says it should, and who you get is the house that will have you. */
+
+
+
+
+/* ---------------------------------------------------------- holding it -----
+ *
+ * The chair was the end of the game. You fought up a ladder of nine seats, went
+ * through the Red Keep, put down whatever was standing behind the throne, and
+ * then the game had nothing further to say about any of it - which makes the
+ * whole climb a door rather than a story, and makes the last thing you do the
+ * only thing you never get to be.
+ *
+ * So: court. Sit the chair and somebody is waiting with a decision nobody sane
+ * would want to make. Every answer costs the treasury, or how steady the realm
+ * is, or what a house thinks of you, and usually two of the three. Steadiness
+ * slides on its own while you are out on the road ignoring it, and a realm that
+ * slides far enough puts somebody in the field who wants your chair.
+ */
+
+
+static int judged(int at) { return at >= 0 && ((crown.judged >> at) & 1u); }
+
+static int courtCount(void) {
+  int i, n = 0;
+  for (i = 0; i < PETITION_COUNT; i++) if (judged(i)) n++;
+  return n;
+}
+
+/* Which petition is waiting. Anything not yet answered, and the master of coin
+   only raises an empty treasury when the treasury is actually empty. */
+static int petitionWaiting(void) {
+  int i, pick = -1, n = 0;
+  for (i = 0; i < PETITION_COUNT; i++) {
+    if (judged(i)) continue;
+    if (petitions[i].needsPoor && you.gold >= (int)petitions[i].needsPoor) continue;
+    n++;
+    if (roll((u32)n) == 0) pick = i;
+  }
+  return pick;
+}
+
+static const char *steadyWord(void) {
+  if (crown.steady >= 60) return "The realm is quiet, and means it.";
+  if (crown.steady >= 25) return "The realm holds. Nobody is marching.";
+  if (crown.steady >= 0) return "The realm holds, and is watching you.";
+  if (crown.steady >= -30) return "There is grumbling in three kingdoms.";
+  if (crown.steady >= -60) return "Lords are meeting without telling you.";
+  return "Somebody is going to raise a banner within the year.";
+}
+
+/* Which house is furthest from you, for the card and for who rises. */
+static int worstHouse(void) {
+  int i, at = 0;
+  for (i = 1; i < HOUSE_COUNT; i++) if (crown.favour[i] < crown.favour[at]) at = i;
+  return at;
+}
+
+
+static void paintCourtChoice(void) {
+  const Petition *p = &petitions[courtAt];
+  int i;
+  fillRect(6, TXT_H - 44, TXT_W - 12, 40, C_FILL);
+  drawFrame(4, TXT_H - 46, TXT_W - 8, 44);
+  for (i = 0; i < p->count; i++) {
+    int y = TXT_H - 40 + i * 12;
+    if (i == courtPick) drawCursor(12, y + 1, C_GOLD);
+    drawText(22, y, answers[p->first + i].label, i == courtPick ? C_GOLD : C_INK);
+  }
+}
+
+/* Sit down. Returns 0 when there is nothing waiting, which is its own answer. */
+static int openCourt(void) {
+  int at = petitionWaiting();
+  courtAsking = 0;
+  courtDone = 0;
+  courtPick = 0;
+  if (at < 0) {
+    courtAt = -1;
+    copyString(scratch, "Nobody is waiting. ", sizeof scratch);
+    appendString(scratch, steadyWord(), sizeof scratch);
+    appendString(scratch, "  You have heard ", sizeof scratch);
+    appendNumber(scratch, courtCount(), sizeof scratch);
+    appendString(scratch, " of ", sizeof scratch);
+    appendNumber(scratch, PETITION_COUNT, sizeof scratch);
+    appendString(scratch, " petitions, and the treasury stands at ", sizeof scratch);
+    appendNumber(scratch, you.gold, sizeof scratch);
+    appendString(scratch, ".  House ", sizeof scratch);
+    appendString(scratch, houses[worstHouse()].name, sizeof scratch);
+    appendString(scratch, crown.favour[worstHouse()] < -20
+      ? " thinks least of you, and is not quiet about it."
+      : " thinks least of you, which at present means very little.", sizeof scratch);
+    openWindow("The Iron Throne", scratch);
+    return 0;
+  }
+  courtAt = at;
+  openWindow("The Iron Throne", petitions[at].text);
+  return 1;
+}
+
+/* And what an answer costs. */
+static void answerCourt(void) {
+  const Petition *p = &petitions[courtAt];
+  const Answer *a = &answers[p->first + courtPick];
+  int steady;
+  crown.judged |= (u32)1u << courtAt;
+  crown.courts++;
+  you.gold += a->gold;
+  if (you.gold < 0) you.gold = 0;
+  steady = crown.steady + a->steady;
+  if (steady > 100) steady = 100;
+  if (steady < -100) steady = -100;
+  crown.steady = (s16)steady;
+  if (a->houseA < HOUSE_COUNT) {
+    int f = crown.favour[a->houseA] + a->shiftA;
+    crown.favour[a->houseA] = (s8)(f > 100 ? 100 : f < -100 ? -100 : f);
+  }
+  if (a->houseB < HOUSE_COUNT) {
+    int f = crown.favour[a->houseB] + a->shiftB;
+    crown.favour[a->houseB] = (s8)(f > 100 ? 100 : f < -100 ? -100 : f);
+  }
+  copyString(scratch, a->result, sizeof scratch);
+  if (a->gold) {
+    appendString(scratch, a->gold < 0 ? "  The treasury is lighter by "
+                                      : "  The treasury is heavier by ", sizeof scratch);
+    appendNumber(scratch, a->gold < 0 ? -a->gold : a->gold, sizeof scratch);
+    appendString(scratch, " gold.", sizeof scratch);
+  }
+  appendString(scratch, "  ", sizeof scratch);
+  appendString(scratch, steadyWord(), sizeof scratch);
+  courtAsking = 0;
+  courtDone = 1;
+  openWindow(0, scratch);
+}
+
+/* Ruling is not something you do once. Every fight you win while wearing the
+   crown, the realm slips a little further from you and somebody eventually
+   raises a banner over it - and the further a house is from you, the likelier
+   it is theirs. Returns a line for the spoils, or 0. */
+static const char *crownAfterWin(void) {
+  if (you.story < 3) return 0;
+  /* A realm nobody is governing drifts. Slowly: a point every eight fights, so
+     a long afternoon on the road costs you a little and a season costs you a
+     lot, which is the correct shape for neglect. */
+  if ((you.kills & 7) == 0 && crown.steady > -100) crown.steady--;
+  if (!crown.riseLive && !crown.riseAt && crown.steady < -20)
+    crown.riseAt = (u16)(you.kills + 20 + roll(20));
+  if (!crown.riseLive && crown.riseAt && (u16)you.kills >= crown.riseAt) {
+    int i, pick = -1, n = 0, k;
+    /* Somewhere with people in it, so that a banner going up means a hall full
+       of somebody who will fight you rather than an empty room. */
+    for (i = 0; i < MAP_COUNT; i++) {
+      if (!maps[i].seat) continue;
+      n++;
+      if (roll((u32)n) == 0) pick = i;
+    }
+    if (pick < 0) { crown.riseAt = 0; return 0; }
+    crown.riseMap = (u8)pick;
+    crown.riseLive = 1;
+    crown.riseAt = 0;
+    for (k = 0; k < MAX_CROWD; k++) { slain[pick][k] = 0; beaten[pick][k] = 0; }
+    for (k = 0; k < 8; k++) emptied[pick][k] = 0;
+    return "  A banner has gone up somewhere in the realm, and it is not yours.";
+  }
+  return 0;
+}
+
+/* Standing in the hall where the banner went up, with nobody left standing in
+   it, puts it down again. */
+static void crownCheckRising(void) {
+  if (!crown.riseLive || worldId != crown.riseMap) return;
+  if (windowOpen) return;
+  if (!mapCleared(worldId)) return;
+  crown.riseLive = 0;
+  crown.steady += 15;
+  if (crown.steady > 100) crown.steady = 100;
+  you.gold += 600;
+  openWindow("The Crown",
+    "The banner comes down off the wall and somebody who was very loud a "
+    "fortnight ago is very quiet. Six hundred gold of what they had put by "
+    "goes to the crown, and the realm settles - for a while, which is all a "
+    "realm ever does.");
+}
+
 /* ------------------------------------------------------------- the menu --- */
 
-#define MENU_ENTRIES 7
+/* Eight is the most that fits: the frame is fourteen high plus twelve a line,
+   and the text layer is a hundred and twelve tall. A ninth entry would be drawn
+   under the bottom of the screen. */
+#define MENU_ENTRIES 8
 static const char *const MENU[MENU_ENTRIES] =
-  { "Sigil", "At Heel", "Swords", "Pouch", "Deeds", "Record", "Leave" };
+  { "Sigil", "At Heel", "Swords", "Pouch", "House", "Deeds", "Record", "Leave" };
 
 static void paintMenu(void) {
   int i;
@@ -3955,6 +5067,8 @@ static void paintTitle(void) {
 #define SCENE_HOLD  13    /* the cages at the back of a maester's hall */
 #define SCENE_HOST  14    /* who has sworn to you */
 #define SCENE_DEEDS 15    /* what you have walked into, and what you said */
+#define SCENE_ARMS 16     /* the charge, the field and the words, being chosen */
+#define SCENE_SEAT 17     /* your own house, and everything hanging off it */
 
 static int scene;
 
@@ -4416,6 +5530,13 @@ static void theyFell(void) {
   appendString(scratch, " gold and ", sizeof scratch);
   appendNumber(scratch, won, sizeof scratch);
   appendString(scratch, " experience.", sizeof scratch);
+  /* Rents, children, and whoever has decided this is a good week to burn one of
+     your halls. Worked out here so that the one line it has to say arrives with
+     the spoils, rather than as a box of its own between two fights. */
+  { const char *word = houseAfterWin();
+    if (word) appendString(scratch, word, sizeof scratch);
+    word = crownAfterWin();
+    if (word) appendString(scratch, word, sizeof scratch); }
   /* And if that was one of the nine, the sigil goes on your banner. It is the
      only thing in the game that is not gold or steel, and it is the only thing
      that says how far through it you are. */
@@ -4910,11 +6031,7 @@ static void paintHost(void) {
        `theirs` still holds the last opponent out here, and a card that read
        differently depending on who you happened to beat an hour ago would be
        a card nobody could trust. */
-    int sum = 0;
-    for (i = 0; i < HOST_MAX; i++) {
-      if (you.host[i].kind == 255) continue;
-      sum += swornMight(you.host[i].kind, you.host[i].level) / 6;
-    }
+    int sum = hostBonus();
     copyString(scratch, "Together they add about ", sizeof scratch);
     appendNumber(scratch, sum, sizeof scratch);
     appendString(scratch, " to every blow you land.", sizeof scratch);
@@ -5413,6 +6530,20 @@ static void tryTalk(void) {
     int box = chestFacing(fx, fy);
     if (box >= 0) { openChest(box); return; }
   }
+  /* The chair. Standing in front of it and pressing A is the whole of the
+     postgame: before the crowning it is furniture with a queen on it, and
+     afterwards it is where the rest of the game happens. */
+  if (world->courtX < 255 && fx == world->courtX && fy == world->courtY) {
+    if (you.story >= 3) { openCourt(); return; }
+    if (countSigils() >= LEADER_COUNT) {
+      openWindow(0, "The chair is empty and there is nobody left in the room "
+                    "to stop you. Sit down.");
+      return;
+    }
+    openWindow(0, "Barbs and blades welded into a chair by a man who wanted "
+                  "sitting in it to be uncomfortable. It is not yours.");
+    return;
+  }
   if (who >= 0) {
     const Npc *npc = &world->npcs[who];
     /* Face whoever spoke to you; it is rude not to. */
@@ -5461,6 +6592,77 @@ static void tryTalk(void) {
             "down out there, they will bring you back here.");
           return;
         }
+      }
+    }
+    /* A sept is where a match is made. It wants a hall to put somebody in and
+       a house that will have you, and the houses that will have you are the
+       ones whose seats have already bent - which is the whole point of the
+       ladder, said in one sentence. */
+    if (npc->weds) {
+      if (!seat.has) {
+        openWindow(npc->name,
+          "A match? You have no roof of your own. Nobody's daughter is being "
+          "sent to sleep in a field. Buy a hall, and then we will talk about "
+          "who sits under it with you.");
+        return;
+      }
+      if (seat.wed) {
+        copyString(scratch, "You are wed already. ", sizeof scratch);
+        appendString(scratch, seat.spouse, sizeof scratch);
+        appendString(scratch, " is at ", sizeof scratch);
+        appendString(scratch, maps[seat.map].name, sizeof scratch);
+        if (seat.heirs) {
+          appendString(scratch, ", with ", sizeof scratch);
+          appendNumber(scratch, seat.heirs, sizeof scratch);
+          appendString(scratch, seat.heirs == 1 ? " child of yours."
+                                                : " children of yours.", sizeof scratch);
+        } else {
+          appendString(scratch, ", and waiting on you.", sizeof scratch);
+        }
+        openWindow(npc->name, scratch);
+        return;
+      }
+      if (!countSigils()) {
+        openWindow(npc->name,
+          "No great house has bent to you yet, and no great house marries a "
+          "name it has not heard. Take a seat off somebody first. Then every "
+          "one of them will find they had a cousin free all along.");
+        return;
+      }
+      if (you.gold < bridePrice()) {
+        copyString(scratch, "A match of the sort you could hold your head up "
+          "about costs ", sizeof scratch);
+        appendNumber(scratch, bridePrice(), sizeof scratch);
+        appendString(scratch, " gold in gifts and settlements. Come back when "
+          "you have it.", sizeof scratch);
+        openWindow(npc->name, scratch);
+        return;
+      }
+      {
+        /* Whose cousin. One of the houses that has already knelt, picked
+           evenly from among them without ever asking for a remainder. */
+        int i, pick = -1, n = 0;
+        for (i = 0; i < LEADER_COUNT && i < HOUSE_COUNT; i++) {
+          if (!haveSigil(i)) continue;
+          n++;
+          if (roll((u32)n) == 0) pick = i;
+        }
+        if (pick < 0) pick = you.house;
+        you.gold -= bridePrice();
+        seat.wed = (u8)(pick + 1);
+        copyString(seat.spouse,
+          roll(2) ? BRIDE_NAMES[roll(8)] : GROOM_NAMES[roll(8)], sizeof seat.spouse);
+        copyString(scratch, "It is done, then. ", sizeof scratch);
+        appendString(scratch, seat.spouse, sizeof scratch);
+        appendString(scratch, " of House ", sizeof scratch);
+        appendString(scratch, houses[pick].name, sizeof scratch);
+        appendString(scratch, " will be at ", sizeof scratch);
+        appendString(scratch, maps[seat.map].name, sizeof scratch);
+        appendString(scratch, " before the moon turns. Their house and yours "
+          "are one house now, whatever either of them thought of the other "
+          "last year. Go and be worth it.", sizeof scratch);
+        openWindow(npc->name, scratch);
+        return;
       }
     }
     /* Everybody has something for somebody who stops to speak to them, once.
@@ -5513,11 +6715,39 @@ static void tryTalk(void) {
        did not feel like a story you were inside of. Not every time: a remark
        somebody makes about you now and then reads as being noticed, and the
        same remark on every conversation reads as a label stapled to you. */
-    if (roll(100) < 38) {
-      int at = regardOf();
-      if (at >= 0) {
-        appendString(scratch, "  ", sizeof scratch);
-        appendString(scratch, regard[at].line, sizeof scratch);
+    /* One of them, not all three. Somebody who says their piece, then remarks
+       on your sigils, then calls you ser, then mentions your wife is not a
+       person you met on a road - and there are only two hundred and eighty
+       characters in the box, so three of them would push the first one out of
+       it anyway. */
+    if (roll(100) < 52) {
+      int what = (int)roll(3);
+      int said = 0, tries;
+      /* Counted round by hand. A remainder by three on something the compiler
+         can see is never negative becomes __aeabi_uidivmod, which does not
+         exist here: there is no divide instruction on an ARM7 and no library
+         to borrow one from. */
+      for (tries = 0; tries < 3 && !said; tries++, what = what >= 2 ? 0 : what + 1) {
+        if (what == 0) {
+          int at = regardOf();
+          if (at < 0) continue;
+          appendString(scratch, "  ", sizeof scratch);
+          appendString(scratch, regard[at].line, sizeof scratch);
+          said = 1;
+        } else if (what == 1) {
+          const char *style = yourStyle();
+          if (!style) continue;
+          appendString(scratch, "  They say \"", sizeof scratch);
+          appendString(scratch, style, sizeof scratch);
+          appendString(scratch, "\" before you have finished speaking.", sizeof scratch);
+          said = 1;
+        } else {
+          const char *word = houseTalk();
+          if (!word) continue;
+          appendString(scratch, "  ", sizeof scratch);
+          appendString(scratch, word, sizeof scratch);
+          said = 1;
+        }
       }
     }
     /* Somebody who fights but does not draw on their own account. Nothing in
@@ -5804,7 +7034,12 @@ int main(void) {
     else if (scene == SCENE_DUEL || (scene == SCENE_BAG && bagInDuel)) {
       playTune(leaderFor(foeId) >= 0 ? TUNE_BOSS : TUNE_DUEL);
     }
-    else playTune(world->tune);
+    /* And whatever the region you are standing in plays - unless you are not
+       standing anywhere yet. Between swearing your sword and walking out of the
+       gate there is a screen where you type your name, and on that screen there
+       is no map: reading a tune off it walked straight off the end of a null
+       pointer, on every single new game. */
+    else playTune(world ? world->tune : TUNE_HALL);
 
     if (shift) {
       tickShift();
@@ -5823,9 +7058,7 @@ int main(void) {
         int chose = hasRecord ? titlePick : 1;
         if (chose == 0) {
           takeUpRecord();
-          PAL_BG[TXT_BANK * 16 + C_HOUSE] = houses[you.house].colour;
-          PAL_BG[TXT_BANK * 16 + C_TRIM] = houses[you.house].accent;
-          PAL_BG[TXT_BANK * 16 + C_EDGE] = houses[you.house].colour;
+          wearYourColours();      /* yours if you have any, theirs if not */
           enterWorld(record.worldId, record.x, record.y, record.dir);
           REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
         } else if (chose == 1) {
@@ -5859,15 +7092,16 @@ int main(void) {
         you.story = 0;
         you.bag[START_POTION] = 1;
         reckonTechniques();
-        PAL_BG[TXT_BANK * 16 + C_HOUSE] = houses[you.house].colour;
-        PAL_BG[TXT_BANK * 16 + C_TRIM] = houses[you.house].accent;
-        PAL_BG[TXT_BANK * 16 + C_EDGE] = houses[you.house].colour;
+        wearYourColours();
         /* Who you are before where you are. */
         scene = SCENE_NAME;
         nameCol = 0;
         nameRow = 0;
         nameLen = 0;
         you.name[0] = 0;
+        nameInto = you.name;
+        nameAsking = "WHAT ARE YOU CALLED?";
+        nameThen = 0;
         layoutTextRows(TEXT_TOP);
         paintNamer();
       }
@@ -5880,21 +7114,31 @@ int main(void) {
       if (namePick != was) { sfxPick(); paintNamer(); }
 
       if (hit(KEY_A) && nameLen < NAME_MAX) {
-        you.name[nameLen++] = NAME_KEYS[namePick];
-        you.name[nameLen] = 0;
+        nameInto[nameLen++] = NAME_KEYS[namePick];
+        nameInto[nameLen] = 0;
         paintNamer();
       } else if (hit(KEY_SELECT) && nameLen && nameLen < NAME_MAX) {
-        you.name[nameLen++] = ' ';
-        you.name[nameLen] = 0;
+        nameInto[nameLen++] = ' ';
+        nameInto[nameLen] = 0;
         paintNamer();
       } else if (hit(KEY_B) && nameLen) {
-        you.name[--nameLen] = 0;
+        nameInto[--nameLen] = 0;
         sfxPick();
         paintNamer();
       } else if (hit(KEY_START)) {
-        /* Somebody who will not be told keeps their house's name. */
-        if (!nameLen) copyString(you.name, houses[you.house].name, sizeof you.name);
-        beginGame();
+        if (nameThen == SCENE_ARMS) {
+          /* Naming your own house. An empty one is your own name, which is
+             what a house that has just started is called anyway. */
+          if (!nameLen) copyString(you.houseName, you.name, sizeof you.houseName);
+          scene = SCENE_ARMS;
+          clearPage();
+          layoutTextRows(TEXT_TOP);
+          paintArms();
+        } else {
+          /* Somebody who will not be told keeps their house's name. */
+          if (!nameLen) copyString(you.name, houses[you.house].name, sizeof you.name);
+          beginGame();
+        }
       }
     } else if (scene == SCENE_STATUS) {
       if (hit(KEY_START) || hit(KEY_B) || hit(KEY_A)) {
@@ -5941,13 +7185,20 @@ int main(void) {
           layoutTextRows(TEXT_TOP);
           paintBag();
         } else if (menuPick == 4) {
+          scene = SCENE_SEAT;
+          housePick = 0;
+          houseSaid = 0;
+          clearPage();
+          layoutTextRows(TEXT_TOP);
+          paintHouse();
+        } else if (menuPick == 5) {
           scene = SCENE_DEEDS;
           deedPick = 0;
           deedTop = 0;
           clearPage();
           layoutTextRows(TEXT_TOP);
           paintDeeds();
-        } else if (menuPick == 5) {
+        } else if (menuPick == 6) {
           keepRecord();
           clearPage();
           layoutTextRows(TEXT_PLAY);
@@ -5958,6 +7209,83 @@ int main(void) {
           clearPage();
           layoutTextRows(TEXT_PLAY);
         }
+      }
+    } else if (scene == SCENE_SEAT) {
+      int was = housePick;
+      if (hit(KEY_UP) && housePick > 0) housePick--;
+      if (hit(KEY_DOWN) && housePick < HOUSE_ROWS - 1) housePick++;
+      if (housePick != was) { sfxPick(); houseSaid = 0; paintHouse(); }
+      /* LEFT and RIGHT on the household line walk between the three offices,
+         so one line does the work three lines used to and the card still fits
+         on the screen. */
+      if ((hit(KEY_LEFT) || hit(KEY_RIGHT)) && housePick == HROW_HOUSEHOLD) {
+        if (hit(KEY_LEFT)) officeShown = officeShown ? officeShown - 1 : OFFICE_COUNT - 1;
+        else officeShown = officeShown + 1 >= OFFICE_COUNT ? 0 : officeShown + 1;
+        houseSaid = 0;
+        sfxPick();
+        paintHouse();
+      } else if (hit(KEY_SELECT) && housePick == HROW_SEAT) {
+        holdFeast();
+        sfxPick();
+        paintHouse();
+      } else if (hit(KEY_A)) {
+        if (houseAct()) {
+          scene = SCENE_ARMS;
+          armsRow = 0;
+          clearPage();
+          layoutTextRows(TEXT_TOP);
+          paintArms();
+        } else {
+          sfxPick();
+          paintHouse();
+        }
+      } else if (hit(KEY_B)) {
+        scene = SCENE_MENU;
+        clearPage();
+        layoutTextRows(TEXT_TOP);
+        paintMenu();
+      }
+    } else if (scene == SCENE_ARMS) {
+      int was = armsRow;
+      if (hit(KEY_UP) && armsRow > 0) armsRow--;
+      if (hit(KEY_DOWN) && armsRow < ARMS_ROWS - 1) armsRow++;
+      if (armsRow != was) sfxPick();
+      if (armsRow == 0) {
+        if (hit(KEY_LEFT)) you.charge = (u8)((you.charge + CHARGE_COUNT - 1) % CHARGE_COUNT);
+        if (hit(KEY_RIGHT)) you.charge = (u8)((you.charge + 1) % CHARGE_COUNT);
+      } else if (armsRow == 1) {
+        if (hit(KEY_LEFT)) you.tincture = (u8)((you.tincture + TINCTURE_COUNT - 1) % TINCTURE_COUNT);
+        if (hit(KEY_RIGHT)) you.tincture = (u8)((you.tincture + 1) % TINCTURE_COUNT);
+      } else if (armsRow == 2) {
+        if (hit(KEY_LEFT)) you.saying = (u8)((you.saying + SAYING_COUNT - 1) % SAYING_COUNT);
+        if (hit(KEY_RIGHT)) you.saying = (u8)((you.saying + 1) % SAYING_COUNT);
+      }
+      if (hit(KEY_LEFT) || hit(KEY_RIGHT)) sfxPick();
+      if (hit(KEY_A) && armsRow == 3) {
+        /* The same twenty-eight keys that named you. */
+        scene = SCENE_NAME;
+        nameInto = you.houseName;
+        nameAsking = "WHAT IS YOUR HOUSE CALLED?";
+        nameThen = SCENE_ARMS;
+        nameCol = 0;
+        nameRow = 0;
+        nameLen = 0;
+        while (you.houseName[nameLen]) nameLen++;
+        layoutTextRows(TEXT_TOP);
+        paintNamer();
+      } else if (hit(KEY_START) || hit(KEY_B)) {
+        if (!you.arms) {
+          you.arms = 1;
+          if (!you.houseName[0]) copyString(you.houseName, you.name, sizeof you.houseName);
+        }
+        wearYourColours();
+        scene = SCENE_SEAT;
+        houseSaid = you.arms ? "Those are your arms. Nobody else's." : 0;
+        clearPage();
+        layoutTextRows(TEXT_TOP);
+        paintHouse();
+      } else if (hit(KEY_UP) || hit(KEY_DOWN) || hit(KEY_LEFT) || hit(KEY_RIGHT)) {
+        paintArms();
       }
     } else if (scene == SCENE_HOST) {
       int was = hostPick, i;
@@ -6324,7 +7652,15 @@ int main(void) {
            somebody said does anything else. */
         if (hit(KEY_A) || hit(KEY_B)) {
           if (!advanceWindow()) {
-            if (afterDuel >= 0) {
+            if (courtAt >= 0 && !courtDone) {
+              /* The petition has been read out. Now answer it. */
+              courtAsking = 1;
+              courtPick = 0;
+              paintCourtChoice();
+            } else if (courtDone) {
+              courtAt = -1;
+              courtDone = 0;
+            } else if (afterDuel >= 0) {
               int who = afterDuel;
               afterDuel = -1;
               afterWindow = 0;
@@ -6356,6 +7692,16 @@ int main(void) {
               paintShop();
             }
           }
+        }
+      } else if (courtAsking) {
+        /* A decision with no clean answer, which is the whole of ruling. */
+        int was = courtPick;
+        if (hit(KEY_UP) && courtPick > 0) courtPick--;
+        if (hit(KEY_DOWN) && courtPick < petitions[courtAt].count - 1) courtPick++;
+        if (courtPick != was) { sfxPick(); paintCourtChoice(); }
+        if (hit(KEY_A)) {
+          clearRows(TXT_H - 46, 46);
+          answerCourt();
         }
       } else if (spotted >= 0) {
         /* Nothing to do but wait for them. */
@@ -6459,7 +7805,7 @@ int main(void) {
 
       if (!windowOpen && cutAt < 0) {
         if (spotted >= 0) tickSpotted();
-        else { moveCrowd(); lookForTrouble(); }
+        else { moveCrowd(); lookForTrouble(); houseCheckRaid(); crownCheckRising(); }
       }
       if (plateTimer && !--plateTimer) clearRows(0, 16);
 

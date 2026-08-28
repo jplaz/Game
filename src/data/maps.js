@@ -4857,6 +4857,13 @@ export const MAPS = {
         script: 'duel', data: { duel: 'gravedigger' } },
       { x: 15, y: 17, dir: 'up', roams: true, sprite: 'wildling', name: 'What Was a Man',
         script: 'duel', data: { duel: 'gravedigger' } },
+      /* The man who rowed you in. Hardhome has no road and no door: without
+         somebody here who will take you off the beach, sailing to it once
+         ended the cartridge, because the only way off a berth-only map is a
+         person who sails and there was not one. */
+      { x: 11, y: 20, dir: 'down', sprite: 'braavosi', name: 'The Boatman', script: 'ship',
+        data: { line: 'The Boatman: I said I would wait until dark. I lied about that, '
+          + 'but I am still here, and I will take you off this beach whenever you have had enough.' } },
       { x: 3, y: 19, dir: 'right', sprite: 'nightswatch', name: 'The Last Ranger',
         script: 'hideoutLocal',
         data: { line: 'The Last Ranger: I came up on the boat before yours. '

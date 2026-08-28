@@ -842,6 +842,29 @@ int main(void) {
     you.house = wasHouse; worldId = wasWorld; layLadder();
   }
 
+  /* --- can you get off every map you can be put down on? ------------------ */
+  /* A map with no door on it is reached by ship and left by ship, and leaving
+     by ship means talking to somebody who sails. Hardhome had a berth, no
+     doors, and nobody on the beach who would take you off it - so sailing
+     there once ended the cartridge, and the wandering run proved it by
+     finishing every one of its playthroughs standing on that shingle.
+     A map you can arrive at and not leave is the worst thing this game can do
+     to a player, and nothing was checking for it. */
+  for (m = 0; m < MAP_COUNT; m++) {
+    int sailors = 0, k2, berth = 0;
+    if (maps[m].warpCount) continue;
+    for (k2 = 0; k2 < PORT_COUNT; k2++) if (ports[k2].map == m) berth = 1;
+    if (!berth) {
+      bad("%s has no door and no berth: nobody can reach it at all", maps[m].name);
+      continue;
+    }
+    for (k2 = 0; k2 < maps[m].npcCount; k2++) if (maps[m].npcs[k2].sails) sailors++;
+    if (!sailors) {
+      bad("%s is reached by ship, has no door, and nobody on it will sail you "
+          "off again: arriving there ends the game", maps[m].name);
+    }
+  }
+
   /* --- does the world ever notice you? ------------------------------------ */
   /* Every line people add about you has to be one somebody can actually earn,
      and the list has to be ordered mild to rare - the cartridge keeps the last

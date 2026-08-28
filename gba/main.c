@@ -3961,6 +3961,23 @@ static void takeTheirKit(void) {
    Mostly a remedy; now and then a piece of gear worth about what somebody of
    your own standing would be carrying, which is what keeps looking in the grass
    worth the walk however far along you are. */
+/* Which of the things people say about you fits you now.
+   The list runs from the mild to the rare, and the last one that fits is the
+   one they say: a man with six sworn swords and nine seats should not be
+   remarked upon for carrying one sigil. */
+int regardOf(void) {
+  int i, best = -1;
+  for (i = 0; i < REGARD_COUNT; i++) {
+    if (countSigils() < regard[i].sigils) continue;
+    if (hostCount() < regard[i].host) continue;
+    if (you.kills < regard[i].kills) continue;
+    if (regard[i].needs != 255 && !flagSet(regard[i].needs)) continue;
+    if (regard[i].denies != 255 && flagSet(regard[i].denies)) continue;
+    best = i;
+  }
+  return best;
+}
+
 /* Whether a nest on this ground would give up what is in it, leaving the roll
    aside. Pulled out so the audit can ask the cartridge the question rather than
    restate the rule beside it and drift. */
@@ -5284,6 +5301,19 @@ static void tryTalk(void) {
         appendString(scratch, "  They press ", sizeof scratch);
         appendNumber(scratch, coin, sizeof scratch);
         appendString(scratch, " gold into your hand.", sizeof scratch);
+      }
+    }
+    /* And what they make of you, when they make anything of you at all.
+       Everybody in this game said the same sentence on the first morning and
+       on the day the ninth seat bent, which is the largest single reason it
+       did not feel like a story you were inside of. Not every time: a remark
+       somebody makes about you now and then reads as being noticed, and the
+       same remark on every conversation reads as a label stapled to you. */
+    if (roll(100) < 38) {
+      int at = regardOf();
+      if (at >= 0) {
+        appendString(scratch, "  ", sizeof scratch);
+        appendString(scratch, regard[at].line, sizeof scratch);
       }
     }
     /* Somebody who fights but does not draw on their own account. Nothing in

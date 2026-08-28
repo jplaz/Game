@@ -832,6 +832,50 @@ int main(void) {
     you.house = wasHouse; worldId = wasWorld; layLadder();
   }
 
+  /* --- does the world ever notice you? ------------------------------------ */
+  /* Every line people add about you has to be one somebody can actually earn,
+     and the list has to be ordered mild to rare - the cartridge keeps the last
+     one that fits, so a general line written after a specific one buries it
+     and nobody ever reads the specific one again. */
+  {
+    int r, reachable = 0;
+    int wasKills = you.kills, wasSig = sigils, k;
+    for (r = 0; r < REGARD_COUNT; r++) {
+      if (regard[r].sigils > LEADER_COUNT) {
+        bad("a regard line wants %d sigils and there are only %d in the world",
+          regard[r].sigils, LEADER_COUNT);
+      }
+      if (regard[r].host > HOST_MAX) {
+        bad("a regard line wants %d sworn swords and only %d can follow you",
+          regard[r].host, HOST_MAX);
+      }
+      if (regard[r].needs != 255 && regard[r].needs == regard[r].denies) {
+        bad("a regard line needs and forbids the same thing");
+      }
+      /* Set everything this line asks for and nothing else, and see whether it
+         is the one that gets said. If a later line is broader it will win here
+         and this one is dead text. */
+      for (k = 0; k < STORY_WORDS; k++) storyFlags[k] = 0;
+      for (k = 0; k < HOST_MAX; k++) you.host[k].kind = 255;
+      sigils = 0;
+      for (k = 0; k < regard[r].sigils && k < LEADER_COUNT; k++) sigils |= (u16)(1u << k);
+      for (k = 0; k < regard[r].host; k++) swearIn(0, 10);
+      you.kills = regard[r].kills;
+      if (regard[r].needs != 255) setFlag(regard[r].needs);
+      if (regardOf() == r) reachable++;
+      else {
+        bad("nobody will ever say \"%s\": a broader line further down the list "
+            "always wins", regard[r].line);
+      }
+    }
+    for (k = 0; k < STORY_WORDS; k++) storyFlags[k] = 0;
+    for (k = 0; k < HOST_MAX; k++) you.host[k].kind = 255;
+    you.kills = wasKills;
+    sigils = wasSig;
+    note("%d of %d lines about you can actually be earned", reachable, REGARD_COUNT);
+    if (!reachable) bad("the world never notices anything about you");
+  }
+
   /* --- is the ladder actually climbable? ---------------------------------- */
   /* The one question nobody had ever asked in numbers. The ladder tells you
      what level each seat expects; this fights that leader a thousand times at

@@ -128,6 +128,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const { SPECIES } = await import('/src/data/species.js');
   const { CUTSCENES, CUTSCENE_IDS } = await import('/src/data/cutscenes.js');
   const { QUESTS } = await import('/src/data/quests.js');
+  const { REGARD } = await import('/src/data/regard.js');
   const { BEAST_TECHNIQUES, GROWS_INTO, NEVER_TAMED, EGGS, NESTS } =
     await import('/src/data/beasts.js');
   const creatures = await import('/src/art/creatures.js');
@@ -1049,6 +1050,28 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     }
   }
 
+  /* How the world looks at you. A flag named here has to be one a scene or a
+     quest actually sets, or the line is one nobody will ever read: the whole
+     point of the list is that it fires, so a name that matches nothing is a
+     build error rather than a quiet nothing. */
+  const known = new Set(sceneFlags);
+  const regard = REGARD.map((r) => {
+    for (const name of [r.needs, r.unless]) {
+      if (name && !known.has(name)) {
+        throw new Error(`a regard line waits on ${name}, which nothing ever sets`);
+      }
+    }
+    return {
+      line: r.line,
+      sigils: r.sigils ?? 0,
+      host: r.host ?? 0,
+      kills: r.kills ?? 0,
+      needs: r.needs ? flagAt(r.needs) : 255,
+      denies: r.unless ? flagAt(r.unless) : 255,
+    };
+  });
+  out.regard = regard;
+
   out.scenes = scenes;
   out.beats = beats;
   out.choices = choices;
@@ -1640,6 +1663,21 @@ for (const sc of harvest.scenes) {
   L.push(`  { ${MAP_IDS.indexOf(sc.map)}, ${sc.x}, ${sc.y}, ${sc.flag}, ${sc.people}, `
     + `${sc.quest ?? 0}, ${sc.needs ?? 255}, ${sc.denies ?? 255}, ${sc.sigils ?? 0}, `
     + `${sc.first}, ${sc.count}, ${cstr(sc.name ?? sc.id)} },`);
+}
+L.push('};');
+L.push('');
+
+// How the world looks at you: what somebody adds when they notice the sigils on
+// your arm, the swords at your back, or that you have been north and come back.
+L.push(`#define REGARD_COUNT ${harvest.regard.length}`);
+L.push('typedef struct {');
+L.push('  const char *line;');
+L.push('  u8 sigils, host, kills, needs, denies;');
+L.push('} Regard;');
+L.push('static const Regard regard[REGARD_COUNT] = {');
+for (const r of harvest.regard) {
+  L.push(`  { ${cstr(r.line)}, ${r.sigils}, ${r.host}, `
+    + `${Math.min(255, r.kills)}, ${r.needs}, ${r.denies} },`);
 }
 L.push('};');
 L.push('');

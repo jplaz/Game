@@ -496,14 +496,26 @@ static void pickLadderGoal(void) {
    fare be paid? */
 static int portOwesWork(void) {
   int i, j;
+  /* Getting off a beach costs nothing, and the cartridge means it: a map with
+     no door on it waives the fare, because a purse spent fighting across such
+     a place is the normal way to arrive at the far side of one. The tester was
+     still applying the fare it would not be charged, so on Hardhome with a
+     hundred and seventy-five gold it concluded there was nowhere it could
+     afford to go, ran out of things to do, and ended the run standing there -
+     which quietly cost the sweep a hundred maps of coverage. */
+  int free = !world->warpCount;
   for (i = 0; i < PORT_COUNT; i++) {
     int m = ports[i].map;
-    if (m == worldId || (int)ports[i].fare > you.gold) continue;
+    if (m == worldId) continue;
+    if (!free && (int)ports[i].fare > you.gold) continue;
     if (walkableTo(m)) continue;
     if (!mapDone(m)) return 1;
     for (j = 0; j < maps[m].warpCount; j++) if (!mapDone(maps[m].warps[j].to)) return 1;
   }
-  return 0;
+  /* And when there is no door at all, the boat is the only thing left to do
+     whether or not anywhere else owes work: standing on a beach until the
+     frames run out is not a playthrough. */
+  return free;
 }
 
 /* The harbourmaster on this map, if there is one. Worth speaking to more than
@@ -892,9 +904,14 @@ void hostFrame(void) {
        rather than walking. It is both - and only once this map is finished,
        because leaving in the middle of somewhere is how the first one
        happened. */
+    /* The same waiver the cartridge gives: a map with no door on it charges
+       nothing to leave. Applying a fare here that will not be charged is what
+       left the run standing on Hardhome with the passage list open and every
+       berth greyed out in its own head. */
     for (i = 0; i < PORT_COUNT && want < 0; i++) {
       int m = ports[i].map;
-      if (m == worldId || (int)ports[i].fare > you.gold) continue;
+      if (m == worldId) continue;
+      if (world->warpCount && (int)ports[i].fare > you.gold) continue;
       if (walkableTo(m)) continue;
       if (!mapDone(m)) { want = i; continue; }
       for (j = 0; j < maps[m].warpCount; j++) {
@@ -902,6 +919,11 @@ void hostFrame(void) {
       }
     }
     (void)j;
+    /* And if there is nowhere that owes work, a beach is still not somewhere to
+       stand until the frames run out: take any berth at all rather than none. */
+    if (want < 0 && !world->warpCount) {
+      for (i = 0; i < PORT_COUNT && want < 0; i++) if (ports[i].map != worldId) want = i;
+    }
     if (want < 0) keys = tap(KEY_B);
     else if (portPick != want) keys = tap(portPick < want ? KEY_DOWN : KEY_UP);
     else { keys = tap(KEY_A); if (keys) { sailed++; goalKind = GOAL_NONE; } }

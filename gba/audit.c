@@ -1092,21 +1092,22 @@ int main(void) {
     }
   }
   if (START_WEAPON < 0 || START_WEAPON >= WARE_COUNT) bad("the starting blade does not exist");
-  /* A net has to be on the counter a player who wants to catch something would
-     actually open. They were only ever on the armourer's, which is the one
-     counter somebody looking for a way to take an animal alive has no reason to
-     look behind, so the whole half of the game about catching things was filed
+  /* A net has to be on the shelf a player who wants to catch something would
+     actually read. They were only ever on the armourer's, which is the one
+     shelf somebody looking for a way to take an animal alive has no reason to
+     look at, so the whole half of the game about catching things was filed
      under ARMS AND ARMOUR. */
   {
-    int st, nets[2];
-    nets[0] = nets[1] = 0;
-    for (st = 0; st < 2; st++) {
+    int st, nets = 0;
+    for (st = 0; st < STALL_COUNT; st++) {
+      int here = 0;
       for (j = 0; j < stalls[st].count; j++) {
-        if (wares[stalls[st].ware[j]].kind == WARE_SNARE) nets[st]++;
+        if (wares[stalls[st].ware[j]].kind == WARE_SNARE) here++;
       }
+      if (here) note("nets on the %s shelf: %d", stallName[st], here);
+      if (st == 0) nets = here;
     }
-    note("nets on the counters: %d at a maester's, %d at a smith's", nets[0], nets[1]);
-    if (!nets[0]) bad("no counter a player looking to catch something would open sells a net");
+    if (!nets) bad("the remedies shelf, which is where a player looks, sells no net");
   }
 
   /* --- six at your heel, and no seventh ------------------------------------ */
@@ -2233,6 +2234,125 @@ int main(void) {
     if (expForLevel(51) > expForLevel(50)) {
       note("there is a level 51 in the table; the cap is the game's, not the maths'");
     }
+  }
+
+  /* --- four shelves, and somebody standing at each ------------------------ */
+  {
+    extern void newGameState(void);
+    int k, keeper[STALL_COUNT], anyone = 0;
+    for (k = 0; k < STALL_COUNT; k++) keeper[k] = 0;
+    for (i = 0; i < MAP_COUNT; i++) {
+      for (j = 0; j < maps[i].npcCount; j++) {
+        int t = maps[i].npcs[j].trade;
+        if (t < 1 || t > STALL_COUNT) continue;
+        keeper[t - 1]++;
+        anyone++;
+      }
+    }
+    if (!anyone) bad("nobody in the world keeps a counter");
+    for (k = 0; k < STALL_COUNT; k++) {
+      if (!stalls[k].count) bad("the %s shelf has nothing on it", stallName[k]);
+      /* Every shelf is reachable from every counter now, so a shelf with
+         nobody who opens on it is a shelf nobody sees first - worth saying,
+         not worth failing over. */
+      if (!keeper[k]) note("nobody opens on the %s shelf", stallName[k]);
+      else note("%s: %d things, %d people open on it", stallName[k],
+        stalls[k].count, keeper[k]);
+    }
+    /* And no thing is on two shelves, or the same sword is two entries in the
+       one shop. */
+    {
+      int clash = 0, a, b, x, y;
+      for (a = 0; a < STALL_COUNT; a++) {
+        for (b = a + 1; b < STALL_COUNT; b++) {
+          for (x = 0; x < stalls[a].count; x++) {
+            for (y = 0; y < stalls[b].count; y++) {
+              if (stalls[a].ware[x] == stalls[b].ware[y]) clash++;
+            }
+          }
+        }
+      }
+      if (clash) bad("%d things are on two shelves at once", clash);
+    }
+    newGameState();
+  }
+
+  /* --- steel that wears out ------------------------------------------------
+     Nothing should break in an afternoon and nothing should last forever. The
+     numbers here are blows landed, which is roughly two or three a fight. */
+  {
+    extern void newGameState(void);
+    int cheap = 0, dear = 0, k;
+    newGameState();
+    for (i = 0; i < WARE_COUNT; i++) {
+      int life;
+      if (wares[i].kind != WARE_WEAPON && wares[i].kind != WARE_ARMOUR
+          && wares[i].kind != WARE_SHIELD && wares[i].kind != WARE_HELM
+          && wares[i].kind != WARE_GLOVES) continue;
+      life = gearLife(i);
+      if (life < 25) bad("%s is done after %d blows", wares[i].name, life);
+      if (!cheap || life < cheap) cheap = life;
+      if (life > dear) dear = life;
+    }
+    note("gear lasts between %d and %d landed blows", cheap, dear);
+    /* And it actually goes when it is used up, and goes off you rather than
+       back into the pouch. */
+    you.bag[START_WEAPON] = 1;
+    wearWare(START_WEAPON);
+    if (you.WORN_WEAPON != START_WEAPON + 1) bad("the starting sword will not go on");
+    for (k = 0; k < 2000 && you.WORN_WEAPON; k++) wearOn(WARE_WEAPON, 1);
+    if (you.WORN_WEAPON) bad("a sword swung two thousand times never breaks");
+    if (you.bag[START_WEAPON]) bad("a broken sword is still in the pouch");
+    note("the starting sword is good for %d blows", gearLife(START_WEAPON));
+    /* And a counter will put it right before it goes. */
+    newGameState();
+    you.bag[START_ARMOUR] = 1;
+    wearWare(START_ARMOUR);
+    you.wear[WARE_ARMOUR] = 1;
+    you.gold = 100000;
+    if (!mendPrice()) bad("nearly ruined armour costs nothing to mend");
+    mendAll();
+    if (you.wear[WARE_ARMOUR] != (u16)gearLife(START_ARMOUR)) {
+      bad("mending does not put a piece back to whole");
+    }
+    if (conditionWord(WARE_ARMOUR) == 0) bad("mended armour has no word for its state");
+    newGameState();
+  }
+
+  /* --- choosing which of yours stands the fight --------------------------- */
+  {
+    extern void newGameState(void);
+    int k, down;
+    newGameState();
+    for (k = 0; k < PARTY_MAX; k++) {
+      you.party[k].kind = (u8)(k % BEAST_COUNT);
+      you.party[k].level = 20;
+      you.party[k].hp = beastVigour(you.party[k].kind, 20);
+      you.party[k].exp = 0;
+    }
+    you.lead = 0;
+    if (packHave() != PARTY_MAX) bad("a full pack does not count as full");
+    /* One sent out has its own health and its own four techniques, which is
+       the whole difference between an animal that fights and a button that
+       gives you a free blow. */
+    readyBeast();
+    if (yours.maxHp < 2 || yours.maxHp > 9000) {
+      bad("an animal sent out has %d health", yours.maxHp);
+    }
+    for (k = 0; k < 4; k++) {
+      if (yours.tech[k] >= TECH_COUNT) bad("an animal has technique %d", yours.tech[k]);
+    }
+    /* And when it is spent it goes down without the duel going down with it. */
+    beastOut = 1;
+    yours.hp = 0;
+    if (!beastFell()) bad("an animal on nought health does not go down");
+    if (beastOut) bad("an animal that has gone down is still standing the fight");
+    if (MY_BEAST.hp) bad("an animal that has gone down still has health");
+    /* The rest of the pack is still there to send out. */
+    down = 0;
+    for (k = 0; k < PARTY_MAX; k++) if (you.party[k].hp <= 0) down++;
+    if (down != 1) bad("%d of the pack went down when one did", down);
+    newGameState();
   }
 
   /* --- the record, written and read back ---------------------------------- */

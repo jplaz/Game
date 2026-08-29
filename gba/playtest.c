@@ -244,6 +244,9 @@ static int eggsFound, eggsHatched, dragonEgg;
 static int boughtOf[WARE_COUNT];
 static int craftsSeen, crafted, craftedHere;
 static int wildsMet, snaresThrown;
+/* Whether the pack was ever used as a pack, and whether every shelf of every
+   counter was ever read. */
+static int beastsSentOut, beastsFelled, shelfSeen[STALL_COUNT], gearBroke;
 static int doorsThisRung;
 static int spottings, spottedBy, shooting, titleWant;
 static const char *startedAt = "nowhere";
@@ -664,7 +667,7 @@ static void completeGoal(void) {
 /* Catch each interesting screen the first time the tester reaches it, so the
    pictures are of the game actually being played rather than of a route
    somebody wrote down and that the crowd has since wandered out of. */
-static int caught[32];
+static int caught[40];
 
 /* Is that phrase anywhere in the window that is open? Used to catch the screens
    that only exist for one particular thing having happened. */
@@ -688,6 +691,26 @@ void hostFrame(void) {
   static int wasScene = -1, wasMap = -1, wasLevel = 0, wasKills = 0;
 
   checkFrame();
+
+  /* Two things that happen inside the cartridge's own code and leave no other
+     trace: an animal of yours going down while it was standing the fight, and
+     a piece of your kit finally giving out. Both are watched from out here so
+     the sweep can say whether either ever actually happened in a playthrough. */
+  {
+    static int wasOut = 0;
+    static unsigned char hadWorn[WARE_KINDS];
+    static int wornSeen = 0;
+    int k;
+    if (wasOut && !beastOut && MY_BEAST.hp <= 0) beastsFelled++;
+    wasOut = beastOut;
+    if (wornSeen) {
+      for (k = 0; k < WARE_KINDS; k++) {
+        if (hadWorn[k] && !you.worn[k] && !you.bag[hadWorn[k] - 1]) gearBroke++;
+      }
+    }
+    for (k = 0; k < WARE_KINDS; k++) hadWorn[k] = you.worn[k];
+    wornSeen = 1;
+  }
 
   /* POSTCARDS=1 catches one picture of every map the tester walks into, drawn
      through the cartridge's own tiles and its own quantised palette. Building
@@ -716,8 +739,11 @@ void hostFrame(void) {
     else if (scene == SCENE_ARMS) catchOnce(26, "08b-your-own-arms");
     else if (scene == SCENE_BAG) catchOnce(4, "07-the-pouch");
     else if (scene == SCENE_CRAFT) catchOnce(24, craftAt ? "12b-at-the-anvil" : "11b-at-the-bench");
-    else if (scene == SCENE_SHOP) catchOnce(shopStall ? 5 : 6,
-      shopStall ? "12-arms-and-armour" : "11-remedies");
+    else if (scene == SCENE_SHOP) {
+      static const char *const SHELF_SHOT[4] = {
+        "11-remedies", "12-arms", "12c-armour", "12d-oddments" };
+      if (shopStall >= 0 && shopStall < 4) catchOnce(31 + shopStall, SHELF_SHOT[shopStall]);
+    }
     else if (scene == SCENE_DUEL) {
       if (windowOpen && windowSays("Off them")) catchOnce(21, "21-what-they-carried");
       /* The star is up for twelve frames of a swing; catch it in the middle. */
@@ -725,6 +751,10 @@ void hostFrame(void) {
       else if (fxLean(1) > 8) catchOnce(19, "19-the-lunge");
       else if (duelPhase == DUEL_SPOILS && !spoilsDone() && shownExp > you.exp - 20)
         catchOnce(20, "20-the-rail-fills");
+      else if (duelPhase == DUEL_PACK) catchOnce(28, "09b-who-comes-out");
+      else if (beastOut && foeBeast >= 0 && !windowOpen)
+        catchOnce(29, "09d-yours-against-a-wild-one");
+      else if (beastOut && !windowOpen) catchOnce(30, "09c-yours-out-in-front");
       else if (duelPhase == DUEL_TOP) catchOnce(7, "09-what-to-do");
       else if (duelPhase == DUEL_MENU) catchOnce(8, "10-which-blow");
       else if (windowOpen && !typeDone) catchOnce(9, "08-the-duel-opens");
@@ -907,6 +937,18 @@ void hostFrame(void) {
       ? tap(KEY_A) : tap(KEY_B);
   } else if (scene == SCENE_SHOP) {
     shopsSeen++;
+    if (shopStall >= 0 && shopStall < STALL_COUNT) shelfSeen[shopStall]++;
+    /* Walk along the counter now and then, because three of the four shelves
+       are otherwise never opened by anybody who is not already looking for
+       them - which is exactly the complaint the shelves were built to fix. */
+    if (!ladderMode && roll(4) == 0) {
+      keys = tap(roll(2) ? KEY_RIGHT : KEY_LEFT);
+      if (keys) {
+        lastKeys = keys;
+        REG_KEYINPUT = (unsigned short)(~keys & 0x03FF);
+        return;
+      }
+    }
     if (ladderMode && !craftedHere) {
       /* Look behind the counter first: anything a smith will make out of what
          you are carrying is better than anything on the shelf, and it is the
@@ -1032,12 +1074,31 @@ void hostFrame(void) {
       int want = runAway ? 3
         : (foeBeast >= 0 && haveNet && theirs.hp * 3 < theirs.maxHp) ? 1
         : (you.hp * 3 < vigourFor(you.level) && carrying() ? 1 : 0);
-      /* And set the beast on them when there is one to set. */
-      if (want == 0 && MY_BEAST.kind != 255 && (roll(3) == 0)) want = 2;
+      /* And send one of yours out when there is one to send, or whistle it
+         back once it has taken enough. */
+      if (want == 0 && beastOut && yours.hp * 3 < yours.maxHp) want = 2;
+      else if (want == 0 && !beastOut && packHave() && (roll(3) == 0)) want = 2;
       if ((want & 1) != (topPick & 1)) keys = tap((want & 1) ? KEY_RIGHT : KEY_LEFT);
       else if ((want & 2) != (topPick & 2)) keys = tap((want & 2) ? KEY_DOWN : KEY_UP);
       else keys = tap(KEY_A);
       if (++duelTries > 900) { finding("a duel that would not end"); duelTries = 0; }
+    }
+    else if (duelPhase == DUEL_PACK) {
+      /* Send out the healthiest one that is not already standing there; if
+         there is nothing to send, back out rather than sitting on the list. */
+      int want = -1, i2, best = 0;
+      for (i2 = 0; i2 < PARTY_MAX; i2++) {
+        const Kept *k2 = &you.party[i2];
+        if (k2->kind == 255 || k2->hp <= 0) continue;
+        if (beastOut && i2 == you.lead) continue;
+        if (k2->hp > best) { best = k2->hp; want = i2; }
+      }
+      if (want < 0) keys = tap(KEY_B);
+      else if ((want & 1) != (packPick & 1)) keys = tap((want & 1) ? KEY_RIGHT : KEY_LEFT);
+      else if (packPick < want) keys = tap(KEY_DOWN);
+      else if (packPick > want) keys = tap(KEY_UP);
+      else { keys = tap(KEY_A); if (keys) beastsSentOut++; }
+      if (++duelTries > 900) { finding("a pack list that would not close"); duelTries = 0; }
     }
     else if (duelPhase == DUEL_MENU) {
       /* On the ladder, swing the hardest thing in your hands rather than a
@@ -1045,7 +1106,7 @@ void hostFrame(void) {
       if (ladderMode) {
         int best = 0, i, score = -1;
         for (i = 0; i < 4; i++) {
-          const Tech *t = &techniques[myTechs[i]];
+          const Tech *t = &techniques[nearSide()->tech[i]];
           int s2 = t->power * t->accuracy;
           if (s2 > score) { score = s2; best = i; }
         }
@@ -1458,6 +1519,20 @@ int main(int argc, char **argv) {
   printf("  benches        %d looked at, %d things made\n", craftsSeen, crafted);
   printf("  the wild       %d animals met, %d nets thrown, %d taken alive\n",
     wildsMet, snaresThrown, you.tamed);
+  printf("  the pack       %d sent out in a fight, %d went down standing it\n",
+    beastsSentOut, beastsFelled);
+  {
+    int st, unread = 0;
+    for (st = 0; st < STALL_COUNT; st++) if (!shelfSeen[st]) unread++;
+    printf("  the counter    %d of %d shelves read, %d pieces of kit worn out\n",
+      STALL_COUNT - unread, STALL_COUNT, gearBroke);
+    for (st = 0; st < WARE_KINDS; st++) {
+      int at = you.worn[st];
+      if (!at) continue;
+      printf("  your kit       %s, %d of %d left (%s)\n", wares[at - 1].name,
+        you.wear[st], gearLife(at - 1), conditionWord(st));
+    }
+  }
   {
     int b, top = -1;
     for (b = 0; b < WARE_COUNT; b++) {

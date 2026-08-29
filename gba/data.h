@@ -64096,28 +64096,28 @@ static const Ware wares[WARE_COUNT] = {
   { "Kingsguard Gauntlets", 0, 0, 8,
     7, 26, 0, 0, 0, 0, -2,
     { 0, 0, 0 }, 0 },
-  { "Ash Haft", 0, 0, 4,
+  { "Ash Haft", 40, 0, 4,
     0, 0, 0, 0, 0, 0, 0,
     { 0, 0, 0 }, 0 },
-  { "Iron Scrap", 0, 0, 4,
+  { "Iron Scrap", 40, 0, 4,
     0, 0, 0, 0, 0, 0, 0,
     { 0, 0, 0 }, 0 },
-  { "Boiled Hide", 0, 0, 4,
+  { "Boiled Hide", 40, 0, 4,
     0, 0, 0, 0, 0, 0, 0,
     { 0, 0, 0 }, 0 },
-  { "Greenbriar", 0, 0, 4,
+  { "Greenbriar", 40, 0, 4,
     0, 0, 0, 0, 0, 0, 0,
     { 0, 0, 0 }, 0 },
-  { "Poppy Seed", 0, 0, 4,
+  { "Poppy Seed", 180, 0, 4,
     0, 0, 0, 0, 0, 0, 0,
     { 0, 0, 0 }, 0 },
-  { "Boar Tusk", 0, 0, 4,
+  { "Boar Tusk", 180, 0, 4,
     0, 0, 0, 0, 0, 0, 0,
     { 0, 0, 0 }, 0 },
-  { "Direwolf Pelt", 0, 0, 4,
+  { "Direwolf Pelt", 320, 0, 4,
     0, 0, 0, 0, 0, 0, 0,
     { 0, 0, 0 }, 0 },
-  { "Dragonglass Shard", 0, 0, 4,
+  { "Dragonglass Shard", 320, 0, 4,
     0, 0, 0, 0, 1, 0, 0,
     { 0, 0, 0 }, 0 },
   { "Dragon's Blood", 0, 0, 4,
@@ -64298,10 +64298,18 @@ static const Spoil spoils[SPOIL_BANDS] = {
 static const u8 forage[FORAGE_COUNT] = { 83, 80, 84, 82, 83 };
 
 static const u8 stall_0[11] = { 0, 1, 2, 3, 90, 91, 92, 93, 96, 97, 98 };
-static const u8 stall_1[76] = { 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 90, 91, 92, 93, 102, 103, 104, 105, 106 };
-static const Stall stalls[2] = {
+static const u8 stall_1[26] = { 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29 };
+static const u8 stall_2[41] = { 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70 };
+static const u8 stall_3[13] = { 102, 103, 104, 105, 106, 80, 81, 82, 83, 84, 85, 86, 87 };
+#define STALL_COUNT 4
+static const Stall stalls[STALL_COUNT] = {
   { stall_0, 11 },
-  { stall_1, 76 },
+  { stall_1, 26 },
+  { stall_2, 41 },
+  { stall_3, 13 },
+};
+static const char *const stallName[STALL_COUNT] = {
+  "REMEDIES", "ARMS", "ARMOUR", "ODDS",
 };
 
 #define TECH_COUNT 30
@@ -67632,19 +67640,19 @@ static const Npc npcs_0[10] = {
     "Landless Knight", "There is a holdfast half a day north. Roof mostly on. Nobody has held it since the winter before last." },
   { 15, 7, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 2,
     "Jory Cassel", "They can die out there, and if they do that is the end of them. No maester brings a person back." },
-  { 12, 16, 0, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3,
+  { 12, 16, 0, 2, 1, 1, 0, 1, 0, 0, 0, 0, 0, 3,
     "Maester Luwin", "There you are. Lord Rickard wants a rider for the southern roads, and every other candidate is either too old or too Bolton." },
   { 9, 9, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 2,
     "Jory Cassel", "Lord Rickard will not send a rider south who cannot hold a blade. Humour me." },
   { 15, 16, 2, 3, 1, 0, 1, 0, 0, 1, 0, 0, 0, 4,
     "Theon Greyjoy", "Ward of Winterfell, same as you. Only I'm better at this. Watch." },
-  { 19, 15, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5,
+  { 19, 15, 2, 4, 0, 0, 0, 4, 0, 0, 0, 0, 0, 5,
     "Stablehand", "Hold B while you walk and you will move a good deal faster. Saves the boots." },
   { 5, 17, 3, 5, 1, 0, 0, 0, 0, 0, 0, 0, 1, 6,
     "Septa Mordane", "The old gods have no septs and no songs. They have that tree, and they have never needed more." },
   { 4, 8, 0, 6, 1, 0, 1, 0, 0, 0, 0, 0, 0, 7,
     "Recruiter", "Good lad. Wrong answer, but good lad. Come back when you have seen the South and hated it." },
-  { 28, 16, 2, 7, 1, 0, 0, 0, 0, 0, 0, 0, 0, 8,
+  { 28, 16, 2, 7, 1, 0, 0, 4, 0, 0, 0, 0, 0, 8,
     "Stable Girl", "That grey is Lord Stark's and he does not like you. He does not like me either." },
   { 25, 27, 1, 8, 1, 0, 1, 0, 0, 1, 0, 0, 0, 9,
     "Master-at-arms", "The North remembers. So does Lord Rickard, and he has a longer memory." },
@@ -67891,7 +67899,7 @@ static const Chest chests_2[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_2[4] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 14,
+  { 2, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 14,
     "Maester", "Rest your creatures a while. The North is hard on them." },
   { 8, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 15,
     "Steward", "Everything here has come a long way. So has the price." },
@@ -68074,7 +68082,7 @@ static const Npc npcs_3[4] = {
     "Hallis", "No one walks into the Great Keep unchallenged. Not even you." },
   { 11, 8, 2, 2, 1, 0, 1, 0, 4, 1, 0, 0, 0, 20,
     "Torrhen", "Cold morning for a challenge. Good. It sharpens things." },
-  { 3, 13, 3, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 15,
+  { 3, 13, 3, 3, 1, 0, 1, 1, 0, 0, 0, 0, 0, 15,
     "Steward", "Lord Rickard fights with BEAST creatures. Frost bites them hard, and so does a good wing." },
 };
 
@@ -70305,9 +70313,9 @@ static const Npc npcs_10[5] = {
     "Jon Snow", "I am not going to talk you out of this, am I. All right. Longclaw is heavier than it looks." },
   { 14, 10, 2, 2, 1, 0, 1, 0, 0, 1, 0, 0, 0, 47,
     "Tormund", "Free folk do not kneel and do not queue. One fight, right now, and then we drink." },
-  { 5, 17, 3, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0, 48,
+  { 5, 17, 3, 3, 1, 0, 0, 1, 0, 0, 0, 0, 0, 48,
     "Steward Boy", "Beyond it, the wights come in numbers. Bring fire, or dragonglass, or both." },
-  { 17, 17, 2, 4, 1, 1, 0, 0, 0, 0, 0, 0, 0, 49,
+  { 17, 17, 2, 4, 1, 1, 0, 1, 0, 0, 0, 0, 0, 49,
     "Maester Aemon", "Kill the boy and let the man be born. It is the only advice worth the raven." },
 };
 
@@ -70450,7 +70458,7 @@ static const Chest chests_11[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_11[3] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 50,
+  { 2, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 50,
     "Maester", "Cold does worse to a creature than any blade. Let me look." },
   { 8, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 51,
     "Steward", "Everything here has come a long way. So has the price." },
@@ -70700,7 +70708,7 @@ static const Chest chests_13[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_13[2] = {
-  { 6, 5, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 54,
+  { 6, 5, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 54,
     "Hall Steward", "Eat while it is hot. Nothing north of the Wall is hot." },
   { 7, 2, 2, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 55,
     "Sworn Brother", "The Wall does not care who your father was." },
@@ -71995,7 +72003,7 @@ static const Chest chests_16[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_16[3] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 50,
+  { 2, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 50,
     "Maester", "The damp is unkind to creatures. Let me see to yours." },
   { 8, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 51,
     "Steward", "Everything here has come a long way. So has the price." },
@@ -72138,7 +72146,7 @@ static const Chest chests_17[1] = {
 static const Npc npcs_17[2] = {
   { 5, 1, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 70,
     "Bog Smith", "Crannogmen bring me iron out of the water. It has been down there a long while, and it holds an edge like nothing else." },
-  { 3, 5, 3, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 71,
+  { 3, 5, 3, 1, 1, 0, 1, 3, 0, 0, 0, 0, 0, 71,
     "Crannogman", "He does not look up from the bellows. \"Mind the floor by the north wall. It is not floor any more.\"" },
 };
 
@@ -72661,7 +72669,7 @@ static const Npc npcs_18[5] = {
     "Bronn", "They can die out there, and if they do that is the end of them. No maester brings a person back." },
   { 5, 10, 3, 1, 1, 0, 1, 0, 4, 1, 0, 0, 0, 73,
     "Fisher Edd", "Caught nothing all morning. You will do." },
-  { 15, 15, 2, 2, 1, 0, 1, 0, 3, 1, 0, 0, 0, 74,
+  { 15, 15, 2, 2, 1, 0, 1, 4, 3, 1, 0, 0, 0, 74,
     "Pedlar", "Buy something. Or fight me. Either way you are stopping." },
   { 6, 20, 1, 3, 1, 0, 1, 0, 4, 1, 0, 0, 0, 75,
     "Freerider", "I ride for whoever pays. Today nobody has, so this one is free." },
@@ -73400,7 +73408,7 @@ static const Chest chests_20[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_20[3] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 88,
+  { 2, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 88,
     "Maester", "Rivers run, and so do errands. Rest here first." },
   { 8, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 89,
     "Steward", "Everything here has come a long way. So has the price." },
@@ -73541,7 +73549,7 @@ static const Chest chests_21[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_21[2] = {
-  { 3, 2, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 91,
+  { 3, 2, 0, 0, 0, 0, 1, 3, 0, 0, 0, 0, 0, 91,
     "Ryn", "River steel, and mail a man can swim in if he has to. Half of Riverrun has had to." },
   { 8, 5, 2, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 92,
     "Hedge Knight", "The rivers keep the Riverlands fed and the Riverlands fought over." },
@@ -73868,7 +73876,7 @@ static const Npc npcs_23[4] = {
     "Ser Edmure", "My sister set me to guard this hall. I intend to do it well, for once." },
   { 12, 10, 2, 2, 1, 0, 1, 0, 5, 1, 0, 0, 0, 98,
     "Ser Brynden", "They call me the Blackfish. Nothing swims past me." },
-  { 3, 14, 3, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 89,
+  { 3, 14, 3, 3, 1, 0, 1, 1, 0, 0, 0, 0, 0, 89,
     "Steward", "TIDE creatures drown a fire and crush a stone. Storms and green things undo them." },
 };
 
@@ -75366,7 +75374,7 @@ static const Chest chests_26[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_26[3] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 107,
+  { 2, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 107,
     "Maester", "The climb is hard on them. Sit a while." },
   { 8, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 108,
     "Steward", "Everything here has come a long way. So has the price." },
@@ -75507,7 +75515,7 @@ static const Chest chests_27[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_27[2] = {
-  { 7, 1, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 110,
+  { 7, 1, 0, 0, 0, 0, 1, 3, 0, 0, 0, 0, 0, 110,
     "Armourer", "Falcon-etched and overpriced. It is the Vale, what did you expect." },
   { 5, 4, 3, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 111,
     "Syrio Forel", "The First Sword of Braavos does not dance with just anyone. Watch me. Just watch me." },
@@ -76749,7 +76757,7 @@ static const Chest chests_30[1] = {
 static const Npc npcs_30[3] = {
   { 6, 9, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 123,
     "Gold Cloak", "Casterly Rock is up the stair. Ser Jaime holds the Lion Sigil and gives it to almost nobody." },
-  { 15, 17, 2, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 124,
+  { 15, 17, 2, 1, 1, 0, 1, 2, 0, 0, 0, 0, 0, 124,
     "Goldsmith", "STEEL turns aside frost and stone alike. Fire goes straight through it." },
   { 4, 17, 3, 2, 1, 0, 1, 0, 0, 0, 0, 0, 0, 125,
     "Joffrey", "Nothing happens here, which is how we like it." },
@@ -76894,7 +76902,7 @@ static const Chest chests_31[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_31[3] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 126,
+  { 2, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 126,
     "Maester", "Gold pays for good care. Yours is free, of course." },
   { 8, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 127,
     "Steward", "Everything here has come a long way. So has the price." },
@@ -77035,7 +77043,7 @@ static const Chest chests_32[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_32[2] = {
-  { 7, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 129,
+  { 7, 1, 0, 0, 0, 0, 1, 3, 0, 0, 0, 0, 0, 129,
     "Armourer", "Good steel, fair prices, and no questions about either." },
   { 5, 4, 3, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 130,
     "Apprentice", "I make the steel. Sometimes I get to use it." },
@@ -78629,15 +78637,15 @@ static const Chest chests_35[1] = {
 static const Npc npcs_35[12] = {
   { 13, 11, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 147,
     "Gold Cloak Serjeant", "Keep to the main ways and you will keep your purse. Go down the Hook and you are on your own." },
-  { 18, 11, 2, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 148,
+  { 18, 11, 2, 1, 1, 0, 1, 3, 0, 0, 0, 0, 0, 148,
     "Pot-Shop Man", "A bowl of brown, two coppers. Do not ask what is in it. Nobody asks." },
-  { 12, 14, 0, 2, 1, 0, 1, 0, 0, 0, 0, 0, 0, 149,
+  { 12, 14, 0, 2, 1, 0, 1, 3, 0, 0, 0, 0, 0, 149,
     "Fishwife Cass", "Fresh off the Blackwater this morning. That is what I say to everyone." },
-  { 27, 14, 2, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 150,
+  { 27, 14, 2, 3, 1, 0, 1, 3, 0, 0, 0, 0, 0, 150,
     "Wine Seller", "Dornish red, Arbor gold, and a barrel I will not name a price on." },
-  { 24, 11, 1, 4, 1, 0, 0, 0, 0, 0, 0, 0, 1, 151,
+  { 24, 11, 1, 4, 1, 0, 0, 3, 0, 0, 0, 0, 1, 151,
     "Septa Unella", "The Sept of Baelor is open to anyone who walks in on their own feet." },
-  { 9, 11, 3, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 152,
+  { 9, 11, 3, 5, 1, 0, 0, 3, 0, 0, 0, 0, 0, 152,
     "Cutpurse Boy", "Never seen you before. Nice cloak. Do not turn round." },
   { 6, 19, 0, 6, 1, 0, 1, 0, 0, 1, 0, 0, 0, 153,
     "Bronn of the Blackwater", "I fight for coin. But I will take a free swing at a northerner on principle." },
@@ -78645,11 +78653,11 @@ static const Npc npcs_35[12] = {
     "Ser Meryn Trant", "The white cloak stops here. It stops everyone." },
   { 26, 20, 0, 8, 1, 0, 1, 0, 0, 0, 0, 0, 0, 155,
     "Recruiter", "Good lad. Wrong answer, but good lad. Come back when you have seen the South and hated it." },
-  { 20, 30, 1, 9, 0, 0, 1, 0, 0, 0, 1, 0, 0, 156,
+  { 20, 30, 1, 9, 0, 0, 1, 4, 0, 0, 1, 0, 0, 156,
     "Harbourmaster", "Every hull on the Blackwater answers to this quay. Name a port and I will find you a berth." },
-  { 2, 18, 3, 10, 1, 0, 1, 0, 0, 0, 0, 0, 0, 157,
+  { 2, 18, 3, 10, 1, 0, 1, 3, 0, 0, 0, 0, 0, 157,
     "Bald Beggar", "I remember when there were dragons over that hill. Nobody believes me and I do not blame them." },
-  { 29, 11, 2, 11, 1, 0, 1, 0, 0, 0, 0, 0, 0, 158,
+  { 29, 11, 2, 11, 1, 0, 1, 3, 0, 0, 0, 0, 0, 158,
     "Lord of the Small Council", "Power resides where men believe it resides. That is the whole of the trick." },
 };
 
@@ -78792,7 +78800,7 @@ static const Chest chests_36[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_36[3] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 159,
+  { 2, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 159,
     "Maester", "The Grand Maester is busy. I am not. Let me see them." },
   { 8, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 160,
     "Steward", "Everything here has come a long way. So has the price." },
@@ -78933,7 +78941,7 @@ static const Chest chests_37[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_37[2] = {
-  { 7, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 162,
+  { 7, 1, 0, 0, 0, 0, 1, 3, 0, 0, 0, 0, 0, 162,
     "Armourer", "Good steel, fair prices, and no questions about either." },
   { 5, 5, 3, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 163,
     "Kingsguard", "The white cloak has to be earned. Every day, apparently." },
@@ -79092,7 +79100,7 @@ static const Chest chests_38[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_38[2] = {
-  { 8, 3, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 164,
+  { 8, 3, 0, 0, 1, 0, 0, 3, 0, 0, 0, 0, 1, 164,
     "High Septon", "The Father judges, the Warrior fights, and the Stranger comes for us all. Try to keep the first two in front of the third." },
   { 4, 6, 3, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 165,
     "Beric Dondarrion", "The Brotherhood asks a toll of every armed man on this road. Or a fight." },
@@ -79276,7 +79284,7 @@ static const Chest chests_39[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_39[1] = {
-  { 8, 4, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 166,
+  { 8, 4, 0, 0, 1, 0, 1, 3, 0, 0, 0, 0, 0, 166,
     "Pit Watcher", "They said the last of them died the size of a cat. They lied about a great deal." },
 };
 
@@ -79456,11 +79464,11 @@ static const Chest chests_40[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_40[3] = {
-  { 19, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 168,
+  { 19, 1, 0, 0, 1, 0, 1, 3, 0, 0, 0, 0, 0, 168,
     "Bowl-of-Brown Man", "Keep going down and east. Or do not. It is all the same to me." },
   { 3, 5, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 169,
     "Alley Knife", "Kneelers. Every one of you, born on your knees." },
-  { 13, 9, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 170,
+  { 13, 9, 1, 2, 1, 0, 0, 3, 0, 0, 0, 0, 0, 170,
     "Barefoot Girl", "There is a gate at the far end that the gold cloaks have forgotten about." },
 };
 
@@ -79760,7 +79768,7 @@ static const Chest chests_41[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_41[2] = {
-  { 8, 7, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 173,
+  { 8, 7, 1, 0, 1, 0, 1, 3, 0, 0, 0, 0, 0, 173,
     "The Ferryman", "The island, then. Say nothing to anyone about who rowed you." },
   { 15, 9, 2, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 174,
     "Dock Thief", "We do not sow. Somebody has to not sow." },
@@ -80715,7 +80723,7 @@ static const Chest chests_43[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_43[3] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 179,
+  { 2, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 179,
     "Maester", "The island is hot and the stone never cools. Rest them here." },
   { 8, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 180,
     "Steward", "Everything here has come a long way. So has the price." },
@@ -82108,7 +82116,7 @@ static const Chest chests_48[1] = {
   { 15, 12, 255, 590 },
 };
 static const Npc npcs_48[3] = {
-  { 9, 16, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 198,
+  { 9, 16, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 198,
     "Maester Wyllis", "It goes badly. Whatever you meant to settle here is still unsettled." },
   { 6, 9, 3, 1, 1, 0, 1, 0, 5, 1, 0, 0, 0, 199,
     "Ser Loras", "The Knight of Flowers. I would apologise for the name, but I did win it." },
@@ -83021,7 +83029,7 @@ static const Chest chests_50[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_50[3] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 159,
+  { 2, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 159,
     "Maester", "The Reach feeds the realm. It can certainly feed your creatures." },
   { 8, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 160,
     "Steward", "Everything here has come a long way. So has the price." },
@@ -83328,7 +83336,7 @@ static const Npc npcs_52[3] = {
     "Randyll Tarly", "I have no patience for pageantry and less for wandering swords. Draw or leave." },
   { 3, 7, 3, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 208,
     "Household Guard", "Move along. Nothing up there for you." },
-  { 12, 2, 2, 2, 1, 0, 1, 0, 0, 0, 0, 0, 0, 209,
+  { 12, 2, 2, 2, 1, 0, 1, 1, 0, 0, 0, 0, 0, 209,
     "Steward of the Reach", "Lord Tarly does not care who your father was. He cares whether you can hold a line." },
 };
 
@@ -84721,7 +84729,7 @@ static const Chest chests_55[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_55[3] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 217,
+  { 2, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 217,
     "Maester", "Dornish sun burns creatures raised in the North. Rest them." },
   { 8, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 218,
     "Steward", "Everything here has come a long way. So has the price." },
@@ -86549,7 +86557,7 @@ static const Chest chests_60[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_60[3] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 231,
+  { 2, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 231,
     "Maester", "Storm-country creatures are hardy. Yours look tired all the same." },
   { 8, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 232,
     "Steward", "Everything here has come a long way. So has the price." },
@@ -88911,7 +88919,7 @@ static const Chest chests_67[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_67[3] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 126,
+  { 2, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 126,
     "Maester Wendamyr", "Salt in everything, including the wounds. Sit down and let me get at it." },
   { 8, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 127,
     "Steward", "Everything here has come a long way. So has the price." },
@@ -89062,7 +89070,7 @@ static const Chest chests_68[1] = {
 static const Npc npcs_68[2] = {
   { 5, 1, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 254,
     "Saltsmith", "Everything here rusts. So I make it heavy enough that it does not matter for a lifetime, and a lifetime here is short." },
-  { 3, 5, 3, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 255,
+  { 3, 5, 3, 1, 1, 0, 1, 3, 0, 0, 0, 0, 0, 255,
     "Hammerhand", "The iron price. You pay it, or somebody pays it for you." },
 };
 
@@ -89238,9 +89246,9 @@ static const Chest chests_69[1] = {
 static const Npc npcs_69[3] = {
   { 7, 3, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 178,
     "Euron Greyjoy", "I have sailed further than any of you and come back with worse ideas. Shall we?" },
-  { 3, 6, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 126,
+  { 3, 6, 3, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 126,
     "Maester", "The Seastone Chair is not comfortable. It was never meant to be." },
-  { 10, 10, 2, 2, 0, 0, 1, 1, 0, 0, 0, 0, 0, 256,
+  { 10, 10, 2, 2, 0, 0, 1, 4, 0, 0, 0, 0, 0, 256,
     "Factor", "Rope, tar, salt beef, and things nobody will admit to." },
 };
 
@@ -89568,7 +89576,7 @@ static const Chest chests_70[1] = {
   { 20, 4, 255, 590 },
 };
 static const Npc npcs_70[3] = {
-  { 4, 7, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 257,
+  { 4, 7, 0, 0, 0, 0, 1, 4, 0, 0, 1, 0, 0, 257,
     "Harbourmaster", "Longships go where I say and come back when they like. Name a port." },
   { 18, 7, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 258,
     "Chandler", "Everything a ship needs and nothing a house does." },
@@ -90108,7 +90116,7 @@ static const Chest chests_71[1] = {
   { 7, 24, 86, 172 },
 };
 static const Npc npcs_71[2] = {
-  { 8, 11, 3, 0, 1, 0, 1, 0, 4, 1, 0, 0, 0, 261,
+  { 8, 11, 3, 0, 1, 0, 1, 1, 4, 1, 0, 0, 0, 261,
     "Walton", "Lord Roose does not care for visitors. I care rather less." },
   { 14, 21, 2, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 262,
     "Kennelmaster", "The girls have not been fed. You would do." },
@@ -91003,7 +91011,7 @@ static const Chest chests_73[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_73[3] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 50,
+  { 2, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 50,
     "Maester Uthor", "I mend what the household breaks. I am busy." },
   { 8, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 51,
     "Steward", "Everything here has come a long way. So has the price." },
@@ -91154,7 +91162,7 @@ static const Chest chests_74[1] = {
 static const Npc npcs_74[2] = {
   { 5, 1, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 267,
     "Bonewright", "Sharp is a discipline. Everything else about this house is a hobby." },
-  { 3, 5, 3, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 268,
+  { 3, 5, 3, 1, 1, 0, 1, 3, 0, 0, 0, 0, 0, 268,
     "Apprentice", "I keep the fire. I do not go upstairs. Ever." },
 };
 
@@ -91328,7 +91336,7 @@ static const Chest chests_75[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_75[3] = {
-  { 4, 6, 3, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 50,
+  { 4, 6, 3, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 50,
     "Maester", "I keep the ravens and I keep quiet. Both are a service." },
   { 10, 10, 2, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 51,
     "Steward", "The Dreadfort sells nothing it needs and needs very little." },
@@ -93628,7 +93636,7 @@ static const Chest chests_82[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_82[1] = {
-  { 7, 5, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 290,
+  { 7, 5, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 290,
     "The Kindly Man", "All men must serve. Shall I see to yours?" },
 };
 
@@ -94580,7 +94588,7 @@ static const Npc npcs_84[3] = {
     "Illyrio Mopatis", "Sit. Eat. The candied figs are worth more than your sword and I will not hear otherwise." },
   { 4, 5, 3, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 153,
     "Bronn", "I fight for coin. But I will take a free swing at a northerner on principle." },
-  { 10, 8, 2, 2, 0, 0, 1, 1, 0, 0, 0, 0, 0, 295,
+  { 10, 8, 2, 2, 0, 0, 1, 4, 0, 0, 0, 0, 0, 295,
     "Factor", "Anything from anywhere, at a Pentoshi price." },
 };
 
@@ -95538,7 +95546,7 @@ static const Chest chests_86[1] = {
 static const Npc npcs_86[3] = {
   { 7, 6, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 296,
     "Kinvara", "Nothing happens here, which is how we like it." },
-  { 4, 3, 3, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 300,
+  { 4, 3, 3, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 300,
     "Red Priest", "The night is dark and full of terrors. Come to the fire and be less afraid." },
   { 11, 8, 2, 2, 0, 0, 1, 1, 0, 0, 0, 0, 0, 301,
     "Steward", "Oil, resin, and things that burn a long time." },
@@ -96230,7 +96238,7 @@ static const Npc npcs_87[5] = {
     "Missandei", "I speak nineteen languages. In all of them, this city is complicated." },
   { 14, 8, 0, 2, 1, 0, 1, 0, 0, 1, 0, 0, 0, 175,
     "Grey Worm", "Unsullied do not duel for honour. We duel to know what you are. Begin." },
-  { 11, 16, 0, 3, 0, 0, 1, 1, 0, 0, 0, 0, 0, 304,
+  { 11, 16, 0, 3, 0, 0, 1, 4, 0, 0, 0, 0, 0, 304,
     "Ghiscari Trader", "The Queen has views about what may be sold. These are the things that remain." },
   { 4, 9, 3, 4, 1, 0, 1, 0, 0, 1, 0, 0, 0, 176,
     "Daario Naharis", "You have the look of someone about to do something magnificent and stupid. I approve." },
@@ -96420,7 +96428,7 @@ static const Npc npcs_88[4] = {
     "Grey Worm", "Unsullied do not duel for honour. We duel to know what you are. Begin." },
   { 10, 6, 2, 2, 1, 0, 1, 0, 0, 1, 0, 0, 0, 176,
     "Daario Naharis", "You have the look of someone about to do something magnificent and stupid. I approve." },
-  { 10, 10, 2, 3, 0, 0, 1, 1, 0, 0, 0, 0, 0, 304,
+  { 10, 10, 2, 3, 0, 0, 1, 4, 0, 0, 0, 0, 0, 304,
     "Trader", "The Queen has views about what may be sold. This is the rest." },
 };
 
@@ -99278,7 +99286,7 @@ static const Npc npcs_107[4] = {
     "Smuggler", "Onions. That is all I brought in. Ask anybody." },
   { 3, 8, 3, 2, 1, 0, 1, 0, 0, 0, 0, 0, 0, 335,
     "Guard", "Two shifts on that wall and I have forgotten what dry feels like." },
-  { 10, 8, 2, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0, 336,
+  { 10, 8, 2, 3, 1, 1, 1, 1, 0, 0, 0, 0, 0, 336,
     "Maester's Boy", "He says the storms here are older than the castle. I say the castle agrees." },
 };
 
@@ -101544,7 +101552,7 @@ static const Npc npcs_121[4] = {
     "Myranda", "Everyone here is very careful. It gets tiring. Be careless with me." },
   { 10, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 372,
     "Kennel Girl", "The girls are named after the last ones. There have been a lot of last ones." },
-  { 3, 8, 3, 2, 1, 0, 1, 0, 0, 0, 0, 0, 0, 373,
+  { 3, 8, 3, 2, 1, 0, 1, 1, 0, 0, 0, 0, 0, 373,
     "Steward's Son", "I keep the accounts. I have learned to write very small numbers." },
   { 10, 8, 2, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 374,
     "Northman", "The North remembers. The Dreadfort remembers differently and writes it down." },
@@ -102787,7 +102795,7 @@ static const Npc npcs_124[6] = {
     "Yard Watch", "Keep to the road and keep your hood up." },
   { 14, 15, 1, 2, 1, 0, 1, 0, 0, 1, 0, 0, 0, 381,
     "Yard Watch", "Nothing happens here, which is how we like it." },
-  { 18, 13, 2, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 382,
+  { 18, 13, 2, 3, 1, 0, 1, 1, 0, 0, 0, 0, 0, 382,
     "Tower Steward", "The lower vault is older than the tower on top of it. Whatever is down there was here before we were." },
 };
 
@@ -106859,7 +106867,7 @@ static const Npc npcs_136[6] = {
     "Yard Watch", "Keep to the road and keep your hood up." },
   { 14, 15, 1, 2, 1, 0, 1, 0, 0, 1, 0, 0, 0, 396,
     "Yard Watch", "Nothing happens here, which is how we like it." },
-  { 18, 13, 2, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 397,
+  { 18, 13, 2, 3, 1, 0, 1, 1, 0, 0, 0, 0, 0, 397,
     "Sand Steward", "The prince sits and watches the children and everyone calls him idle. Unbowed, unbent, unbroken. He is doing the third one." },
 };
 
@@ -108990,7 +108998,7 @@ static const Chest chests_141[1] = {
 static const Npc npcs_141[3] = {
   { 9, 9, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 102,
     "Cotter Pyke", "Night gathers. Some of us have been gathering with it for years." },
-  { 14, 10, 2, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 412,
+  { 14, 10, 2, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 412,
     "Steward of Eastwatch", "We sent nine ravens south this year. Nine. Not one of them has been answered by anybody who could send men." },
   { 5, 17, 3, 2, 1, 0, 1, 0, 0, 0, 0, 0, 0, 413,
     "Captain", "I take cargo, not passengers, and not north. Whatever is up that coast has stopped buying and started taking." },
@@ -109135,7 +109143,7 @@ static const Chest chests_142[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_142[3] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 88,
+  { 2, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 88,
     "Maester", "You are cold all the way through. Sit by it a while." },
   { 8, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 89,
     "Steward", "Everything here has come a long way. So has the price." },
@@ -109276,7 +109284,7 @@ static const Chest chests_143[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_143[1] = {
-  { 5, 1, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 414,
+  { 5, 1, 0, 0, 0, 0, 1, 3, 0, 0, 0, 0, 0, 414,
     "Watch Armourer", "Black, and it fits nobody. Take what you can carry." },
 };
 
@@ -109432,7 +109440,7 @@ static const Chest chests_144[1] = {
 static const Npc npcs_144[3] = {
   { 9, 2, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 120,
     "The Lord Commander", "The Wall does not care who your father was." },
-  { 6, 4, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 415,
+  { 6, 4, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 415,
     "Maester Harmune", "I wrote the raven you are carrying. I signed it, which was the only part that took courage." },
   { 3, 7, 3, 2, 1, 0, 1, 0, 0, 1, 0, 0, 0, 416,
     "Ranger", "Night gathers. Some of us have been gathering with it for years." },
@@ -109756,7 +109764,7 @@ static const Npc npcs_146[4] = {
     "Wenda", "Black brothers are not supposed to come here. They come here." },
   { 10, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 420,
     "Sailor", "I have been up that coast. I will not go again for any money you have." },
-  { 3, 8, 3, 2, 1, 0, 1, 0, 0, 0, 0, 0, 0, 89,
+  { 3, 8, 3, 2, 1, 0, 1, 1, 0, 0, 0, 0, 0, 89,
     "Steward", "We keep counting the stores as if the counting were the problem." },
   { 10, 8, 2, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 421,
     "Wildling Girl", "Your side of the Wall is not safer. It is only further away." },
@@ -109898,7 +109906,7 @@ static const Chest chests_147[2] = {
   { 10, 1, 255, 458 },
 };
 static const Npc npcs_147[2] = {
-  { 6, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 416,
+  { 6, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 416,
     "Watch Steward", "I have fought for four houses. Two of them still exist." },
   { 3, 7, 3, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 422,
     "Cellarman", "Whatever they bring back from up the coast, it comes down here first." },
@@ -112580,7 +112588,7 @@ static const Npc npcs_153[4] = {
     "Bridge Guard", "Cold watch. Colder if you make trouble." },
   { 8, 21, 1, 2, 1, 0, 1, 0, 0, 0, 0, 0, 0, 441,
     "Frey Daughter", "There are a great many of us. Grandfather counts us the way other men count sheep, and about as fondly." },
-  { 17, 8, 2, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 442,
+  { 17, 8, 2, 3, 1, 0, 1, 4, 0, 0, 0, 0, 0, 442,
     "Trader", "Four days I have been waiting to cross. The toll goes up the longer you wait. That is not an accident." },
 };
 
@@ -112889,7 +112897,7 @@ static const Chest chests_155[1] = {
   { 255, 255, 255, 0 },
 };
 static const Npc npcs_155[3] = {
-  { 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 107,
+  { 2, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 107,
     "Maester", "Sit. Nobody crosses that bridge without something aching." },
   { 8, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 108,
     "Steward", "Everything here has come a long way. So has the price." },

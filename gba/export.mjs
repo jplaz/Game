@@ -538,11 +538,16 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
                : GLOVES[r.makes] ? ['gloves', GLOVES] : null;
     if (from && !wareIndex.has(`${from[0]}:${r.makes}`)) ware(r.makes, from[1][r.makes], from[0]);
   }
-  /* Materials are wares too - they live in the same pouch and the same record -
-     but they are worth nothing at a counter and never appear on one. */
+  /* Materials are wares too - they live in the same pouch and the same record.
+     The common ones are on the pedlar's table at a price, because a forge you
+     can only use when the road happens to have given you an ash haft is a
+     forge you use twice; the two rarest are not for sale at any price, so the
+     best blades in the game are still something you have to go and find. */
   const matSlot = new Map();
   for (const id of MATERIAL_IDS) {
-    matSlot.set(id, ware(id, { ...MATERIALS[id], price: 0 }, 'stuff'));
+    const m = MATERIALS[id];
+    const price = m.tier >= 3 ? 0 : 40 + m.tier * 140;
+    matSlot.set(id, ware(id, { ...m, price }, 'stuff'));
   }
   /* What you throw over an animal, and what you carry home from a nest. */
   for (const [id, def] of Object.entries(SNARES)) ware(id, def, 'snare');
@@ -566,12 +571,19 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
      ARMOUR. */
   const snareWares = wares.map((w, i) => (w.kind === 'snare' && w.price ? i : -1))
     .filter((i) => i >= 0);
+  const ofKind = (...kinds) => wares
+    .map((w, i) => (kinds.includes(w.kind) && w.price ? i : -1))
+    .filter((i) => i >= 0);
   const forSale = {
     apothecary: potions.concat(snareWares).concat(oathWares),
-    armourer: wares
-      .map((w, i) => (w.kind !== 'potion' && w.kind !== 'stuff' && w.kind !== 'egg'
-                      && w.kind !== 'oath' && w.price ? i : -1))
-      .filter((i) => i >= 0),
+    /* Steel on one counter and everything you put on over it on another, so
+       looking for a helm is not reading past twenty-four swords first. */
+    weapons: ofKind('weapon'),
+    armour: ofKind('armour', 'shield', 'helm', 'gloves'),
+    /* And the table by the door with the rest of it: relics, and the makings
+       a smith or a maester will want off you when you ask them to build
+       something. */
+    oddments: ofKind('relic').concat(ofKind('stuff')),
   };
 
   /* The recipe book, in ware numbers. */
@@ -851,8 +863,20 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       // Who trades, and who watches the road. A trainer in the browser game has
       // a sight range; the same number decides how far down their nose they
       // spot you here.
-      const trade = /shop|merchant/i.test(n.script ?? '') ? 1
-        : /smith|forge|armour/i.test(n.script ?? '') ? 2 : 0;
+      /* Which counter this one keeps. One stall carrying seventy-six things is
+         not a shop, it is a warehouse: a player looking for a helm had to read
+         past every sword in the game to find one. Four counters now - the
+         apothecary, the weaponsmith, the armourer and the oddments table - and
+         a town has somebody standing behind each. */
+      /* Name as well as script, and the narrowest rule first. Three people in
+         the world are called Armourer and every one of them was filed as a
+         smith or a shopkeeper by their script alone, so the armour shelf was
+         one nobody in Westeros stood behind. */
+      const keeps = `${n.script ?? ''} ${n.name ?? ''}`;
+      const trade = /armour|quartermaster|bellows/i.test(keeps) ? 3
+        : /smith|forge/i.test(keeps) ? 2
+        : /pedlar|oddment|trader|harbour|stable|factor/i.test(keeps) ? 4
+        : /shop|merchant|apothec|healer|maester|steward/i.test(keeps) ? 1 : 0;
       const sight = n.data?.trainer && TRAINERS[n.data.trainer]
         ? Math.min(5, TRAINERS[n.data.trainer].sight ?? 0) : 0;
       if (n.data?.trainer && TRAINERS[n.data.trainer]?.leader) {
@@ -1743,12 +1767,18 @@ L.push('typedef struct { const u8 *ware; u8 count; } Stall;');
   L.push('');
 }
 {
-  const stalls = [harvest.forSale.apothecary, harvest.forSale.armourer];
+  const stalls = [harvest.forSale.apothecary, harvest.forSale.weapons,
+                  harvest.forSale.armour, harvest.forSale.oddments];
   stalls.forEach((list, i) => {
     L.push(`static const u8 stall_${i}[${Math.max(1, list.length)}] = { ${list.join(', ') || '0'} };`);
   });
-  L.push('static const Stall stalls[2] = {');
+  L.push(`#define STALL_COUNT ${stalls.length}`);
+  L.push('static const Stall stalls[STALL_COUNT] = {');
   stalls.forEach((list, i) => L.push(`  { stall_${i}, ${list.length} },`));
+  L.push('};');
+  /* What the sign over each counter says. */
+  L.push('static const char *const stallName[STALL_COUNT] = {');
+  L.push('  "REMEDIES", "ARMS", "ARMOUR", "ODDS",');
   L.push('};');
 }
 L.push('');

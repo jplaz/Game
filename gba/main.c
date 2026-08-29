@@ -832,13 +832,18 @@ static void applyLayout(void) {
       if (mode == TEXT_MIDDLE) { if (ty >= 3 && ty < 17) buf = ty - 3; }
       else if (mode == TEXT_TOP) { if (ty < 14) buf = ty; }
       else if (mode == TEXT_DUEL) {
-        /* Four rows of foe plate at the top, then the yard, then your own plate
-           and what is being said. The yard used to get forty-eight pixels and
-           the text box eighty, so a duel was a caption with two small figures
-           over it. The yard gets sixty-four now, which is exactly the height of
-           the two of you at full size. */
-        if (ty < 4) buf = ty;
-        else if (ty >= 12 && ty < 20) buf = ty - 8;
+        /* Three rows of foe plate at the top, then the yard, then your own
+           plate and what is being said. The yard gets sixty-four pixels, which
+           is exactly the height of the two of you at full size, and is not
+           touched by any of this.
+           The row moved down off the foe's plate, which had five rows of empty
+           parchment in the middle of it, and onto yours, which did not have
+           room for what was written on it: a name is nine rows deep once its
+           shadow is counted, and the health bar began five rows into it. Every
+           duel in the game had the bars drawn through the middle of your own
+           name and level. */
+        if (ty < 3) buf = ty;
+        else if (ty >= 11 && ty < 20) buf = ty - 8;
       } else {
         if (ty < 2) buf = ty;
         else if (ty >= 14 && ty < 20) buf = ty - 12;
@@ -2726,46 +2731,52 @@ static const char *ailment(const Fighter *f) {
 
 static void paintDuelBars(void) {
   const char *what;
-  drawBar(12, 19, 132, shownTheirs, theirs.maxHp);
-  drawWind(12, 27, 132, theirs.wind, theirs.maxWind);
-  drawBar(TXT_W - 148, 43, 132, shownMine, nearSide()->maxHp);
-  drawWind(TXT_W - 148, 49, 132, nearSide()->wind, nearSide()->maxWind);
-  drawRail(TXT_W - 148, 53, 132, shareOf(shownExp));
+  /* A line of writing is nine rows deep once the shadow under it is counted,
+     and a bar is six with its keyline. Everything below is spaced off those
+     two numbers with a row of daylight between, rather than off a guess. */
+  drawBar(12, 13, 132, shownTheirs, theirs.maxHp);
+  drawWind(12, 19, 132, theirs.wind, theirs.maxWind);
+  drawBar(TXT_W - 148, 38, 132, shownMine, nearSide()->maxHp);
+  drawWind(TXT_W - 148, 45, 132, nearSide()->wind, nearSide()->maxWind);
+  drawRail(TXT_W - 148, 51, 132, shareOf(shownExp));
   /* What is currently wrong with each of you, in a word. Both in the strip of
      yard to the right of their plate, because it is the only part of the screen
      the plates, the bars, the detail panel and the window are not all fighting
      over. */
-  fillRect(158, 3, TXT_W - 160, 22, C_CLEAR);
+  fillRect(158, 2, TXT_W - 160, 20, C_CLEAR);
   what = ailment(&theirs);
-  if (what) drawText(TXT_W - 6 - textWidth(what), 4, what, C_HURT);
+  if (what) drawText(TXT_W - 6 - textWidth(what), 2, what, C_HURT);
   what = ailment(nearSide());
   if (what) {
     copyString(scratch, beastOut ? "it " : "you ", sizeof scratch);
     appendString(scratch, what, sizeof scratch);
-    drawText(TXT_W - 6 - textWidth(scratch), 15, scratch, C_HURT);
+    drawText(TXT_W - 6 - textWidth(scratch), 12, scratch, C_HURT);
   }
 }
 
 static void paintDuelPlates(void) {
-  clearRows(0, 32);
-  clearRows(32, 24);
+  clearRows(0, 24);
+  clearRows(24, 32);
 
-  drawPlate(4, 0, 152, 30);
-  drawText(12, 4, theirs.name, C_INK);
+  /* Theirs, in the three rows at the top: a name, then health, then wind. It
+     had thirty rows and wanted twenty-four, and the six it did not want are
+     the six yours had been going without. */
+  drawPlate(4, 0, 152, 24);
+  drawText(12, 2, theirs.name, C_INK);
   copyString(scratch, "Lv ", sizeof scratch);
   appendNumber(scratch, theirs.level, sizeof scratch);
-  drawText(124, 4, scratch, C_DIM);
-  /* Wholly inside the lower block of the page: a plate that starts one row
-     higher would have its top edge drawn at the top of the screen instead.
-     The name sat directly on the keyline with nothing between them and read as
-     a name with its top sliced off; the two rows it wanted came out of the gap
-     between the bars, because the plate cannot grow downwards without running
-     under the window. */
-  drawPlate(TXT_W - 156, 32, 152, 24);
-  drawText(TXT_W - 148, 36, nearSide()->name, C_INK);
+  drawText(124, 2, scratch, C_DIM);
+
+  /* Yours, wholly inside the lower block of the page. Thirty-two rows for a
+     name and three bars: nine for the writing, six for health, four each for
+     wind and the rail you climb, and a row of daylight between every one of
+     them. It had twenty-four, and the bars were drawn straight through the
+     name and the level. */
+  drawPlate(TXT_W - 156, 24, 152, 32);
+  drawText(TXT_W - 148, 27, nearSide()->name, C_INK);
   copyString(scratch, "Lv ", sizeof scratch);
   appendNumber(scratch, nearSide()->level, sizeof scratch);
-  drawText(TXT_W - 36, 36, scratch, C_DIM);
+  drawText(TXT_W - 36, 27, scratch, C_DIM);
   paintDuelBars();
 }
 

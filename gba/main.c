@@ -915,7 +915,16 @@ static void wrapText(const char *s, int width) {
   lineCount++;
 }
 
-static int bodyRows(void) { return speaker ? 2 : 3; }
+/* How many lines of writing fit on a page of the window it is actually drawn
+   in. This was the constant three, tuned to the world's own six-row box - and
+   the duel's box is five rows, so the third line of every after-fight message
+   was drawn straight across the bottom border and clipped by the layout under
+   it. Words fit the box they are in, or they are not in it. */
+static int bodyRows(void) {
+  int fit = (windowRows * 8 - 12) / 12;
+  if (speaker) fit--;
+  return fit < 1 ? 1 : fit;
+}
 
 /* Where the next letter goes. */
 static int typeLine, typeCol, typeX, typeY, typeDone, markerOn;

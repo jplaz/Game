@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Fraunces", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-cream-50 text-ink-700 font-sans antialiased;
+  }
+  ::selection {
+    @apply bg-clay-400/25;
+  }
+  h1, h2, h3 {
+    @apply font-display;
+    font-variation-settings: "SOFT" 60, "WONK" 0;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-clay-500 ring-offset-2 ring-offset-cream-50 rounded-sm;
+  }
+}
+
+@layer components {
+  .lc-card {
+    @apply bg-white rounded-card shadow-card border border-sand-100;
+  }
+  .lc-photo-frame {
+    @apply rounded-photo overflow-hidden bg-sand-100;
+  }
+  .lc-skeleton {
+    @apply animate-shimmer bg-gradient-to-r from-sand-100 via-cream-100 to-sand-100;
+    background-size: 200% 100%;
+  }
+  /* subtle paper grain for covers only — used sparingly */
+  .lc-grain {
+    background-image: radial-gradient(rgba(43, 40, 35, 0.035) 1px, transparent 1px);
+    background-size: 4px 4px;
+  }
+}
+
+/* respect reduced motion everywhere */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

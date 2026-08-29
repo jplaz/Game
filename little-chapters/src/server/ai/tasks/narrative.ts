@@ -71,10 +71,17 @@ export const monthlyNarrativeTask: AiTask<
       .slice(0, 8)
       .map((m) => m.text.trim())
       .filter(Boolean);
-    const story =
-      lines.length > 0
-        ? lines.join("\n\n")
-        : `This month with ${input.childName}.`;
+    let story = lines.join("\n\n");
+    if (story.length < 50) {
+      // no model available: assemble the parent's own words, kept verbatim
+      story = [
+        `${input.monthLabel}, in your family's own words:`,
+        ...lines,
+      ].join("\n\n");
+    }
+    if (story.length < 50) {
+      story = `${input.monthLabel} — a quiet month in ${input.childName}'s story, waiting for its memories to be written down.`;
+    }
     return {
       story,
       openingLine: `${input.ageTitle} — ${input.monthLabel}.`,

@@ -322,6 +322,99 @@ export async function createVoiceMemory(opts: {
   return { memoryId };
 }
 
+export interface MemoryDetail {
+  id: string;
+  familyId: string;
+  childId: string;
+  kind: string;
+  title: string | null;
+  body: string | null;
+  transcript: string | null;
+  happenedAt: string;
+  ageText: string | null;
+  tags: string[];
+  isFavorite: boolean;
+  commentsEnabled: boolean;
+  approvalStatus: string;
+  audioMediaId: string | null;
+  media: Array<{ id: string; kind: string; altText: string | null }>;
+  people: Array<{ id: string; name: string }>;
+  versions: Array<{ id: string; source: string; title: string | null; body: string | null; createdAt: Date }>;
+  milestones: Array<{ id: string; title: string; status: string }>;
+  canEdit: boolean;
+}
+
+export async function getMemory(userId: string, memoryId: string): Promise<MemoryDetail> {
+  const ctx = await assertResourceAccess(userId, "memories", memoryId, "viewer");
+  const sql = getSql();
+  const rows = await sql<
+    { id: string; family_id: string; child_id: string; kind: string; title: string | null;
+      body: string | null; transcript: string | null; happened_at: string; tags: string[];
+      is_favorite: boolean; comments_enabled: boolean; approval_status: string;
+      audio_media_id: string | null; created_by: string; birth_date: string | null }[]
+  >`
+    select m.id, m.family_id, m.child_id, m.kind, m.title, m.body, m.transcript,
+           m.happened_at::text as happened_at, m.tags, m.is_favorite,
+           m.comments_enabled, m.approval_status, m.audio_media_id, m.created_by,
+           c.birth_date::text as birth_date
+    from memories m join children c on c.id = m.child_id
+    where m.id = ${memoryId} and m.deleted_at is null
+  `;
+  const memory = rows[0];
+  if (!memory) throw new NotFoundError("Memory");
+  const isParent = ctx.role === "owner" || ctx.role === "parent";
+  if (!isParent && memory.approval_status !== "approved" && memory.created_by !== userId) {
+    throw new NotFoundError("Memory");
+  }
+  const media = await sql<{ id: string; kind: string; alt_text: string | null }[]>`
+    select md.id, md.kind, md.alt_text from memory_media mm
+    join media md on md.id = mm.media_id
+    where mm.memory_id = ${memoryId} and md.deleted_at is null and md.status = 'ready'
+    order by mm.sort_order
+  `;
+  const people = await sql<{ id: string; name: string }[]>`
+    select p.id, p.name from memory_people mp
+    join people p on p.id = mp.person_id
+    where mp.memory_id = ${memoryId} and p.deleted_at is null
+  `;
+  const versions = isParent
+    ? await sql<{ id: string; source: string; title: string | null; body: string | null; created_at: Date }[]>`
+        select id, source, title, body, created_at from memory_versions
+        where memory_id = ${memoryId} order by created_at desc limit 10
+      `
+    : [];
+  const milestones = await sql<{ id: string; title: string; status: string }[]>`
+    select id, title, status from milestones
+    where memory_id = ${memoryId}
+      and (status = 'confirmed' or ${isParent})
+  `;
+  return {
+    id: memory.id,
+    familyId: memory.family_id,
+    childId: memory.child_id,
+    kind: memory.kind,
+    title: memory.title,
+    body: memory.body,
+    transcript: memory.transcript,
+    happenedAt: memory.happened_at,
+    ageText: memory.birth_date
+      ? formatAge(computeAge(new Date(`${memory.birth_date}T00:00:00`), new Date(`${memory.happened_at}T00:00:00`)))
+      : null,
+    tags: memory.tags,
+    isFavorite: memory.is_favorite,
+    commentsEnabled: memory.comments_enabled,
+    approvalStatus: memory.approval_status,
+    audioMediaId: memory.audio_media_id,
+    media: media.map((m) => ({ id: m.id, kind: m.kind, altText: m.alt_text })),
+    people,
+    versions: versions.map((v) => ({
+      id: v.id, source: v.source, title: v.title, body: v.body, createdAt: v.created_at,
+    })),
+    milestones,
+    canEdit: isParent,
+  };
+}
+
 export interface TimelineEntry {
   id: string;
   kind: string;

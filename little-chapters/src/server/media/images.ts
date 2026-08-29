@@ -128,8 +128,8 @@ export async function computeDHash(imageBuffer: Buffer): Promise<string> {
 }
 
 export function hammingDistance(hashA: string, hashB: string): number {
-  let a = BigInt(`0x${hashA}`);
-  let b = BigInt(`0x${hashB}`);
+  const a = BigInt(`0x${hashA}`);
+  const b = BigInt(`0x${hashB}`);
   let x = a ^ b;
   let count = 0;
   while (x > 0n) {

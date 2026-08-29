@@ -7,12 +7,13 @@ import { NotFoundError, ValidationError } from "@/server/errors";
  * Future letters stay sealed — visible only to their author — until unlock_at.
  */
 
-const KINDS = ["birthday", "annual", "future", "first_day_of_school", "graduation", "general"] as const;
+type LetterKind =
+  | "birthday" | "annual" | "future" | "first_day_of_school" | "graduation" | "general";
 
 export async function createLetter(opts: {
   userId: string;
   childId: string;
-  kind: (typeof KINDS)[number];
+  kind: LetterKind;
   title: string;
   body: string;
   unlockAt?: string | null;

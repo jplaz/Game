@@ -63,8 +63,7 @@ export async function getFeed(
   }));
 }
 
-const COMMENTABLE = ["memory", "media", "chapter", "recap", "letter"] as const;
-type CommentTarget = (typeof COMMENTABLE)[number];
+type CommentTarget = "memory" | "media" | "chapter" | "recap" | "letter";
 
 async function assertTargetInFamily(
   targetType: CommentTarget,

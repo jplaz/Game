@@ -1,4 +1,4 @@
-import type { ZodSchema } from "zod";
+import type { ZodType, ZodTypeDef } from "zod";
 
 /**
  * AI task contract.
@@ -18,7 +18,7 @@ export interface AiTask<TInput, TOutput> {
   name: string;
   /** builds the full prompt; user content must go through untrusted() */
   buildPrompt: (input: TInput) => AiPrompt;
-  outputSchema: ZodSchema<TOutput>;
+  outputSchema: ZodType<TOutput, ZodTypeDef, unknown>;
   temperature: number;
   maxTokens: number;
   /** deterministic fallback used by the NullProvider (no network, clearly a

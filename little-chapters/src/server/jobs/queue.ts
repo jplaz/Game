@@ -52,7 +52,7 @@ export async function enqueueJob(opts: {
     values (
       ${opts.type},
       ${opts.familyId ?? null},
-      ${sql.json(opts.payload)},
+      ${sql.json(opts.payload as never)},
       ${opts.idempotencyKey ?? null},
       ${opts.priority ?? 5},
       ${opts.runAt ?? new Date()},

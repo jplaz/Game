@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ZodError, type ZodSchema } from "zod";
+import { ZodError, type ZodTypeAny, type z } from "zod";
 import { AppError, ValidationError } from "@/server/errors";
 import { errorFields, logger } from "@/server/observability/logger";
 
@@ -44,10 +44,10 @@ export async function handle<T>(fn: () => Promise<T>): Promise<NextResponse> {
   }
 }
 
-export async function parseBody<T>(
+export async function parseBody<S extends ZodTypeAny>(
   request: Request,
-  schema: ZodSchema<T>
-): Promise<T> {
+  schema: S
+): Promise<z.output<S>> {
   let raw: unknown;
   try {
     raw = await request.json();

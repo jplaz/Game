@@ -19,6 +19,7 @@
   "dependencies": {
     "@supabase/ssr": "0.5.2",
     "@supabase/supabase-js": "2.47.10",
+    "archiver": "^8.0.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "date-fns": "4.1.0",
@@ -38,6 +39,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",
+    "@types/archiver": "^8.0.0",
     "@types/node": "22.10.5",
     "@types/pdfkit": "^0.17.6",
     "@types/qrcode": "1.5.5",

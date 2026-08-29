@@ -136,7 +136,7 @@ export async function handleStripeWebhook(rawBody: string, signature: string): P
             : sub.status === "past_due"
               ? "past_due"
               : "canceled";
-      const periodEnd = sub.items.data[0]?.current_period_end;
+      const periodEnd = sub.current_period_end;
       await sql`
         update subscriptions set
           status = ${status},
@@ -149,9 +149,7 @@ export async function handleStripeWebhook(rawBody: string, signature: string): P
     case "invoice.payment_failed": {
       const invoice = event.data.object;
       const subId =
-        typeof invoice.parent?.subscription_details?.subscription === "string"
-          ? invoice.parent.subscription_details.subscription
-          : null;
+        typeof invoice.subscription === "string" ? invoice.subscription : null;
       if (subId) {
         await sql`
           update subscriptions set status = 'past_due'

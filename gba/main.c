@@ -593,7 +593,35 @@ static void soundClock(void) {
 #define TXT_H (TXT_ROWS * 8)
 #define TXT_TILES (TXT_COLS * TXT_ROWS)
 
-static u8 pageTiles[TXT_TILES][32] __attribute__((aligned(4)));
+/* ------------------------------------------------------- where things live --
+   A Game Boy Advance has thirty-two kilobytes of fast internal memory and the
+   stack lives at the top of it, growing down from 0x03007F00. Everything the
+   game declares goes in the same thirty-two kilobytes, from the bottom up. The
+   linker will happily let the two meet: it knows where the variables end and
+   has no idea where the stack begins.
+
+   They had met. Thirty-two kilobytes and four hundred and seventy-six bytes of
+   variables left thirty-six bytes of stack, so any function with more than a
+   handful of locals wrote over the end of the last array declared - and what
+   came back out of that array afterwards was whatever the stack had left
+   there. On this machine that is a pointer into nowhere, and the game walks
+   into a wall of stripes the moment it loads a map.
+
+   Nothing in the audit, the sweeps or the renderer can see this: all three run
+   on a machine with gigabytes and no stack at 0x03007F00. It took running the
+   actual ROM.
+
+   So the big, cold things go to external memory instead - a quarter of a
+   megabyte of it, entirely empty until now. It is slower, which is why it is
+   the page buffer, the save record and the per-map bookkeeping that go and not
+   the sprite table or the fighters. */
+#ifdef HOST_TEST
+#define COLD_STORE
+#else
+#define COLD_STORE __attribute__((section(".ewram")))
+#endif
+
+COLD_STORE static u8 pageTiles[TXT_TILES][32] __attribute__((aligned(4)));
 static int dirtyLo = TXT_TILES, dirtyHi = -1;
 
 static void touch(int tile) {
@@ -830,7 +858,7 @@ static void applyLayout(void) {
 #define MAX_LINES 48
 #define LINE_CHARS 46
 
-static char lines[MAX_LINES][LINE_CHARS];
+COLD_STORE static char lines[MAX_LINES][LINE_CHARS];
 static int lineCount, lineAt;
 /* And if it ever happens again, say so rather than losing it silently: the
    tester fails the run on this. */
@@ -1080,6 +1108,33 @@ static void loadBeastArt(int which, int tile, int bank) {
   for (i = 0; i < 16; i++) PAL_OBJ[bank * 16 + i] = beasts[which].pal[i];
 }
 
+/* --------------------------------------------------- built, not drawn out --
+   Four things in this game are assembled at start-up rather than exported as
+   art: the bubble over somebody who has seen you, the star that breaks over a
+   landed blow, the motes of snow and leaves, and the grass that closes over
+   your boots. All four are four-bit tiles, so each pixel is half a byte and
+   writing one means writing a byte.
+
+   A Game Boy Advance does not take byte writes to video memory. It does not
+   fault on them either - it simply drops them - so all four of these were
+   assembled into memory that never once accepted a single pixel of them, and
+   what the hardware drew instead was whatever happened to be lying in object
+   memory. Every emulator this was ever checked in agreed, because the checking
+   was done by a renderer written in the same C rather than by the hardware.
+
+   So they are built in ordinary memory now and copied over a word at a time,
+   which the hardware does take. */
+COLD_STORE static u8 tileStage[2048];
+
+static void stageTiles(int bytes) { int i; for (i = 0; i < bytes; i++) tileStage[i] = 0; }
+
+static void blitStage(int tile, int bytes) {
+  volatile u32 *out = VRAM_OBJ + tile * 8;
+  const u32 *src = (const u32 *)(const void *)tileStage;
+  int w;
+  for (w = 0; w * 4 < bytes; w++) out[w] = src[w];
+}
+
 /* The bubble that pops over somebody the moment they see you. Four character
    tiles at the top of object memory, written once at start-up. */
 #define SPOT_TILE 896
@@ -1115,7 +1170,8 @@ static const char *const SPOT_ART[16] = {
 
 static void buildBubble(void) {
   int y, x;
-  volatile u8 *out = (volatile u8 *)(VRAM_OBJ) + SPOT_TILE * 32;
+  u8 *out = tileStage;
+  stageTiles(4 * 32);
   for (y = 0; y < 32 * 4; y++) out[y] = 0;
   for (y = 0; y < 16; y++) {
     for (x = 0; x < 16; x++) {
@@ -1128,6 +1184,7 @@ static void buildBubble(void) {
       else out[at] = (u8)((out[at] & 0xF0) | v);
     }
   }
+  blitStage(SPOT_TILE, 4 * 32);
   spotPalette();
 }
 
@@ -1144,8 +1201,8 @@ static void buildSpark(void) {
   static const u8 THICK[SPARK_FRAMES] = { 1,  2,  3,  1 };
   const int half = SPARK_SIDE / 2, wide = SPARK_SIDE / 8;
   int f, y, x;
-  volatile u8 *out = (volatile u8 *)(VRAM_OBJ) + SPARK_TILE * 32;
-  for (y = 0; y < 32 * wide * wide * SPARK_FRAMES; y++) out[y] = 0;
+  u8 *out = tileStage;
+  stageTiles(32 * wide * wide * SPARK_FRAMES);
   for (f = 0; f < SPARK_FRAMES; f++) {
     for (y = 0; y < SPARK_SIDE; y++) {
       for (x = 0; x < SPARK_SIDE; x++) {
@@ -1166,6 +1223,7 @@ static void buildSpark(void) {
       }
     }
   }
+  blitStage(SPARK_TILE, 32 * wide * wide * SPARK_FRAMES);
   spotPalette();
 }
 
@@ -1180,8 +1238,8 @@ static void buildSpark(void) {
 
 static void buildMotes(void) {
   int f, y, x;
-  volatile u8 *out = (volatile u8 *)(VRAM_OBJ) + MOTE_TILE * 32;
-  for (y = 0; y < 32 * 2; y++) out[y] = 0;
+  u8 *out = tileStage;
+  stageTiles(32 * 2);
   for (f = 0; f < 2; f++) {
     int ink = f ? 3 : 2;                       /* gold for leaves, white for snow */
     for (y = 3; y < 5; y++) {
@@ -1192,6 +1250,7 @@ static void buildMotes(void) {
       }
     }
   }
+  blitStage(MOTE_TILE, 32 * 2);
 }
 
 /* Grass closing over your boots. Two frames, drawn over the player whenever
@@ -1243,8 +1302,8 @@ static const char *const GRASS_ART[2][16] = {
 static void buildGrass(void) {
   int f, y, x;
   for (f = 0; f < 2; f++) {
-    volatile u8 *out = (volatile u8 *)(VRAM_OBJ) + (GRASS_TILE + f * 4) * 32;
-    for (y = 0; y < 32 * 4; y++) out[y] = 0;
+    u8 *out = tileStage;
+    stageTiles(32 * 4);
     for (y = 0; y < 16; y++) {
       for (x = 0; x < 16; x++) {
         char c = GRASS_ART[f][y][x];
@@ -1256,6 +1315,7 @@ static void buildGrass(void) {
         else out[at] = (u8)((out[at] & 0xF0) | v);
       }
     }
+    blitStage(GRASS_TILE + f * 4, 32 * 4);
   }
   PAL_OBJ[GRASS_BANK * 16 + 1] = RGB15(5, 11, 5);
   PAL_OBJ[GRASS_BANK * 16 + 2] = RGB15(7, 15, 6);
@@ -1329,17 +1389,17 @@ static Body hero;
 static int heroActor;
 static int turnHold;
 static int spotted = -1, spotTimer;
-static u8 beaten[MAP_COUNT][MAX_CROWD];            /* the appearance of the house you swore to */
+COLD_STORE static u8 beaten[MAP_COUNT][MAX_CROWD];            /* the appearance of the house you swore to */
 
 /* Who has been killed, so the road stays as you left it. */
-static u8 slain[MAP_COUNT][MAX_CROWD];
+COLD_STORE static u8 slain[MAP_COUNT][MAX_CROWD];
 
 /* Which chests you have had the lid up on. */
-static u8 emptied[MAP_COUNT][8];
+COLD_STORE static u8 emptied[MAP_COUNT][8];
 
 /* Who has already pressed something into your hand. Kept in the record as well,
    or a save and a reload would be a way to be given it all over again. */
-static u8 gifted[MAP_COUNT][MAX_CROWD];
+COLD_STORE static u8 gifted[MAP_COUNT][MAX_CROWD];
 
 
 /* --------------------------------------------------------------- the you --- */
@@ -2142,6 +2202,14 @@ static void tickWeather(void) {
 static void placeWeather(void) {
   int kind = weatherHere(), i;
   if (kind == WEATHER_NONE) return;
+  /* Not over the box. Snow falling in front of what somebody is saying to you
+     is the sort of thing that reads as a fault rather than as weather - and
+     until the motes were built into memory the hardware would actually take,
+     none of this was ever visible enough to notice. */
+  if (windowOpen) {
+    for (i = 0; i < MOTES; i++) oam[(112 + i) * 4] = 0x0200;
+    return;
+  }
   for (i = 0; i < MOTES; i++) {
     placeMote(112 + i, moteX[i], moteY[i], kind == WEATHER_SNOW ? MOTE_SNOW : MOTE_LEAF);
   }
@@ -3860,7 +3928,7 @@ typedef struct {
   u32 sum;
 } Record;
 
-static Record record;
+COLD_STORE static Record record;
 
 static u32 tally(const Record *r) {
   const u8 *p = (const u8 *)r;

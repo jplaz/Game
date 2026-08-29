@@ -53,6 +53,16 @@ _start:
     strlo   r2, [r0], #4
     blo     2b
 
+    @ And the external RAM, which holds everything too big for the fast memory.
+    @ These are ordinary globals: the C that reads them is entitled to find
+    @ them zero, and an uncleared one reads as a map full of the dead.
+    ldr     r0, =__ewram_start
+    ldr     r1, =__ewram_end
+    mov     r2, #0
+3:  cmp     r0, r1
+    strlo   r2, [r0], #4
+    blo     3b
+
     ldr     r0, =main
     bx      r0
 

@@ -19,3 +19,4 @@ gba/w
 /Thronebound.gba
 # clang writes these while compiling and removes them again
 gba/*.o.tmp
+gba/emu/run

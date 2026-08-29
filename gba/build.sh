@@ -52,8 +52,55 @@ clang $CFLAGS -c main.c -o main.o
 clang --target=armv4t-none-eabi -c crt0.s -o crt0.o -I.
 ld.lld -T link.ld -o thronebound.elf crt0.o main.o
 llvm-objcopy -O binary thronebound.elf thronebound.gba
+
+# How much of the fast memory is left for the stack.
+#
+# A Game Boy Advance has thirty-two kilobytes of it and the stack grows down
+# from the top; every variable the game declares grows up from the bottom. The
+# linker places the variables and has no idea where the stack is, so the two
+# can meet in silence - and they did. Thirty-two kilobytes and four hundred
+# bytes of variables left thirty-six bytes of stack, and the game walked into a
+# screen of stripes the moment it loaded its first map. Nothing that runs on
+# this machine rather than on the hardware can see that.
+node -e '
+const { execSync } = require("child_process");
+const out = execSync("llvm-readelf -S thronebound.elf").toString();
+let top = 0;
+for (const line of out.split("\n")) {
+  const m = line.match(/\s(\.data|\.bss)\s+\S+\s+([0-9a-f]{8})\s+\S+\s+([0-9a-f]{6})/);
+  if (m) top = Math.max(top, parseInt(m[2], 16) + parseInt(m[3], 16));
+}
+const stackTop = 0x03007f00;
+const room = stackTop - top;
+if (!top) { console.error("cannot read the memory map"); process.exit(1); }
+console.log(`  fast memory: ${top - 0x03000000} bytes of variables, ${room} left for the stack`);
+if (room < 8192) {
+  console.error(`  only ${room} bytes of stack. Move something big to COLD_STORE.`);
+  process.exit(1);
+}
+'
+
 node fix-header.mjs thronebound.gba
 node verify.mjs thronebound.gba
+
+# And the cartridge, on a Game Boy Advance.
+#
+# Everything else here checks the source. The audit reads the tables, the
+# sweeps compile the same C for this machine and drive it through its own
+# menus, and the renderer reimplements the compositing rules - and not one of
+# them executes a single ARM instruction. Byte writes to video memory, which
+# the hardware silently drops, were invisible to all three for the whole life
+# of this project: the star over a landed blow, the bubble over somebody who
+# has seen you, the grass round your boots and every flake of snow in the North
+# were assembled into memory that never took them.
+#
+# emu/run needs mGBA built to link against, which not every machine will have,
+# so it runs when it is there and is skipped when it is not.
+if [ -x emu/run ]; then
+  ./emu/run thronebound.gba || exit 1
+else
+  echo "  (emu/run not built; see emu/README.md - the hardware was not checked)"
+fi
 
 # Compiling is not testing.
 #

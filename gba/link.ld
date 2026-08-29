@@ -35,11 +35,21 @@ SECTIONS {
     __bss_end = .;
   } > iwram
 
-  /* Anything too big for IWRAM goes in the slower external RAM. */
+  /* Anything too big for IWRAM goes in the slower external RAM. Marked out so
+     the startup code can zero it: these are ordinary globals and the C they are
+     written in is entitled to find them zero. */
   .ewram (NOLOAD) : {
+    __ewram_start = .;
     *(.ewram .ewram.*)
     . = ALIGN(4);
+    __ewram_end = .;
   } > ewram
+
+  /* The stack grows down from the top of IWRAM. Nothing warns you when the
+     variables reach up to meet it, so the check is written down here and the
+     build refuses a cartridge that leaves less than this. */
+  __iwram_end = 0x03008000;
+  __stack_top = 0x03007f00;
 
   /DISCARD/ : { *(.ARM.exidx*) *(.ARM.attributes) *(.comment) }
 }

@@ -244,6 +244,7 @@ static int eggsFound, eggsHatched, dragonEgg;
 static int boughtOf[WARE_COUNT];
 static int craftsSeen, crafted, craftedHere;
 static int wildsMet, snaresThrown;
+static int shopHeld;   /* consecutive frames stood at a counter */
 /* Whether the pack was ever used as a pack, and whether every shelf of every
    counter was ever read. */
 static int beastsSentOut, beastsFelled, shelfSeen[STALL_COUNT], gearBroke;
@@ -706,6 +707,7 @@ void hostFrame(void) {
   static int wasScene = -1, wasMap = -1, wasLevel = 0, wasKills = 0;
 
   checkFrame();
+  if (scene != SCENE_SHOP) shopHeld = 0;
 
   /* DRAGONS=1 hands the run three broken seats the moment it is in the world,
      because that is what wakes the dragons and a wandering run never climbs
@@ -977,8 +979,31 @@ void hostFrame(void) {
     else keys = (carrying() && you.hp < vigourFor(you.level) && (roll(2) == 0))
       ? tap(KEY_A) : tap(KEY_B);
   } else if (scene == SCENE_SHOP) {
+    /* A counter you cannot walk away from. The random walk always escaped the
+       real one of these by luck - it flips shelves, and the trap was keyed to
+       the shelf - so this is deliberate instead: a straight run of B presses,
+       the way a person leaves a shop, and a finding if that does not work. */
     shopsSeen++;
+    if (++shopHeld > 1200) {
+      finding("a counter that %d frames of pressing B would not leave", shopHeld);
+      shopHeld = 0;
+    }
+    if (shopHeld > 700) {
+      keys = tap(KEY_B);
+      lastKeys = keys;
+      REG_KEYINPUT = (unsigned short)(~keys & 0x03FF);
+      return;
+    }
     if (shopStall >= 0 && shopStall < STALL_COUNT) shelfSeen[shopStall]++;
+    /* And the smith's other trade, now it is on the shoulder. */
+    if (!ladderMode && keeperMends() && roll(30) == 0) {
+      keys = tap(KEY_SHOULDER_R);
+      if (keys) {
+        lastKeys = keys;
+        REG_KEYINPUT = (unsigned short)(~keys & 0x03FF);
+        return;
+      }
+    }
     /* Walk along the counter now and then, because three of the four shelves
        are otherwise never opened by anybody who is not already looking for
        them - which is exactly the complaint the shelves were built to fix. */

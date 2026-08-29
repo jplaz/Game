@@ -75,6 +75,8 @@ extern unsigned char *gbaMem;             /* covers 0x04000000 .. 0x07000400 */
 #define KEY_START 8
 #define KEY_RIGHT 16
 #define KEY_LEFT 32
+#define KEY_SHOULDER_R 256
+#define KEY_SHOULDER_L 512
 #define KEY_UP 64
 #define KEY_DOWN 128
 
@@ -5115,7 +5117,7 @@ static void paintShop(void) {
     if (keeperMends()) {
       int price = mendPrice();
       if (price) {
-        copyString(scratch, "B: mend everything, ", sizeof scratch);
+        copyString(scratch, "R: mend everything, ", sizeof scratch);
         appendNumber(scratch, price, sizeof scratch);
         appendString(scratch, " gold", sizeof scratch);
       } else {
@@ -9371,7 +9373,20 @@ int main(void) {
         paintBag();
         continue;
       }
-      if ((shopStall == 1 || shopStall == 2) && hit(KEY_B)) {
+      /* A window over the counter - the mend result, mostly. It has to be
+         dismissable from in here: the world's window handling never runs while
+         the scene is the shop, so a window opened over the counter used to be
+         a window nothing could ever close. */
+      if (windowOpen) {
+        if ((hit(KEY_A) || hit(KEY_B)) && !advanceWindow()) paintShop();
+        continue;
+      }
+      /* Mending is on the shoulder, not on B. It was on B, keyed to which
+         shelf you were reading rather than to who was behind the counter - so
+         at a maester's, one press of RIGHT onto the ARMS shelf turned the
+         leave button into the mend button, and there was no way out of the
+         shop at all. B does one thing in this game: it takes you back. */
+      if (keeperMends() && hit(KEY_SHOULDER_R)) {
         const char *said = mendAll();
         sfxRank();
         paintShop();

@@ -43,6 +43,19 @@ const deep = (hex) => toneShift(hex, -0.4);
    right colour for cloth and the wrong colour next to a near-black keyline.
    This is the tone they are actually drawn in. */
 const pale = (hex) => toneShift(hex, 0.32);
+/* Trousers and boots were written into the palettes as near-black, which is a
+   true colour for cloth and an impossible one to draw with: at this size a
+   near-black leg beside a near-black outline is one dark brick where a pair of
+   legs ought to be, and every figure in the game was cut off at the waist by
+   its own trousers. These are the tones they are actually painted in - cloth
+   well clear of the line round it, leather a shade under the cloth so the boot
+   still reads as a boot. */
+const cloth = (hex) => toneShift(hex, 0.52);
+const leather = (hex) => toneShift(hex, 0.24);
+/* What a thing is outlined in: its own colour, most of the way down. Dark
+   enough to read as a line at this size, coloured enough that the line belongs
+   to what it is drawn around. */
+const edge = (hex) => toneShift(hex, -0.62);
 
 // ----------------------------------------------------------------- builds --
 // Every measurement the painter needs. Children are shorter with a
@@ -131,15 +144,16 @@ function paintLegs(ctx, m, p, outfit, step, dir) {
     const h = m.legH + leg.dy;
     const shin = h - 2;                          // what is trouser, above the boot
     rect(ctx, leg.x + leg.outer, m.legY, 1, h + 1, OUTLINE);
-    rect(ctx, leg.x, m.legY + h, m.legW, 1, OUTLINE);
+    rect(ctx, leg.x, m.legY + h, m.legW, 1, OUTLINE);   /* the sole, on the ground */
     // The trouser is drawn a shade up from the palette colour, because the
     // palette leg colour and the keyline are near enough the same darkness that
     // a leg painted in it disappears into its own outline.
-    rect(ctx, leg.x, m.legY, m.legW, shin, pale(p.legs));
-    rect(ctx, leg.x + m.legW - 1, m.legY, 1, shin, p.legs);
-    // The boot, and a line where the trouser ends and the leather starts.
-    rect(ctx, leg.x, m.legY + shin, m.legW, 2, p.boots);
-    rect(ctx, leg.x, m.legY + shin, m.legW - 1, 1, dim(p.legs));
+    rect(ctx, leg.x, m.legY, m.legW, shin, cloth(p.legs));
+    rect(ctx, leg.x + m.legW - 1, m.legY, 1, shin, cloth(p.legs));
+    // The boot, and a line where the trouser ends and the leather starts. The
+    // boot has to be darker than the trouser or the whole leg is one column.
+    rect(ctx, leg.x, m.legY + shin, m.legW, 2, leather(p.boots));
+    rect(ctx, leg.x, m.legY + shin, m.legW - 1, 1, OUTLINE);
   }
 }
 
@@ -150,21 +164,21 @@ function paintTorso(ctx, m, p, outfit, dir) {
   const bottom = outfit.hem;
 
   // Silhouette, then fill inside it.
-  rect(ctx, x - 1, top, w + 2, bottom - top, OUTLINE);
+  rect(ctx, x - 1, top, w + 2, bottom - top, edge(p.cloak));
   rect(ctx, x, top, w, bottom - top - 1, p.cloakDark);
   rect(ctx, x, top, w, Math.max(2, (bottom - top) * 0.82), p.cloak);
 
   // Shoulders are not square. Knocking the top two corners off is most of what
   // turns a coloured rectangle into somebody standing there.
-  rect(ctx, x, top, 1, 1, OUTLINE);
-  rect(ctx, x + w - 1, top, 1, 1, OUTLINE);
+  rect(ctx, x, top, 1, 1, edge(p.cloak));
+  rect(ctx, x + w - 1, top, 1, 1, edge(p.cloak));
 
   // Four tones down the body, lit from up and to the left. One column each:
   // a lit edge, the garment's own colour across the middle, its shaded side,
   // and a crease down the far edge where the light does not reach.
   rect(ctx, x, top + 1, 1, bottom - top - 2, lit(p.cloak));
   rect(ctx, x + w - 2, top + 2, 1, bottom - top - 3, p.cloakDark);
-  rect(ctx, x + w - 1, top + 1, 1, bottom - top - 2, deep(p.cloak));
+  rect(ctx, x + w - 1, top + 1, 1, bottom - top - 2, edge(p.cloak));
 
   // The head throws a shadow across the top of the chest, which is what stops
   // a head reading as a ball resting on a box. One row, and not a black one.
@@ -179,10 +193,10 @@ function paintTorso(ctx, m, p, outfit, dir) {
     for (let i = 1; i <= outfit.skirt; i++) {
       const flare = Math.min(room, Math.round((i / outfit.skirt) * (outfit.skirt + 1)));
       const y = bottom - outfit.skirt + i - 1;
-      rect(ctx, x - flare - 1, y, w + flare * 2 + 2, 1, OUTLINE);
+      rect(ctx, x - flare - 1, y, w + flare * 2 + 2, 1, edge(p.cloak));
       rect(ctx, x - flare, y, w + flare * 2, 1, p.cloak);
       rect(ctx, x - flare, y, 1, 1, lit(p.cloak));
-      rect(ctx, x + w + flare - 1, y, 1, 1, deep(p.cloak));
+      rect(ctx, x + w + flare - 1, y, 1, 1, edge(p.cloak));
     }
   }
 
@@ -200,20 +214,20 @@ function paintTorso(ctx, m, p, outfit, dir) {
     rect(ctx, centred(2), top + 1, 2, bottom - top - 4, p.trim);
   }
   if (outfit.pauldrons) {
-    rect(ctx, x - 1, top, 4, 4, OUTLINE);
+    rect(ctx, x - 1, top, 4, 4, edge(p.cloak));
     rect(ctx, x, top, 3, 3, p.trim);
-    rect(ctx, x + w - 3, top, 4, 4, OUTLINE);
+    rect(ctx, x + w - 3, top, 4, 4, edge(p.cloak));
     rect(ctx, x + w - 2, top, 3, 3, p.trim);
   }
   if (outfit.belt) {
-    rect(ctx, x, top + Math.round((bottom - top) * 0.6), w, 2, p.boots);
+    rect(ctx, x, top + Math.round((bottom - top) * 0.6), w, 2, leather(p.boots));
     rect(ctx, centred(2), top + Math.round((bottom - top) * 0.6), 2, 2, p.trim);
   }
   if (outfit.studs) {
     for (let sy = top + 2; sy < bottom - 4; sy += 3) rect(ctx, x + 2, sy, 1, 1, p.trim);
   }
   if (outfit.ragged) {
-    for (let i = 0; i < w; i += 2) rect(ctx, x + i, bottom - 2, 1, 2, OUTLINE);
+    for (let i = 0; i < w; i += 2) rect(ctx, x + i, bottom - 2, 1, 2, edge(p.cloak));
   }
   if (outfit.cape && dir !== 'up') {
     rect(ctx, x - 2, top + 1, 2, bottom - top - 3, p.cloakDark);
@@ -227,20 +241,20 @@ function paintTorso(ctx, m, p, outfit, dir) {
     const cw = outfit.cape ? Math.min(w + 2, ACTOR_W - 4) : w;
     const cx = centred(cw);
     if (outfit.cape) {
-      rect(ctx, cx - 1, top + 1, cw + 2, bottom - top - 1, OUTLINE);
+      rect(ctx, cx - 1, top + 1, cw + 2, bottom - top - 1, edge(p.cloak));
       rect(ctx, cx, top + 1, cw, bottom - top - 2, p.cloakDark);
       rect(ctx, cx + 1, top + 1, cw - 2, bottom - top - 3, p.cloak);
     }
     // Two folds down the back, and the light off the left shoulder.
     rect(ctx, cx + 1, top + 2, 1, bottom - top - 5, lit(p.cloak));
     rect(ctx, centred(1), top + 2, 1, bottom - top - 5, p.cloakDark);
-    rect(ctx, cx + cw - 3, top + 3, 1, bottom - top - 6, deep(p.cloak));
+    rect(ctx, cx + cw - 3, top + 3, 1, bottom - top - 6, edge(p.cloak));
     // The hem, catching the light along its edge.
-    rect(ctx, cx + 1, bottom - 3, cw - 2, 1, deep(p.cloak));
+    rect(ctx, cx + 1, bottom - 3, cw - 2, 1, edge(p.cloak));
     rect(ctx, cx + 1, bottom - 2, cw - 2, 1, p.cloakDark);
     // A belt or a baldric across it, so the back is not one flat field.
-    rect(ctx, cx, top + Math.round((bottom - top) * 0.55), cw, 2, p.boots);
-    rect(ctx, cx, top + Math.round((bottom - top) * 0.55), cw, 1, p.legs);
+    rect(ctx, cx, top + Math.round((bottom - top) * 0.55), cw, 2, leather(p.boots));
+    rect(ctx, cx, top + Math.round((bottom - top) * 0.55), cw, 1, cloth(p.legs));
   }
 
   // A collar, so facing reads at a glance. It used to run the whole length of
@@ -265,7 +279,7 @@ function paintArms(ctx, m, p, outfit, torso, dir) {
 
   if (dir === 'left' || dir === 'right') {
     // Profile: one arm, forward.
-    rect(ctx, torso.x + torso.w - 2, top + 1, armW + 1, h, OUTLINE);
+    rect(ctx, torso.x + torso.w - 2, top + 1, armW + 1, h, edge(p.cloak));
     rect(ctx, torso.x + torso.w - 1, top + 2, armW, h - 2, p.cloakDark);
     rect(ctx, torso.x + torso.w - 1, handY, armW, 2, p.skin);
     return;
@@ -282,13 +296,13 @@ function paintArms(ctx, m, p, outfit, torso, dir) {
   // tone made them read as two black bars down the sides of everybody, which is
   // most of why the body looked twice as wide as it is: the torso showing
   // between them was four pixels of light in eleven pixels of dark.
-  rect(ctx, nearFill - 1, top, 1, h + 1, OUTLINE);
-  rect(ctx, nearFill, top + h, armW, 1, OUTLINE);
+  rect(ctx, nearFill - 1, top, 1, h + 1, edge(p.cloak));
+  rect(ctx, nearFill, top + h, armW, 1, edge(p.cloak));
   rect(ctx, nearFill, top, armW, h, p.cloak);
   rect(ctx, nearFill, top, 1, h, lit(p.cloak));      // light down the near sleeve
 
-  rect(ctx, farFill + armW, top, 1, h + 1, OUTLINE);
-  rect(ctx, farFill, top + h, armW, 1, OUTLINE);
+  rect(ctx, farFill + armW, top, 1, h + 1, edge(p.cloak));
+  rect(ctx, farFill, top + h, armW, 1, edge(p.cloak));
   rect(ctx, farFill, top, armW, h, p.cloak);
   rect(ctx, farFill + armW - 1, top, 1, h, p.cloakDark);
 
@@ -304,8 +318,12 @@ function paintHead(ctx, m, p, hair, dir) {
   const y = m.headY;
   const h = m.headH;
 
-  rect(ctx, x, y, w, h, OUTLINE);
-  rect(ctx, x - 1, y + 2, w + 2, h - 4, OUTLINE);
+  /* From behind the whole head is hair, so the line round it belongs to the
+     hair. Ringing the back of somebody's head in dark skin put a brown halo
+     round every blond in the game. */
+  const rim = dir === 'up' && hair.cap ? edge(p.hair) : edge(p.skin);
+  rect(ctx, x, y, w, h, rim);
+  rect(ctx, x - 1, y + 2, w + 2, h - 4, rim);
 
   const faceColor = dir === 'up' && hair.cap ? p.hair : p.skin;
   const shadeColor = dir === 'up' && hair.cap ? p.hair : p.skinDark;
@@ -324,7 +342,7 @@ function paintHead(ctx, m, p, hair, dir) {
     // A hood swallows the whole head. The opening is the bottom half of it, so
     // there is a face in the shadow rather than a shadow where a face was.
     rect(ctx, x - 1, y, w + 2, h, p.cloakDark);
-    rect(ctx, x, y, w, 1, deep(p.cloak));
+    rect(ctx, x, y, w, 1, edge(p.cloak));
     rect(ctx, x, y + 1, w, 3, p.cloak);
     rect(ctx, x + 1, y + 1, w - 3, 1, lit(p.cloak));
     if (dir !== 'up') {
@@ -356,7 +374,7 @@ function paintHead(ctx, m, p, hair, dir) {
       rect(ctx, x + 1, y + h - 3, w - 3, 1, steel);
     }
     if (dir !== 'up') {
-      rect(ctx, x + 2, y + 6, w - 4, 3, OUTLINE);        // visor slit
+      rect(ctx, x + 2, y + 6, w - 4, 3, edge(p.cloak));   // visor slit
       rect(ctx, centred(2), y + 4, 2, h - 8, steel);     // nasal bar
       rect(ctx, centred(2), y + 4, 1, h - 8, lit(steel));
     }
@@ -374,11 +392,14 @@ function paintHead(ctx, m, p, hair, dir) {
   if (dir === 'up' && hair.cap) {
     rect(ctx, x + 1, y + 1, w - 2, 2, p.hairLight);
     rect(ctx, x + 2, y, w - 4, 1, p.hairLight);
-    rect(ctx, x + w - 3, y + 2, 2, h - 5, OUTLINE);
+    rect(ctx, x + w - 3, y + 2, 2, h - 5, edge(p.hair));
     rect(ctx, x + w - 3, y + 2, 1, h - 5, p.hair);
     rect(ctx, x, y + 2, 1, h - 5, p.hairLight);
-    // The nape, and the neck below it.
-    rect(ctx, x + 2, y + h - 4, w - 4, 2, OUTLINE);
+    /* The nape. This was two rows of near-black across the back of the head,
+       which at this size is not a nape - it is a hole in somebody's skull, and
+       it was on screen behind you for every step of every walk in the game. */
+    rect(ctx, x + 2, y + h - 4, w - 4, 2, edge(p.hair));
+    rect(ctx, x + 3, y + h - 4, w - 6, 1, p.hair);
     rect(ctx, centred(4), y + h - 2, 4, 2, p.skinDark);
     rect(ctx, centred(4), y + h - 2, 4, 1, p.skin);
   }
@@ -556,22 +577,61 @@ function normalise(who) {
  * it from the silhouette rather than by hand means it is never missed on a
  * sleeve or the hem of a cloak.
  */
-function keyline(ctx, w, h, colour) {
+/* The line round a figure.
+ *
+ * It used to be one near-black, everywhere, whatever it was drawn against:
+ * hair, skin, wool, mail and leather all got the same colour. At sixteen
+ * pixels across, that line is a sixteenth of the body on each side, and a
+ * uniform black one welds the head to the shoulders, the arms to the chest and
+ * both legs into a single dark brick. Everybody came out as the same slab in a
+ * different colour, which is exactly what they looked like.
+ *
+ * The line now takes its colour from whatever it is ringing, two-thirds of the
+ * way to black. A fair head is ringed in dark gold, a red cloak in maroon, a
+ * hand in deep umber. The figure stops being a sticker and starts being drawn.
+ *
+ * It cannot be a free choice per pixel: an appearance gets one palette of
+ * fifteen colours on the hardware and a hundred outline tones would eat it. So
+ * the neighbour's colour is snapped to the nearest of a handful the palette
+ * already has to carry, which costs three entries and buys the whole look. */
+function keyline(ctx, w, h, tones) {
   const src = ctx.getImageData(0, 0, w, h);
+  const d = src.data;
   const solid = new Uint8Array(w * h);
-  for (let i = 0, p = 0; i < src.data.length; i += 4, p++) {
-    solid[p] = src.data[i + 3] >= 128 ? 1 : 0;
-  }
-  ctx.fillStyle = colour;
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) solid[p] = d[i + 3] >= 128 ? 1 : 0;
+
+  const rgb = (hex) => {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const bank = tones.map((t) => ({ hex: t, c: rgb(t) }));
+  const nearest = (r, g, b) => {
+    let best = bank[0], bd = Infinity;
+    for (const t of bank) {
+      const dr = r - t.c[0], dg = g - t.c[1], db = b - t.c[2];
+      const dist = dr * dr + dg * dg + db * db;
+      if (dist < bd) { bd = dist; best = t; }
+    }
+    return best.hex;
+  };
+
+  const paint = [];
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       if (solid[y * w + x]) continue;
-      const near = (x > 0 && solid[y * w + x - 1])
-        || (x < w - 1 && solid[y * w + x + 1])
-        || (y > 0 && solid[(y - 1) * w + x])
-        || (y < h - 1 && solid[(y + 1) * w + x]);
-      if (near) ctx.fillRect(x, y, 1, 1);
+      let sx = -1, sy = -1;
+      if (x > 0 && solid[y * w + x - 1]) { sx = x - 1; sy = y; }
+      else if (x < w - 1 && solid[y * w + x + 1]) { sx = x + 1; sy = y; }
+      else if (y > 0 && solid[(y - 1) * w + x]) { sx = x; sy = y - 1; }
+      else if (y < h - 1 && solid[(y + 1) * w + x]) { sx = x; sy = y + 1; }
+      if (sx < 0) continue;
+      const at = (sy * w + sx) * 4;
+      paint.push([x, y, nearest(d[at], d[at + 1], d[at + 2])]);
     }
+  }
+  for (const [x, y, hex] of paint) {
+    ctx.fillStyle = hex;
+    ctx.fillRect(x, y, 1, 1);
   }
 }
 
@@ -597,7 +657,12 @@ export function paintActorFrame(who, dir, step, combat = false) {
     paintWeapon(ctx, m, a.weapon, dir, combat);
   }
 
-  keyline(ctx, ACTOR_W, ACTOR_H, OUTLINE);
+  /* Three tones to ring the figure with - the hair, the skin and the garment,
+     each taken most of the way to black - and the near-black kept for the
+     boots, where a real shadow belongs. */
+  keyline(ctx, ACTOR_W, ACTOR_H, [
+    edge(p.hair), edge(p.skin), edge(p.cloak), OUTLINE,
+  ]);
 
   // The contact shadow goes on last but underneath, so the keyline traces the
   // body and not the shadow it casts.

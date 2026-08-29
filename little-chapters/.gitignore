@@ -1,0 +1,19 @@
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# local environment — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# local dev storage driver writes here
+.local-storage/
+
+# vitest / misc
+.vitest-cache/
+.DS_Store

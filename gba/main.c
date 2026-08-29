@@ -4335,6 +4335,37 @@ static int nthCarried(int n) {
   return -1;
 }
 
+/* The pouch reads like the counter: the same four shelves, in the same order.
+   It was one list of everything you had ever picked up, and by the middle of
+   the game the flask you wanted in a fight was forty rows down it, under every
+   sword and helm you had not sold yet. In a fight it opens on REMEDIES, which
+   is the only shelf a fight ever wants. */
+static int bagPocket;
+
+static int pocketOf(int kind) {
+  if (kind == WARE_POTION || kind == WARE_SNARE || kind == WARE_OATH) return 0;
+  if (kind == WARE_WEAPON) return 1;
+  if (kind == WARE_ARMOUR || kind == WARE_SHIELD || kind == WARE_HELM
+      || kind == WARE_GLOVES) return 2;
+  return 3;                     /* makings, relics, and whatever is an egg */
+}
+
+static int pocketCount(int p) {
+  int i, n = 0;
+  for (i = 0; i < WARE_COUNT; i++) {
+    if (you.bag[i] && pocketOf(wares[i].kind) == p) n++;
+  }
+  return n;
+}
+
+static int nthInPocket(int p, int n) {
+  int i;
+  for (i = 0; i < WARE_COUNT; i++) {
+    if (you.bag[i] && pocketOf(wares[i].kind) == p && !n--) return i;
+  }
+  return -1;
+}
+
 static void showGold(int y) {
   copyString(scratch, "Gold ", sizeof scratch);
   appendNumber(scratch, you.gold, sizeof scratch);
@@ -4437,20 +4468,32 @@ static int wareWorth(int at) {
 }
 
 static void paintBag(void) {
-  int have = carrying(), top = listTop(bagPick, have), i;
+  int have = pocketCount(bagPocket), top = listTop(bagPick, have), i, k, x = 14;
   clearRows(0, TXT_H);
   drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
-  drawText(14, 6, "WHAT YOU CARRY", C_GOLD);
+  /* The same tab strip the counter wears, because they are two sides of the
+     same furniture. */
+  for (k = 0; k < STALL_COUNT; k++) {
+    const char *tab = stallName[k];
+    drawText(x, 6, tab, k == bagPocket ? C_GOLD : C_DIM);
+    if (k == bagPocket) fillRect(x, 15, textWidth(tab), 1, C_GOLD);
+    x += textWidth(tab) + 9;
+  }
   showGold(6);
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
 
-  if (!have) {
+  if (!carrying()) {
     drawText(20, 34, "Nothing but your own hands.", C_DIM);
     drawText(14, TXT_H - 18, "B to put it away", C_DIM);
     return;
   }
+  if (!have) {
+    drawText(20, 34, "Nothing in this pocket.", C_DIM);
+    drawText(14, TXT_H - 18, "left/right: pocket    B: put it away", C_DIM);
+    return;
+  }
   for (i = 0; i < LIST_ROWS && top + i < have; i++) {
-    int at = nthCarried(top + i);
+    int at = nthInPocket(bagPocket, top + i);
     int y = 22 + i * 11;
     if (top + i == bagPick) drawCursor(14, y + 1, C_GOLD);
     drawText(24, y, wares[at].name, top + i == bagPick ? C_GOLD : C_INK);
@@ -4475,7 +4518,7 @@ static void paintBag(void) {
     }
   }
   {
-    int at = nthCarried(bagPick);
+    int at = nthInPocket(bagPocket, bagPick);
     describeWare(at, 1);
     drawText(14, TXT_H - 18, scratch, C_DIM);
     /* At a counter the pouch is also where you sell, so it says what this is
@@ -9217,7 +9260,15 @@ int main(void) {
         paintParty();
       }
     } else if (scene == SCENE_BAG) {
-      int have = carrying(), was = bagPick;
+      int have = pocketCount(bagPocket), was = bagPick;
+      if (hit(KEY_LEFT) || hit(KEY_RIGHT)) {
+        bagPocket = hit(KEY_LEFT) ? (bagPocket ? bagPocket - 1 : STALL_COUNT - 1)
+                                  : (bagPocket + 1 >= STALL_COUNT ? 0 : bagPocket + 1);
+        bagPick = 0;
+        sfxPick();
+        paintBag();
+        continue;
+      }
       if (hit(KEY_UP) && bagPick > 0) bagPick--;
       if (hit(KEY_DOWN) && bagPick < have - 1) bagPick++;
       if (bagPick != was) { sfxPick(); paintBag(); }
@@ -9239,10 +9290,10 @@ int main(void) {
           paintMenu();
         }
       } else if (hit(KEY_SELECT) && have && atCounter) {
-        int at = nthCarried(bagPick);
+        int at = nthInPocket(bagPocket, bagPick);
         const char *said = sellWare(at);
         sfxRank();
-        if (bagPick >= carrying() && bagPick) bagPick--;
+        if (bagPick >= pocketCount(bagPocket) && bagPick) bagPick--;
         if (!carrying()) {
           atCounter = 0;
           scene = SCENE_SHOP;
@@ -9255,9 +9306,9 @@ int main(void) {
           showPlate(said);
         }
       } else if (hit(KEY_A) && have) {
-        int at = nthCarried(bagPick);
+        int at = nthInPocket(bagPocket, bagPick);
         int worked = bagInDuel ? useInDuel(at) : useWare(at);
-        if (bagPick >= carrying() && bagPick) bagPick--;
+        if (bagPick >= pocketCount(bagPocket) && bagPick) bagPick--;
         if (bagInDuel && worked) {
           clearPage();
           scene = SCENE_DUEL;
@@ -9363,11 +9414,14 @@ int main(void) {
       const Stall *stall = &stalls[shopStall];
       int was = shopPick;
       if (hit(KEY_START)) {
-        /* Over to your own side of the counter, where things can be sold. */
+        /* Over to your own side of the counter, where things can be sold - and
+           onto the same shelf you were just reading, because somebody selling
+           swords was standing at ARMS when they pressed it. */
         scene = SCENE_BAG;
         bagInDuel = 0;
         atCounter = 1;
         bagPick = 0;
+        bagPocket = shopStall;
         clearPage();
         layoutTextRows(TEXT_TOP);
         paintBag();
@@ -9478,6 +9532,7 @@ int main(void) {
             scene = SCENE_BAG;
             bagInDuel = 1;
             bagPick = 0;
+            bagPocket = 0;                     /* remedies: what a fight is for */
             clearPage();
             layoutTextRows(TEXT_TOP);
             paintBag();

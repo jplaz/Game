@@ -953,9 +953,9 @@ void hostFrame(void) {
     oathWanted = -1;
     if (bagInDuel && foeBeast < 0 && foeDef && foeDef->sworn < SWORN_KINDS
         && hostRoom() >= 0 && theirs.hp * 4 < theirs.maxHp) {
-      int have = carrying(), i;
+      int have = pocketCount(bagPocket), i;
       for (i = 0; i < have; i++) {
-        if (wares[nthCarried(i)].kind == WARE_OATH) { oathWanted = i; break; }
+        if (wares[nthInPocket(bagPocket, i)].kind == WARE_OATH) { oathWanted = i; break; }
       }
     }
     if (oathWanted >= 0) {
@@ -967,9 +967,9 @@ void hostFrame(void) {
        than for a drink: taking one alive is a whole half of the game and a
        tester that never throws one has not walked it. */
     if (bagInDuel && foeBeast >= 0 && theirs.hp * 3 < theirs.maxHp) {
-      int have = carrying(), want = -1, i;
+      int have = pocketCount(bagPocket), want = -1, i;
       for (i = 0; i < have; i++) {
-        if (wares[nthCarried(i)].kind == WARE_SNARE) { want = i; break; }
+        if (wares[nthInPocket(bagPocket, i)].kind == WARE_SNARE) { want = i; break; }
       }
       if (want >= 0) {
         if (bagPick != want) keys = tap(bagPick < want ? KEY_DOWN : KEY_UP);

@@ -133,10 +133,30 @@ export const storybookTask: AiTask<StorybookInput, z.infer<typeof storybookOutpu
       [input.childName, input.title, ...input.memories.map((m) => `${m.title ?? ""} ${m.text}`)].join("\n"),
       output.pages.map((p) => p.text).join("\n")
     ),
-  fallback: (input) => ({
-    pages: input.memories.slice(0, Math.max(4, input.pageCount)).map((m, i) => ({
-      pageNumber: i + 1,
-      text: m.text.trim(),
-    })),
-  }),
+  fallback: (input) => {
+    // no model: page the parent's own sentences, verbatim
+    const sentences = input.memories
+      .flatMap((m) => m.text.split(/(?<=[.!?])\s+/))
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    const targetPages = Math.min(
+      Math.max(4, input.pageCount),
+      Math.max(4, sentences.length)
+    );
+    const perPage = Math.max(1, Math.ceil(sentences.length / targetPages));
+    const pages: Array<{ pageNumber: number; text: string }> = [];
+    for (let i = 0; i < sentences.length && pages.length < 20; i += perPage) {
+      pages.push({
+        pageNumber: pages.length + 1,
+        text: sentences.slice(i, i + perPage).join(" ").slice(0, 600),
+      });
+    }
+    while (pages.length < 4) {
+      pages.push({
+        pageNumber: pages.length + 1,
+        text: pages.length === 3 ? "The end — for now." : `${input.childName}'s day, kept exactly as it was.`,
+      });
+    }
+    return { pages };
+  },
 };

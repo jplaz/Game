@@ -76,6 +76,11 @@ async function main() {
       (${family!.id}, ${demoUser!.id}, 'owner', 'Avery'),
       (${family!.id}, ${grandma!.id}, 'contributor', 'Grandma')
   `;
+  // premium so the whole product (books, recaps, storybooks) is explorable
+  await sql`
+    insert into subscriptions (family_id, plan_id, status)
+    values (${family!.id}, 'premium', 'active')
+  `;
 
   // Rory: born ~7.5 months ago so two full month-chapters exist
   const birth = new Date();

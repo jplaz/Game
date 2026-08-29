@@ -11,6 +11,9 @@ import {
   ExportButton,
   LogoutButton,
 } from "@/components/settings/settings-actions";
+import { NotificationPrefs } from "@/components/settings/notification-prefs";
+import { listPrintOrders } from "@/server/domain/printOrders";
+import { formatCents } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +30,8 @@ export default async function SettingsPage() {
     where is_active order by sort_order
   `;
   const exports = isOwner ? await listExports(ctx.user.id, ctx.familyId) : [];
+  const isParent = isOwner || ctx.role === "parent";
+  const orders = isParent ? await listPrintOrders(ctx.user.id, ctx.familyId) : [];
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
@@ -111,6 +116,41 @@ export default async function SettingsPage() {
               ))}
             </ul>
           ) : null}
+        </section>
+      ) : null}
+
+      <section className="lc-card p-6 space-y-2">
+        <SectionHeading
+          title="Notifications"
+          subtitle="Quiet by default — choose what reaches you and how."
+          className="mb-2"
+        />
+        <NotificationPrefs />
+      </section>
+
+      {orders.length > 0 ? (
+        <section className="lc-card p-6 space-y-3">
+          <SectionHeading title="Print orders" className="mb-0" />
+          <ul className="space-y-2 text-sm">
+            {orders.map((order) => (
+              <li key={order.id} className="flex items-center justify-between gap-3">
+                <span className="text-ink-600 truncate">
+                  {order.bookTitle ?? "Printed order"}
+                </span>
+                <span className="text-ink-400 shrink-0">
+                  {formatCents(order.totalCents)} · {order.status.replaceAll("_", " ")}
+                  {order.trackingUrl ? (
+                    <>
+                      {" · "}
+                      <a href={order.trackingUrl} className="text-clay-600" target="_blank" rel="noreferrer">
+                        track
+                      </a>
+                    </>
+                  ) : null}
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 

@@ -181,6 +181,24 @@ export default async function HomePage() {
         </section>
       ) : null}
 
+      {/* quick paths (mobile especially — these live off the tab bar) */}
+      <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:hidden">
+        {[
+          { href: "/assistant", label: "Remember together" },
+          { href: "/library", label: "Photo & video library" },
+          { href: "/books", label: "Books" },
+          { href: "/letters", label: "Letters" },
+        ].map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className="lc-card p-4 text-sm font-medium text-ink-600 hover:shadow-lifted transition-shadow"
+          >
+            {link.label}
+          </Link>
+        ))}
+      </section>
+
       {/* latest memories */}
       <section>
         <SectionHeading

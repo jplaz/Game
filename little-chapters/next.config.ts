@@ -23,6 +23,19 @@ const nextConfig: NextConfig = {
         },
       ],
     },
+    // share surfaces must never be indexed, whatever a crawler ignores in meta
+    {
+      source: "/s/:path*",
+      headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+    },
+    {
+      source: "/m/:path*",
+      headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+    },
+    {
+      source: "/invite/:path*",
+      headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+    },
   ],
 };
 

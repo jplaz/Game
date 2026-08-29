@@ -2,9 +2,12 @@ import { notFound } from "next/navigation";
 import { requireAppContext } from "@/server/context";
 import { getBook } from "@/server/domain/books";
 import { NotFoundError } from "@/server/errors";
+import { getSql } from "@/server/db/client";
 import { MediaImage } from "@/components/media/media-image";
 import { Badge } from "@/components/ui/misc";
 import { RenderBookButton } from "@/components/books/book-actions";
+import { OrderForm } from "@/components/books/order-form";
+import { SectionHeading } from "@/components/ui/card";
 import { QrCode } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +27,17 @@ export default async function BookPage({
     throw err;
   }
   const isParent = ctx.role === "owner" || ctx.role === "parent";
+  const sql = getSql();
+  const products =
+    isParent && book.status === "rendered"
+      ? (
+          await sql<{ id: string; name: string; retail_price_cents: number }[]>`
+            select id, name, retail_price_cents from print_products
+            where is_active and kind in ('hardcover','softcover','layflat','mini')
+            order by retail_price_cents desc
+          `
+        ).map((p) => ({ id: p.id, name: p.name, retailPriceCents: p.retail_price_cents }))
+      : [];
   const preflight = book.preflight as {
     issues?: Array<{ pageNumber: number; detail: string; severity: string }>;
   };
@@ -58,6 +72,17 @@ export default async function BookPage({
             </p>
           ))}
         </div>
+      ) : null}
+
+      {products.length > 0 ? (
+        <section className="lc-card p-6">
+          <SectionHeading
+            title="Order the printed book"
+            subtitle="A real book for the shelf — QR-linked video memories included."
+            className="mb-4"
+          />
+          <OrderForm bookId={book.id} products={products} />
+        </section>
       ) : null}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">

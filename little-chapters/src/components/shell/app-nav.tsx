@@ -20,6 +20,13 @@ const TABS = [
   { href: "/family", label: "Family", icon: Users },
 ] as const;
 
+const DESKTOP_EXTRAS = [
+  { href: "/library", label: "Library" },
+  { href: "/books", label: "Books" },
+  { href: "/letters", label: "Letters" },
+  { href: "/assistant", label: "Remember" },
+] as const;
+
 /** Mobile bottom tab bar + desktop header nav. */
 export function AppNav() {
   const pathname = usePathname();
@@ -33,25 +40,31 @@ export function AppNav() {
             Little Chapters
           </Link>
           <nav className="flex items-center gap-1" aria-label="Primary">
-            {TABS.map((tab) => {
-              const active = pathname.startsWith(tab.href);
-              return (
-                <Link
-                  key={tab.href}
-                  href={tab.href}
-                  className={cn(
-                    "px-4 py-2 rounded-full text-sm font-medium transition-colors",
-                    "primary" in tab && tab.primary
-                      ? "bg-clay-600 text-cream-50 hover:bg-clay-700 ml-1"
-                      : active
+            {[...TABS.filter((t) => !("primary" in t && t.primary)), ...DESKTOP_EXTRAS].map(
+              (tab) => {
+                const active = pathname.startsWith(tab.href);
+                return (
+                  <Link
+                    key={tab.href}
+                    href={tab.href}
+                    className={cn(
+                      "px-3.5 py-2 rounded-full text-sm font-medium transition-colors",
+                      active
                         ? "bg-sand-100 text-ink-700"
                         : "text-ink-400 hover:text-ink-600"
-                  )}
-                >
-                  {tab.label}
-                </Link>
-              );
-            })}
+                    )}
+                  >
+                    {tab.label}
+                  </Link>
+                );
+              }
+            )}
+            <Link
+              href="/memories/new"
+              className="px-4 py-2 rounded-full text-sm font-medium bg-clay-600 text-cream-50 hover:bg-clay-700 ml-1"
+            >
+              Add Memory
+            </Link>
             <Link
               href="/search"
               aria-label="Search"

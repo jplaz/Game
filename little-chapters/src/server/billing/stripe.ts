@@ -110,6 +110,12 @@ export async function handleStripeWebhook(rawBody: string, signature: string): P
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object;
+      // one-time print payments carry printOrderId metadata
+      if (session.mode === "payment" && session.metadata?.printOrderId) {
+        const { markPrintOrderPaid } = await import("@/server/domain/printOrders");
+        await markPrintOrderPaid(session.metadata.printOrderId);
+        break;
+      }
       const familyId = session.client_reference_id ?? session.metadata?.familyId;
       const planId = session.metadata?.planId;
       if (!familyId || !planId) break;

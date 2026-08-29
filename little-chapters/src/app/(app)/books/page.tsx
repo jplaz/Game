@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { requireAppContext } from "@/server/context";
 import { listBooks } from "@/server/domain/books";
+import { getSql } from "@/server/db/client";
 import { computeAge } from "@/lib/age";
 import { Badge, EmptyState } from "@/components/ui/misc";
 import { buttonClass } from "@/components/ui/button";
 import { CreateBookButton } from "@/components/books/book-actions";
+import { StorybookForm } from "@/components/books/storybook-form";
 import { SectionHeading } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +24,25 @@ export default async function BooksPage() {
   }
   const books = await listBooks(ctx.user.id, child.id);
   const isParent = ctx.role === "owner" || ctx.role === "parent";
+  const sql = getSql();
+  const storyMemories = isParent
+    ? (
+        await sql<
+          { id: string; title: string | null; body: string; happened_at: string }[]
+        >`
+          select id, title, body, happened_at::text as happened_at
+          from memories
+          where child_id = ${child.id} and deleted_at is null
+            and approval_status = 'approved' and body is not null
+          order by is_favorite desc, happened_at desc limit 30
+        `
+      ).map((m) => ({
+        id: m.id,
+        title: m.title,
+        snippet: m.body.slice(0, 100),
+        happenedAt: m.happened_at,
+      }))
+    : [];
   const ageYears = child.birthDate
     ? computeAge(new Date(`${child.birthDate}T00:00:00`)).years
     : 0;
@@ -62,6 +83,17 @@ export default async function BooksPage() {
               label="A grandparent book"
             />
           </div>
+        </section>
+      ) : null}
+
+      {isParent ? (
+        <section className="lc-card p-6 space-y-4">
+          <SectionHeading
+            title="A storybook from real days"
+            subtitle={`e.g. “${child.displayName}'s First Trip to the Beach” — written only from memories you choose.`}
+            className="mb-0"
+          />
+          <StorybookForm childId={child.id} memories={storyMemories} />
         </section>
       ) : null}
 

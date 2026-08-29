@@ -1213,13 +1213,6 @@ function cityGrid() {
   put(22, 6, 'V'); put(27, 6, 'V');
   put(20, 3, 'A'); put(29, 3, 'A');       // corner towers stand a course higher
 
-  // --- the streets ---------------------------------------------------------
-  box(1, 10, W - 2, 2, '=');              // the great east-west way
-  box(15, 1, 2, 9, '=');                  // up to the hills
-  box(15, 12, 2, 8, '=');                 // down through the market
-  box(1, 20, W - 2, 1, '=');              // the lower way
-  box(15, 21, 2, 10, '=');                // and out of the Mud Gate
-
   // --- the market, middle: the Maester's Hall and the Street of Steel ------
   box(3, 13, 8, 1, 'q'); box(3, 14, 8, 2, 'Q');
   row(3, 16, 'pepDpwpp');
@@ -1250,6 +1243,33 @@ function cityGrid() {
   box(22, 29, 8, 2, '~');
   box(20, 28, 10, 1, 's');
   put(21, 29, 's'); put(21, 30, 's');
+
+  // --- the streets, last -----------------------------------------------------
+  //
+  // Last, because they were first and the warren was then drawn straight over
+  // them. The great way south came out of that four tiles wide at the top of
+  // the city and one tile wide at the bottom - a gap between a slum and a
+  // wharf, at the far end of a map ten screens tall, with nothing anywhere
+  // saying it was there. A player who could not find their way out of King's
+  // Landing was not being careless. There was nothing to find.
+  //
+  // Nothing else in the city is allowed to build on a street now, and the two
+  // great ways are four tiles across the whole length and breadth of it, so
+  // that standing on one you can see it is a road and see which way it runs.
+  const AVENUE = 14, AVENUE_W = 4;
+  box(1, 10, W - 2, 2, '=');                        // the great east-west way
+  box(1, 20, W - 2, 2, '=');                        // the lower way
+  box(AVENUE, 1, AVENUE_W, 9, '=');                 // up to the hills
+  box(AVENUE, 12, AVENUE_W, 8, '=');                // down through the market
+  box(AVENUE, 22, AVENUE_W, 9, '=');                // and out of the Mud Gate
+
+  // The gate itself, so that the end of the road looks like the end of a road:
+  // a gatehouse either side of an opening you can walk four abreast through.
+  box(AVENUE, 31, AVENUE_W, 1, '=');
+
+  // The way down into Flea Bottom, put back on top of the street rather than
+  // under it: it used to be drawn before the lower way and paved straight over.
+  put(11, 21, 'D');
 
   // A few green things nobody has paved over yet.
   for (const [x, y] of [[13, 4], [13, 6], [18, 5], [18, 7], [12, 8], [19, 3]]) put(x, y, ',');
@@ -4403,7 +4423,10 @@ export const MAPS = {
       { beast: 'corvarch', min: 30, max: 38, weight: 40 },
     ],
     warps: [
+      { x: 14, y: 31, to: 'kingsroad', tx: 10, ty: 21, dir: 'up' },
+      { x: 15, y: 31, to: 'kingsroad', tx: 10, ty: 21, dir: 'up' },
       { x: 16, y: 31, to: 'kingsroad', tx: 10, ty: 21, dir: 'up' },
+      { x: 17, y: 31, to: 'kingsroad', tx: 10, ty: 21, dir: 'up' },
       { x: 6, y: 7, to: 'greatSept', tx: 8, ty: 9, dir: 'up' },
       { x: 25, y: 9, to: 'redKeep', tx: 8, ty: 21, dir: 'up' },
       { x: 6, y: 16, to: 'maesterHallKL', tx: 5, ty: 7, dir: 'up' },
@@ -4412,8 +4435,14 @@ export const MAPS = {
       { x: 11, y: 21, to: 'fleaBottom', tx: 2, ty: 1, dir: 'down' },
     ],
     signs: [
-      { x: 14, y: 11, text: "KING'S LANDING\nHalf a million people and one chair.\nMind your purse." },
-      { x: 17, y: 20, text: 'THE HOOK\nUp the hill: the Red Keep.\nDown the alleys: Flea Bottom, and whatever is left of you after it.' },
+      { x: 13, y: 11, text: "KING'S LANDING\nHalf a million people and one chair.\nMind your purse." },
+      /* Signposts at both ends of the great way, because a city ten screens
+         tall with one gate at the bottom of it needs to say so somewhere a
+         player will actually be standing. */
+      { x: 18, y: 11, text: 'THE GREAT WAY\nNorth: the Red Keep, and the Sept of Baelor.\nSouth: the market, the Mud Gate, and the road out.' },
+      { x: 13, y: 20, text: 'THE HOOK\nStraight on, down the great way: the Mud Gate and the Kingsroad.\nRight, down the alleys: Flea Bottom.' },
+      { x: 18, y: 26, text: 'THE MUD GATE\nAhead: out of the city, onto the Kingsroad.\nLeft, along the wharf: the harbourmaster, and a berth to anywhere.' },
+      { x: 18, y: 20, text: 'THE HARBOUR ROAD\nThe Blackwater, and every hull on it.\nA captain will name you a price for Braavos.' },
       { x: 23, y: 27, text: 'THE DRAGONPIT\nForty years shut. The roof came down on the last of them.\nSomething still nests in it.' },
     ],
     npcs: [
@@ -4474,8 +4503,12 @@ export const MAPS = {
       { x: 13, y: 12, text: 'THE MUD GATE\nA ferryman who does not give his name.\nHe will take you to the island, and he will not talk about it.' },
     ],
     npcs: [
-      { x: 8, y: 7, dir: 'up', sprite: 'braavosi', name: 'The Ferryman', script: 'bellowsHand',
-        data: { line: 'The island, then. Say nothing to anyone about who rowed you.' } },
+      /* He is a ferryman. He had no way of ferrying anybody anywhere: the
+         script he was given was the one the forge assistants use, so the only
+         man on the quay said his line and stood there. */
+      { x: 8, y: 7, dir: 'up', sprite: 'braavosi', name: 'The Ferryman', script: 'ship',
+        data: { line: 'The Ferryman: The island, then. Or further, if your purse runs to it. '
+          + 'Say nothing to anyone about who rowed you.' } },
       { x: 15, y: 9, dir: 'left', sprite: 'ironborn', name: 'Dock Thief', script: 'duel',
         data: { duel: 'ironbornReaver' } },
     ],

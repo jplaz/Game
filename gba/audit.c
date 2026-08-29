@@ -449,6 +449,60 @@ int main(void) {
     else bad("%s cannot be reached from the yard you start in", maps[i].name);
   }
 
+  /* --- and can you get back out of it? -------------------------------------
+     The check above walks the map of doors: it says the world hangs together
+     as a graph. It says nothing at all about whether, standing where a door
+     put you down, you can actually walk to any of the doors leading out - and
+     a town where you cannot is a town you are stuck in, whatever the graph
+     says. The flood below starts where each door lands and asks whether every
+     way out, every berth and every person is on the same side of the walls. */
+  for (m = 0; m < MAP_COUNT; m++) {
+    const Map *map = &maps[m];
+    int in, out, arrivals = 0;
+    for (i = 0; i < MAP_COUNT; i++) {
+      for (j = 0; j < maps[i].warpCount; j++) {
+        int ax, ay;
+        if (maps[i].warps[j].to != m) continue;
+        ax = maps[i].warps[j].tx;
+        ay = maps[i].warps[j].ty;
+        if (ax >= map->w || ay >= map->h) {
+          bad("a door out of %s puts you down at %d,%d, off the edge of %s",
+            maps[i].name, ax, ay, map->name);
+          continue;
+        }
+        if (++arrivals > 6) { i = MAP_COUNT; break; }   /* six is a fair sample */
+        /* The flood accumulates and refuses to start again from a tile it has
+           already reached, so it has to be wiped between arrivals. Without this
+           the second door checked is measured against the first door's flood,
+           and on the first map of the run against the last map's. */
+        memset(standable, 0, sizeof standable);
+        flood(map, ax, ay);
+        if (!standable[ay * map->w + ax]) {
+          bad("a door out of %s puts you down inside a wall at %d,%d in %s",
+            maps[i].name, ax, ay, map->name);
+          continue;
+        }
+        for (out = 0; out < map->warpCount; out++) {
+          int wx = map->warps[out].x, wy = map->warps[out].y;
+          if (wx >= map->w || wy >= map->h) continue;
+          /* You do not stand on a doorway, you stand beside it and step in, so
+             the tile itself may well be solid. Its neighbours are the test. */
+          if (standable[wy * map->w + wx] || standNextTo(map, wx, wy)) continue;
+          bad("in %s, coming from %s, you cannot reach the way out at %d,%d",
+            map->name, maps[i].name, wx, wy);
+        }
+        /* And the harbourmaster, who on a good many maps is the only way east. */
+        for (out = 0; out < map->npcCount; out++) {
+          if (!map->npcs[out].sails) continue;
+          if (standNextTo(map, map->npcs[out].x, map->npcs[out].y)) continue;
+          bad("in %s, coming from %s, nobody can reach the %s who sails",
+            map->name, maps[i].name, map->npcs[out].name);
+        }
+      }
+    }
+    (void)in;
+  }
+
   for (m = 0; m < MAP_COUNT; m++) {
     const Map *map = &maps[m];
     totalNpc += map->npcCount;

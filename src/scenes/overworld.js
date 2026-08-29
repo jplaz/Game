@@ -26,6 +26,7 @@ import {
 } from '../game/state.js';
 import { SCRIPTS } from '../data/scripts.js';
 import { TRAINERS } from '../data/trainers.js';
+import { saveGame } from '../game/save.js';
 
 const SCREEN_W = 240;
 const SCREEN_H = 160;
@@ -988,6 +989,7 @@ export class Overworld {
       openShop: (stock) => this.openShop(stock),
       openSmithy: (stock) => this.openSmithy(stock),
       healParty: () => this.healAtHall(),
+      saveGame,
       setFlag,
       flag,
     };

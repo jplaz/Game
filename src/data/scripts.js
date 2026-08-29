@@ -86,11 +86,20 @@ export const SCRIPTS = {
       ?? 'Kennelmaster: Anything you cannot carry, I will board.');
   },
 
-  async healer({ say, choose, npc, healParty }) {
-    const line = npc.data?.line ?? 'Shall I see to your creatures?';
-    const answer = await choose(line, ['Yes, please', 'No, thank you']);
-    if (answer !== 0) {
-      await say('As you like. Come back when they are footsore.');
+  async healer({ say, choose, npc, healParty, saveGame }) {
+    const line = npc.data?.line ?? 'How can the maester serve?';
+    const answer = await choose(line, ['Heal my creatures', 'Save my progress', 'Nothing']);
+    if (answer === 2) {
+      await say('Come back when you are weary.');
+      return;
+    }
+    if (answer === 1) {
+      const ok = saveGame();
+      if (ok) {
+        await say('Your progress has been entered into the ledger. You may return to this page at any time.');
+      } else {
+        await say('The ledger would not take it. Your browser may be blocking storage.');
+      }
       return;
     }
     await say('Rest them here a moment...');

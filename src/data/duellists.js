@@ -355,17 +355,18 @@ export const DUELLISTS = {
     after: 'Daario Naharis: Fight for what you love, or do not fight. Anything else is just employment.',
   },
   daenerys: {
-    name: 'Daenerys Targaryen', sprite: 'targaryen', level: 38,
+    name: 'Daenerys Targaryen', sprite: 'targaryen', level: 42,
     house: 'targaryen',
-    vigour: 250, might: 48, guard: 28, swiftness: 34, wind: 30,
-    techniques: ['quickCut', 'riposte', 'guard'],
-    beast: { species: 'dreadwyrm', level: 42 },
-    reward: 3200, exp: 1100, canYield: false, boss: true,
-    intro: 'Daenerys Targaryen: I am the blood of the dragon. Do not mistake courtesy for '
-         + 'permission. Drogon - leave some of them standing.',
-    defeat: 'Daenerys Targaryen: Enough. You fight like someone with nothing to lose, '
-          + 'which is the only kind worth having.',
-    after: 'Daenerys Targaryen: Fire and blood. Remember which order those come in.',
+    vigour: 280, might: 52, guard: 32, swiftness: 36, wind: 34,
+    techniques: ['quickCut', 'riposte', 'charge'],
+    beast: { species: 'blackdread', level: 50 },
+    reward: 4000, exp: 1400, canYield: false, boss: true,
+    intro: 'Daenerys Targaryen: I am the blood of the dragon. Drogon does not warn. '
+         + 'Drogon does not yield. And neither will I.',
+    defeat: 'Daenerys Targaryen: Impossible. The dragon was never meant to lose. '
+          + 'But you... you are something else entirely.',
+    after: 'Daenerys Targaryen: Fire and blood. You have proven your blood burns as hot as mine. '
+         + 'Perhaps there is hope for the realm after all.',
   },
 };
 

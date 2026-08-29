@@ -540,30 +540,6 @@ export const ROAMERS = {
     ],
   },
 
-  dragonmaster: {
-    title: 'Dragon Master', build: 'lancer', house: 'targaryen',
-    vigour: 240, might: 50, guard: 26, swiftness: 38, wind: 32,
-    sprites: ['targaryen'],
-    techniques: ['quickCut', 'riposte', 'guard'],
-    beast: { species: 'dreadwyrm', chance: 0.9 },
-    lines: [
-      'Dragon Master: These creatures are not tamed. They are chosen, and they choose back.',
-      'Dragon Master: Stand between a dragon and the sky, and you will fall.',
-    ],
-  },
-
-  wyverner: {
-    title: 'Wyverner', build: 'ruffian', house: 'targaryen',
-    vigour: 220, might: 44, guard: 28, swiftness: 32, wind: 28,
-    sprites: ['wildling'],
-    techniques: ['crush', 'headbutt', 'guard'],
-    beast: { species: 'scaleflight', chance: 0.75 },
-    lines: [
-      'Wyverner: North of the Wall, the dragons never left. We ride them or we die.',
-      'Wyverner: Your southern swords are no match for fire from above.',
-    ],
-  },
-
   gravedigger: {
     title: 'Grave-robber', build: 'ruffian',
     sprites: ['smallfolk', 'oldman'],

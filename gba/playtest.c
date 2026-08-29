@@ -250,6 +250,10 @@ static int beastsSentOut, beastsFelled, shelfSeen[STALL_COUNT], gearBroke;
 /* The Long Night: how deep it got, how many of the dead were met on a road
    south of the Wall, and how many ravens actually reached the player. */
 static int deepestWinter, deadMet, deadSouth, ravensRead, rangingsDone;
+/* And the dragons: how many dropped on the road, how many towns were saved or
+   lost while the tester was busy being a knight. */
+static int dragonsMet, townsSaved, townsBurned;
+static int eveningsSpent, childrenBorn, childrenSworn;
 static int doorsThisRung;
 static int spottings, spottedBy, shooting, titleWant;
 static const char *startedAt = "nowhere";
@@ -644,6 +648,14 @@ static void completeGoal(void) {
         interacting = 0;
         return;
       }
+      /* The keeper of the house. SELECT is the whole of the interaction -
+         the evening, and later the grown child - and nothing else in a
+         playthrough would ever press it here. */
+      if (world->npcs[goalIndex].evening && eveningsSpent < 6) {
+        goalStage = 2;
+        interacting = 0;
+        return;
+      }
       /* Having heard them out, draw on them — but only up to a quota, or the
          whole of Westeros ends up dead before it has been walked. */
       /* Somebody a great deal better than you is a fight a player would not
@@ -695,6 +707,15 @@ void hostFrame(void) {
 
   checkFrame();
 
+  /* DRAGONS=1 hands the run three broken seats the moment it is in the world,
+     because that is what wakes the dragons and a wandering run never climbs
+     the ladder on its own. Without this no automated run would ever actually
+     fight one - the clock was proven by the audit and the fight by nobody. */
+  if (getenv("DRAGONS") && scene == SCENE_WORLD) {
+    static int handed = 0;
+    if (!handed) { handed = 1; sigils |= 7; }
+  }
+
   /* Two things that happen inside the cartridge's own code and leave no other
      trace: an animal of yours going down while it was standing the fight, and
      a piece of your kit finally giving out. Both are watched from out here so
@@ -709,6 +730,16 @@ void hostFrame(void) {
     { static int toldTo = 0;
       if (you.winterSaid > toldTo) { ravensRead++; toldTo = you.winterSaid; } }
     if (you.rangings > rangingsDone) rangingsDone = you.rangings;
+    if (you.swoopsBeaten > townsSaved) townsSaved = you.swoopsBeaten;
+    if (you.swoopsBurned > townsBurned) townsBurned = you.swoopsBurned;
+    { static int hadEve = 0, hadKids = 0;
+      if (you.eveAt && !hadEve) eveningsSpent++;
+      hadEve = you.eveAt != 0;
+      if (you.bastards > hadKids) { childrenBorn += you.bastards - hadKids; hadKids = you.bastards; }
+    }
+    { static int sworn = 0; int b, n = 0;
+      for (b = 0; b < 3 && b < you.bastards; b++) if (you.bastTaken[b]) n++;
+      if (n > sworn) { childrenSworn = n; sworn = n; } }
     wasOut = beastOut;
     if (wornSeen) {
       for (k = 0; k < WARE_KINDS; k++) {
@@ -1074,6 +1105,7 @@ void hostFrame(void) {
         deadMet++;
         if (world && world->cold < 5) deadSouth++;
       }
+      if (foeBeast == BEAST_DRAKE || foeBeast == BEAST_WYRM) dragonsMet++;
       duelTries = 0;
       runAway = ladderMode ? 0 : (duels % 5) == 4;
       if (ladderMode) ladderFights++;
@@ -1543,6 +1575,11 @@ int main(int argc, char **argv) {
     seasonWord(), deadMet, deadSouth, ravensRead);
   printf("  the watch      %d rangings finished, %d still out (%d of %d down)\n",
     rangingsDone, you.rangeWant ? 1 : 0, you.rangeGot, you.rangeWant);
+  printf("  the dragons    %d met on the road, %d towns saved, %d burned%s\n",
+    dragonsMet, townsSaved, townsBurned,
+    you.swoopMap != 255 ? ", one still settled" : "");
+  printf("  the red lamp   %d evenings, %d children born, %d grown and sworn\n",
+    eveningsSpent, childrenBorn, childrenSworn);
   {
     int st, unread = 0;
     for (st = 0; st < STALL_COUNT; st++) if (!shelfSeen[st]) unread++;

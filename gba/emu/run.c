@@ -181,10 +181,45 @@ int main(int argc, char **argv) {
   shoot("emu-06-settled");
 
   /* And walk, which is the first thing anybody does. */
+  tap("A", 2); wait(30);                  /* put the opening line away */
   { int i; for (i = 0; i < 40; i++) step(KEY_DWN); }
   wait(30);
   look("after walking");
   shoot("emu-07-walked");
+
+  /* The menu, the card, and both its pages: the screens a player lives in,
+     drawn by the console rather than by anything on this machine. */
+  tap("START", 1); wait(30);
+  look("the menu");
+  shoot("emu-08-menu");
+  tap("A", 1); wait(30);
+  look("the status card");
+  shoot("emu-09-status");
+  tap("RIGHT", 1); wait(30);
+  look("where you stand");
+  shoot("emu-10-standing");
+  tap("B", 2); wait(20);
+
+  /* The pouch. */
+  tap("START", 1); wait(10);
+  tap("DOWN", 1); tap("A", 1); wait(30);
+  look("the pouch");
+  shoot("emu-11-pouch");
+  tap("B", 2); wait(20);
+
+  /* And a minute of just playing: walk about, talk to whoever answers, and
+     make sure the world does not fall over while it is being lived in. */
+  { int i, d;
+    for (d = 0; d < 8; d++) {
+      unsigned dirs[4] = { KEY_DWN, KEY_LFT, KEY_UP_, KEY_RGT };
+      for (i = 0; i < 24; i++) step(dirs[d & 3]);
+      tap("A", 2); wait(20);
+      tap("B", 2); wait(10);
+    }
+  }
+  wait(30);
+  look("after a minute in the town");
+  shoot("emu-12-lived-in");
 
   core->deinit(core);
   if (seenCount) {

@@ -946,6 +946,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         ranges: /blackBrother|wallHint|palewalker/i.test(n.script ?? '')
           || sprite === 'nightswatch'
           || /commander|ranger|watch/i.test(n.name ?? '') ? 1 : 0,
+        /* Who keeps the house with the red lamp. The browser game gave every
+           town one and gave the keeper a script the cartridge never read, so
+           the loudest room in every town was furniture. */
+        evening: /houseKeeper/i.test(n.script ?? '') ? 1 : 0,
       };
     });
 
@@ -1672,6 +1676,12 @@ L.push(`#define BEAST_COUNT ${harvest.beasts.length}`);
   L.push(`#define BEAST_WIGHT ${wight}`);
   L.push(`#define BEAST_RISEN ${risen < 0 ? wight : risen}`);
   L.push(`#define BEAST_WALKER ${walker}`);
+  /* And the two that come out of the sky, for the same reason: the cartridge
+     puts them on roads no encounter table mentions. */
+  const drake = at('scaleflight'), wyrm = at('dreadwyrm');
+  if (drake < 0 || wyrm < 0) throw new Error('the dragons are missing from the bestiary');
+  L.push(`#define BEAST_DRAKE ${drake}`);
+  L.push(`#define BEAST_WYRM ${wyrm}`);
 }
 L.push('#define BEAST_TILES 64          /* a 64x64 sprite, four bits a pixel */');
 harvest.beasts.forEach((b, i) => {
@@ -2116,7 +2126,7 @@ L.push('typedef struct { u16 duellist; u8 bank; } Ambush;');
 L.push('typedef struct { u8 beast, level; } Wild;');
 L.push('typedef struct { u8 x, y, ware; u16 gold; } Chest;');
 L.push('typedef struct {');
-L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sails, holds, weds, ranges;');
+L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sails, holds, weds, ranges, evening;');
 L.push('  u16 duellist;');
 L.push('  const char *name, *line;');
 L.push('} Npc;');
@@ -2206,7 +2216,7 @@ harvest.maps.forEach((map, i) => {
       name = n.name.startsWith(spoken[1]) ? n.name : spoken[1];
       line = spoken[2];
     }
-    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.ranges}, ${n.duellist},`);
+    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.ranges}, ${n.evening}, ${n.duellist},`);
     L.push(`    ${cstr(name)}, ${cstr(line.trim())} },`);
   }
   if (!map.npcs.length) L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');

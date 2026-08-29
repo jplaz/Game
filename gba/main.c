@@ -1469,6 +1469,23 @@ typedef struct {
   u16 winter;
   u8 rangeWant, rangeGot, rangings;   /* the ranging you are out on, if any */
   u8 winterSaid;                      /* the deepest stage a raven has told you */
+  /* Dragons. They wake when the realm starts tearing itself apart and they do
+     not care whose side anybody is on: one settles over a southern town and
+     stays until somebody drives it off or there is nothing left to burn. */
+  u8 swoopMap;                        /* the town one has settled over, 255 none */
+  u16 swoopAt;                        /* fights until it wakes, or until the town burns */
+  u8 swoopsBeaten, swoopsBurned;
+  /* Children born the wrong side of the sheets. An evening at a house with a
+     red lamp is an evening; some months later word comes, and from then on
+     there is somebody in that town growing up with your chin and a bastard's
+     name. Grown, they will take your service - they have your blood, and
+     nobody else is offering them anything. */
+  u8 bastards;                        /* how many, ever */
+  u8 bastMap[3];                      /* the town each is growing up in */
+  u16 bastBorn[3];                    /* your kills when each was born: their clock */
+  u8 bastTaken[3];                    /* sworn to you and gone from the house */
+  u16 eveAt;                          /* fights until word comes, 0 none coming */
+  u8 eveMap;                          /* where the evening was spent */
 } You;
 
 #define HEIR_MAX 4
@@ -1811,6 +1828,157 @@ static const char *ravenSays(int stage) {
       "the night is the whole of the sky.",
   };
   return RAVENS[stage];
+}
+
+/* ---------------------------------------------------------- the dragons ---
+   The other thing that grows while the realm is busy. They wake once three of
+   the nine seats have been broken - a realm at war is a realm not watching its
+   skies - and from then on two things are true: any southern road can have one
+   drop out of the sun onto it, and every so often one settles over a town and
+   stays. A settled dragon is an errand with a clock on it. Ride there and put
+   it down and the house whose ground it is remembers; leave it and the town
+   burns, and they remember that too. */
+static int dragonsLoose(void) {
+  return countSigils() >= 3 || you.story >= 1;
+}
+
+/* Where the next one settles: a southern town somebody holds. Cold one and two
+   is everything from the Neck down; nought is indoors and Essos, and dragons
+   do not cross the Narrow Sea any more than the cold does. */
+static int pickSwoopMap(void) {
+  int i, n = 0, want;
+  for (i = 0; i < MAP_COUNT; i++) {
+    if (maps[i].cold < 1 || maps[i].cold > 2) continue;
+    if (maps[i].holder >= HOUSE_COUNT) continue;
+    if (!maps[i].residentCount) continue;
+    n++;
+  }
+  if (!n) return -1;
+  want = (int)roll((u32)n);
+  for (i = 0; i < MAP_COUNT; i++) {
+    if (maps[i].cold < 1 || maps[i].cold > 2) continue;
+    if (maps[i].holder >= HOUSE_COUNT) continue;
+    if (!maps[i].residentCount) continue;
+    if (!want--) return i;
+  }
+  return -1;
+}
+
+/* News about a dragon, held like a raven until the screen is clear. The
+   string helpers live further down the file with the rest of the text. */
+static void copyString(char *dst, const char *src, int room);
+static void appendString(char *dst, const char *src, int room);
+static char swoopLine[160];
+static int swoopNews;
+
+static void sayDragonNews(const char *a, const char *place, const char *b) {
+  copyString(swoopLine, a, sizeof swoopLine);
+  appendString(swoopLine, place, sizeof swoopLine);
+  appendString(swoopLine, b, sizeof swoopLine);
+  swoopNews = 1;
+}
+
+/* One tick per fight won. Arms the first swoop, lands it, and burns the town
+   if it has been left too long. */
+static void dragonAfterWin(void) {
+  if (!dragonsLoose()) return;
+  if (you.swoopMap != 255) {
+    /* Settled, and eating. */
+    if (you.swoopAt) you.swoopAt--;
+    if (!you.swoopAt) {
+      int holder = maps[you.swoopMap].holder;
+      you.swoopsBurned++;
+      if (holder < HOUSE_COUNT) moveFavour(holder, -6);
+      if (you.story >= 3) { crown.steady -= 6; if (crown.steady < -100) crown.steady = -100; }
+      sayDragonNews("The fire over ", maps[you.swoopMap].name,
+        " has gone out, and so has the town. Nobody came. The house that held "
+        "it will remember that longer than the dragon will.");
+      you.swoopMap = 255;
+      you.swoopAt = (u16)(46 + roll(30));
+    }
+    return;
+  }
+  if (!you.swoopAt) { you.swoopAt = (u16)(26 + roll(20)); return; }
+  if (--you.swoopAt) return;
+  {
+    int at = pickSwoopMap();
+    if (at < 0) { you.swoopAt = 40; return; }
+    you.swoopMap = (u8)at;
+    you.swoopAt = (u16)(22 + roll(12));       /* fights before it burns */
+    sayDragonNews("A dragon has come down over ", maps[at].name,
+      ". It is not passing through: it has settled on the granary roof and "
+      "started on the livestock. Every fight you spend elsewhere, it eats "
+      "deeper. Go and drive it off, or do not.");
+  }
+}
+
+/* --------------------------------------------------------- the bastards ---
+   Named the way Westeros names them: by where they were born, not by who
+   fathered them. The surname does all the work - a Snow in a Winterfell
+   common house and a Sand in a Shadow City one are different sentences. */
+#define BASTARD_GROWN 50           /* kills between born and old enough to swear */
+
+static const char *const BASTARD_NAME[HOUSE_COUNT] = {
+  "Snow",       /* the North */
+  "Rivers",     /* the Riverlands */
+  "Stone",      /* the Vale */
+  "Flowers",    /* the Reach */
+  "Hill",       /* the Westerlands */
+  "Sand",       /* Dorne */
+  "Storm",      /* the Stormlands */
+  "Waters",     /* the Crownlands */
+  "Pyke",       /* the Iron Islands */
+};
+
+static const char *const BASTARD_FIRST[8] = {
+  "Edric", "Mya", "Gendry", "Bella", "Cotter", "Alys", "Joss", "Sarra",
+};
+
+/* The surname a child born on this ground carries. */
+static const char *bastardNameHere(int mapAt) {
+  int h = maps[mapAt].holder;
+  return h < HOUSE_COUNT ? BASTARD_NAME[h] : "Waters";
+}
+
+/* Which of yours, if any, is growing up in this town. Newest first, so the
+   keeper talks about the child you have not met rather than the one you
+   already took. */
+static int bastardHere(int mapAt) {
+  int i;
+  for (i = (int)you.bastards - 1; i >= 0; i--) {
+    if (i >= 3) continue;
+    if (!you.bastTaken[i] && you.bastMap[i] == mapAt) return i;
+  }
+  return -1;
+}
+
+static int bastardGrown(int i) {
+  return (int)(you.kills - you.bastBorn[i]) >= BASTARD_GROWN;
+}
+
+/* One tick per fight won, the same clock everything else runs on. */
+static void bastardAfterWin(void) {
+  if (!you.eveAt) return;
+  if (--you.eveAt) return;
+  /* Word comes - or it does not, and you never hear anything at all, which is
+     also how these things went. */
+  if ((int)roll(100) < 55 || you.bastards >= 3) return;
+  {
+    int i = you.bastards++;
+    you.bastMap[i] = you.eveMap;
+    you.bastBorn[i] = (u16)you.kills;
+    you.bastTaken[i] = 0;
+    copyString(swoopLine, "A letter, unsigned, from ", sizeof swoopLine);
+    appendString(swoopLine, maps[you.eveMap].name, sizeof swoopLine);
+    appendString(swoopLine, ": a child was born at the house with the red "
+      "lamp, and the mother says there is no doubt whose. They are calling "
+      "the babe ", sizeof swoopLine);
+    appendString(swoopLine, BASTARD_FIRST[roll(8)], sizeof swoopLine);
+    appendString(swoopLine, " ", sizeof swoopLine);
+    appendString(swoopLine, bastardNameHere(you.eveMap), sizeof swoopLine);
+    appendString(swoopLine, ".", sizeof swoopLine);
+    swoopNews = 1;
+  }
 }
 
 /* The lowest rung nobody has taken yet: what the status card tells you to do. */
@@ -3702,7 +3870,12 @@ static void paintStanding(void) {
     /* Once the chair is yours, what the realm thinks of you matters rather
        more than what a merchant in Highgarden charges, so that is what this
        row says instead. */
-    if (you.story >= 3) {
+    if (you.swoopMap != 255) {
+      copyString(scratch, "A dragon is over ", sizeof scratch);
+      appendString(scratch, maps[you.swoopMap].name, sizeof scratch);
+      appendString(scratch, ".", sizeof scratch);
+      drawText(16, 75, scratch, C_HURT);
+    } else if (you.story >= 3) {
       drawText(16, 75, steadyWord(), crown.steady < 0 ? C_HURT : C_GOLD);
     } else {
       copyString(scratch, "Cheapest in ", sizeof scratch);
@@ -3874,7 +4047,7 @@ extern unsigned char hostSram[65536];              /* the harness's stand-in */
    animals, sworn swords, scenes-already-seen, a hall you never bought, a horse
    to somewhere you have never been and nine grudges you never earned in places
    they were never written to. */
-#define RECORD_MAGIC 0x38454349u
+#define RECORD_MAGIC 0x3A454349u
 
 typedef struct {
   u32 magic;
@@ -3892,6 +4065,10 @@ typedef struct {
      name only. */
   u16 winter;
   u8 rangeWant, rangeGot, rangings, winterSaid;
+  u8 swoopMap, swoopsBeaten, swoopsBurned;
+  u16 swoopAt;
+  u8 bastards, bastMap[3], bastTaken[3], eveMap;
+  u16 bastBorn[3], eveAt;
   u8 pad2, pad3b, pad4b;
   u16 sigils, pad3;
   u8 eggWins, tamed, lead, pad4;
@@ -3955,6 +4132,18 @@ static void keepRecord(void) {
   record.rangeGot = you.rangeGot;
   record.rangings = you.rangings;
   record.winterSaid = you.winterSaid;
+  record.swoopMap = you.swoopMap;
+  record.swoopAt = you.swoopAt;
+  record.swoopsBeaten = you.swoopsBeaten;
+  record.swoopsBurned = you.swoopsBurned;
+  record.bastards = you.bastards;
+  record.eveMap = you.eveMap;
+  record.eveAt = you.eveAt;
+  { int k; for (k = 0; k < 3; k++) {
+      record.bastMap[k] = you.bastMap[k];
+      record.bastTaken[k] = you.bastTaken[k];
+      record.bastBorn[k] = you.bastBorn[k];
+  } }
   record.sigils = sigils;
   { int k;
     for (k = 0; k < PARTY_MAX; k++) {
@@ -4042,6 +4231,18 @@ static void takeUpRecord(void) {
   you.rangeGot = record.rangeGot;
   you.rangings = record.rangings;
   you.winterSaid = record.winterSaid;
+  you.swoopMap = record.swoopMap;
+  you.swoopAt = record.swoopAt;
+  you.swoopsBeaten = record.swoopsBeaten;
+  you.swoopsBurned = record.swoopsBurned;
+  you.bastards = record.bastards;
+  you.eveMap = record.eveMap;
+  you.eveAt = record.eveAt;
+  { int k; for (k = 0; k < 3; k++) {
+      you.bastMap[k] = record.bastMap[k];
+      you.bastTaken[k] = record.bastTaken[k];
+      you.bastBorn[k] = record.bastBorn[k];
+  } }
   sigils = record.sigils;
   layLadder();
   { int k;
@@ -4617,6 +4818,15 @@ void newGameState(void) {
   you.rangings = 0;
   you.winterSaid = 0;
   ravenWaiting = -1;
+  you.swoopMap = 255;
+  you.swoopAt = 0;
+  you.swoopsBeaten = 0;
+  you.swoopsBurned = 0;
+  swoopNews = 0;
+  you.bastards = 0;
+  you.eveAt = 0;
+  you.eveMap = 0;
+  { int k; for (k = 0; k < 3; k++) { you.bastMap[k] = 0; you.bastTaken[k] = 0; you.bastBorn[k] = 0; } }
 }
 
 /* Takes somebody's oath. Returns 0 when there is nobody left to take it. */
@@ -6364,6 +6574,12 @@ static void beginGame(void) {
   you.winter = 0;
   you.rangeWant = you.rangeGot = you.rangings = you.winterSaid = 0;
   ravenWaiting = -1;
+  you.swoopMap = 255;
+  you.swoopAt = 0;
+  you.swoopsBeaten = you.swoopsBurned = 0;
+  swoopNews = 0;
+  you.bastards = 0;
+  you.eveAt = 0;
   MY_BEAST.kind = 255;
   MY_BEAST.level = 0;
   MY_BEAST.exp = 0;
@@ -6796,6 +7012,24 @@ static void theyFell(void) {
     winterFalls(2);
     if (you.rangeWant && you.rangeGot < you.rangeWant) you.rangeGot++;
   }
+  /* And if that was the dragon, standing on the town it had settled over, the
+     town is saved and the house that holds it saw who came. */
+  if ((foeBeast == BEAST_WYRM || foeBeast == BEAST_DRAKE)
+      && you.swoopMap != 255 && worldId == you.swoopMap) {
+    int holder = maps[worldId].holder;
+    you.swoopsBeaten++;
+    you.gold += 260 + you.level * 6;
+    if (holder < HOUSE_COUNT) moveFavour(holder, 10);
+    if (you.story >= 3) { crown.steady += 4; if (crown.steady > 100) crown.steady = 100; }
+    sayDragonNews("It labours up off ", maps[worldId].name,
+      " trailing smoke and does not circle back. The bells start up behind "
+      "you - the other kind of bells, this time. The purse is from the "
+      "granary men, and the house that holds this ground saw who came.");
+    you.swoopMap = 255;
+    you.swoopAt = (u16)(46 + roll(30));
+  }
+  dragonAfterWin();
+  bastardAfterWin();
   if (foeSlot >= 0) beaten[worldId][foeSlot] = 1;
   if (!foeDef || foeDef->mortal) {
     if (foeSlot >= 0) { slain[worldId][foeSlot] = 1; crowdAlive[foeSlot] = 0; }
@@ -8045,6 +8279,42 @@ static void tryTalk(void) {
         }
       }
     }
+    /* The house with the red lamp. The keeper knows what an evening costs,
+       and knows better than anybody in town whose children are whose. */
+    if (npc->evening) {
+      int kid = bastardHere(worldId);
+      if (kid >= 0 && bastardGrown(kid)) {
+        copyString(scratch, "That one by the fire, with your chin? Grown now, "
+          "and good with their hands. They know whose blood they carry - "
+          "everybody in this town knows. Nobody else is offering them "
+          "anything.   [SELECT: take ", sizeof scratch);
+        appendString(scratch, bastardNameHere(worldId), sizeof scratch);
+        appendString(scratch, " into your service]", sizeof scratch);
+        openWindow(npc->name, scratch);
+        return;
+      }
+      if (kid >= 0) {
+        copyString(scratch, "The child is well. Growing. Asks about you, "
+          "which I neither encourage nor prevent. Come back when they are "
+          "old enough to hold something sharper than a spoon.", sizeof scratch);
+        openWindow(npc->name, scratch);
+        return;
+      }
+      {
+        int price = 40 + you.level * 2;
+        copyString(scratch, "Wine downstairs, company upstairs, and nobody "
+          "writes anything down. ", sizeof scratch);
+        appendNumber(scratch, price, sizeof scratch);
+        appendString(scratch, " gold for the evening.", sizeof scratch);
+        if (seat.wed) {
+          appendString(scratch, " And you a married ", sizeof scratch);
+          appendString(scratch, "lord. Word travels, is all I will say.", sizeof scratch);
+        }
+        appendString(scratch, "   [SELECT: stay the evening]", sizeof scratch);
+        openWindow(npc->name, scratch);
+        return;
+      }
+    }
     /* The Watch, and the only thing in this world that pushes the winter back
        instead of watching it come. Everything else in the game makes the cold
        worse: every house you break is a garrison that will not be relieved.
@@ -8270,6 +8540,22 @@ static void ambush(void) {
       int lift = (world->cold + stage) * 2;
       wildWanted = deep ? BEAST_WALKER : (stage >= 4 ? BEAST_RISEN : BEAST_WIGHT);
       wildLevel = nearYou(you.level + lift - 6, -1, 5);
+      callToArms(-1, 0, -1);
+      return;
+    }
+  }
+  /* Out of the sun. Over the settled town it is the dragon more often than it
+     is anything else; on any other southern road it is rare, which is what
+     makes it an event rather than weather. A drake in the wild can even be
+     taken - a net, a very good day, and the best mount in the game.
+     Before the empty-table return, deliberately: the towns most worth settling
+     over are exactly the ones whose own tables are empty, because a town has
+     people in it instead of wolves. */
+  if (dragonsLoose() && world->cold >= 1 && world->cold <= 2) {
+    int over = you.swoopMap != 255 && worldId == you.swoopMap;
+    if (over || (int)roll(100) < 4) {
+      wildWanted = over ? BEAST_WYRM : BEAST_DRAKE;
+      wildLevel = nearYou(you.level + (over ? 6 : 2), -1, over ? 8 : 4);
       callToArms(-1, 0, -1);
       return;
     }
@@ -8594,6 +8880,12 @@ int main(void) {
         you.winter = 0;
         you.rangeWant = you.rangeGot = you.rangings = you.winterSaid = 0;
         ravenWaiting = -1;
+        you.swoopMap = 255;
+        you.swoopAt = 0;
+        you.swoopsBeaten = you.swoopsBurned = 0;
+        swoopNews = 0;
+        you.bastards = 0;
+        you.eveAt = 0;
         newGameState();
         you.story = 0;
         you.bag[START_POTION] = 1;
@@ -9236,6 +9528,12 @@ int main(void) {
         sfxRank();
         openWindow("From the Wall", ravenSays(stage));
       }
+      /* And dragon news the same way: held until the screen is clear. */
+      else if (swoopNews && cutAt < 0 && !windowOpen && !shift && !hero.walk) {
+        swoopNews = 0;
+        sfxRank();
+        openWindow("Word on the road", swoopLine);
+      }
       /* Something is playing. It has the screen until it is done: a scene you
          can walk out of halfway through is not a scene. */
       if (cutAt >= 0) {
@@ -9342,7 +9640,8 @@ int main(void) {
           /* Cover with something in it. Once the dead have reached this
              ground the grass is worth watching even where the map's own table
              is empty, because what is in it did not come from that table. */
-          else if ((world->ambushCount || theDeadWalkHere())
+          else if ((world->ambushCount || theDeadWalkHere()
+                    || (you.swoopMap != 255 && worldId == you.swoopMap))
                    && coverAt(hero.px >> 4, hero.py >> 4)
                    && roll(100) < 12) ambush();
           else if (coverAt(hero.px >> 4, hero.py >> 4) && roll(100) < 4) findInGrass();
@@ -9363,7 +9662,45 @@ int main(void) {
         /* A maester will not fight you, so SELECT in front of one was a button
            that did nothing. It finds you a horse instead. */
         int who = facing();
-        if (who >= 0 && world->npcs[who].heals) {
+        if (who >= 0 && world->npcs[who].evening) {
+          int kid = bastardHere(worldId);
+          if (kid >= 0 && bastardGrown(kid)) {
+            /* They swear to you on the spot: your blood, a bastard's name, and
+               at last somewhere to point all of it. */
+            if (swearIn((int)roll(SWORN_KINDS), you.level > 8 ? you.level - 4 : 4)) {
+              you.bastTaken[kid] = 1;
+              sfxRank();
+              copyString(scratch, "They put their cup down, look at you the "
+                "way you look at yourself in still water, and kneel. ",
+                sizeof scratch);
+              appendString(scratch, bastardNameHere(worldId), sizeof scratch);
+              appendString(scratch, " rides with you now, and fights behind "
+                "you like it settles something. Perhaps it does.", sizeof scratch);
+              openWindow(0, scratch);
+            } else {
+              openWindow(0, "Your company is full. Six swords is what one "
+                "table feeds; come back when there is a place at it.");
+            }
+          } else {
+            int price = 40 + you.level * 2;
+            if (you.gold < price) {
+              openWindow(0, "The keeper looks at your purse and pours you "
+                "water. Come back solvent.");
+            } else {
+              you.gold -= price;
+              you.eveAt = (u16)(24 + roll(16));
+              you.eveMap = (u8)worldId;
+              /* The realm minds precisely as much as it minded in the show:
+                 a wife's house hears of it, a septon frowns, and life goes on. */
+              if (seat.wed) moveFavour(you.house, -2);
+              sfxYes();
+              openWindow(0, "The lamp is turned down and the evening is what "
+                "evenings are. You leave before the bells, a little poorer "
+                "and in a better mood, and whatever comes of it will find "
+                "you when it finds you.");
+            }
+          }
+        } else if (who >= 0 && world->npcs[who].heals) {
           scene = SCENE_RIDE;
           ridePick = 0;
           rideTop = 0;

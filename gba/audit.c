@@ -2548,6 +2548,148 @@ int main(void) {
     world = &maps[0];
   }
 
+  /* --- the dragons --------------------------------------------------------
+     They wake when the realm breaks, settle over southern towns, and burn what
+     nobody comes to save. Checked the same way as the winter: the clock turns,
+     the town it picks is a real southern town, driving one off pays the house
+     whose ground it is, and leaving it costs them. */
+  {
+    extern void newGameState(void);
+    int k, at, was;
+    newGameState();
+    sigils = 0;
+    you.story = 0;
+    /* The names behind the numbers, because the numbers were once typed in by
+       hand while an export ran and a wrong one would put a partridge in the
+       sky over Highgarden. */
+    if (strcmp(beasts[BEAST_DRAKE].name, "Scaleflight"))
+      bad("BEAST_DRAKE is %s", beasts[BEAST_DRAKE].name);
+    if (strcmp(beasts[BEAST_WYRM].name, "Dreadwyrm"))
+      bad("BEAST_WYRM is %s", beasts[BEAST_WYRM].name);
+    if (strcmp(beasts[BEAST_WIGHT].name, "Wightling"))
+      bad("BEAST_WIGHT is %s", beasts[BEAST_WIGHT].name);
+    if (dragonsLoose()) bad("dragons are loose before the realm has broken");
+    sigils = 7;                    /* three seats down */
+    if (!dragonsLoose()) bad("three broken seats and the dragons still sleep");
+    /* The town it picks is southern, outdoor, and somebody's. */
+    for (k = 0; k < 40; k++) {
+      at = pickSwoopMap();
+      if (at < 0) { bad("no town in the south for a dragon to settle over"); break; }
+      if (maps[at].cold < 1 || maps[at].cold > 2) {
+        bad("a dragon settled over %s, which is not the south", maps[at].name);
+        break;
+      }
+      if (maps[at].holder >= HOUSE_COUNT) {
+        bad("a dragon settled over %s, which nobody holds", maps[at].name);
+        break;
+      }
+    }
+    /* The clock: arms, lands, burns. */
+    you.swoopMap = 255;
+    you.swoopAt = 0;
+    dragonAfterWin();
+    if (!you.swoopAt) bad("the first swoop never arms");
+    for (k = 0; k < 200 && you.swoopMap == 255; k++) dragonAfterWin();
+    if (you.swoopMap == 255) bad("two hundred fights and no dragon has settled");
+    at = you.swoopMap;
+    was = favour[maps[at].holder];
+    for (k = 0; k < 200 && you.swoopMap != 255; k++) dragonAfterWin();
+    if (you.swoopMap != 255) bad("a settled dragon never burns the town it sits on");
+    if (you.swoopsBurned != 1) bad("%d towns counted burned, not 1", you.swoopsBurned);
+    if (favour[maps[at].holder] >= was) {
+      bad("%s burned and the house that held it does not mind", maps[at].name);
+    }
+    /* Driving one off: the win handler pays and clears. That path needs a
+       whole duel, so what is checked here is the arithmetic it uses. */
+    newGameState();
+    seedFavour(0);
+    sigils = 7;
+    you.swoopMap = 255; you.swoopAt = 0;
+    dragonAfterWin();
+    for (k = 0; k < 200 && you.swoopMap == 255; k++) dragonAfterWin();
+    at = you.swoopMap;
+    if (at != 255) {
+      int holder = maps[at].holder;
+      was = favour[holder];
+      moveFavour(holder, 10);      /* what the win handler does */
+      if (favour[holder] <= was) bad("saving a town moves nobody");
+      note("a dragon settles about every %d fights and burns a town in about 28",
+        26 + 10 + 46 / 2);
+    }
+    /* And the road itself: standing on the settled town, the thing that comes
+       out of the grass is the dragon, not a partridge. The ambush path is the
+       only way a player ever meets one, so it is the thing to check. */
+    {
+      int wyrms = 0, tries;
+      you.level = 30;
+      you.swoopMap = 255; you.swoopAt = 0;
+      dragonAfterWin();
+      for (k = 0; k < 200 && you.swoopMap == 255; k++) dragonAfterWin();
+      if (you.swoopMap != 255) {
+        world = &maps[you.swoopMap];
+        worldId = you.swoopMap;
+        for (tries = 0; tries < 30; tries++) {
+          wildWanted = -1;
+          ambush();
+          if (wildWanted == BEAST_WYRM) wyrms++;
+          scene = 0;                     /* put the duel screen away again */
+        }
+        if (!wyrms) bad("thirty ambushes over the settled town and no dragon in any");
+        note("over the settled town, %d of 30 ambushes are the dragon", wyrms);
+      }
+    }
+    sigils = 0;
+    newGameState();
+    seedFavour(0);
+  }
+
+  /* --- children of the evening --------------------------------------------
+     An evening at the house with the red lamp, word that comes or does not,
+     a child that grows on the same clock as everything else, and a grown one
+     who swears to you. Checked end to end, dice held. */
+  {
+    extern void newGameState(void);
+    int k, born = 0, keepers = 0;
+    newGameState();
+    /* Somebody keeps a house in this world at all. Until the export after the
+       flag was added, nobody did, and the whole system was dormant data. */
+    for (i = 0; i < MAP_COUNT; i++) {
+      for (j = 0; j < maps[i].npcCount; j++) if (maps[i].npcs[j].evening) keepers++;
+    }
+    if (!keepers) bad("nobody in the world keeps a house with a red lamp");
+    else note("%d keepers of a red lamp, %d bastard surnames", keepers, HOUSE_COUNT);
+    /* Word comes about half the time, and never for a fourth child. */
+    for (k = 0; k < 400; k++) {
+      int had = you.bastards;
+      you.eveAt = 1;
+      you.eveMap = 3;
+      you.kills = (u32)(k * 7);
+      bastardAfterWin();
+      if (you.eveAt) bad("the evening clock did not clear");
+      if (you.bastards > had) born++;
+    }
+    if (!born) bad("four hundred evenings and no child was ever born");
+    if (you.bastards > 3) bad("%d children counted; three is the cap", you.bastards);
+    if (born > 3) bad("%d births counted past the cap", born);
+    /* The child grows on the kill clock and can be found at its house. */
+    newGameState();
+    you.bastards = 1;
+    you.bastMap[0] = 5;
+    you.bastBorn[0] = 100;
+    you.bastTaken[0] = 0;
+    you.kills = 120;
+    if (bastardHere(5) != 0) bad("a child growing up at map 5 cannot be found there");
+    if (bastardHere(6) != -1) bad("a child was found in a town it was never born in");
+    if (bastardGrown(0)) bad("a child of twenty kills is grown; fifty is the age");
+    you.kills = 100 + BASTARD_GROWN;
+    if (!bastardGrown(0)) bad("a child of fifty kills is not grown");
+    /* And each surname is a real one on real ground. */
+    for (k = 0; k < HOUSE_COUNT; k++) {
+      if (!BASTARD_NAME[k] || !BASTARD_NAME[k][0]) bad("house %d has no bastard name", k);
+    }
+    newGameState();
+  }
+
   /* --- the record, written and read back ---------------------------------- */
   {
     int ok = 1;
@@ -2558,6 +2700,10 @@ int main(void) {
     you.hp = 99; you.kills = 41;
     you.winter = 87; you.rangeWant = 5; you.rangeGot = 2;
     you.rangings = 4; you.winterSaid = 3;
+    you.swoopMap = 9; you.swoopAt = 17; you.swoopsBeaten = 2; you.swoopsBurned = 1;
+    you.bastards = 2; you.eveAt = 11; you.eveMap = 4;
+    you.bastMap[0] = 7; you.bastBorn[0] = 31; you.bastTaken[0] = 1;
+    you.bastMap[1] = 12; you.bastBorn[1] = 90; you.bastTaken[1] = 0;
     you.WORN_WEAPON = 6; you.WORN_ARMOUR = 12; you.WORN_SHIELD = 17;
     you.WORN_HELM = 21; you.WORN_GLOVES = 25;
     for (i = 0; i < PARTY_MAX; i++) {
@@ -2581,6 +2727,9 @@ int main(void) {
     for (i = 0; i < WARE_KINDS; i++) you.worn[i] = 0;
     you.winter = 0; you.rangeWant = 0; you.rangeGot = 0;
     you.rangings = 0; you.winterSaid = 0;
+    you.swoopMap = 255; you.swoopAt = 0; you.swoopsBeaten = 0; you.swoopsBurned = 0;
+    you.bastards = 0; you.eveAt = 0; you.eveMap = 0;
+    { int b; for (b = 0; b < 3; b++) { you.bastMap[b] = 0; you.bastBorn[b] = 0; you.bastTaken[b] = 0; } }
     for (i = 0; i < WARE_COUNT; i++) you.bag[i] = 0;
     for (i = 0; i < MAP_COUNT; i++) for (j = 0; j < MAX_CROWD; j++) slain[i][j] = 0;
     for (i = 0; i < BEEN_WORDS; i++) beenTo[i] = 0;
@@ -2592,6 +2741,15 @@ int main(void) {
       if (you.winter != 87 || you.rangeWant != 5 || you.rangeGot != 2
           || you.rangings != 4 || you.winterSaid != 3) {
         bad("the winter does not survive a save");
+      }
+      if (you.swoopMap != 9 || you.swoopAt != 17
+          || you.swoopsBeaten != 2 || you.swoopsBurned != 1) {
+        bad("the dragons do not survive a save");
+      }
+      if (you.bastards != 2 || you.eveAt != 11 || you.eveMap != 4
+          || you.bastMap[0] != 7 || you.bastBorn[0] != 31 || !you.bastTaken[0]
+          || you.bastMap[1] != 12 || you.bastBorn[1] != 90 || you.bastTaken[1]) {
+        bad("the children do not survive a save");
       }
       if (you.house != 2 || you.level != 23 || you.exp != 41000 || you.gold != 7654
           || you.hp != 99 || you.kills != 41

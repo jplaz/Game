@@ -466,6 +466,24 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
      what everything else is a departure from. */
   /* Which of the ten tunes a region is heard under. Indoors anywhere is the
      room tune; the rest is country. */
+  /* Five deep beyond the Wall down to nothing in Dorne. Paired with the
+     winter's own count in the cartridge, this is the whole map of how far the
+     dead have walked. */
+  const COLD_OF = {
+    'Beyond the Wall': 6,
+    'The Wall': 5,
+    'The North': 4,
+    'The Neck': 3,
+    'The Riverlands': 3, 'The Vale': 3, 'The Iron Islands': 3,
+    'The Westerlands': 2, 'The Crownlands': 2,
+    'The Reach': 2, 'The Stormlands': 2,
+    Dorne: 1,
+    /* Nought is not "warm" - it is "the cold never comes here". Every room in
+       the game is nought, and so is everything on the far side of the Narrow
+       Sea: salt water and eight thousand miles. Whatever is coming, it is not
+       coming to Meereen. */
+    'The Narrow Sea': 0, Braavos: 0, Pentos: 0, Volantis: 0, Meereen: 0,
+  };
   const TUNE_FOR = {
     'The North': 3, 'The Wall': 3, 'Beyond the Wall': 7, 'The Neck': 3,
     'The Vale': 3,
@@ -921,6 +939,13 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
            been done, so it is whoever is standing in one: no new role, no new
            art, and a septa is already somebody who will not fight you. */
         weds: sprite === 'septa' || /sept(on|a)/i.test(n.name ?? '') ? 1 : 0,
+        /* Who will send you over the Wall. A ranging is the one thing in the
+           game that pushes the winter back instead of watching it come, so it
+           wants somebody standing in every place a player who has just been
+           frightened by a raven would think to go. */
+        ranges: /blackBrother|wallHint|palewalker/i.test(n.script ?? '')
+          || sprite === 'nightswatch'
+          || /commander|ranger|watch/i.test(n.name ?? '') ? 1 : 0,
       };
     });
 
@@ -1029,6 +1054,12 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       courtX: map.court ? map.court.x : 255,
       courtY: map.court ? map.court.y : 255,
       frost: (map.ground ?? 'grass') === 'snow' ? 1 : 0,
+      /* How far north this ground is, which is the only thing the Long Night
+         reads. The dead come down the map a region at a time as the winter
+         deepens, so every road in the game needs to know where it stands
+         between the Wall and the Water Gardens. Indoors is warm, and the cold
+         does not cross the Narrow Sea. */
+      cold: map.indoor ? 0 : (COLD_OF[region] ?? 2),
       warps: (map.warps ?? []).map((w) => ({ ...w })),
       signs: (map.signs ?? []).map((s) => ({ x: s.x, y: s.y, text: s.text })),
     });
@@ -1631,6 +1662,17 @@ L.push('');
 // The beasts. One picture apiece, sixty-four square, which is one object on the
 // hardware and the whole of what a wolf is on this cartridge.
 L.push(`#define BEAST_COUNT ${harvest.beasts.length}`);
+/* The three things that get up after they are dead, by name, because the
+   cartridge has to be able to put them on a road the encounter table for that
+   road never mentioned. That is the whole of how the Long Night spreads. */
+{
+  const at = (id) => harvest.beasts.findIndex((b) => b.id === id);
+  const wight = at('wightling'), risen = at('barrowlord'), walker = at('palewalker');
+  if (wight < 0 || walker < 0) throw new Error('the dead are missing from the bestiary');
+  L.push(`#define BEAST_WIGHT ${wight}`);
+  L.push(`#define BEAST_RISEN ${risen < 0 ? wight : risen}`);
+  L.push(`#define BEAST_WALKER ${walker}`);
+}
 L.push('#define BEAST_TILES 64          /* a 64x64 sprite, four bits a pixel */');
 harvest.beasts.forEach((b, i) => {
   L.push(`static const u16 beastpal_${i}[16] = {`);
@@ -1720,6 +1762,9 @@ L.push('static const Ware wares[WARE_COUNT] = {');
 L.push('};');
 L.push('');
 L.push(`#define THRONE_CHAMPION ${harvest.throneChampion}`);
+/* The thing at the end of the cold. What it is worth fighting depends on how
+   long you left it, so the cartridge has to be able to find it by name. */
+L.push(`#define NIGHT_KING ${harvest.duellists.findIndex((d) => d.name === 'The Night King')}`);
 L.push(`#define THRONE_MAP ${MAP_IDS.indexOf('redKeep')}`);
 /* The tile the Red Keep's door is on, so a test can start one step from it. */
 {
@@ -2071,7 +2116,7 @@ L.push('typedef struct { u16 duellist; u8 bank; } Ambush;');
 L.push('typedef struct { u8 beast, level; } Wild;');
 L.push('typedef struct { u8 x, y, ware; u16 gold; } Chest;');
 L.push('typedef struct {');
-L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sails, holds, weds;');
+L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sails, holds, weds, ranges;');
 L.push('  u16 duellist;');
 L.push('  const char *name, *line;');
 L.push('} Npc;');
@@ -2086,6 +2131,7 @@ L.push('  const u8  *cover;     /* where something can be hiding */');
 L.push('  const u8  *ledge;     /* a drop you can take but not climb */');
 L.push('  const u8  *counter;   /* solid, but you can speak across it */');
 L.push('  u8 frost;             /* whether the cover here is under snow */');
+L.push('  u8 cold;              /* how far north, 0 Dorne to 5 beyond the Wall */');
 L.push('  u8 tune;              /* what plays here */');
 L.push('  u8 scene;             /* which sky a duel fought here is fought under */');
 L.push('  const u16 *residents; u8 residentCount;');
@@ -2160,7 +2206,7 @@ harvest.maps.forEach((map, i) => {
       name = n.name.startsWith(spoken[1]) ? n.name : spoken[1];
       line = spoken[2];
     }
-    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.duellist},`);
+    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.ranges}, ${n.duellist},`);
     L.push(`    ${cstr(name)}, ${cstr(line.trim())} },`);
   }
   if (!map.npcs.length) L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');
@@ -2171,7 +2217,7 @@ harvest.maps.forEach((map, i) => {
 L.push('static const Map maps[MAP_COUNT] = {');
 harvest.maps.forEach((map, i) => {
   L.push(`  { ${cstr(map.name)}, ${map.width}, ${map.height}, ${map.bank.length}, tiles_${i},`);
-  L.push(`    entries_${i}, solid_${i}, cover_${i}, ledge_${i}, counter_${i}, ${map.frost}, ${map.tune}, ${map.scene}, residents_${i}, ${map.residents.length},`);
+  L.push(`    entries_${i}, solid_${i}, cover_${i}, ledge_${i}, counter_${i}, ${map.frost}, ${map.cold}, ${map.tune}, ${map.scene}, residents_${i}, ${map.residents.length},`);
   L.push(`    warps_${i}, ${map.liveWarps}, signs_${i}, ${map.signs.length},`);
   L.push(`    npcs_${i}, ${map.npcs.length}, ambushes_${i}, ${map.ambushes.length},`);
   L.push(`    wilds_${i}, ${map.wilds.length}, chests_${i}, ${map.chests.length},`);

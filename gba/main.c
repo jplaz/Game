@@ -1401,6 +1401,14 @@ typedef struct {
      bandit on the first morning was the same sword at the end of the game, in
      the same condition, four hundred fights later. */
   u16 wear[WARE_KINDS];
+  /* The Long Night, counted. Everything about the Wall in this game used to be
+     a place on the map: cold roads with cold things on them, exactly as cold
+     on the first morning as on the last. This is the one number that makes it
+     a story - it climbs as the realm tears itself apart, and every region in
+     Westeros has a depth at which the dead reach it. */
+  u16 winter;
+  u8 rangeWant, rangeGot, rangings;   /* the ranging you are out on, if any */
+  u8 winterSaid;                      /* the deepest stage a raven has told you */
 } You;
 
 #define HEIR_MAX 4
@@ -1655,6 +1663,96 @@ static int countSigils(void) {
   return n;
 }
 
+/* ---------------------------------------------------------- the winter ----
+   Everything north of the Neck used to be a place rather than a clock. The
+   dead stood on the same three roads at the same strength from the first
+   morning to the last, so the one thread in this world that is supposed to
+   grow while everybody else is busy killing each other did not grow at all.
+
+   `you.winter` is that clock. It climbs when the realm tears itself apart -
+   every sigil taken, every step of the last act, every hard fight fought on
+   cold ground - and it comes back down only when somebody goes over the Wall
+   and does something about it. What it drives is one number: how far south the
+   dead have walked. Every map carries a coldness, five beyond the Wall down to
+   nothing in Dorne, and the dead reach a road when the two of them meet. */
+#define WINTER_STEP 20          /* how much cold makes one more stage */
+#define WINTER_DEEPEST 6        /* the Long Night, everywhere, Dorne included */
+
+static int winterStage(void) {
+  int at = you.winter / WINTER_STEP;
+  return at > WINTER_DEEPEST ? WINTER_DEEPEST : at;
+}
+
+/* What the maesters would call it. The status card says this, so a player who
+   has never been north of Winterfell still watches it get worse. */
+static const char *seasonWord(void) {
+  static const char *const SEASONS[WINTER_DEEPEST + 1] = {
+    "a long summer",
+    "the summer turning",
+    "a hard autumn",
+    "the nights drawing in",
+    "the first winter snow",
+    "deep winter",
+    "the Long Night",
+  };
+  return SEASONS[winterStage()];
+}
+
+/* And how far down the map they have got, in the name of a place rather than a
+   number, because "cold 3" means nothing to anybody. */
+static const char *deadReachWord(void) {
+  static const char *const REACHED[WINTER_DEEPEST + 1] = {
+    "The dead are a story told to children.",
+    "Beyond the Wall, something is moving.",
+    "The dead walk beyond the Wall.",
+    "The dead are over the Wall.",
+    "The dead are in the North.",
+    "The dead are past the Neck.",
+    "The dead are everywhere. There is no south left.",
+  };
+  return REACHED[winterStage()];
+}
+
+/* A raven, when it gets worse. Held here rather than said at once, because the
+   moment the winter deepens is usually the moment somebody has just gone down
+   in front of you and the screen is busy. */
+static int ravenWaiting = -1;
+
+static void deepenWinter(int by) {
+  int was = winterStage();
+  if (by <= 0) return;
+  if (you.winter > 60000) return;
+  you.winter += (u16)by;
+  if (winterStage() != was && winterStage() > you.winterSaid) ravenWaiting = winterStage();
+}
+
+static void winterFalls(int by) {
+  you.winter = you.winter > (u16)by ? (u16)(you.winter - by) : 0;
+}
+
+/* What the raven says. Written from the Wall, in the order it gets worse, and
+   the last of them is not asking for anything. */
+static const char *ravenSays(int stage) {
+  static const char *const RAVENS[WINTER_DEEPEST + 1] = {
+    "A raven from Castle Black: the Watch is under strength and the Gift is "
+      "empty. Nothing else to report. Nothing yet.",
+    "A raven from Castle Black: rangers went out past the Shadow Tower and two "
+      "of the three came back. The one who did not was seen again afterwards, "
+      "walking.",
+    "A raven from Eastwatch: the wildlings are coming south in numbers and they "
+      "are not raiding. They are running. Something is behind them.",
+    "A raven from Castle Black: the dead came to the gate in the night and the "
+      "gate held. It will not hold twice. Bring fire, or dragonglass, or both.",
+    "A raven from Winterfell: the Wall is down. The North is theirs from the "
+      "Last Hearth to the Long Lake, and the snow is coming south with them.",
+    "A raven from Moat Cailin: they are past the Neck. Every road in the "
+      "Riverlands has something on it that used to be somebody.",
+    "There are no more ravens. The maesters who kept them are walking now, and "
+      "the night is the whole of the sky.",
+  };
+  return RAVENS[stage];
+}
+
 /* The lowest rung nobody has taken yet: what the status card tells you to do. */
 static int nextRung(void) {
   int i;
@@ -1870,6 +1968,18 @@ static int expShare(void) { return shareOf(you.exp); }
 /* ----------------------------------------------------------------- world --- */
 
 static const Map *world;
+
+/* Whether the dead have reached the ground you are standing on. A road is cold
+   from nought in Dorne to five beyond the Wall; the winter adds to it, and at
+   six they are there. Indoors is warm, and nothing is coming to Meereen. */
+static int theDeadWalkHere(void) {
+  if (!world) return 0;
+  /* Nought means the cold never comes here at all - every room in the game,
+     and everything on the far side of the Narrow Sea. One is Dorne and six is
+     the Fist of the First Men, and the winter climbs to meet it. */
+  return world->cold && world->cold + winterStage() >= 7;
+}
+
 
 /* Whose ground you are standing on, or -1 for somewhere nobody holds - which is
    most of the reason to take a ship east: across the narrow sea nobody cares
@@ -2655,6 +2765,17 @@ static int levelOf(int duellist) {
        forever and took away the oldest answer in the genre, which is to go and
        level up and come back. */
     return nearYou(leaderLevel[rungOf[lead]], -1, 6);
+  }
+  /* The thing at the end of the cold is worth exactly what you let it become.
+     Every year you spent taking seats while the Wall went unwatched is on it,
+     so a player who ranged and a player who did not are not fighting the same
+     Night King - which is the only honest way to make a threat that grows. */
+  if (duellist == NIGHT_KING) {
+    /* The ceiling has to move with it, or the clamp that keeps every other
+       fight winnable quietly eats the whole idea: at four over you, a Night
+       King left to grow through six stages of winter came out exactly as hard
+       as one fought in high summer. */
+    return nearYou((int)d->level + winterStage() * 3, -1, 6 + winterStage() * 2);
   }
   /* Somebody the story knows by name keeps their own weight - they are meant to
      be a step up - but not a cliff: eight over you at the very most. */
@@ -3497,7 +3618,7 @@ static void paintStanding(void) {
     for (i = 0; i < 5; i++) fillRect(10 - i + 4, 60 - 4 + i, 1, 9 - i * 2, C_GOLD); }
   fillRect(16, 18, TXT_W - 32, 1, C_EDGE);
   for (i = 0; i < HOUSE_COUNT; i++) {
-    int y = 22 + (i >> 1) * 12, x = (i & 1) ? (TXT_W >> 1) + 4 : 16;
+    int y = 22 + (i >> 1) * 10, x = (i & 1) ? (TXT_W >> 1) + 4 : 16;
     const char *word = bandWord(i);
     u8 ink = favour[i] >= 25 ? C_WELL : favour[i] <= -25 ? C_HURT : C_DIM;
     drawText(x, y, houses[i].name, i == you.house ? C_HOUSE : C_INK);
@@ -3510,12 +3631,29 @@ static void paintStanding(void) {
       if (favour[i] < favour[worst]) worst = i;
       if (favour[i] > favour[best]) best = i;
     }
-    copyString(scratch, "Cheapest in ", sizeof scratch);
-    appendString(scratch, houses[best].name, sizeof scratch);
-    appendString(scratch, " towns; dear in ", sizeof scratch);
-    appendString(scratch, houses[worst].name, sizeof scratch);
-    appendString(scratch, " ones.", sizeof scratch);
-    drawText(16, TXT_H - 22, scratch, C_GOLD);
+    /* Once the chair is yours, what the realm thinks of you matters rather
+       more than what a merchant in Highgarden charges, so that is what this
+       row says instead. */
+    if (you.story >= 3) {
+      drawText(16, 75, steadyWord(), crown.steady < 0 ? C_HURT : C_GOLD);
+    } else {
+      copyString(scratch, "Cheapest in ", sizeof scratch);
+      appendString(scratch, houses[best].name, sizeof scratch);
+      appendString(scratch, "; dear in ", sizeof scratch);
+      appendString(scratch, houses[worst].name, sizeof scratch);
+      appendString(scratch, ".", sizeof scratch);
+      drawText(16, 75, scratch, C_GOLD);
+    }
+  }
+  /* And where you stand with the winter, which is the one power in this world
+     that does not care what any of the nine think of you. */
+  fillRect(16, 84, TXT_W - 32, 1, C_EDGE);
+  {
+    u8 ink = winterStage() >= 5 ? C_HURT : winterStage() >= 3 ? C_TRIM : C_DIM;
+    copyString(scratch, "The season: ", sizeof scratch);
+    appendString(scratch, seasonWord(), sizeof scratch);
+    drawText(16, 88, scratch, ink);
+    drawText(16, 97, deadReachWord(), ink);
   }
 }
 
@@ -3529,16 +3667,16 @@ static void paintStatus(void) {
   if (you.arms) {
     paintShield(TXT_W - 34, 6, 1, you.charge, you.tincture);
     drawText(16, 6, houseCalled(), C_HOUSE);
-    drawText(16, 19, sayings[you.saying % SAYING_COUNT], C_DIM);
+    drawText(16, 17, sayings[you.saying % SAYING_COUNT], C_DIM);
   } else {
     drawText(16, 6, h->full, C_HOUSE);
-    drawText(16, 19, h->words, C_DIM);
+    drawText(16, 17, h->words, C_DIM);
   }
-  fillRect(16, 32, TXT_W - 32, 1, C_EDGE);
+  fillRect(16, 28, TXT_W - 32, 1, C_EDGE);
 
   copyString(scratch, "Level ", sizeof scratch);
   appendNumber(scratch, you.level, sizeof scratch);
-  drawText(16, 38, scratch, C_INK);
+  drawText(16, 33, scratch, C_INK);
 
   /* And what people call you, which is not the same as your name and is the
      shortest way the world has of saying it has noticed. */
@@ -3546,39 +3684,39 @@ static void paintStatus(void) {
     if (style) {
       copyString(scratch, "Addressed as ", sizeof scratch);
       appendString(scratch, style, sizeof scratch);
-      drawText(TXT_W - 16 - textWidth(scratch), 19, scratch, C_TRIM);
+      drawText(TXT_W - 16 - textWidth(scratch), 17, scratch, C_TRIM);
     }
   }
 
   copyString(scratch, "Gold ", sizeof scratch);
   appendNumber(scratch, you.gold, sizeof scratch);
-  drawText(130, 38, scratch, C_GOLD);
+  drawText(130, 33, scratch, C_GOLD);
 
   copyString(scratch, "Health ", sizeof scratch);
   appendNumber(scratch, you.hp, sizeof scratch);
   appendString(scratch, " / ", sizeof scratch);
   appendNumber(scratch, vigourFor(you.level), sizeof scratch);
-  drawText(16, 51, scratch, C_INK);
-  drawBar(140, 53, 76, you.hp, vigourFor(you.level));
+  drawText(16, 44, scratch, C_INK);
+  drawBar(140, 46, 76, you.hp, vigourFor(you.level));
 
   copyString(scratch, "Next level in ", sizeof scratch);
   appendNumber(scratch, expForLevel(you.level + 1) - you.exp, sizeof scratch);
-  drawText(16, 64, scratch, C_DIM);
-  drawRail(140, 68, 76, expShare());
+  drawText(16, 55, scratch, C_DIM);
+  drawRail(140, 59, 76, expShare());
 
   copyString(scratch, "Killed ", sizeof scratch);
   appendNumber(scratch, you.kills, sizeof scratch);
-  drawText(16, 77, scratch, C_DIM);
+  drawText(16, 66, scratch, C_DIM);
   /* A chevron at the edge rather than a sentence: the card is full, and the
      shield in the corner is already sitting where a sentence would go. */
   { int i;
-    for (i = 0; i < 5; i++) fillRect(TXT_W - 14 + i, 60 - 4 + i, 1, 9 - i * 2, C_GOLD); }
+    for (i = 0; i < 5; i++) fillRect(TXT_W - 14 + i, 54 - 4 + i, 1, 9 - i * 2, C_GOLD); }
 
   copyString(scratch, "Sigils ", sizeof scratch);
   appendNumber(scratch, countSigils(), sizeof scratch);
   appendString(scratch, " of ", sizeof scratch);
   appendNumber(scratch, LEADER_COUNT, sizeof scratch);
-  drawText(130, 77, scratch, C_HOUSE);
+  drawText(130, 66, scratch, C_HOUSE);
 
   if (MY_BEAST.kind != 255) {
     copyString(scratch, "At your heel: ", sizeof scratch);
@@ -3586,14 +3724,29 @@ static void paintStatus(void) {
     appendString(scratch, ", level ", sizeof scratch);
     appendNumber(scratch, MY_BEAST.level, sizeof scratch);
     if (MY_BEAST.hp <= 0) appendString(scratch, ", and down", sizeof scratch);
-    drawText(16, 90, scratch, MY_BEAST.hp <= 0 ? C_HURT : C_WELL);
+    drawText(16, 76, scratch, MY_BEAST.hp <= 0 ? C_HURT : C_WELL);
   } else if (you.tamed) {
-    drawText(16, 90, "Nothing at your heel just now.", C_DIM);
+    drawText(16, 76, "Nothing at your heel just now.", C_DIM);
   } else {
-    drawText(16, 90, "Take something alive with a snare, or hatch one.", C_DIM);
+    /* Short enough to fit inside the frame. The old line ran off the right
+       edge of the card and stopped mid-word. */
+    drawText(16, 76, "Take one alive with a net.", C_DIM);
   }
 
-  fillRect(16, 101, TXT_W - 32, 1, C_EDGE);
+  /* And the season, because the one thread in this world that moves whether or
+     not you are looking at it should be on the screen a lost player opens. */
+  {
+    copyString(scratch, "Winter: ", sizeof scratch);
+    appendString(scratch, seasonWord(), sizeof scratch);
+    drawText(16, 83, scratch,
+      winterStage() >= 5 ? C_HURT : winterStage() >= 3 ? C_TRIM : C_DIM);
+  }
+
+  /* The frame's parchment stops at 103 and a line of writing is six deep, so
+     96 is the last row this card has. Two lines used to be drawn below that:
+     one sat on the keyline and the other was off the page entirely and had
+     never once been seen by anybody. */
+  fillRect(16, 92, TXT_W - 32, 1, C_EDGE);
   /* What to do next, in words, on the one screen a lost player will open. The
      game had a spine and never mentioned it, which is the same as not having
      one. */
@@ -3607,20 +3760,28 @@ static void paintStatus(void) {
       appendString(scratch, " of ", sizeof scratch);
       appendNumber(scratch, PETITION_COUNT, sizeof scratch);
       appendString(scratch, " heard. Sit the chair in the Red Keep.", sizeof scratch);
-      drawText(16, 105, scratch, C_GOLD);
-      drawText(16, 118, steadyWord(), crown.steady < 0 ? C_HURT : C_DIM);
+      drawText(16, 96, scratch, C_GOLD);
     } else if (at < 0) {
-      drawText(16, 105, "Every sigil taken. The Red Keep is open.", C_GOLD);
+      drawText(16, 96, "Every sigil taken. The Red Keep is open.", C_GOLD);
     } else {
       const Leader *l = &leaders[atRung[at]];
+      /* Name, seat and level on one row, and the seat is dropped rather than
+         allowed to run under the level when the name is a long one. Measured
+         rather than guessed, because the longest name in the table is not the
+         one anybody thinks it is. */
+      static char tag[16];
+      int room;
+      copyString(tag, "lv ", sizeof tag);
+      appendNumber(tag, leaderLevel[at], sizeof tag);
+      room = TXT_W - 32 - textWidth(tag) - 8;
       copyString(scratch, "Next: ", sizeof scratch);
       appendString(scratch, l->name, sizeof scratch);
-      drawText(16, 105, scratch, C_GOLD);
-      copyString(scratch, "at ", sizeof scratch);
-      appendString(scratch, l->seat, sizeof scratch);
-      appendString(scratch, ", about level ", sizeof scratch);
-      appendNumber(scratch, leaderLevel[at], sizeof scratch);
-      drawText(16, 118, scratch, C_DIM);
+      if (textWidth(scratch) + textWidth(", ") + textWidth(l->seat) <= room) {
+        appendString(scratch, ", ", sizeof scratch);
+        appendString(scratch, l->seat, sizeof scratch);
+      }
+      drawText(16, 96, scratch, C_GOLD);
+      drawText(TXT_W - 16 - textWidth(tag), 96, tag, C_DIM);
     }
   }
 }
@@ -3645,7 +3806,7 @@ extern unsigned char hostSram[65536];              /* the harness's stand-in */
    animals, sworn swords, scenes-already-seen, a hall you never bought, a horse
    to somewhere you have never been and nine grudges you never earned in places
    they were never written to. */
-#define RECORD_MAGIC 0x37454349u
+#define RECORD_MAGIC 0x38454349u
 
 typedef struct {
   u32 magic;
@@ -3658,6 +3819,11 @@ typedef struct {
   /* And how much life is left in each of those pieces, so a sword you have
      nearly ruined is still nearly ruined after a reload. */
   u16 wear[WARE_KINDS];
+  /* The Long Night, and whatever ranging you are out on. A winter that reset
+     to summer every time the cartridge was switched off would be a season in
+     name only. */
+  u16 winter;
+  u8 rangeWant, rangeGot, rangings, winterSaid;
   u8 pad2, pad3b, pad4b;
   u16 sigils, pad3;
   u8 eggWins, tamed, lead, pad4;
@@ -3716,6 +3882,11 @@ static void keepRecord(void) {
   record.x = (u8)(hero.px >> 4);
   record.y = (u8)(hero.py >> 4);
   { int k; for (k = 0; k < WARE_KINDS; k++) { record.worn[k] = you.worn[k]; record.wear[k] = you.wear[k]; } }
+  record.winter = you.winter;
+  record.rangeWant = you.rangeWant;
+  record.rangeGot = you.rangeGot;
+  record.rangings = you.rangings;
+  record.winterSaid = you.winterSaid;
   record.sigils = sigils;
   { int k;
     for (k = 0; k < PARTY_MAX; k++) {
@@ -3798,6 +3969,11 @@ static void takeUpRecord(void) {
   you.hp = (int)record.hp;
   you.kills = (int)record.kills;
   { int k; for (k = 0; k < WARE_KINDS; k++) { you.worn[k] = record.worn[k]; you.wear[k] = record.wear[k]; } }
+  you.winter = record.winter;
+  you.rangeWant = record.rangeWant;
+  you.rangeGot = record.rangeGot;
+  you.rangings = record.rangings;
+  you.winterSaid = record.winterSaid;
   sigils = record.sigils;
   layLadder();
   { int k;
@@ -4366,6 +4542,13 @@ void newGameState(void) {
   courtAt = -1;
   courtAsking = 0;
   courtDone = 0;
+  /* And nobody starts in the Long Night. */
+  you.winter = 0;
+  you.rangeWant = 0;
+  you.rangeGot = 0;
+  you.rangings = 0;
+  you.winterSaid = 0;
+  ravenWaiting = -1;
 }
 
 /* Takes somebody's oath. Returns 0 when there is nobody left to take it. */
@@ -4851,6 +5034,65 @@ static int useInDuel(int at) {
   mine.hp = you.hp;
   paintDuelPlates();
   return 1;
+}
+
+/* ---------------------------------------------------------- a ranging -----
+   You take one from anybody in black, you go north and put down what you find,
+   and you come back. Finishing one buys back a real slice of the winter, so a
+   player who takes the Wall seriously can hold the Long Night off the Riverlands
+   for the whole game - and a player who ignores it entirely will find the dead
+   on the Kingsroad by the end, which is the point. */
+static int rangingWants(void) {
+  int want = 3 + winterStage();
+  return want > 9 ? 9 : want;
+}
+
+static const char *takeRanging(const char *who) {
+  (void)who;
+  /* Out on one already, and back with it done. */
+  if (you.rangeWant && you.rangeGot >= you.rangeWant) {
+    int paid = 120 + you.rangeWant * 60 + winterStage() * 90;
+    you.gold += paid;
+    you.rangings++;
+    you.rangeWant = 0;
+    you.rangeGot = 0;
+    winterFalls(34);
+    sfxRank();
+    copyString(scratch, "That is the count, and more than most bring back. ",
+      sizeof scratch);
+    appendNumber(scratch, paid, sizeof scratch);
+    appendString(scratch, " gold out of the Watch's own chest, and the cold "
+      "over the Wall has gone back a step because of it. The season is ",
+      sizeof scratch);
+    appendString(scratch, seasonWord(), sizeof scratch);
+    appendString(scratch, " now.", sizeof scratch);
+    return scratch;
+  }
+  /* Out on one and not done. */
+  if (you.rangeWant) {
+    copyString(scratch, "You are still out on the last one. ", sizeof scratch);
+    appendNumber(scratch, you.rangeGot, sizeof scratch);
+    appendString(scratch, " of ", sizeof scratch);
+    appendNumber(scratch, you.rangeWant, sizeof scratch);
+    appendString(scratch, " put down. Go back over the Wall, or go north far "
+      "enough that it comes to you - and it is coming further south every "
+      "month you leave it.", sizeof scratch);
+    return scratch;
+  }
+  /* Offering a new one. Nobody is sent over the Wall in a gambeson. */
+  if (you.level < 12) {
+    return "You are no use to us yet. Come back with some years on you and "
+      "something better than that in your hand, and I will send you north.";
+  }
+  you.rangeWant = (u8)rangingWants();
+  you.rangeGot = 0;
+  copyString(scratch, "Then take a ranging. Put down ", sizeof scratch);
+  appendNumber(scratch, you.rangeWant, sizeof scratch);
+  appendString(scratch, " of the dead - anywhere they walk, and they walk "
+    "further south every year - and come back to any brother in black. ",
+    sizeof scratch);
+  appendString(scratch, deadReachWord(), sizeof scratch);
+  return scratch;
 }
 
 /* Returns a line about what just happened at the counter. */
@@ -6050,6 +6292,10 @@ static void enterWorld(int map, int x, int y, int dir) {
 static void beginGame(void) {
   const House *h = &houses[you.house];
   sigils = 0;
+  /* A long summer, the way every one of these stories starts. */
+  you.winter = 0;
+  you.rangeWant = you.rangeGot = you.rangings = you.winterSaid = 0;
+  ravenWaiting = -1;
   MY_BEAST.kind = 255;
   MY_BEAST.level = 0;
   MY_BEAST.exp = 0;
@@ -6459,6 +6705,7 @@ static void theyFell(void) {
      the moment the yard comes down. */
   if (foeId == THRONE_CHAMPION && you.story < 3) {
     you.story = 3;
+    deepenWinter(24);
     taleWaiting = TALE_THRONE;
     taleWaitingThen = AFTER_CROWN;
   }
@@ -6475,10 +6722,20 @@ static void theyFell(void) {
     winsPaid = 0;
     you.exp += won;
   }
+  /* And if that was one of the dead, the Watch would like to hear about it.
+     This is the only lever in the game that moves the winter the right way. */
+  if (foeBeast >= 0 && beasts[foeBeast].dead) {
+    winterFalls(2);
+    if (you.rangeWant && you.rangeGot < you.rangeWant) you.rangeGot++;
+  }
   if (foeSlot >= 0) beaten[worldId][foeSlot] = 1;
   if (!foeDef || foeDef->mortal) {
     if (foeSlot >= 0) { slain[worldId][foeSlot] = 1; crowdAlive[foeSlot] = 0; }
     you.kills++;
+    /* And the season turns a little on every sixth grave. A player who never
+       goes near the ladder should still look up one day and find it colder
+       than it was, because the winter is not waiting on anybody. */
+    if (you.kills % 6 == 0) deepenWinter(1);
     /* And whoever they answered to hears about it. Their friends mind, and the
        people who have been at war with them for a generation are quietly
        pleased - which is how you end up welcome in half the realm and shot at
@@ -6530,6 +6787,10 @@ static void theyFell(void) {
       int held;
       sigils |= (u16)(1 << lead);
       held = countSigils();
+      /* Every one of these is a great house broken and a garrison that will
+         not be relieved. The realm eating itself is the whole reason the Wall
+         goes unwatched, so this is where most of the winter comes from. */
+      deepenWinter(9);
       /* The two turns of the last act that a fight can bring about: the ninth
          sigil is what makes the realm write to you, and the tenth is what
          wakes the thing standing behind the chair. */
@@ -6538,6 +6799,7 @@ static void theyFell(void) {
         taleWaitingThen = AFTER_CHAMPION;
       } else if (held == LEADER_COUNT - 1 && you.story < 1) {
         you.story = 1;
+        deepenWinter(24);
         taleWaiting = TALE_SUMMONS;
         taleWaitingThen = AFTER_NOTHING;
       }
@@ -7715,6 +7977,15 @@ static void tryTalk(void) {
         }
       }
     }
+    /* The Watch, and the only thing in this world that pushes the winter back
+       instead of watching it come. Everything else in the game makes the cold
+       worse: every house you break is a garrison that will not be relieved.
+       This is the other direction, and it has to be somebody you can walk up
+       to, because a threat nobody can answer is weather, not a story. */
+    if (npc->ranges) {
+      const char *said = takeRanging(npc->name);
+      if (said) { openWindow(npc->name, said); return; }
+    }
     /* A sept is where a match is made. It wants a hall to put somebody in and
        a house that will have you, and the houses that will have you are the
        ones whose seats have already bent - which is the whole point of the
@@ -7914,7 +8185,29 @@ static void tryChallenge(void) {
    somebody: the encounter tables have said for a long time which animals live
    on which road, and the cartridge simply never read those rows. */
 static void ambush(void) {
-  int beastish = world->wildCount && (!world->ambushCount || (int)roll(100) < 45);
+  int beastish;
+  /* The Long Night, on the road you are actually standing on. Once the winter
+     is deep enough to have reached this ground, a share of whatever lives here
+     is not what lives here any more - and that share grows with the cold, so
+     the Kingsroad in the last act is a different road from the one you walked
+     in the first hour. This is the whole of how the Wall stops being a place
+     and starts being a clock. */
+  if (theDeadWalkHere()) {
+    int stage = winterStage();
+    int share = 14 + (world->cold + stage - 6) * 16;
+    if (share > 80) share = 80;
+    if ((int)roll(100) < share) {
+      /* A wight at first, something older once it is properly cold. */
+      int deep = stage >= 5 && (int)roll(100) < 25;
+      int lift = (world->cold + stage) * 2;
+      wildWanted = deep ? BEAST_WALKER : (stage >= 4 ? BEAST_RISEN : BEAST_WIGHT);
+      wildLevel = nearYou(you.level + lift - 6, -1, 5);
+      callToArms(-1, 0, -1);
+      return;
+    }
+  }
+  if (!world->wildCount && !world->ambushCount) return;
+  beastish = world->wildCount && (!world->ambushCount || (int)roll(100) < 45);
   if (beastish) {
     const Wild *w = &world->wilds[roll(world->wildCount)];
     /* An animal out of the grass meets you where you are, the same as a person
@@ -8230,6 +8523,9 @@ int main(void) {
         /* You are sent out of the yard with your bare hands and one remedy.
            Everything you fight in, you take off somebody. */
         { int k; for (k = 0; k < WARE_KINDS; k++) { you.worn[k] = 0; you.wear[k] = 0; } }
+        you.winter = 0;
+        you.rangeWant = you.rangeGot = you.rangings = you.winterSaid = 0;
+        ravenWaiting = -1;
         newGameState();
         you.story = 0;
         you.bag[START_POTION] = 1;
@@ -8862,6 +9158,16 @@ int main(void) {
       }
     } else {
       /* The world. */
+      /* A raven, if the winter got worse while you were busy. It waits for the
+         screen to be clear, because the moment the season turns is nearly
+         always the moment somebody has just gone down in front of you. */
+      if (ravenWaiting >= 0 && cutAt < 0 && !windowOpen && !shift && !hero.walk) {
+        int stage = ravenWaiting;
+        ravenWaiting = -1;
+        you.winterSaid = (u8)stage;
+        sfxRank();
+        openWindow("From the Wall", ravenSays(stage));
+      }
       /* Something is playing. It has the screen until it is done: a scene you
          can walk out of halfway through is not a scene. */
       if (cutAt >= 0) {
@@ -8952,6 +9258,7 @@ int main(void) {
                before anybody in it says anything. */
             if (worldId == THRONE_MAP && wasStory < 2) {
               you.story = 2;
+              deepenWinter(24);
               startTale(TALE_GATE, AFTER_NOTHING);
             } else if (worldId == THRONE_MAP && wasStory == 2
                        && haveSigil(LEADER_COUNT - 1)) {
@@ -8964,7 +9271,11 @@ int main(void) {
               startTale(TALE_CHAMPION, AFTER_CHAMPION);
             }
           }
-          else if (world->ambushCount && coverAt(hero.px >> 4, hero.py >> 4)
+          /* Cover with something in it. Once the dead have reached this
+             ground the grass is worth watching even where the map's own table
+             is empty, because what is in it did not come from that table. */
+          else if ((world->ambushCount || theDeadWalkHere())
+                   && coverAt(hero.px >> 4, hero.py >> 4)
                    && roll(100) < 12) ambush();
           else if (coverAt(hero.px >> 4, hero.py >> 4) && roll(100) < 4) findInGrass();
           /* Somewhere with a nest on it is worth searching whether or not

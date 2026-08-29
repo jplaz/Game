@@ -247,6 +247,9 @@ static int wildsMet, snaresThrown;
 /* Whether the pack was ever used as a pack, and whether every shelf of every
    counter was ever read. */
 static int beastsSentOut, beastsFelled, shelfSeen[STALL_COUNT], gearBroke;
+/* The Long Night: how deep it got, how many of the dead were met on a road
+   south of the Wall, and how many ravens actually reached the player. */
+static int deepestWinter, deadMet, deadSouth, ravensRead, rangingsDone;
 static int doorsThisRung;
 static int spottings, spottedBy, shooting, titleWant;
 static const char *startedAt = "nowhere";
@@ -702,6 +705,10 @@ void hostFrame(void) {
     static int wornSeen = 0;
     int k;
     if (wasOut && !beastOut && MY_BEAST.hp <= 0) beastsFelled++;
+    if (winterStage() > deepestWinter) deepestWinter = winterStage();
+    { static int toldTo = 0;
+      if (you.winterSaid > toldTo) { ravensRead++; toldTo = you.winterSaid; } }
+    if (you.rangings > rangingsDone) rangingsDone = you.rangings;
     wasOut = beastOut;
     if (wornSeen) {
       for (k = 0; k < WARE_KINDS; k++) {
@@ -734,7 +741,8 @@ void hostFrame(void) {
     else if (scene == SCENE_NAME && nameLen == 3) catchOnce(23, "02b-your-name");
     else if (scene == SCENE_HOUSE) catchOnce(1, "02-swear-your-sword");
     else if (scene == SCENE_MENU) catchOnce(2, "05-the-menu");
-    else if (scene == SCENE_STATUS) catchOnce(3, "06-your-sigil");
+    else if (scene == SCENE_STATUS) catchOnce(statusPage ? 35 : 3,
+      statusPage ? "06b-where-you-stand" : "06-your-sigil");
     else if (scene == SCENE_SEAT) catchOnce(27, "08-your-own-house");
     else if (scene == SCENE_ARMS) catchOnce(26, "08b-your-own-arms");
     else if (scene == SCENE_BAG) catchOnce(4, "07-the-pouch");
@@ -831,7 +839,9 @@ void hostFrame(void) {
        to rather than set — which is also what a player does. */
     keys = houseChoice < wantHouse ? tap(KEY_RIGHT) : tap(KEY_A);
   } else if (scene == SCENE_STATUS) {
-    keys = tap(KEY_B);
+    /* The card has two pages and the tester only ever read the first, so the
+       nine houses and the season were never once looked at by anything. */
+    keys = (!statusPage && roll(2) == 0) ? tap(KEY_RIGHT) : tap(KEY_B);
   } else if (scene == SCENE_MENU) {
     menusSeen++;
     /* Look in the pouch about half the time, write the record now and then,
@@ -1057,6 +1067,13 @@ void hostFrame(void) {
   } else if (scene == SCENE_DUEL) {
     if (wasScene != SCENE_DUEL) {
       if (foeBeast >= 0) wildsMet++;
+      /* Something that was already dead, and whether it was met somewhere the
+         encounter table for that road never mentioned one - which is the whole
+         of what the winter does to the map. */
+      if (foeBeast >= 0 && beasts[foeBeast].dead) {
+        deadMet++;
+        if (world && world->cold < 5) deadSouth++;
+      }
       duelTries = 0;
       runAway = ladderMode ? 0 : (duels % 5) == 4;
       if (ladderMode) ladderFights++;
@@ -1521,6 +1538,11 @@ int main(int argc, char **argv) {
     wildsMet, snaresThrown, you.tamed);
   printf("  the pack       %d sent out in a fight, %d went down standing it\n",
     beastsSentOut, beastsFelled);
+  printf("  the long night deepest %s, %d of the dead met (%d of them south "
+    "of the Wall), %d ravens\n",
+    seasonWord(), deadMet, deadSouth, ravensRead);
+  printf("  the watch      %d rangings finished, %d still out (%d of %d down)\n",
+    rangingsDone, you.rangeWant ? 1 : 0, you.rangeGot, you.rangeWant);
   {
     int st, unread = 0;
     for (st = 0; st < STALL_COUNT; st++) if (!shelfSeen[st]) unread++;

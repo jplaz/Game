@@ -2355,6 +2355,145 @@ int main(void) {
     newGameState();
   }
 
+  /* --- the Long Night, and how far south it gets --------------------------
+     The one thread in this world that is supposed to grow while you are busy
+     elsewhere. What is checked here is that it does grow, that it reaches
+     every region in a sensible order, that it can be pushed back, and that no
+     road is cold enough to have the dead on it on the first morning. */
+  {
+    extern void newGameState(void);
+    int stage, reached[WINTER_DEEPEST + 1], k, coldest = 0, warmest = 9;
+    newGameState();
+    if (winterStage() != 0) bad("a new game does not begin in a long summer");
+    /* Nobody is fighting the dead on the Kingsroad in hour one. */
+    for (i = 0; i < MAP_COUNT; i++) {
+      if (maps[i].cold > coldest) coldest = maps[i].cold;
+      if (maps[i].cold < warmest) warmest = maps[i].cold;
+      world = &maps[i];
+      if (theDeadWalkHere()) {
+        bad("the dead are already on %s at the start of the game", maps[i].name);
+        break;
+      }
+    }
+    if (coldest != 6) bad("the coldest ground in the world is %d, not 6", coldest);
+    if (warmest != 0) bad("nowhere in the world is out of the cold's reach");
+    /* And it does reach further with every stage, one region at a time. */
+    for (stage = 0; stage <= WINTER_DEEPEST; stage++) {
+      you.winter = (u16)(stage * WINTER_STEP);
+      if (winterStage() != stage) {
+        bad("%d cold reads as stage %d, not %d", stage * WINTER_STEP, winterStage(), stage);
+      }
+      reached[stage] = 0;
+      for (i = 0; i < MAP_COUNT; i++) {
+        world = &maps[i];
+        if (theDeadWalkHere()) reached[stage]++;
+      }
+      if (!seasonWord()[0]) bad("stage %d has no name", stage);
+      if (!deadReachWord()[0]) bad("stage %d has nothing to say", stage);
+      if (!ravenSays(stage)[0]) bad("stage %d sends no raven", stage);
+    }
+    for (stage = 1; stage <= WINTER_DEEPEST; stage++) {
+      if (reached[stage] < reached[stage - 1]) {
+        bad("the dead reach fewer roads at stage %d than at %d", stage, stage - 1);
+      }
+    }
+    if (reached[1] < 1) bad("at the first stage the dead have reached nowhere at all");
+    /* Every outdoor road in Westeros, and not one room and not one street in
+       Essos. That is what the Long Night means and what it does not. */
+    {
+      int outdoors = 0, essos = 0;
+      for (i = 0; i < MAP_COUNT; i++) if (maps[i].cold) outdoors++;
+      you.winter = WINTER_STEP * WINTER_DEEPEST;
+      for (i = 0; i < MAP_COUNT; i++) {
+        world = &maps[i];
+        if (!maps[i].cold && theDeadWalkHere()) essos++;
+      }
+      if (essos) bad("%d rooms or foreign streets are in the Long Night", essos);
+      if (reached[WINTER_DEEPEST] != outdoors) {
+        bad("the Long Night reaches %d of the %d roads it should",
+          reached[WINTER_DEEPEST], outdoors);
+      }
+      note("%d of %d maps are ground the cold can reach", outdoors, MAP_COUNT);
+    }
+    if (reached[WINTER_DEEPEST] < MAP_COUNT / 4) {
+      bad("at the Long Night the dead have only reached %d of %d roads",
+        reached[WINTER_DEEPEST], MAP_COUNT);
+    }
+    for (stage = 0; stage <= WINTER_DEEPEST; stage++) {
+      note("at %s the dead walk %d of %d roads",
+        (you.winter = (u16)(stage * WINTER_STEP), seasonWord()), reached[stage], MAP_COUNT);
+    }
+    /* Beyond the Wall is the first ground they take and Dorne is the last. */
+    you.winter = WINTER_STEP;
+    {
+      int firstCold = -1;
+      for (i = 0; i < MAP_COUNT; i++) {
+        world = &maps[i];
+        if (theDeadWalkHere()) { firstCold = i; break; }
+      }
+      if (firstCold < 0) bad("nowhere is cold enough for the dead at the first stage");
+      else if (maps[firstCold].cold != 6) {
+        bad("the dead reach %s before anywhere beyond the Wall", maps[firstCold].name);
+      }
+    }
+    /* The winter climbs on what the realm does to itself, and comes back down
+       only for somebody who goes and does something about it. */
+    newGameState();
+    deepenWinter(WINTER_STEP * 2);
+    if (winterStage() != 2) bad("the winter does not deepen when the realm breaks");
+    winterFalls(WINTER_STEP * 2);
+    if (winterStage() != 0) bad("a ranging does not push the winter back");
+    winterFalls(500);
+    if (you.winter) bad("the winter goes below a long summer");
+    /* A ranging asks for more of them the colder it gets, and always finishes. */
+    newGameState();
+    you.level = 30;
+    for (stage = 0; stage <= WINTER_DEEPEST; stage++) {
+      you.winter = (u16)(stage * WINTER_STEP);
+      you.rangeWant = 0;
+      you.rangeGot = 0;
+      takeRanging("A Brother");
+      if (!you.rangeWant) bad("nobody will send a level 30 north at stage %d", stage);
+      if (you.rangeWant > 12) bad("a ranging at stage %d wants %d of the dead", stage, you.rangeWant);
+      you.rangeGot = you.rangeWant;
+      k = (int)you.winter;
+      takeRanging("A Brother");
+      if (you.rangeWant) bad("a finished ranging does not close at stage %d", stage);
+      if (stage && (int)you.winter >= k) bad("a finished ranging buys back no winter");
+    }
+    if (you.rangings != WINTER_DEEPEST + 1) {
+      bad("%d rangings counted, not %d", you.rangings, WINTER_DEEPEST + 1);
+    }
+    /* Somebody too green is told to come back rather than sent to die. */
+    newGameState();
+    you.level = 4;
+    takeRanging("A Brother");
+    if (you.rangeWant) bad("the Watch sends a level 4 over the Wall");
+    /* And there is somebody to take one from. */
+    {
+      int rangers = 0;
+      for (i = 0; i < MAP_COUNT; i++) {
+        for (j = 0; j < maps[i].npcCount; j++) if (maps[i].npcs[j].ranges) rangers++;
+      }
+      if (!rangers) bad("nobody in the world will send you over the Wall");
+      note("%d people will send you north", rangers);
+    }
+    /* The thing at the end of it is worth more the longer you left it. */
+    {
+      int soft, hard;
+      newGameState();
+      you.level = 40;
+      you.winter = 0;
+      soft = levelOf(NIGHT_KING);
+      you.winter = WINTER_STEP * WINTER_DEEPEST;
+      hard = levelOf(NIGHT_KING);
+      if (hard <= soft) bad("the Night King is no worse for being left alone");
+      note("the Night King is level %d in summer and %d in the Long Night", soft, hard);
+    }
+    newGameState();
+    world = &maps[0];
+  }
+
   /* --- the record, written and read back ---------------------------------- */
   {
     int ok = 1;
@@ -2363,6 +2502,8 @@ int main(void) {
     hero.px = 5 * 16; hero.py = 7 * 16; hero.dir = 2;
     you.house = 2; you.level = 23; you.exp = 41000; you.gold = 7654;
     you.hp = 99; you.kills = 41;
+    you.winter = 87; you.rangeWant = 5; you.rangeGot = 2;
+    you.rangings = 4; you.winterSaid = 3;
     you.WORN_WEAPON = 6; you.WORN_ARMOUR = 12; you.WORN_SHIELD = 17;
     you.WORN_HELM = 21; you.WORN_GLOVES = 25;
     for (i = 0; i < PARTY_MAX; i++) {
@@ -2384,6 +2525,8 @@ int main(void) {
     for (i = 0; i < PARTY_MAX; i++) you.party[i].kind = 255;
     you.lead = 0;
     for (i = 0; i < WARE_KINDS; i++) you.worn[i] = 0;
+    you.winter = 0; you.rangeWant = 0; you.rangeGot = 0;
+    you.rangings = 0; you.winterSaid = 0;
     for (i = 0; i < WARE_COUNT; i++) you.bag[i] = 0;
     for (i = 0; i < MAP_COUNT; i++) for (j = 0; j < MAX_CROWD; j++) slain[i][j] = 0;
     for (i = 0; i < BEEN_WORDS; i++) beenTo[i] = 0;
@@ -2392,6 +2535,10 @@ int main(void) {
     if (!findRecord()) { bad("a record written and read straight back does not check out"); ok = 0; }
     if (ok) {
       takeUpRecord();
+      if (you.winter != 87 || you.rangeWant != 5 || you.rangeGot != 2
+          || you.rangings != 4 || you.winterSaid != 3) {
+        bad("the winter does not survive a save");
+      }
       if (you.house != 2 || you.level != 23 || you.exp != 41000 || you.gold != 7654
           || you.hp != 99 || you.kills != 41
           || you.WORN_WEAPON != 6 || you.WORN_ARMOUR != 12 || you.WORN_SHIELD != 17

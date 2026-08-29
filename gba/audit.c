@@ -2690,6 +2690,59 @@ int main(void) {
     newGameState();
   }
 
+  /* --- something to find, and somewhere to stand while you find it ---------
+     Twenty of the outdoor maps used to hold nothing at all, and all twenty were
+     towns: the biggest spaces in the game were the ones with the least reason
+     to walk into a corner of. They are filled from the map's own dead ends now,
+     which is generated rather than written - so it is checked rather than
+     trusted. */
+  {
+    int bare = 0, unreachable = 0, onDoors = 0, found = 0, outdoor = 0, most = 0;
+    for (m = 0; m < MAP_COUNT; m++) {
+      const Map *map = &maps[m];
+      if (map->scene == 5) continue;                    /* indoors is furnished */
+      outdoor++;
+      found += map->chestCount;
+      if (map->chestCount > most) most = map->chestCount;
+      if (!map->chestCount) {
+        bare++;
+        note("nothing to find anywhere on %s", map->name);
+      }
+      /* Eight bytes a map remember which have been opened, so sixty-four is
+         the ceiling and going over it would silently re-fill the rest. */
+      if (map->chestCount > 64) {
+        bad("%s has %d chests; only 64 can be remembered", map->name, map->chestCount);
+      }
+      memset(standable, 0, sizeof standable);
+      { int way = firstWayIn(map, m); (void)way; }
+      for (i = 0; i < map->chestCount; i++) {
+        int cx = map->chests[i].x, cy = map->chests[i].y;
+        if (cx >= map->w || cy >= map->h) {
+          bad("a chest on %s is at %d,%d, off the edge of it", map->name, cx, cy);
+          continue;
+        }
+        /* You stand beside a chest and open it, so what matters is whether
+           there is anywhere to stand - and whether that anywhere is on the
+           same side of the walls as the door you came in by. */
+        if (!standNextTo(map, cx, cy)) {
+          unreachable++;
+          bad("the chest at %d,%d on %s cannot be reached", cx, cy, map->name);
+        }
+        for (j = 0; j < map->warpCount; j++) {
+          int dx = map->warps[j].x - cx, dy = map->warps[j].y - cy;
+          if (dx < 0) dx = -dx;
+          if (dy < 0) dy = -dy;
+          if (dx + dy < 2) onDoors++;
+        }
+      }
+    }
+    if (bare) bad("%d places you can walk outdoors have nothing on them", bare);
+    if (onDoors) bad("%d chests are sitting in a doorway", onDoors);
+    (void)unreachable;
+    note("%d things to find over %d outdoor maps, at most %d on one of them",
+      found, outdoor, most);
+  }
+
   /* --- the record, written and read back ---------------------------------- */
   {
     int ok = 1;

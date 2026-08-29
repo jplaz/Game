@@ -780,6 +780,121 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
        a thing you walk up to and open, rather than a tile you happen to tread
        on and a line of text you may not have read. */
     const chestAt = new Set((map.items ?? []).map((it) => `${it.x},${it.y}`));
+    /* Something worth finding, in the corners of the world.
+     *
+     * Twenty of the fifty-four places you can walk outdoors had nothing on them
+     * at all, and every one of those twenty was a town - so the biggest, most
+     * carefully built spaces in the game were the ones with the least reason to
+     * walk into a corner of. You could cross Braavos end to end and be certain,
+     * correctly, that there was nothing off the road.
+     *
+     * These are placed rather than written: the map is read for its dead ends
+     * and blind alcoves - a walkable tile with one way in, or two - and the
+     * best of them, furthest from any door and well apart from each other, get
+     * something in them. Somewhere you only stand if you went looking.
+     *
+     * Deterministic in the map's own name, so the same alcove holds the same
+     * thing in every build and a player can be told where something is. */
+    const hidden = (() => {
+      if (map.indoor) return [];
+      const solidGrid = [];
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) solidGrid.push(isSolid(map.grid[y][x] ?? '.') ? 1 : 0);
+      }
+      const walkable = (x, y) => x >= 0 && y >= 0 && x < width && y < height
+        && !solidGrid[y * width + x];
+      const doors = (map.warps ?? []).map((w) => [w.x, w.y]);
+      const people = new Set((map.npcs ?? []).map((n) => `${n.x},${n.y}`));
+      const away = (x, y) => doors.reduce((best, [dx, dy]) =>
+        Math.min(best, Math.abs(dx - x) + Math.abs(dy - y)), 99);
+      /* A chest is furniture: solid, and standing where it stands. Drop one
+         into a two-way nook and everything behind it is walled off, and narrow
+         a corridor with one and somebody roaming can plug what is left. So
+         every candidate is tried before it is kept - the map is flooded from a
+         door with the chest in place, and if a single tile stops being
+         reachable, or a neighbour is left with one way out, it does not go
+         there. Generated placement has to be checked, not trusted. */
+      const blocked = new Set();
+      const reach = () => {
+        const start = (map.warps ?? []).find((w) => walkable(w.x, w.y))
+          ?? (() => {
+            for (let y = 0; y < height; y++) {
+              for (let x = 0; x < width; x++) if (walkable(x, y)) return { x, y };
+            }
+            return null;
+          })();
+        if (!start) return 0;
+        const seen = new Set([`${start.x},${start.y}`]);
+        const queue = [[start.x, start.y]];
+        let n = 0;
+        while (queue.length) {
+          const [cx, cy] = queue.pop();
+          n++;
+          for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const nx = cx + ox, ny = cy + oy, key = `${nx},${ny}`;
+            if (!walkable(nx, ny) || blocked.has(key) || seen.has(key)) continue;
+            seen.add(key);
+            queue.push([nx, ny]);
+          }
+        }
+        return n;
+      };
+      const whole = reach();
+      const openAt = (x, y) => [[1, 0], [-1, 0], [0, 1], [0, -1]]
+        .filter(([ox, oy]) => walkable(x + ox, y + oy)
+          && !blocked.has(`${x + ox},${y + oy}`)).length;
+
+      const spots = [];
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          if (!walkable(x, y)) continue;
+          if (chestAt.has(`${x},${y}`) || people.has(`${x},${y}`)) continue;
+          if ((map.grid[y][x] ?? '.') === 'D') continue;
+          /* Never against another chest. A chest is solid, so one set down
+             beside a chest that was written into the map by hand can be the
+             only tile anybody could have stood on to open it - which is how
+             the ransom at the Bloody Gate came to be walled in by a purse. */
+          if ([[1, 0], [-1, 0], [0, 1], [0, -1]]
+              .some(([ox, oy]) => chestAt.has(`${x + ox},${y + oy}`))) continue;
+          const open = openAt(x, y);
+          if (open < 1 || open > 2) continue;      /* a nook, not a thoroughfare */
+          const far = away(x, y);
+          if (far < 5) continue;                   /* not on anybody's doorstep */
+          /* And well clear of where anybody stands, so a chest and a person
+             cannot pinch a way through between them. */
+          let crowded = 0;
+          for (const who of people) {
+            const [px, py] = who.split(',').map(Number);
+            if (Math.abs(px - x) + Math.abs(py - y) < 3) crowded = 1;
+          }
+          if (crowded) continue;
+          spots.push({ x, y, score: far * 4 + (open === 1 ? 30 : 0) });
+        }
+      }
+      spots.sort((a, b) => b.score - a.score);
+      let seed = 0;
+      for (const c of id) seed = (seed * 31 + c.charCodeAt(0)) >>> 0;
+      const roll = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
+      const want = Math.min(4, Math.max(2, Math.round((width * height) / 240)));
+      const took = [];
+      for (const spot of spots) {
+        if (took.length >= want) break;
+        if (took.some((t) => Math.abs(t.x - spot.x) + Math.abs(t.y - spot.y) < 6)) continue;
+        blocked.add(`${spot.x},${spot.y}`);
+        /* Nothing behind it, and nothing beside it left with one way out. */
+        const severs = reach() !== whole - blocked.size;
+        const pinches = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([ox, oy]) => {
+          const nx = spot.x + ox, ny = spot.y + oy;
+          return walkable(nx, ny) && !blocked.has(`${nx},${ny}`) && openAt(nx, ny) < 2;
+        });
+        if (severs || pinches) { blocked.delete(`${spot.x},${spot.y}`); continue; }
+        /* Two in three are a purse somebody hid and did not come back for; the
+           rest are makings, so that walking into corners feeds the forge. */
+        took.push({ x: spot.x, y: spot.y, stuff: roll() < 0.34 });
+      }
+      return took;
+    })();
+    for (const h of hidden) chestAt.add(`${h.x},${h.y}`);
     /* The light a region is seen under.
      *
      * Seven regions are floored in the same grass, walled with the same trees
@@ -1037,7 +1152,15 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
           ?? wareIndex.get(`helm:${it.item}`) ?? wareIndex.get(`gloves:${it.item}`)
           ?? wareIndex.get(`stuff:${it.item}`) ?? 255,
         gold: 40 + roadLevel * 22,
-      })),
+      })).concat(hidden.map((h, n) => ({
+        x: h.x, y: h.y,
+        /* Makings scale with how hard the road is, so a nook at the Wall is
+           worth going into and one outside Winterfell is worth a hafted stick. */
+        ware: h.stuff
+          ? forage[Math.min(forage.length - 1, Math.floor(roadLevel / 6) + (n % 2))] ?? 255
+          : 255,
+        gold: 55 + roadLevel * 30,
+      }))),
       /* Nests: the one place in the world a given egg is ever found. */
       nest: (NESTS[id] ?? []).map((it) => wareIndex.get(`egg:${it}`))
         .filter((n) => n !== undefined)[0] ?? 255,

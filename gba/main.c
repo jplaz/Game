@@ -4349,12 +4349,6 @@ static int carrying(void) {
   return n;
 }
 
-static int nthCarried(int n) {
-  int i;
-  for (i = 0; i < WARE_COUNT; i++) if (you.bag[i] && !n--) return i;
-  return -1;
-}
-
 /* The pouch reads like the counter: the same four shelves, in the same order.
    It was one list of everything you had ever picked up, and by the middle of
    the game the flask you wanted in a fight was forty rows down it, under every

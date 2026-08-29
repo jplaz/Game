@@ -3393,7 +3393,7 @@ export const MAPS = {
         data: { duel: 'hound' } },
     ],
     items: [
-      { x: 3, y: 15, item: 'kingsRansom', count: 1, flag: 'item_kingsroad_ransom' },
+      { x: 2, y: 16, item: 'kingsRansom', count: 1, flag: 'item_kingsroad_ransom' },
       { x: 18, y: 4, item: 'kingsguardBanner', count: 2, flag: 'item_kingsroad_banner' },
     ],
   },

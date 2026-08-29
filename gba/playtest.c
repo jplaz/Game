@@ -1371,6 +1371,19 @@ void hostFrame(void) {
             keys = tap(KEY_A);
             if (keys) interacting = 1;
           }
+        } else if (hx == gx && hy == gy && goalKind != GOAL_WARP) {
+          /* A door can put you down on the very thing it sent you to: the
+             stair into the Iron Vault lands you standing on its sign. There
+             is no tile to face it from until you step off it, so step off. */
+          for (i = 0; i < 4; i++) {
+            int nx = hx + DIR_X[i], ny = hy + DIR_Y[i];
+            if (nx < 0 || ny < 0 || nx >= world->w || ny >= world->h) continue;
+            if (solidAt(nx, ny) || ledgeAt(nx, ny)) continue;
+            if (occupied(nx, ny, -1) || warpHere(nx, ny)) continue;
+            keys = KEYS[i];
+            blocked = 0;
+            break;
+          }
         } else {
           dir = stepToward(sx, sy);
           if (dir >= 0) { keys = KEYS[dir]; blocked = 0; }

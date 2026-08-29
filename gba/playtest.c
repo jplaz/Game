@@ -1097,6 +1097,10 @@ void hostFrame(void) {
     else { keys = tap(KEY_A); if (keys) { sailed++; goalKind = GOAL_NONE; } }
   } else if (scene == SCENE_DUEL) {
     if (wasScene != SCENE_DUEL) {
+      if (getenv("DBG")) {
+        printf("      duel: foeId %d beast %d level %d (you %d, story %d, hp %d)\n",
+          foeId, foeBeast, foeLevel, you.level, you.story, you.hp);
+      }
       if (foeBeast >= 0) wildsMet++;
       /* Something that was already dead, and whether it was met somewhere the
          encounter table for that road never mentioned one - which is the whole
@@ -1151,8 +1155,12 @@ void hostFrame(void) {
     }
     else if (duelPhase == DUEL_MENU) {
       /* On the ladder, swing the hardest thing in your hands rather than a
-         random one: this run is meant to measure the game, not the dice. */
-      if (ladderMode) {
+         random one: this run is meant to measure the game, not the dice. The
+         crown run fights the same way, because the champion at the top of the
+         game is a real fight, and a tester swinging at random lost it thirteen
+         times in a row on one seed and ran the frame budget out standing in
+         the Red Keep. */
+      if (ladderMode || crownRun) {
         int best = 0, i, score = -1;
         for (i = 0; i < 4; i++) {
           const Tech *t = &techniques[nearSide()->tech[i]];
@@ -1442,8 +1450,26 @@ int main(int argc, char **argv) {
     r.haven = 255;
     r.exp = (unsigned)expForLevel(44);
     r.gold = 40000; r.hp = 9999; r.kills = 200;
-    /* Dressed for it: the best of everything the road can hand over. */
+    /* Dressed for it: the best of everything the road can hand over - and
+       actually wearing it, whole. The record used to carry one of everything
+       and wear none of it, so the champion fight at the top of the game was
+       measured bare-handed and won on luck; and once steel could wear out, a
+       worn slot with no life written next to it broke on the first blow. */
     for (i = 0; i < WARE_COUNT; i++) if (wares[i].kind != WARE_STUFF) r.bag[i] = 1;
+    { int k2, best[WARE_KINDS];
+      for (k2 = 0; k2 < WARE_KINDS; k2++) best[k2] = -1;
+      for (i = 0; i < WARE_COUNT; i++) {
+        int kd = wares[i].kind;
+        if (kd != WARE_WEAPON && kd != WARE_ARMOUR && kd != WARE_SHIELD
+            && kd != WARE_HELM && kd != WARE_GLOVES) continue;
+        if (best[kd] < 0 || wares[i].price > wares[best[kd]].price) best[kd] = i;
+      }
+      for (k2 = 0; k2 < WARE_KINDS; k2++) {
+        if (best[k2] < 0) continue;
+        r.worn[k2] = (u8)(best[k2] + 1);
+        r.wear[k2] = (u16)gearLife(best[k2]);
+      }
+    }
     r.sum = tally(&r);
     for (k = 0; k < sizeof r; k++) hostSram[k] = ((unsigned char *)&r)[k];
     crownRun = 1;

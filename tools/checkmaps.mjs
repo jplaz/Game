@@ -25,8 +25,15 @@ for (const [id, map] of Object.entries(MAPS)) {
     if (kindOf(at(x, y)) === 'missing') say(`${id}: unknown tile '${at(x, y)}' at ${x},${y}`);
   }
 
+  /* Open water is a wall everywhere except on the open water, where it is the
+     road. A map marked `sea` is one you cross in a ship, so its rules are the
+     other way up: the water carries you and the islands are what stops you.
+     Without this every beach on every islet reads as ground walled off from
+     every door, which is exactly what it is on foot and exactly not the
+     point. */
+  const sea = Boolean(map.sea);
   const solid = (x, y) => x < 0 || y < 0 || x >= width || y >= height
-    || SOLID.has(kindOf(at(x, y)));
+    || (SOLID.has(kindOf(at(x, y))) && !(sea && kindOf(at(x, y)) === 'water'));
   const ledge = (x, y) => kindOf(at(x, y)) === 'ledge';
   // Ground you can come to rest on: not solid, and not the drop itself.
   const stand = (x, y) => !solid(x, y) && !ledge(x, y);

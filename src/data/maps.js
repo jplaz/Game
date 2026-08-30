@@ -1785,6 +1785,114 @@ function pykePlan() {
   return g.map((r) => r.join(''));
 }
 
+/**
+ * The Eyrie: six hundred steps and a mule track, which the map did not have.
+ *
+ * It was the same crossroads village as everywhere else with cliffs painted
+ * round the edge — the one castle in Westeros nobody has ever taken, drawn
+ * flat. Four terraces cut into the side of the Giant's Lance now, joined by
+ * stairs and with the drop on both sides of all of them: the seat at the top,
+ * the hall and the armoury below it, everybody else below that, and the mule
+ * track up from the Bloody Gate at the bottom.
+ */
+// The Eyrie: four terraces cut into the Giant's Lance, each one cut back from
+// the one below it, with Alyssa's Tears falling the whole height of the map
+// down the west face and the drop widening on your right the whole climb.
+function eyriePlan() {
+  const W = 32, H = 27;
+  const g = [];
+  for (let y = 0; y < H; y++) g.push(new Array(W).fill('^'));
+
+  const put = (x, y, c) => { if (g[y] && g[y][x] !== undefined) g[y][x] = c; };
+  const row = (x, y, text) => [...text].forEach((c, i) => put(x + i, y, c));
+  const span = (x, y, w, h, c) => {
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, y + j, c);
+  };
+
+  /* Every walkway is two rows deep. One row is a corridor, and a corridor with
+     anybody standing in it is a wall — five people on this map each cut a
+     terrace in half the first time it was drawn. */
+  const EDGE = [
+    [0, 6, 19],    // the Eyrie itself
+    [7, 7, 21],
+    [8, 13, 23],   // the maester and the armoury
+    [14, 14, 25],
+    [15, 20, 27],  // where anybody who is not a lord lives
+    [21, 21, 28],
+    [22, 26, 29],  // the mule yard, and the long way down
+  ];
+  for (const [y0, y1, right] of EDGE) {
+    for (let y = y0; y <= y1; y++) span(4, y, right - 3, 1, 'C');
+  }
+  // Alyssa's Tears, which have never once reached the ground.
+  span(0, 0, 2, H, 'C');
+  span(2, 0, 2, H, '~');
+
+  // --- the top: the Eyrie, and the mountain road round its shoulder --------
+  row(4, 1, 'MMMMMMMMMMMMM');
+  row(4, 2, 'MAwAAAAAAAwAM');
+  row(4, 3, 'MAAAvAAAvAAAM');
+  row(4, 4, 'MAAAAADAAAAAM');          // keep door at 10,4
+  put(18, 0, 'o');                     // the road on over the shoulder
+  span(17, 1, 3, 6, 'o');
+  span(4, 5, 16, 2, 'o');
+
+  /* Six hundred steps. The flight runs the whole depth of the cliff and comes
+     out between the maester's hall and the armoury. */
+  span(10, 7, 3, 5, '/');
+
+  // --- the second terrace: the maester's hall and the armoury -------------
+  put(7, 8, 'n');
+  row(5, 9, 'ggggg');
+  row(5, 10, 'GGGGG');
+  row(5, 11, 'pwDwp');                 // maester door at 7,11
+  put(20, 8, 'n');
+  row(18, 9, 'zzzzz');
+  row(18, 10, 'ZZZZZ');
+  row(18, 11, 'AwDwA');                // armoury door at 20,11
+  span(4, 12, 20, 2, 'o');
+  /* Braziers two columns clear of where anybody stands. A brazier on one row of
+     a two-row walkway and a man on the other is a wall with a gap you can see
+     through and not walk through. */
+  put(12, 12, 'F'); put(18, 12, 'F');
+
+  span(17, 14, 3, 5, '/');
+
+  // --- the third terrace: the inn, a house, a cellar cut into the rock -----
+  put(7, 15, 'n');
+  row(5, 16, 'yyyyy');
+  row(5, 17, 'YYYYY');
+  row(5, 18, 'AwDwA');                 // inn door at 7,18
+  put(14, 15, 'n');
+  row(12, 16, 'ggggg');
+  row(12, 17, 'GGGGG');
+  row(12, 18, 'AwDwA');                // house door at 14,18
+  put(24, 15, 'n');
+  row(22, 16, 'ggggg');
+  row(22, 17, 'GGGGG');
+  row(22, 18, 'AwDwA');                // cellar door at 24,18
+  span(4, 19, 24, 2, 'o');
+
+  span(8, 21, 3, 1, '/');
+
+  // --- the bottom: the mule yard, where the climb actually starts ----------
+  span(4, 22, 26, 4, 'o');
+  /* Pens, open at the front, because mules have to get out of them — and clear
+     of x=8..10, which is where the last flight of steps lands. */
+  row(14, 22, 'ffffffff');
+  put(14, 23, 'f'); put(21, 23, 'f');
+  // the winch house. Everything heavy that has ever gone up went up in it.
+  row(24, 22, 'MMMMM');
+  row(24, 23, 'MAvAM');
+  row(24, 24, 'MAAAM');
+  put(12, 23, 'F');
+  /* One tile at the bottom: ground that runs off the side of a map is a place
+     the player walks at and cannot leave, and a mule track is a mule track. */
+  put(11, 26, 'o');
+
+  return g.map((r) => r.join(''));
+}
+
 export const MAPS = {
   // ------------------------------------------------ the winter town, inside --
   winterfellInn: makeInn({
@@ -2163,8 +2271,8 @@ export const MAPS = {
       'IIIIIII__IIIIIIII',
     ],
     warps: [
-      { x: 7, y: 9, to: 'theEyrie', tx: 7, ty: 15, dir: 'down' },
-      { x: 8, y: 9, to: 'theEyrie', tx: 7, ty: 15, dir: 'down' },
+      { x: 7, y: 9, to: 'theEyrie', tx: 10, ty: 5, dir: 'down' },
+      { x: 8, y: 9, to: 'theEyrie', tx: 10, ty: 5, dir: 'down' },
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'arryn', name: 'Mya Stone', script: 'courtship',
@@ -2355,46 +2463,44 @@ export const MAPS = {
     ],
   }),
 
-  theEyrie: makeTown({
-    outsiders: [
-      { dir: 'down', sprite: 'guard', name: 'Sky Road Warden', script: 'townTalk',
-        data: { line: 'Sky Road Warden: Six hundred steps and a mule track. In winter the mules will not do it and neither will I.' } },
-      { dir: 'down', sprite: 'smallfolk', name: 'A Mule Driver', script: 'townTalk',
-        data: { line: 'A Mule Driver: Do not look left. There is nothing on the left but four thousand feet of nothing.' } },
+  theEyrie: {
+    name: 'The Eyrie', music: 'town', ground: 'stone',
+    get tiles() { return eyriePlan(); },
+    encounters: [
+      { roamer: 'clansman', min: 20, max: 28, weight: 55 },
+      { roamer: 'hedgeKnight', min: 20, max: 28, weight: 45 },
     ],
-    outskirts: OUTSKIRTS.eyrie, gate: 13,
-    quarter: 0,
-    banner: 'v',
-    dressing: [[4, 1, 'i'], [5, 1, 'i'], [6, 1, 'i'], [17, 17, 'C'], [18, 17, 'C'],
-               [5, 17, 'C'], [6, 18, 'C'], [19, 2, 'C'], [4, 2, 'i'], [18, 18, 'C'],
-               [15, 12, 'C'], [16, 13, 'C'], [20, 9, 'C'], [3, 17, 'i']],
-    roof: 'G', ridge: 'g',
-    name: 'The Eyrie', ground: 'stone', wall: 'C', floor: 'o', music: 'town',
     warps: [
-      { door: 'cellar', to: 'theEyrieCellar', tx: 6, ty: 8, dir: 'up' },
-      { door: 'inn', to: 'theEyrieInn', tx: 6, ty: 10, dir: 'up' },
-      { door: 'house', to: 'theEyrieHouse', tx: 6, ty: 10, dir: 'up' },
-      { door: 'southGate', to: 'bloodyGate', tx: 11, ty: 1, dir: 'down' },
-      { door: 'northGate', to: 'stoneCrowHold', tx: 11, ty: 20, dir: 'up' },
-      { door: 'maester', to: 'maesterHallEyrie', tx: 5, ty: 7, dir: 'up' },
-      { door: 'forge', to: 'eyrieArmoury', tx: 5, ty: 6, dir: 'up' },
-      { door: 'keep', to: 'eyrieKeep', tx: 7, ty: 8, dir: 'up' },
+      { x: 24, y: 18, to: 'theEyrieCellar', tx: 6, ty: 8, dir: 'up' },
+      { x: 7, y: 18, to: 'theEyrieInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 14, y: 18, to: 'theEyrieHouse', tx: 6, ty: 10, dir: 'up' },
+      { x: 11, y: 26, to: 'bloodyGate', tx: 11, ty: 1, dir: 'down' },
+      { x: 18, y: 0, to: 'stoneCrowHold', tx: 11, ty: 20, dir: 'up' },
+      { x: 7, y: 11, to: 'maesterHallEyrie', tx: 5, ty: 7, dir: 'up' },
+      { x: 20, y: 11, to: 'eyrieArmoury', tx: 5, ty: 6, dir: 'up' },
+      { x: 10, y: 4, to: 'eyrieKeep', tx: 7, ty: 8, dir: 'up' },
     ],
     signs: [
-      { x: 24, y: 12, text: 'THE SKY ROAD\nThe only way up, and it is a mule track.\nAn army has never taken the Eyrie. An army has never got up here.' },
-      { x: 13, y: 10, text: 'THE EYRIE\nSeat of House Arryn.\nAs high as honour, and a good deal colder.' },
+      { x: 9, y: 4, text: 'THE EYRIE\nSeat of House Arryn.\nAs High as Honour.' },
+      { x: 26, y: 24, text: 'THE WINCH HOUSE\nSix hundred steps, and a mule track before that.\nAn army has never taken the Eyrie. An army has never got up here.' },
+      { x: 3, y: 13, text: "ALYSSA'S TEARS\nShe wept for her murdered children and never stopped.\nThe fall is so long the water is gone to mist before it lands." },
     ],
     npcs: [
-      { x: 11, y: 4, dir: 'down', sprite: 'oldman', name: 'Mountain Steward', script: 'deedBroker',
+      { x: 7, y: 6, dir: 'down', sprite: 'arryn', name: 'Bronze Yohn Royce',
+        script: 'trainer', data: { trainer: 'gymArryn' } },
+      { x: 15, y: 13, dir: 'down', sprite: 'oldman', name: 'Mountain Steward', script: 'deedBroker',
         data: { property: 'valeWatchtower' } },
-      { x: 8, y: 9, dir: 'down', sprite: 'noble', name: 'Lord Baelish', script: 'littlefinger' },
-      { x: 14, y: 10, dir: 'left', sprite: 'starkLady', name: 'Lady Arryn', script: 'lysa' },
-      { x: 5, y: 17, dir: 'right', sprite: 'guard', name: 'Sky Cell Guard', script: 'eyrieHint' },
+      { x: 5, y: 20, dir: 'right', sprite: 'guard', name: 'Sky Road Warden', script: 'townTalk',
+        data: { line: 'Sky Road Warden: Six hundred steps and a mule track. In winter the mules will not do it, and neither will I.' } },
+      { x: 17, y: 23, dir: 'left', sprite: 'smallfolk', name: 'A Mule Driver', script: 'townTalk',
+        data: { line: 'A Mule Driver: Do not look left. There is nothing on the left but four thousand feet of nothing.' } },
+      { x: 13, y: 25, dir: 'down', sprite: 'arryn', name: 'Knight of the Gate', script: 'townTalk',
+        data: { line: 'Knight of the Gate: The Vale keeps its own counsel and its own passes. You are a guest here, and guests go up on foot.' } },
     ],
-  }),
+  },
 
   maesterHallEyrie: maesterHall({
-    exitTo: 'theEyrie', exitX: 6, exitY: 7,
+    exitTo: 'theEyrie', exitX: 7, exitY: 12,
     stock: ['warBanner', 'kingsguardBanner', 'poppyMilk', 'weirwoodSap', 'kissOfFire'],
     healerLine: 'The climb is hard on them. Sit a while.',
     merchantLine: 'Vale goods, at Vale prices. I do not set them.',
@@ -2414,8 +2520,8 @@ export const MAPS = {
       'IIIII__IIIII',
     ],
     warps: [
-      { x: 5, y: 7, to: 'theEyrie', tx: 17, ty: 7, dir: 'down' },
-      { x: 6, y: 7, to: 'theEyrie', tx: 17, ty: 7, dir: 'down' },
+      { x: 5, y: 7, to: 'theEyrie', tx: 20, ty: 12, dir: 'down' },
+      { x: 6, y: 7, to: 'theEyrie', tx: 20, ty: 12, dir: 'down' },
     ],
     npcs: [
       { x: 7, y: 1, dir: 'down', sprite: 'arryn', name: 'Armourer', script: 'smith',
@@ -5009,8 +5115,8 @@ export const MAPS = {
       'IIIIII__IIIII',
     ],
     warps: [
-      { x: 6, y: 10, to: 'theEyrie', tx: 12, ty: 20, dir: 'down' },
-      { x: 7, y: 10, to: 'theEyrie', tx: 12, ty: 20, dir: 'down' },
+      { x: 6, y: 10, to: 'theEyrie', tx: 11, ty: 22, dir: 'down' },
+      { x: 7, y: 10, to: 'theEyrie', tx: 11, ty: 22, dir: 'down' },
     ],
     signs: [
       { x: 4, y: 0, text: 'THE BROKEN WATCHTOWER\nFour hundred years of garrisons have carved their names in this wall.\nThere is room left for one more.' },
@@ -6154,7 +6260,7 @@ export const MAPS = {
       { roamer: 'wildlingRaider', min: 32, max: 42, weight: 22 },
       { beast: 'falconet', min: 30, max: 40, weight: 16 },
     ],
-    name: 'The Stone Crow Camp', town: 'theEyrie', townGate: [11, 1, 'down'], hall: 'stoneCrowCave',
+    name: 'The Stone Crow Camp', town: 'theEyrie', townGate: [18, 1, 'down'], hall: 'stoneCrowCave',
     ground: 'stone', wall: 'C', floor: 'o', banner: 'v',
     signs: [
       { x: 11, y: 16, text: 'THE STONE CROW CAMP\nThe clans hold the high ground above the Vale.\nThey did not ask leave, and will not give it.' },

@@ -333,7 +333,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     tully:     { map: 'riverrun',    x: 10, y: 17, dir: 1, level: 5 },
     targaryen: { map: 'dragonstone', x: 11, y: 18, dir: 1, level: 5 },
     greyjoy:   { map: 'pyke',        x: 11, y: 18, dir: 1, level: 5 },
-    arryn:     { map: 'theEyrie',    x: 14, y: 9,  dir: 0, level: 5 },
+    arryn:     { map: 'theEyrie',    x: 11, y: 5,  dir: 0, level: 5 },
     tyrell:    { map: 'highgarden',  x: 14, y: 9,  dir: 0, level: 5 },
     martell:   { map: 'sunspear',    x: 14, y: 9,  dir: 0, level: 5 },
     baratheon: { map: 'stormsEnd',   x: 14, y: 9,  dir: 0, level: 5 },

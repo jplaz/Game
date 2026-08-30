@@ -2345,6 +2345,55 @@ function riverrunPlan() {
   return g.map((r) => r.join(''));
 }
 
+/* Lannisport: the second city of the west, which was drawn as a lawn inside a
+   square wall with three sheds on it. It is a port, and it is a port because
+   the Rock stands over it — so the Rock takes the whole north-east of the map,
+   the harbour takes the south-east, and the town is the dense red-roofed grid
+   that fits in between, which is the only shape it could ever have been. */
+function lannisportPlan() {
+  const W = 32, H = 27;
+  const G = [];
+  for (let yy = 0; yy < H; yy++) G.push(new Array(W).fill('.'));
+  const put = (x, yy, c) => { if (G[yy] && G[yy][x] !== undefined) G[yy][x] = c; };
+  const row = (x, yy, s) => [...s].forEach((c, i) => put(x + i, yy, c));
+  const span = (x, yy, w, h, c) => {
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, yy + j, c);
+  };
+
+  span(1, 4, 30, 22, 'o');                       // the town, paved throughout
+  span(17, 0, 15, 9, 'C');                       // the Rock, standing over it
+  put(24, 8, 'D');                               // and the Lion's Mouth in it
+
+  span(23, 12, 9, 15, '~');                      // the harbour
+  for (const yy of [14, 19, 24]) span(23, yy, 3, 1, 't');
+  put(24, 16, 'U'); put(24, 21, 'U');
+
+  // the landward wall, and the woods the gold road comes down through
+  span(0, 0, 17, 3, '#');
+  span(8, 0, 1, 3, '-');
+  span(0, 3, 17, 1, 'A'); put(8, 3, 'o');
+  span(0, 3, 1, 24, 'A');
+  span(0, 26, 23, 1, 'A'); put(8, 26, 'o');
+  span(31, 9, 1, 3, 'A'); put(31, 10, 'o');      // and the gate onto the roseroad
+
+  // the maester and the forge, up against the north wall
+  row(2, 5, 'rrrrr'); row(2, 6, 'RRRRR'); row(2, 7, 'pwDwp');
+  row(9, 5, 'zzzzz'); row(9, 6, 'ZZZZZ'); row(9, 7, 'AwDwA');
+  put(4, 4, 'n'); put(11, 4, 'n');
+
+  /* Nine blocks of red tile on a grid of streets. Lannisport is the only place
+     in Westeros anybody has ever bothered to lay out on purpose, and it shows
+     from above more than it does from the ground. */
+  for (const yy of [11, 17, 22]) {
+    for (const x of [2, 9, 16]) {
+      row(x, yy, 'rrrrr'); row(x, yy + 1, 'RRRRR'); row(x, yy + 2, 'HwHwH');
+      put(x + 1, yy - 1, 'n');
+    }
+  }
+
+  return G.map((r) => r.join(''));
+}
+
 // The Eyrie: four terraces cut into the Giant's Lance, each one cut back from
 // the one below it, with Alyssa's Tears falling the whole height of the map
 // down the west face and the drop widening on your right the whole climb.
@@ -3119,7 +3168,7 @@ export const MAPS = {
       { beast: 'emberwisp', min: 28, max: 32, weight: 10 },
     ],
     warps: [
-      { x: 11, y: 0, to: 'lannisport', tx: 18, ty: 17, dir: 'down' },
+      { x: 11, y: 0, to: 'lannisport', tx: 30, ty: 10, dir: 'down' },
       { x: 11, y: 29, to: 'highgarden', tx: 11, ty: 1, dir: 'down' },
       { x: 5, y: 16, to: 'stoneCrypt', tx: 7, ty: 13, dir: 'up', cave: true },
     ],
@@ -4131,7 +4180,7 @@ export const MAPS = {
     ],
     warps: [
       { x: 10, y: 0, to: 'riverrun', tx: 2, ty: 25, dir: 'up' },
-      { x: 10, y: 23, to: 'lannisport', tx: 11, ty: 1, dir: 'down' },
+      { x: 10, y: 23, to: 'lannisport', tx: 8, ty: 1, dir: 'down' },
       { x: 5, y: 19, to: 'barrowCave', tx: 8, ty: 14, dir: 'up' },
     ],
     signs: [
@@ -4200,51 +4249,35 @@ export const MAPS = {
   lannisport: {
     name: 'Lannisport',
     music: 'town',
-    ground: 'grass',
-    tiles: [
-      '####################',
-      '#.........-........#',
-      '#.oooooooooooooooo.#',
-      '#.o.........n....o.#',
-      '#.o.rrrr...zzzz..o.#',
-      '#.o.RRRR...ZZZZ..o.#',
-      '#.o.eDpw...AAkD..o.#',
-      '#.o..-........-..o.#',
-      '#.o..----------..o.#',
-      '#.o......-.......o.#',
-      '#.o......-....!..o.#',
-      '#.o..MMMMMMMM....o.#',
-      '#.o..AAVAAVAA....o.#',
-      '#.o..AAAAAAAA....o.#',
-      '#.o..AAAADAAA....o.#',
-      '#.o......-.......o.#',
-      '#.oooooo.-.oooooooo#',
-      '#........-.........-',
-      '#........-.........#',
-      '#########-##########',
-    ],
+    /* Paved, not grass. A chimney draws the ground out from under itself, and
+       on a map that still called itself grass every chimney in the city stood
+       on its own little lawn. */
+    ground: 'stone',
+    get tiles() { return lannisportPlan(); },
     encounters: [],
     warps: [
-      { x: 10, y: 1, to: 'goldRoad', tx: 10, ty: 22, dir: 'up' },
-      { x: 5, y: 6, to: 'maesterHallLannisport', tx: 5, ty: 7, dir: 'up' },
-      { x: 14, y: 6, to: 'lannisportForge', tx: 5, ty: 6, dir: 'up' },
-      { x: 9, y: 14, to: 'casterlyRock', tx: 12, ty: 24, dir: 'up' },
-      { x: 9, y: 19, to: 'kingsroad', tx: 10, ty: 1, dir: 'down' },
-      { x: 19, y: 17, to: 'roseroad', tx: 11, ty: 1, dir: 'right' },
+      { x: 8, y: 0, to: 'goldRoad', tx: 10, ty: 22, dir: 'up' },
+      { x: 4, y: 7, to: 'maesterHallLannisport', tx: 5, ty: 7, dir: 'up' },
+      { x: 11, y: 7, to: 'lannisportForge', tx: 5, ty: 6, dir: 'up' },
+      { x: 24, y: 8, to: 'casterlyRock', tx: 12, ty: 24, dir: 'up' },
+      { x: 8, y: 26, to: 'kingsroad', tx: 10, ty: 1, dir: 'down' },
+      { x: 31, y: 10, to: 'roseroad', tx: 11, ty: 1, dir: 'right' },
     ],
     signs: [
-      { x: 14, y: 10, text: 'LANNISPORT\nBeneath Casterly Rock.\nSigil-holder: SER JAIME.' },
+      { x: 7, y: 3, text: 'LANNISPORT\nBeneath Casterly Rock.\nSigil-holder: SER JAIME.' },
+      { x: 23, y: 8, text: "THE LION'S MOUTH\nThe tunnel up into the Rock.\nNobody has ever come down it uninvited." },
+      { x: 18, y: 11, text: 'THE HARBOUR\nHalf the gold of the west leaves from these three jetties.\nThe other half never leaves at all.' },
     ],
     npcs: [
-      { x: 6, y: 9, dir: 'down', sprite: 'lannister', name: 'Gold Cloak', script: 'lannisportGuard' },
-      { x: 15, y: 17, dir: 'left', sprite: 'goodwife', name: 'Goldsmith', script: 'lannisportHint' },
-      { x: 4, y: 17, dir: 'right', sprite: 'rival', name: 'Joffrey', script: 'rivalLannisport',
+      { x: 7, y: 4, dir: 'down', sprite: 'lannister', name: 'Gold Cloak', script: 'lannisportGuard' },
+      { x: 22, y: 16, dir: 'left', sprite: 'goodwife', name: 'Goldsmith', script: 'lannisportHint' },
+      { x: 15, y: 21, dir: 'right', sprite: 'rival', name: 'Joffrey', script: 'rivalLannisport',
         hideIfFlag: 'trainer_rival2' },
     ],
   },
 
   maesterHallLannisport: maesterHall({
-    exitTo: 'lannisport', exitX: 5, exitY: 7,
+    exitTo: 'lannisport', exitX: 4, exitY: 8,
     stock: ['warBanner', 'kingsguardBanner', 'poppyMilk', 'weirwoodSap', 'kissOfFire', 'burnSalve'],
     healerLine: 'Gold pays for good care. Yours is free, of course.',
     merchantLine: 'The finest stock west of the Trident.',
@@ -4265,8 +4298,8 @@ export const MAPS = {
       'IIIII__IIIII',
     ],
     warps: [
-      { x: 5, y: 7, to: 'lannisport', tx: 14, ty: 7, dir: 'down' },
-      { x: 6, y: 7, to: 'lannisport', tx: 14, ty: 7, dir: 'down' },
+      { x: 5, y: 7, to: 'lannisport', tx: 11, ty: 8, dir: 'down' },
+      { x: 6, y: 7, to: 'lannisport', tx: 11, ty: 8, dir: 'down' },
     ],
     npcs: [
       { x: 7, y: 1, dir: 'down', sprite: 'merchant', name: 'Armourer', script: 'shop',
@@ -4315,7 +4348,7 @@ export const MAPS = {
       '@@@@@@@@@@@@_@@@@@@@@@@@@@',
     ],
     warps: [
-      { x: 12, y: 25, to: 'lannisport', tx: 9, ty: 15, dir: 'down' },
+      { x: 12, y: 25, to: 'lannisport', tx: 24, ty: 9, dir: 'down' },
     ],
     signs: [
       { x: 11, y: 2, text: 'CASTERLY ROCK\nSeat of House Lannister.\nNobody built this. It was dug.' },
@@ -4378,7 +4411,7 @@ export const MAPS = {
       { beast: 'boartusk', min: 20, max: 24, weight: 12 },
     ],
     warps: [
-      { x: 10, y: 0, to: 'lannisport', tx: 9, ty: 18, dir: 'up' },
+      { x: 10, y: 0, to: 'lannisport', tx: 8, ty: 25, dir: 'up' },
       { x: 10, y: 22, to: 'kingsLanding', tx: 16, ty: 30, dir: 'up' },
       { x: 19, y: 14, to: 'stormlands', tx: 11, ty: 1, dir: 'right' },
       { x: 4, y: 15, to: 'hollowHill', tx: 8, ty: 15, dir: 'up' },

@@ -63,6 +63,9 @@ static void finding(const char *fmt, ...) {
 
 static int frameNo;
 static int mapSeen[MAP_COUNT];
+static unsigned char entitled[MAP_COUNT];
+/* The most seats this run ever held while stood at a berth. */
+static int seatsAtBerth;
 static int portsSeen, sailed, talesSeen, crownRun;
 static int partiesSeen, partyLooks, swaps;
 static int npcTalked[MAP_COUNT][MAX_CROWD];
@@ -542,6 +545,11 @@ static int portOwesWork(void) {
     int m = ports[i].map;
     if (m == worldId) continue;
     if (!free && (int)ports[i].fare > you.gold) continue;
+    /* And the seats. A beach waives the fare and waives nothing else: the
+       captain refuses on the seats behind you whatever is in your purse, so a
+       tester that only counted gold kept choosing berths it would be turned
+       away from and lost the far side of the narrow sea entirely. */
+    if ((int)ports[i].needs > countSigils()) continue;
     if (walkableTo(m)) continue;
     if (!mapDone(m)) return 1;
     for (j = 0; j < maps[m].warpCount; j++) if (!mapDone(maps[m].warps[j].to)) return 1;
@@ -557,7 +565,16 @@ static int portOwesWork(void) {
    you have walked down it. */
 static int sailorHere(void) {
   int i;
-  for (i = 0; i < crowdCount; i++) if (world->npcs[i].sails && crowdAlive[i]) return i;
+  for (i = 0; i < crowdCount; i++) if (world->npcs[i].sails && crowdAlive[i]) {
+    /* The seats you had while you were actually stood in front of somebody who
+       could take you somewhere. Counting the seats at the END of the run
+       instead says a run that won its seventh sigil in the last minute, a
+       thousand leagues from any harbour, was entitled to Volantis and simply
+       did not bother -- which is a report about the frame budget wearing the
+       costume of a report about the world. */
+    if (countSigils() > seatsAtBerth) seatsAtBerth = countSigils();
+    return i;
+  }
   return -1;
 }
 
@@ -1105,6 +1122,7 @@ void hostFrame(void) {
       int m = ports[i].map;
       if (m == worldId) continue;
       if (world->warpCount && (int)ports[i].fare > you.gold) continue;
+      if ((int)ports[i].needs > countSigils()) continue;
       if (walkableTo(m)) continue;
       if (!mapDone(m)) { want = i; continue; }
       for (j = 0; j < maps[m].warpCount; j++) {
@@ -1115,7 +1133,10 @@ void hostFrame(void) {
     /* And if there is nowhere that owes work, a beach is still not somewhere to
        stand until the frames run out: take any berth at all rather than none. */
     if (want < 0 && !world->warpCount) {
-      for (i = 0; i < PORT_COUNT && want < 0; i++) if (ports[i].map != worldId) want = i;
+      for (i = 0; i < PORT_COUNT && want < 0; i++) {
+        if (ports[i].map == worldId || (int)ports[i].needs > countSigils()) continue;
+        want = i;
+      }
     }
     if (want < 0) keys = tap(KEY_B);
     else if (portPick != want) keys = tap(portPick < want ? KEY_DOWN : KEY_UP);
@@ -1551,6 +1572,38 @@ int main(int argc, char **argv) {
 
   gba_main();
 
+  /* Which maps the seats this run earned actually entitle it to see.
+   *
+   * The throne room has been excused on exactly this reasoning since it was
+   * written: a wandering run does not collect nine sigils, so a shut door is
+   * the game working rather than a fault. The ferry is gated the same way now
+   * -- with four seats behind you no captain will carry you to Meereen -- so
+   * Meereen, and everything behind Meereen's own doors, needs the same excuse
+   * for the same reason. Without it a sweep that behaved perfectly reported
+   * sixty-six holes in the world.
+   *
+   * Everything the run did reach is entitled by definition; so is any berth
+   * it held the seats for; so is anything either of those opens a door onto.
+   * What is left outside that closure is ground the game meant to keep shut. */
+  {
+    int q[MAP_COUNT], head = 0, tail = 0, j;
+    for (i = 0; i < MAP_COUNT; i++) {
+      entitled[i] = (unsigned char)(mapSeen[i] != 0);
+      if (entitled[i]) q[tail++] = i;
+    }
+    for (i = 0; i < PORT_COUNT; i++) {
+      int m = ports[i].map;
+      if ((int)ports[i].needs > seatsAtBerth) continue;
+      if (m >= 0 && m < MAP_COUNT && !entitled[m]) { entitled[m] = 1; q[tail++] = m; }
+    }
+    while (head < tail) {
+      int a = q[head++];
+      for (j = 0; j < maps[a].warpCount; j++) {
+        int b = maps[a].warps[j].to;
+        if (b >= 0 && b < MAP_COUNT && !entitled[b]) { entitled[b] = 1; q[tail++] = b; }
+      }
+    }
+  }
   for (i = 0; i < MAP_COUNT; i++) {
     if (mapSeen[i]) seenMaps++;
     /* The throne room is meant to be shut. A wandering run does not collect
@@ -1561,6 +1614,8 @@ int main(int argc, char **argv) {
        what it did not visit is not a fault in the world. Only the wandering
        sweep is a coverage check. */
     else if (ladderMode) seenMaps += 0;
+    /* Behind a gate this run never earned the right to open. */
+    else if (!entitled[i]) seenMaps++;
     else finding("%s is never reachable on foot", maps[i].name);
     totalNpcs += maps[i].npcCount;
     totalSigns += maps[i].signCount;

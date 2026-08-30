@@ -300,6 +300,32 @@ for (const [id, map] of Object.entries(MAPS)) {
   }
 }
 
+/* A sign you could only read by walking through a door.
+ *
+ * A sign wants a solid tile with somewhere to stand in front of it. Three in
+ * this world had exactly one standable neighbour and it was a doorway: step
+ * onto it to face the sign and the warp fires and takes you inside, so the
+ * words could not be read by the player, by the cartridge's own sweep, or by
+ * anybody. The audit asks whether a sign has a neighbour you can stand on,
+ * which a door tile satisfies, so it never saw them. */
+for (const [id, map] of Object.entries(MAPS)) {
+  const { grid, width, height } = map;
+  const at = (x, y) => (x < 0 || y < 0 || x >= width || y >= height) ? '#' : grid[y][x];
+  const doors = new Set((map.warps ?? []).map((w) => `${w.x},${w.y}`));
+  for (const sign of map.signs ?? []) {
+    const near = DIRS
+      .map(([dx, dy]) => [sign.x + dx, sign.y + dy])
+      .filter(([x, y]) => {
+        const kind = kindOf(at(x, y));
+        return !SOLID.has(kind) && kind !== 'ledge' && kind !== 'missing';
+      });
+    if (!near.length) continue;                       /* the audit's own case */
+    if (near.some(([x, y]) => !doors.has(`${x},${y}`))) continue;
+    say(`${id}: the sign at ${sign.x},${sign.y} can only be read from a doorway `
+      + `(${near.map((q) => q.join(',')).join(' ')}), which warps you away instead`);
+  }
+}
+
 /* What a map's scenery is standing on.
  *
  * A tree, a chimney, a signpost, a fence, a dragon — anything marked

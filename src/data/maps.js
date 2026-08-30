@@ -4787,8 +4787,12 @@ export const MAPS = {
     ],
     signs: [
       { x: 22, y: 12, text: 'THE CANALS\nA hundred islands and no ground between them.\nEverything here goes by water or it does not go.' },
-      { x: 4, y: 4, text: 'THE HOUSE OF BLACK AND WHITE\nValar morghulis.\nThe door answers to two words and neither of them is a knock.' },
-      { x: 19, y: 4, text: 'THE IRON BANK OF BRAAVOS\nThe Iron Bank will have its due.\nIt has outlived every king who decided otherwise.' },
+      /* On the face of the building, not on the flank of it. Three signs in
+         this world sat on a wall whose only standable neighbour was the
+         doorway beneath them: step there to read the words and the warp
+         fires and takes you inside, so nobody has ever read any of them. */
+      { x: 3, y: 5, text: 'THE HOUSE OF BLACK AND WHITE\nValar morghulis.\nThe door answers to two words and neither of them is a knock.' },
+      { x: 18, y: 5, text: 'THE IRON BANK OF BRAAVOS\nThe Iron Bank will have its due.\nIt has outlived every king who decided otherwise.' },
       { x: 10, y: 4, text: 'THE SEALORD\u2019S PALACE\nBraavos has no king and never has.\nThe Titan is the wall, and it is out where you cannot see it.' }],
     warps: [
       { door: 'cellar', to: 'braavosCellar', tx: 6, ty: 8, dir: 'up' },
@@ -4853,7 +4857,7 @@ export const MAPS = {
           + 'You walk everywhere. It is very strange.' } },
     ],
     signs: [
-      { x: 22, y: 16, text: 'THE SPICE MARKET\nPentos sells what everyone else grows.\nThat is the whole of the city, and it has made it very rich.' },{ x: 11, y: 13, text: 'PENTOS. NO WALLS WORTH THE NAME, AND NO NEED OF THEM YET.' }],
+      { x: 22, y: 16, text: 'THE SPICE MARKET\nPentos sells what everyone else grows.\nThat is the whole of the city, and it has made it very rich.' },{ x: 10, y: 14, text: 'PENTOS. NO WALLS WORTH THE NAME, AND NO NEED OF THEM YET.' }],
     warps: [
       { door: 'cellar', to: 'pentosCellar', tx: 6, ty: 8, dir: 'up' },
       { door: 'inn', to: 'pentosInn', tx: 6, ty: 10, dir: 'up' },

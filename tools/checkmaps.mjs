@@ -264,6 +264,32 @@ for (const [id, map] of Object.entries(MAPS)) {
   }
 }
 
+/* And the question none of the checks above ever asked: not whether the far
+   side is reachable, but whether it is the RIGHT TILE.
+   
+   "When you leave and enter areas it puts you in the wrong spot" is this. You
+   walk out of Winterfell's south gate, turn round, walk back in -- and the game
+   puts you down in the middle of the town, thirteen tiles from the gate you are
+   standing in. Every other check in this file is satisfied by that: the tile is
+   walkable, it is reachable, it has a way out. It is simply not where you just
+   were. Twenty doors in this world were wrong and nothing could see any of
+   them. */
+for (const [id, map] of Object.entries(MAPS)) {
+  for (const w of map.warps ?? []) {
+    const there = MAPS[w.to];
+    if (!there) continue;
+    const backs = (there.warps ?? []).filter((v) => v.to === id);
+    if (!backs.length) continue;          /* one-way on purpose: a drop, a ship */
+    if (backs.some((v) => Math.abs(v.x - w.tx) + Math.abs(v.y - w.ty) <= 1)) continue;
+    const near = backs.reduce((best, v) => {
+      const d = Math.abs(v.x - w.tx) + Math.abs(v.y - w.ty);
+      return d < best.d ? { d, v } : best;
+    }, { d: Infinity, v: backs[0] });
+    say(`${id}: the door at ${w.x},${w.y} lands you at ${w.to} ${w.tx},${w.ty}, `
+      + `${near.d} tiles from the way back at ${near.v.x},${near.v.y}`);
+  }
+}
+
 console.log(problems ? `\n${problems} problems` : `\n${Object.keys(MAPS).length} maps, nothing wrong`);
 /* And say so in the exit code, so the cartridge build can refuse to spend
    twenty-five minutes packing a world you cannot walk across. */

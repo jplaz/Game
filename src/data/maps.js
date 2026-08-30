@@ -874,7 +874,23 @@ function makeHoldHall({ name, hold, seat = 45, npcs = [], signs = [], items = []
       { x: 7, y: 12, to: hold, tx: 11, ty: 8, dir: 'down' },
       { x: 8, y: 12, to: hold, tx: 12, ty: 8, dir: 'down' },
     ],
-    npcs, signs, items,
+    npcs, items,
+    /* On the seat itself, because a player who walks into a hall they could own
+       and is told nothing does not own it.
+       
+       Everything needed to own a castle, a wife and an heir was already in this
+       game and none of it was ever said out loud: that twelve halls in the
+       world are for sale, that you have to put the holder out of one first,
+       that the deed is bought from your own house in the menu rather than from
+       a person, and that a roof of your own is the one thing a septa asks for
+       before she will hear a word about a match. A player cannot guess a chain
+       four links long. */
+    signs: [
+      { x: 8, y: 2, text: `THE HIGH SEAT\nClear this hall and it is for sale — ${seat * 100} gold, `
+        + `taken from YOUR HOUSE in the menu.\nA roof of your own is also the one thing a septa `
+        + `wants to hear about before she will make you a match.` },
+      ...signs,
+    ],
   };
 }
 
@@ -3795,8 +3811,8 @@ export const MAPS = {
       'IIIIIII__IIIIIIII',
     ],
     warps: [
-      { x: 7, y: 9, to: 'stormsEnd', tx: 7, ty: 15, dir: 'down' },
-      { x: 8, y: 9, to: 'stormsEnd', tx: 7, ty: 15, dir: 'down' },
+      { x: 7, y: 9, to: 'stormsEnd', tx: 11, ty: 16, dir: 'down' },
+      { x: 8, y: 9, to: 'stormsEnd', tx: 11, ty: 16, dir: 'down' },
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'baratheon', name: 'Elena', script: 'courtship',
@@ -3853,8 +3869,8 @@ export const MAPS = {
       { beast: 'sapling', min: 3, max: 6, weight: 12 },
     ],
     warps: [
-      { x: 10, y: 0, to: 'winterfell', tx: 12, ty: 18, dir: 'up' },
-      { x: 10, y: 25, to: 'moatCailin', tx: 11, ty: 1, dir: 'down' },
+      { x: 10, y: 0, to: 'winterfell', tx: 12, ty: 30, dir: 'up' },
+      { x: 10, y: 25, to: 'moatCailin', tx: 9, ty: 2, dir: 'down' },
     ],
     signs: [
       { x: 12, y: 1, text: 'THE WOLFSWOOD\nSouth to Moat Cailin.\nStay on the road after dark.' },
@@ -4611,8 +4627,8 @@ export const MAPS = {
         script: 'healer', data: { line: 'The Kindly Man: All men must serve. Shall I see to yours?' } },
     ],
     warps: [
-      { x: 6, y: 11, to: 'braavos', tx: 6, ty: 7, dir: 'down' },
-      { x: 7, y: 11, to: 'braavos', tx: 6, ty: 7, dir: 'down' },
+      { x: 6, y: 11, to: 'braavos', tx: 4, ty: 6, dir: 'down' },
+      { x: 7, y: 11, to: 'braavos', tx: 4, ty: 6, dir: 'down' },
     ],
   },
 
@@ -4750,7 +4766,7 @@ export const MAPS = {
       'I=============I',
       'IIIIIII_IIIIIII',
     ],
-    warps: [{ x: 7, y: 10, to: 'pentos', tx: 7, ty: 15, dir: 'down' }],
+    warps: [{ x: 7, y: 10, to: 'pentos', tx: 11, ty: 15, dir: 'down' }],
     npcs: [
       { x: 7, y: 3, dir: 'down', sprite: 'merchant', name: 'Illyrio Mopatis', script: 'freeCityLocal',
         data: { line: 'Illyrio Mopatis: Sit. Eat. The candied figs are worth more than '
@@ -5196,8 +5212,8 @@ export const MAPS = {
       'IIIIII__IIIIIII',
     ],
     warps: [
-      { x: 6, y: 12, to: 'pyke', tx: 12, ty: 23, dir: 'down' },
-      { x: 7, y: 12, to: 'pyke', tx: 12, ty: 23, dir: 'down' },
+      { x: 6, y: 12, to: 'pyke', tx: 12, ty: 22, dir: 'down' },
+      { x: 7, y: 12, to: 'pyke', tx: 12, ty: 22, dir: 'down' },
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'ironborn', name: 'Asha', script: 'courtship',
@@ -5275,7 +5291,7 @@ export const MAPS = {
     ],
     warps: [
       { x: 11, y: 0, to: 'dreadfort', tx: 11, ty: 25, dir: 'up' },
-      { x: 11, y: 29, to: 'winterfell', tx: 22, ty: 12, dir: 'down' },
+      { x: 11, y: 29, to: 'winterfell', tx: 30, ty: 12, dir: 'left' },
     ],
     signs: [
       { x: 9, y: 4, text: 'THE WEEPING WATER\nNorth-east to the Dreadfort.\nSomebody has crossed out "welcome".' },
@@ -5335,7 +5351,7 @@ export const MAPS = {
   }),
 
   maesterHallDreadfort: maesterHall({
-    exitTo: 'dreadfort', exitX: 6, exitY: 7,
+    exitTo: 'dreadfort', exitX: 4, exitY: 11,
     stock: ['maesterKit', 'poppyMilk', 'weirwoodSap', 'kingsRansom', 'snare', 'warBanner'],
     healerLine: 'Maester Uthor: I mend what the household breaks. I am busy.',
     merchantLine: 'Steward: Take it and go. Lord Roose does not like people lingering.',
@@ -5355,8 +5371,8 @@ export const MAPS = {
       'IIIII__IIIII',
     ],
     warps: [
-      { x: 5, y: 7, to: 'dreadfort', tx: 17, ty: 7, dir: 'down' },
-      { x: 6, y: 7, to: 'dreadfort', tx: 17, ty: 7, dir: 'down' },
+      { x: 5, y: 7, to: 'dreadfort', tx: 19, ty: 11, dir: 'down' },
+      { x: 6, y: 7, to: 'dreadfort', tx: 19, ty: 11, dir: 'down' },
     ],
     npcs: [
       { x: 5, y: 1, dir: 'down', sprite: 'bolton', name: 'Bonewright', script: 'smith',
@@ -5395,8 +5411,8 @@ export const MAPS = {
       'IIIIII__IIIIIII',
     ],
     warps: [
-      { x: 6, y: 12, to: 'dreadfort', tx: 7, ty: 15, dir: 'down' },
-      { x: 7, y: 12, to: 'dreadfort', tx: 7, ty: 15, dir: 'down' },
+      { x: 6, y: 12, to: 'dreadfort', tx: 11, ty: 15, dir: 'down' },
+      { x: 7, y: 12, to: 'dreadfort', tx: 11, ty: 15, dir: 'down' },
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'bolton', name: 'Domeric', script: 'courtship',
@@ -5692,7 +5708,7 @@ export const MAPS = {
       '####################',
     ],
     warps: [
-      { x: 18, y: 4, to: 'fleaBottom', tx: 20, ty: 13, dir: 'up' },
+      { x: 18, y: 4, to: 'fleaBottom', tx: 27, ty: 17, dir: 'left' },
       { x: 9, y: 6, to: 'dragonstone', tx: 11, ty: 25, dir: 'up' },
     ],
     signs: [
@@ -6365,7 +6381,7 @@ export const MAPS = {
   },
 
   maesterHallEastwatch: maesterHall({
-    exitTo: 'eastwatch', exitX: 6, exitY: 7,
+    exitTo: 'eastwatch', exitX: 5, exitY: 7,
     stock: ['maesterKit', 'poppyMilk', 'frostTonic', 'weirwoodSap', 'kissOfFire'],
     healerLine: 'You are cold all the way through. Sit by it a while.',
     merchantLine: 'Watch stores. Everything here is issued, and I am pretending it is sold.',
@@ -6486,7 +6502,7 @@ export const MAPS = {
     ],
     warps: [
       { x: 11, y: 29, to: 'riverlands', tx: 18, ty: 20, dir: 'down' },
-      { x: 11, y: 0, to: 'theTwins', tx: 11, ty: 20, dir: 'up' },
+      { x: 11, y: 0, to: 'theTwins', tx: 11, ty: 21, dir: 'up' },
     ],
     signs: [
       { x: 9, y: 6, text: 'THE GREEN FORK\nNorth to the Twins.\nThe crossing is not free and never has been.' },

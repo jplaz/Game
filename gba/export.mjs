@@ -42,9 +42,15 @@ const MAP_IDS = [
   // The capital, and the four places in it you have to go and find.
   'greatSept', 'dragonpit', 'fleaBottom', 'mudGate',
   /* The five deeds anybody can buy are browser-only for now: the cartridge has
-     no deedBroker, so shipping their interiors put five maps on the ROM with no
-     way into any of them, which the audit rightly called out. They come back
-     when the C side can sell a deed. */
+     no deedBroker, so shipping their interiors puts five maps on the ROM with
+     no way into any of them, which the audit rightly calls out.
+     
+     This is a real hole and it reads as one from the outside -- "I do not know
+     how to buy castles and lands" is the correct reading of a game where, on
+     the cartridge, you cannot. Putting the maps back is one line; what is
+     actually wanted is a deed a C shop can sell and a door that stays shut
+     until it is sold, and until that exists shipping the rooms alone is worse
+     than not shipping them. */
   'dragonstone', 'maesterHallDragonstone', 'dragonstoneArmoury', 'dragonmont',
   'redKeep', 'barrowCave',
   // The south. Three more seats to begin at, three more leaders holding a

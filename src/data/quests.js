@@ -138,6 +138,203 @@ export const QUESTS = {
       },
     ],
   },
+  saltWivesOfPyke: {
+    name: 'The Salt Wife',
+    region: 'The Iron Islands',
+    summary: 'A woman taken in a raid wants passage home. Her taker calls her his wife.',
+    giver: 'A Woman of Fair Isle: He calls me salt wife. There is a word for it on '
+         + 'the green lands and it is not wife. There is a boat at Lordsport and I '
+         + 'cannot walk to it alone.',
+    open: 'A woman taken in an ironborn raid wants passage off Pyke.',
+    resolve: [
+      {
+        label: 'Put her on the boat',
+        standing: { greyjoy: -22, lannister: 12, tully: 8 },
+        gold: -300,
+        choice: ['saltWivesOfPyke', 'freed'],
+        favour: { greyjoy: -14, tully: 8 },
+        result: 'Three hundred to a captain who asks nothing. The Iron Islands will '
+              + 'work out who paid it, and the Iron Islands are not large.',
+      },
+      {
+        label: 'Buy her from him',
+        standing: { greyjoy: 8, tully: 4 },
+        gold: -2500,
+        choice: ['saltWivesOfPyke', 'bought'],
+        favour: { greyjoy: 6 },
+        result: 'He takes the iron price in gold and finds it very funny. '
+              + 'She does not look at you once on the walk to the harbour, and she is right not to.',
+      },
+      {
+        label: 'It is their law, not yours',
+        standing: { greyjoy: 12, tully: -12 },
+        gold: 0,
+        choice: ['saltWivesOfPyke', 'refused'],
+        favour: { greyjoy: 10, tully: -8 },
+        result: 'You are a guest on these islands and guests do not rewrite the law. '
+              + 'You tell yourself that on the boat out, several times.',
+      },
+    ],
+  },
+
+  theGrainCount: {
+    name: 'The Grain Count',
+    region: 'The Reach',
+    summary: 'The granary tally is short, and the man who kept it has a family.',
+    giver: 'Highgarden Steward: Four hundred bushels short and one set of books. '
+         + 'The man who kept them has been here nineteen years. My lady wants a name '
+         + 'by evening and I would rather give her the truth.',
+    open: 'Four hundred bushels are missing from the Highgarden granary.',
+    resolve: [
+      {
+        label: 'Name him',
+        standing: { tyrell: 18, martell: -6 },
+        gold: 600,
+        choice: ['theGrainCount', 'named'],
+        favour: { tyrell: 10 },
+        result: 'The books were his and so was the shortfall. They take his hand and '
+              + 'his post, and his wife stands in the yard and does not make a sound.',
+      },
+      {
+        label: 'Make the shortfall good yourself',
+        standing: { tyrell: 10 },
+        gold: -1800,
+        choice: ['theGrainCount', 'covered'],
+        favour: { tyrell: 8, martell: 4 },
+        result: 'You buy four hundred bushels at market and the tally balances. '
+              + 'Nobody is named. The steward knows exactly what you did and says nothing.',
+      },
+      {
+        label: 'It went to the winter town, and say so',
+        standing: { tyrell: -10, stark: 14 },
+        gold: 0,
+        choice: ['theGrainCount', 'north'],
+        favour: { tyrell: -8, stark: 12 },
+        result: 'He had been sending it north for two years, a wagon at a time, '
+              + 'because the North is starving and the Reach is not. '
+              + 'You say so out loud, in the hall, and let them decide what that makes him.',
+      },
+    ],
+  },
+
+  theDornishHostage: {
+    name: 'The Hostage',
+    region: 'Dorne',
+    summary: 'A Lannister boy has been a guest at Sunspear for eleven years.',
+    giver: 'Sunspear Guard: The boy came here at seven as surety for a peace, '
+         + 'and the peace held, and nobody sent for him. He is eighteen. '
+         + 'He asks me every year and I have run out of answers.',
+    open: 'A hostage at Sunspear has been forgotten by the house that sent him.',
+    resolve: [
+      {
+        label: 'Take him back to the Rock',
+        standing: { lannister: 20, martell: -14 },
+        gold: 1200,
+        choice: ['theDornishHostage', 'returned'],
+        favour: { lannister: 12, martell: -10 },
+        result: 'Casterly Rock pays the escort without asking his name. '
+              + 'He looks at the Rock for a long time and asks if you can hear the sea from inside.',
+      },
+      {
+        label: 'Tell him he is free to go anywhere',
+        standing: { martell: 14, lannister: -12 },
+        gold: 0,
+        choice: ['theDornishHostage', 'freed'],
+        favour: { martell: 12, lannister: -8 },
+        result: 'Nobody has told him that in eleven years and it takes him a while. '
+              + 'He goes east, in the end, to somewhere neither house has a claim on.',
+      },
+      {
+        label: 'Leave it alone',
+        standing: { martell: 4, lannister: 4 },
+        gold: 0,
+        choice: ['theDornishHostage', 'ignored'],
+        favour: {},
+        result: 'It is a peace, and peaces are made of things like him. '
+              + 'You keep walking, and so does the twelfth year.',
+      },
+    ],
+  },
+
+  theBastardsLetter: {
+    name: "The Bastard's Letter",
+    region: 'The North',
+    summary: 'A letter out of the Dreadfort wants an answer, and any answer costs somebody.',
+    giver: 'Frightened Maester: It came under the Bolton seal and it names a village. '
+         + 'If I send it on, the village burns. If I burn it, they will want to know why '
+         + 'no raven came, and then I burn.',
+    open: 'A letter from the Dreadfort names a village. Somebody has to decide what happens to it.',
+    resolve: [
+      {
+        label: 'Burn the letter and take the blame',
+        standing: { bolton: -24, stark: 18 },
+        gold: 0,
+        choice: ['theBastardsLetter', 'burned'],
+        favour: { stark: 14, bolton: -16 },
+        roamer: { id: 'manAtArms', level: 30 },
+        result: 'The village stands. Two of theirs come looking for the maester and '
+              + 'find you instead, which was the point of standing where you stood.',
+      },
+      {
+        label: 'Ride and warn the village first',
+        standing: { stark: 12, bolton: -8 },
+        gold: -400,
+        choice: ['theBastardsLetter', 'warned'],
+        favour: { stark: 10, bolton: -6 },
+        result: 'They are gone before the riders come — cattle, grain, roofs stripped. '
+              + 'The Boltons burn an empty village, which they enjoy rather less.',
+      },
+      {
+        label: 'Send it on',
+        standing: { bolton: 16, stark: -18 },
+        gold: 900,
+        choice: ['theBastardsLetter', 'sent'],
+        favour: { bolton: 12, stark: -14 },
+        result: 'The raven goes. You are ninety miles away by the time it matters '
+              + 'and you can still tell which direction it was, from the colour of the sky.',
+      },
+    ],
+  },
+
+  theSellswordsWage: {
+    name: "The Sellsword's Wage",
+    region: 'The Crownlands',
+    summary: 'A company has not been paid, and is deciding what to do about it.',
+    giver: 'Company Serjeant: Four months. Four. The crown says next moon and said '
+         + 'that last moon. The lads are talking about taking it out of the nearest town, '
+         + 'and the nearest town is that one.',
+    open: 'An unpaid free company is deciding whether to sack the nearest town.',
+    resolve: [
+      {
+        label: 'Pay them out of your own purse',
+        standing: { baratheon: 14, tully: 8 },
+        gold: -4000,
+        choice: ['theSellswordsWage', 'paid'],
+        favour: { baratheon: 10 },
+        result: 'Four thousand buys one month and one month buys the town. '
+              + 'The serjeant knows precisely what you have bought and how long it lasts.',
+      },
+      {
+        label: 'Fight the serjeant for the company',
+        standing: { baratheon: 8, lannister: -6 },
+        gold: 0,
+        choice: ['theSellswordsWage', 'took'],
+        favour: { baratheon: 6 },
+        roamer: { id: 'sellsword', level: 32 },
+        result: 'You put him down in front of all of them and the company decides '
+              + 'it would rather follow that than burn a town for wages. For now.',
+      },
+      {
+        label: 'Warn the town instead',
+        standing: { baratheon: -6, tully: 12 },
+        gold: 0,
+        choice: ['theSellswordsWage', 'warned'],
+        favour: { tully: 10, baratheon: -6 },
+        result: 'The town shuts its gates and puts everything it has on the wall. '
+              + 'The company looks at that for a day and goes to find a softer one.',
+      },
+    ],
+  },
 };
 
 export const QUEST_IDS = Object.keys(QUESTS);

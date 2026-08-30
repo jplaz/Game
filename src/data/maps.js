@@ -1776,7 +1776,7 @@ export const MAPS = {
         data: { line: 'Stable Girl: That grey is Lord Stark\'s and he does not like you. He does not like me either.' } },
       /* And the godswood, which people go into alone. */
       { x: 25, y: 27, dir: 'up', sprite: 'stark', name: 'Master-at-arms', script: 'duel',
-        data: { duel: 'rodrik' } },
+        data: { duel: 'rodrikCassel' } },
     ],
   },
 
@@ -2216,6 +2216,8 @@ export const MAPS = {
       { x: 13, y: 10, text: 'THE EYRIE\nSeat of House Arryn.\nAs high as honour, and a good deal colder.' },
     ],
     npcs: [
+      { x: 11, y: 4, dir: 'down', sprite: 'oldman', name: 'Mountain Steward', script: 'deedBroker',
+        data: { property: 'valeWatchtower' } },
       { x: 8, y: 9, dir: 'down', sprite: 'noble', name: 'Lord Baelish', script: 'littlefinger' },
       { x: 14, y: 10, dir: 'left', sprite: 'starkLady', name: 'Lady Arryn', script: 'lysa' },
       { x: 5, y: 17, dir: 'right', sprite: 'guard', name: 'Sky Cell Guard', script: 'eyrieHint' },
@@ -2343,6 +2345,8 @@ export const MAPS = {
       { x: 13, y: 10, text: 'HIGHGARDEN\nSeat of House Tyrell.\nEvery hedge is deliberate.' },
     ],
     npcs: [
+      { x: 11, y: 5, dir: 'down', sprite: 'tyrell', name: 'Highgarden Steward', script: 'quest',
+        data: { quest: 'theGrainCount' } },
       { x: 8, y: 9, dir: 'down', sprite: 'goodwife', name: 'Lady Olenna', script: 'olenna' },
       { x: 14, y: 10, dir: 'left', sprite: 'starkLady', name: 'Margaery', script: 'margaery' },
       { x: 5, y: 17, dir: 'right', sprite: 'girl', name: 'Gardener\u2019s Girl', script: 'reachHint' },
@@ -2462,6 +2466,10 @@ export const MAPS = {
       { x: 13, y: 10, text: 'SUNSPEAR\nSeat of House Martell.\nUnbowed. Unbent. Unbroken.' },
     ],
     npcs: [
+      { x: 11, y: 5, dir: 'down', sprite: 'guard', name: 'Sunspear Guard', script: 'quest',
+        data: { quest: 'theDornishHostage' } },
+      { x: 11, y: 4, dir: 'down', sprite: 'martell', name: 'Orchard-Keeper', script: 'deedBroker',
+        data: { property: 'dorneOrchard' } },
       { x: 8, y: 9, dir: 'down', sprite: 'martell', name: 'Oberyn Martell', script: 'duel',
         data: { duel: 'oberyn' } },
       { x: 14, y: 10, dir: 'left', sprite: 'oldman', name: 'Prince Doran', script: 'doran' },
@@ -3504,6 +3512,8 @@ export const MAPS = {
       { x: 9, y: 1, text: "THE KINGSROAD\nSouth to King's Landing.\nThe end of the road, one way or another." },
     ],
     npcs: [
+      { x: 11, y: 5, dir: 'down', sprite: 'sellsword', name: 'Company Serjeant', script: 'quest',
+        data: { quest: 'theSellswordsWage' } },
       { x: 8, y: 14, dir: 'down', name: 'Samwell Tarly', sprite: 'nightswatch',
         script: 'recruit', data: { companion: 'sam' } },
       { x: 5, y: 6, dir: 'right', sprite: 'baratheon', name: 'Ser Lyle', script: 'trainer',
@@ -3573,6 +3583,8 @@ export const MAPS = {
     // about Braavos and makes it read as somewhere else at a glance.
     name: 'Braavos', music: 'town', ground: 'stone', wall: '~', floor: 'o',
     npcs: [
+      { x: 11, y: 3, dir: 'down', sprite: 'braavosi', name: 'Factor of the Iron Bank', script: 'deedBroker',
+        data: { property: 'braavosCounting' } },
       { x: 7, y: 9, dir: 'down', name: 'Jaqen H\'ghar', sprite: 'braavosi',
         script: 'freeCityLocal', data: { line: "Jaqen H'ghar: A man was no one, and is someone again, "
           + 'and will be no one after. Valar morghulis.' } },
@@ -4042,6 +4054,8 @@ export const MAPS = {
       [19, 2, 'f'], [19, 3, 'f'],
     ],
     npcs: [
+      { x: 11, y: 5, dir: 'down', sprite: 'goodwife', name: 'A Woman of Fair Isle', script: 'quest',
+        data: { quest: 'saltWivesOfPyke' } },
       { x: 11, y: 11, dir: 'down', sprite: 'ironborn', name: 'Yara Greyjoy',
         script: 'trainer', data: { trainer: 'gymGreyjoy' } },
       { x: 14, y: 12, dir: 'left', sprite: 'ironborn', name: 'Balon Greyjoy',
@@ -4215,6 +4229,8 @@ export const MAPS = {
       { x: 9, y: 4, text: 'THE WEEPING WATER\nNorth-east to the Dreadfort.\nSomebody has crossed out "welcome".' },
     ],
     npcs: [
+      { x: 11, y: 5, dir: 'down', sprite: 'maester', name: 'Frightened Maester', script: 'quest',
+        data: { quest: 'theBastardsLetter' } },
       { x: 8, y: 11, dir: 'right', sprite: 'bolton', name: 'Steward Walton', script: 'trainer',
         data: { trainer: 'boltonSteward' } },
       { x: 14, y: 22, dir: 'left', sprite: 'bolton', name: 'Kennelmaster', script: 'duel',
@@ -4667,8 +4683,154 @@ export const MAPS = {
         data: { line: 'Barefoot Girl: Follow the channel east and you come out by the Mud Gate. The gold cloaks have forgotten there is a way through.' } },
       { x: 19, y: 6, dir: 'down', sprite: 'oldman', name: 'Pot-Shop Cook', script: 'bellowsHand',
         data: { line: 'Pot-Shop Cook: Forty years I have kept that pot on the boil. It has never once been empty and never once been washed.' } },
+      { x: 21, y: 8, dir: 'left', sprite: 'noble', name: 'Deed-Broker', script: 'deedBroker',
+        data: { property: 'fleaRoom' } },
       { x: 25, y: 13, dir: 'left', sprite: 'goodwife', name: 'Washerwoman', script: 'bellowsHand',
         data: { line: 'Washerwoman: You want to keep your hand on your purse down here, and your purse where your hand is.' } },
+    ],
+  },
+
+  /* ---------------------------------------------------- what you can buy --
+     Five deeds, and not one of them asks your house. The interiors are small
+     on purpose: a room you own outright is worth more than a hall somebody
+     lends you, and the game should let you feel the difference between the
+     nine-hundred-gold version and the twenty-two-thousand one. */
+  propFleaRoom: {
+    name: 'Your Room, Flea Bottom',
+    indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIII',
+      'I_b_____I',
+      'I_______I',
+      'I__T__j_I',
+      'I_______I',
+      'I_h_____I',
+      'I_______I',
+      'IIII__III',
+    ],
+    warps: [
+      { x: 4, y: 7, to: 'fleaBottom', tx: 19, ty: 8, dir: 'down' },
+      { x: 5, y: 7, to: 'fleaBottom', tx: 19, ty: 8, dir: 'down' },
+    ],
+    signs: [
+      { x: 2, y: 0, text: 'Somebody who slept here before you scratched a tally into the beam.\nIt stops at forty-one.' },
+    ],
+    npcs: [
+      { x: 3, y: 1, dir: 'down', sprite: 'child', name: 'Pot-Shop Boy', script: 'ownBed',
+        data: { property: 'fleaRoom' } },
+    ],
+  },
+
+  propRiverCottage: {
+    name: 'Your Cottage, the Crossroads',
+    indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIIIII',
+      'I__b____B_I',
+      'I_________I',
+      'I__T___T__I',
+      'I_________I',
+      'I_h_____j_I',
+      'I_________I',
+      'I_________I',
+      'IIIII__IIII',
+    ],
+    warps: [
+      { x: 5, y: 8, to: 'theCrossroads', tx: 12, ty: 12, dir: 'down' },
+      { x: 6, y: 8, to: 'theCrossroads', tx: 12, ty: 12, dir: 'down' },
+    ],
+    signs: [
+      { x: 3, y: 0, text: 'A name and a date cut into the lintel, and a second name under it\nwith no date after it at all.' },
+    ],
+    npcs: [
+      { x: 4, y: 1, dir: 'down', sprite: 'goodwife', name: 'Hired Girl', script: 'ownBed',
+        data: { property: 'riverCottage' } },
+    ],
+  },
+
+  propBraavosCounting: {
+    name: 'Your Counting-House, Braavos',
+    indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIIIIIII',
+      'I_b____BBB__I',
+      'I___________I',
+      'I_KKKKK_____I',
+      'I___________I',
+      'I_j___T___j_I',
+      'I___________I',
+      'I_F_______F_I',
+      'I___________I',
+      'IIIIII__IIIII',
+    ],
+    warps: [
+      { x: 6, y: 9, to: 'braavos', tx: 13, ty: 13, dir: 'down' },
+      { x: 7, y: 9, to: 'braavos', tx: 13, ty: 13, dir: 'down' },
+    ],
+    signs: [
+      { x: 5, y: 3, text: 'THE LEDGER\nEvery sum in it balances. The Iron Bank sent somebody once to check,\nand he is still here, and he still checks.' },
+    ],
+    npcs: [
+      { x: 3, y: 1, dir: 'down', sprite: 'braavosi', name: 'Your Clerk', script: 'ownBed',
+        data: { property: 'braavosCounting' } },
+    ],
+  },
+
+  propValeWatchtower: {
+    name: 'Your Watchtower, the Vale',
+    indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIIIIIII',
+      'I__b______l_I',
+      'I___________I',
+      'I_h_______j_I',
+      'I___________I',
+      'I____TTT____I',
+      'I___________I',
+      'I_F_______F_I',
+      'I___________I',
+      'I___________I',
+      'IIIIII__IIIII',
+    ],
+    warps: [
+      { x: 6, y: 10, to: 'theEyrie', tx: 12, ty: 20, dir: 'down' },
+      { x: 7, y: 10, to: 'theEyrie', tx: 12, ty: 20, dir: 'down' },
+    ],
+    signs: [
+      { x: 4, y: 0, text: 'THE BROKEN WATCHTOWER\nFour hundred years of garrisons have carved their names in this wall.\nThere is room left for one more.' },
+    ],
+    npcs: [
+      { x: 5, y: 1, dir: 'down', sprite: 'oldman', name: 'Caretaker', script: 'ownBed',
+        data: { property: 'valeWatchtower' } },
+    ],
+  },
+
+  propDorneOrchard: {
+    name: 'Your Orchard House, Dorne',
+    indoor: true, music: 'town',
+    tiles: [
+      'IIIIIIIIIIIIIII',
+      'I__b_______BB_I',
+      'I_____________I',
+      'I_h_________j_I',
+      'I_____________I',
+      'I___T_____T___I',
+      'I_____________I',
+      'I_j_________j_I',
+      'I_____________I',
+      'I_____________I',
+      'IIIIIII__IIIIII',
+    ],
+    warps: [
+      { x: 7, y: 10, to: 'sunspear', tx: 14, ty: 16, dir: 'down' },
+      { x: 8, y: 10, to: 'sunspear', tx: 14, ty: 16, dir: 'down' },
+    ],
+    signs: [
+      { x: 4, y: 0, text: 'THE ORCHARD HOUSE\nFour hundred trees, and a well that has not failed in ninety years.\nThe deed does not mention your father once.' },
+    ],
+    npcs: [
+      { x: 5, y: 1, dir: 'down', sprite: 'martell', name: 'Orchard-Keeper', script: 'ownBed',
+        data: { property: 'dorneOrchard' } },
     ],
   },
 
@@ -5410,6 +5572,8 @@ export const MAPS = {
       { x: 9, y: 8, text: 'THE CROSSROADS\nEvery road in the realm goes through here.\nSo does everybody on them.' },
     ],
     npcs: [
+      { x: 11, y: 4, dir: 'down', sprite: 'goodwife', name: 'Widow Heddle', script: 'deedBroker',
+        data: { property: 'riverCottage' } },
       { x: 8, y: 18, dir: 'right', sprite: 'brotherhood', name: 'Hooded Man',
         script: 'duel', data: { duel: 'brotherhoodBowman' } },
       { x: 14, y: 24, dir: 'left', sprite: 'smallfolk', name: 'Beggar',

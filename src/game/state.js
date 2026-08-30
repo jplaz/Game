@@ -50,6 +50,11 @@ export function newGame(playerName = 'Snow') {
     choices: {},
     // Everyone you killed rather than spared.
     dead: [],
+    // Deeds you have bought outright. Nothing here depends on a title, so a
+    // player who never swears to anybody can still own half the realm's
+    // shopfronts.
+    properties: [],
+    rentFrom: {},
     position: { map: 'heroHouse', x: 4, y: 5, dir: 'down' },
     // Where the player wakes after a whiteout.
     respawn: { map: 'winterfell', x: 15, y: 20, dir: 'down' },

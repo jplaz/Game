@@ -41,6 +41,9 @@ const MAP_IDS = [
   'kingsroad', 'kingsLanding', 'maesterHallKL', 'klArmoury',
   // The capital, and the four places in it you have to go and find.
   'greatSept', 'dragonpit', 'fleaBottom', 'mudGate',
+  // The five deeds anybody can buy, title or no title.
+  'propFleaRoom', 'propRiverCottage', 'propBraavosCounting', 'propValeWatchtower',
+  'propDorneOrchard',
   'dragonstone', 'maesterHallDragonstone', 'dragonstoneArmoury', 'dragonmont',
   'redKeep', 'barrowCave',
   // The south. Three more seats to begin at, three more leaders holding a

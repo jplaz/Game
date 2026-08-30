@@ -189,7 +189,9 @@ for (const [mapId, map] of Object.entries(MAPS)) {
         }
       }
     }
-    if (npc.data?.duel && !DUELLISTS[npc.data.duel]) {
+    // A duel may name a duellist or a roaming archetype; the script builds the
+    // archetype at the player's level. Only a name that is neither is broken.
+    if (npc.data?.duel && !DUELLISTS[npc.data.duel] && !ROAMER_TABLE[npc.data.duel]) {
       fail(`map ${mapId}: NPC "${npc.name}" references unknown duellist "${npc.data.duel}"`);
     }
   }

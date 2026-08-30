@@ -27,8 +27,13 @@ import {
 } from '../game/company.js';
 import { createCreature, displayName } from '../game/creature.js';
 import { TRAINERS, trainerAsDuellist } from './trainers.js';
-import { DUELLISTS, makeRoamer } from './duellists.js';
+import { DUELLISTS, ROAMERS, makeRoamer } from './duellists.js';
 import { item as getItem } from './items.js';
+import { PROPERTIES } from './properties.js';
+import {
+  ownsProperty, buyProperty, collectRent, rentLine,
+} from '../game/property.js';
+import { maxVigour } from '../game/player.js';
 import { audio } from '../engine/audio.js';
 
 const STARTERS = [
@@ -115,6 +120,73 @@ export const SCRIPTS = {
     game.state.respawn = { ...game.state.position, dir: 'down' };
   },
 
+  /**
+   * Selling a deed. Nothing in here reads allegiance, sigils, title or house:
+   * the only question is whether the gold is on the table, which is the whole
+   * point of the property being here.
+   */
+  async deedBroker({ say, choose, npc, overworld }) {
+    const id = npc.data.property;
+    const def = PROPERTIES[id];
+
+    if (ownsProperty(id)) {
+      const go = await choose(def.owned, ['Take me there', 'Later']);
+      if (go === 0) overworld.sailTo({ map: def.map, ...def.at });
+      return;
+    }
+
+    await say(def.broker);
+    const answer = await choose(`${def.name} — ${def.price}g. Buy the deed?`,
+      ['Pay for it', 'Walk away']);
+    if (answer !== 0) {
+      await say('The deed goes back in the box. It is not going anywhere.');
+      return;
+    }
+
+    const outcome = buyProperty(id);
+    if (outcome === 'poor') {
+      audio.sfx('cancel');
+      await say(def.poor);
+      return;
+    }
+    audio.sfx('confirm');
+    await say(def.deed);
+    await say(`(${def.name} is yours.)`);
+    const go = await choose('Go there now?', ['Yes', 'Not yet']);
+    if (go === 0) overworld.sailTo({ map: def.map, ...def.at });
+  },
+
+  /**
+   * Your own bed, in a place you paid for. Sleeping heals you, moves where you
+   * wake after a whiteout, and collects whatever the place has earned while
+   * you were not in it.
+   */
+  async ownBed({ say, choose, npc, healParty, saveGame }) {
+    const id = npc.data.property;
+    const def = PROPERTIES[id];
+    if (!ownsProperty(id)) {
+      await say('Somebody else\'s bed, in somebody else\'s room.');
+      return;
+    }
+    const answer = await choose('Sleep here?', ['Sleep', 'Stay up']);
+    if (answer !== 0) return;
+
+    await say(def.rest);
+    healParty();
+    const ally = activeCompanion();
+    if (ally && ally.hp < ally.maxHp) restCompanion();
+    game.state.player.hp = maxVigour();
+    game.state.player.wounded = false;
+
+    const taken = collectRent(id);
+    const line = rentLine(id, taken);
+    if (line) await say(line);
+
+    // Your own roof is where you wake up if the next thing goes badly.
+    game.state.respawn = { ...game.state.position, dir: 'down' };
+    if (saveGame && saveGame()) await say('(Your progress is written down.)');
+  },
+
   /** Any counter merchant. */
   async shop({ say, npc, openShop }) {
     const stock = npc.data?.stock ?? [];
@@ -128,12 +200,26 @@ export const SCRIPTS = {
    */
   async duel({ say, choose, npc, duel, setFlag, flag }) {
     const id = npc.data.duel;
-    const def = DUELLISTS[id];
+    /* A hundred and twenty-two people in this world name a roaming archetype
+       here — "sellsword", "manAtArms", "clansman" — where a named duellist was
+       meant. duellist() threw on every one of them, the catch around scripts
+       swallowed it, and talking to any of them did nothing at all, silently,
+       for the whole game. An archetype is a perfectly good opponent: build one
+       at your level and let it keep the name the map gave it. */
+    const def = DUELLISTS[id]
+      ?? (ROAMERS[id]
+        ? { ...makeRoamer(id, Math.max(4, game.state.player.level + 1), (l) => l[0]),
+            name: npc.name ?? undefined }
+        : null);
+    if (!def) {
+      await say('They have nothing to say to you.');
+      return;
+    }
     if (flag(`duel_${id}`)) {
       await say(def.after);
       return;
     }
-    const outcome = await duel(id);
+    const outcome = await duel(DUELLISTS[id] ? id : def);
     if (outcome === 'won') {
       setFlag(`duel_${id}`);
       await say(def.after);

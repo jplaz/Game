@@ -1011,7 +1011,11 @@ export class Overworld {
   }
 
   /** A duel: you, in person, against a named opponent. */
-  startDuel(duellistId) {
+  /* Takes either the id of a named duellist or a whole built opponent, so a
+     script can hand over somebody assembled on the spot — a roaming archetype
+     scaled to your level — without that opponent having to exist in the
+     duellist table first. */
+  startDuel(who) {
     return new Promise((resolve) => {
       const onEnd = async (outcome) => {
         if (outcome === 'lost') await this.whiteout(true);
@@ -1019,7 +1023,9 @@ export class Overworld {
       };
       this.manager.transition(async () => {
         const { Duel } = await import('./duel.js');
-        this.manager.push(new Duel({ duellistId, onEnd }));
+        this.manager.push(typeof who === 'string'
+          ? new Duel({ duellistId: who, onEnd })
+          : new Duel({ def: who, onEnd }));
       }, { color: '#1a1016' });
     });
   }

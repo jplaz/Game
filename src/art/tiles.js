@@ -672,12 +672,117 @@ const painters = {
     }
   },
 
-  fence(ctx, _frame, _mask, ground = painters.grass) {
+  /* Post-and-rail, and it has to know its neighbours. Drawn without a mask
+     every tile lays the same two horizontal rails, so a corner comes out as
+     two runs of rail crossing in mid-air with nothing joining them, and a pen
+     reads as loose sticks dropped in the snow. A post in every tile, rails
+     only towards the neighbours that are actually there. */
+  fence(ctx, _frame, mask, ground = painters.grass) {
     ground(ctx);
-    rect(ctx, 0, 6, TILE, 2, '#8a6a3e');
-    rect(ctx, 0, 11, TILE, 2, '#8a6a3e');
-    rect(ctx, 3, 3, 2, 13, '#a07e4c');
-    rect(ctx, 11, 3, 2, 13, '#a07e4c');
+    const RAIL = '#8a6a3e', LIT = '#a8834f', DARK = '#5f4626', POST = '#9c7a48';
+    const rail = (x, y, w, h) => {
+      rect(ctx, x, y, w, h, RAIL);
+      rect(ctx, x, y, w, 1, LIT);
+      rect(ctx, x, y + h - 1, w, 1, DARK);
+    };
+    // Rails reach out to whichever sides continue the run. They stop at the
+    // post rather than crossing it, so a corner shows one post with two rails
+    // meeting on it.
+    if (mask & W) { rail(0, 6, 9, 2); rail(0, 11, 9, 2); }
+    if (mask & E) { rail(7, 6, 9, 2); rail(7, 11, 9, 2); }
+    // A run going up and down the screen is seen end-on, so it is the posts
+    // themselves that carry it. The post grows to meet its neighbours rather
+    // than stopping short, or a vertical run comes out as a dashed line.
+    const top = (mask & N) ? 0 : 2;
+    const bottom = (mask & S) ? TILE : TILE - 1;
+    rect(ctx, 6, top, 4, bottom - top, POST);
+    rect(ctx, 6, top, 1, bottom - top, '#b8935c');
+    rect(ctx, 9, top, 1, bottom - top, '#6d5231');
+    // A cap, but only where the post actually ends.
+    if (!(mask & N)) rect(ctx, 6, 2, 4, 1, '#c4a06a');
+    if (!(mask & S)) rect(ctx, 6, TILE - 2, 4, 1, '#5f4626');
+  },
+
+  /* A flight of dressed steps, out of doors. A column of these reads as one
+     long stair: the tread pattern repeats down the run, and only the ends get
+     treated — a landing lip where the flight starts and a cast shadow where it
+     lands. Walkable, so a stair is a way up rather than a wall you look at. */
+  stoneStair(ctx, _frame, mask) {
+    rect(ctx, 0, 0, TILE, TILE, '#9198a8');
+    // Two steps to the tile, not four. Sixteen-pixel banding repeated down a
+    // long flight reads as a grating; a step you could actually put a foot on
+    // has to be deep enough to show the tread and the riser separately. And
+    // the riser has to be properly dark: a flight drawn in four neighbouring
+    // greys is a grey slab from any distance, whatever the treads are doing.
+    for (let i = 0; i < 2; i++) {
+      const y = i * 8;
+      rect(ctx, 0, y, TILE, 5, '#b4bacb');       // the tread
+      rect(ctx, 0, y, TILE, 2, '#dde2ee');       // catching the light along it
+      rect(ctx, 0, y + 5, TILE, 3, '#474c5b');   // the riser it falls away to
+      rect(ctx, 0, y + 5, TILE, 1, '#5e6373');
+      rect(ctx, 4, y + 2, 8, 3, '#a7aec0');      // worn where every foot lands
+    }
+    // Kerbs down whichever sides are open, so the flight is a built thing with
+    // edges rather than a patch of patterned ground.
+    if (!(mask & W)) {
+      rect(ctx, 0, 0, 3, TILE, '#767b8b');
+      rect(ctx, 1, 0, 1, TILE, '#8e93a3');
+      rect(ctx, 0, 0, 1, TILE, '#3b4049');
+    }
+    if (!(mask & E)) {
+      rect(ctx, TILE - 3, 0, 3, TILE, '#767b8b');
+      rect(ctx, TILE - 2, 0, 1, TILE, '#666b7b');
+      rect(ctx, TILE - 1, 0, 1, TILE, '#3b4049');
+    }
+    if (!(mask & N)) {                            // the landing at the head
+      rect(ctx, 0, 0, TILE, 4, '#c4cad8');
+      rect(ctx, 0, 0, TILE, 1, '#e2e7f1');
+      rect(ctx, 0, 4, TILE, 2, '#474c5b');
+    }
+    if (!(mask & S)) {                            // and the shadow at the foot
+      rect(ctx, 0, TILE - 3, TILE, 3, '#3b4049');
+      rect(ctx, 0, TILE - 3, TILE, 1, '#565b6a');
+    }
+  },
+
+  /* A moat: deep, still and revetted. The water is the castle's, not a river's,
+     so it is darker than open water and it is held in dressed stone wherever
+     the channel ends. One tile of it still reads as a cut channel rather than a
+     puddle, which is what lets a moat be a moat at this size. */
+  moat(ctx, frame, mask) {
+    painters.water(ctx, frame, 15);       // full mask: no shoreline foam
+    ctx.fillStyle = 'rgba(14, 26, 48, 0.42)';
+    ctx.fillRect(0, 0, TILE, TILE);
+    const bank = (x, y, w, h) => {
+      rect(ctx, x, y, w, h, '#6e6e76');
+      rect(ctx, x, y, w, 1, '#8a8a94');
+    };
+    // The revetment, on every side the water does not continue.
+    if (!(mask & N)) { bank(0, 0, TILE, 4); rect(ctx, 0, 4, TILE, 1, '#2a3a52'); }
+    if (!(mask & S)) { bank(0, TILE - 3, TILE, 3); rect(ctx, 0, TILE - 4, TILE, 1, '#1d2c42'); }
+    if (!(mask & W)) { bank(0, 0, 3, TILE); rect(ctx, 3, 0, 1, TILE, '#22314a'); }
+    if (!(mask & E)) { bank(TILE - 3, 0, 3, TILE); rect(ctx, TILE - 4, 0, 1, TILE, '#22314a'); }
+    // A little movement on the surface so a long channel is not a flat slab.
+    const drift = frame ? 5 : 0;
+    rect(ctx, (2 + drift) % TILE, 7, 4, 1, 'rgba(180, 214, 240, 0.30)');
+    rect(ctx, (9 + drift) % TILE, 11, 3, 1, 'rgba(180, 214, 240, 0.22)');
+  },
+
+  /* The way across a moat. Heavy timber rather than the plank bridge that
+     crosses a stream, with the chains still on it. */
+  drawbridge(ctx, frame, mask) {
+    painters.moat(ctx, frame, mask | 15);
+    rect(ctx, 0, 2, TILE, 12, '#7a5732');
+    rect(ctx, 0, 2, TILE, 1, '#a37c4a');
+    rect(ctx, 0, 13, TILE, 1, '#4a3018');
+    for (let x = 0; x < TILE; x += 5) rect(ctx, x, 2, 1, 12, '#63451f');
+    // Bound with iron across the deck, and the hoist chains down either side.
+    rect(ctx, 0, 6, TILE, 2, '#5a5f6d');
+    rect(ctx, 0, 6, TILE, 1, '#7c8190');
+    for (let y = 0; y < TILE; y += 4) {
+      rect(ctx, 1, y, 2, 2, '#8a8f9d');
+      rect(ctx, TILE - 3, y, 2, 2, '#8a8f9d');
+    }
   },
 
   // ---- interiors ----
@@ -936,7 +1041,10 @@ export const TILE_DEFS = {
   '!': { paint: painters.sign, kind: 'solid', grounded: true },
   '*': { paint: painters.flowers, kind: 'floor', grounded: true, varies: true },
   'L': { paint: painters.ledge, kind: 'ledge', grounded: true },
-  'f': { paint: painters.fence, kind: 'solid', grounded: true },
+  'f': { paint: painters.fence, kind: 'solid', grounded: true, autotile: true },
+  '/': { paint: painters.stoneStair, kind: 'floor', autotile: true },
+  ':': { paint: painters.moat, kind: 'water', frames: 2, autotile: true },
+  '+': { paint: painters.drawbridge, kind: 'floor', frames: 2 },
   't': { paint: painters.bridge, kind: 'floor', frames: 2 },
   'm': { paint: painters.ropeBridge, kind: 'floor', frames: 2 },
   '^': { paint: painters.openSky, kind: 'solid', frames: 2 },
@@ -985,6 +1093,13 @@ export const TILE_GROUP = {
   'C': 'rock', 'U': 'rock',
   '~': 'water',
   '@': 'cave',
+  // A fence knows its own run, so corners meet on a post instead of crossing
+  // in mid-air. A stair knows its flight, so only the ends get a landing and a
+  // shadow. A moat knows its channel, so the revetment lines the cut and not
+  // every tile of the water.
+  'f': 'fence',
+  '/': 'stair',
+  ':': 'moat', '+': 'moat',
   'H': 'building', 'w': 'building', 'D': 'building',
   'e': 'plaster', 'p': 'plaster',
   'A': 'castle', 'M': 'castle', 'V': 'castle', 'v': 'castle', 'k': 'castle',

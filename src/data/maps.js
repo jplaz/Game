@@ -1439,11 +1439,14 @@ function winterfellPlan() {
   put(31, 12, '-');                          // and the east gate, onto the road
   put(30, 12, '-');
 
+  /* The inn and the common house. Two tiles across is a shed; a building people
+     sleep in wants a frontage wide enough to put a window either side of its
+     own door. */
   row(25, 2, 'n');       row(29, 2, 'n');    // chimneys over the thatch
-  row(25, 3, 'yy');      row(28, 3, 'yy');
-  row(25, 4, 'YY');      row(28, 4, 'YY');
-  row(25, 5, 'YY');      row(28, 5, 'YY');
-  row(25, 6, 'DH');      row(28, 6, 'DH');   // the inn, and the common house
+  row(24, 3, 'yyy');     row(28, 3, 'yyy');
+  row(24, 4, 'YYY');     row(28, 4, 'YYY');
+  row(24, 5, 'YYY');     row(28, 5, 'YYY');
+  row(24, 6, 'wDH');     row(28, 6, 'DwH');  // the inn, and the common house
   box(25, 8, 6, 1, '-');                     // the market street
   put(25, 9, 'K'); put(26, 9, 'K');          // stalls down both sides of it
   put(29, 9, 'K'); put(30, 9, 'K');
@@ -1480,36 +1483,52 @@ function winterfellPlan() {
   put(4, 24, 'P'); put(8, 24, 'P');
   put(3, 27, '*'); put(9, 27, '*');
 
-  /* The glass gardens: a walled bed against the south face of the wall, kept
-     warm by the hot springs under the castle, with a gap in the south wall to
-     walk in by. Nothing else in the North grows in winter. */
-  box(14, 20, 6, 1, 'p');
-  row(14, 21, 'p****p');
-  row(14, 22, 'p*SS*p');
-  row(14, 23, 'pp**pp');
-  put(16, 23, 'S'); put(17, 23, 'S');
+  /* The castle stands above its own grounds, and the south gate has to come
+     down to them. A flight that widens as it falls, so leaving the castle is a
+     descent rather than a step over a threshold. */
+  put(12, 20, '/');
+  box(11, 21, 3, 4, '/');
 
-  /* The practice yard: a fenced square with a rack of arms in it. */
-  box(20, 25, 7, 1, 'f');
-  put(20, 26, 'f'); put(26, 26, 'f');
-  put(20, 27, 'f'); put(26, 27, 'f');
-  box(20, 28, 7, 1, 'f');
-  put(23, 25, 'S');                          // the way in
-  put(23, 28, 'S');                          // and out the far side
-  put(22, 26, 'l');                          // one rack, against the north fence
+  /* The glass gardens: a bed against the south face of the wall, kept warm by
+     the hot springs under the castle and roofed in glass. Nothing else in the
+     North grows in winter, and the panes are the only reason this does. */
+  row(14, 20, 'pwwwwp');
+  row(14, 21, 'w****w');
+  row(14, 22, 'w*SS*w');
+  row(14, 23, 'ppSSpp');
+
+  /* The First Keep, on its island. Nobody has lived in it for six hundred
+     years, and the ground around it was cut away long before that — what is
+     left of the tower stands in its own water with one bridge to it. The stair
+     down to the crypt goes from inside. */
+  box(15, 25, 7, 1, ':');                    // the moat, the whole way round
+  box(15, 30, 7, 1, ':');
+  box(15, 26, 1, 4, ':'); box(21, 26, 1, 4, ':');
+  put(15, 29, '+');                          // and the one way over it
+  row(16, 26, 'UAAAU');                      // the ruin: ashlar, and what fell
+  row(16, 27, 'AAAAA');
+  row(16, 28, 'SADAS');
+  row(16, 29, 'SSSSS');
+
+  /* The practice yard: one pen with one gate, rather than two half-pens with a
+     rack of arms floating in the gap between them. */
+  box(23, 25, 5, 1, 'f');
+  box(23, 29, 5, 1, 'f');
+  box(23, 26, 1, 3, 'f'); box(27, 26, 1, 3, 'f');
+  put(23, 27, 'S');                          // the gate, off the yard
+  put(25, 26, 'l');                          // and the rack against the fence
 
   /* The kennels: you can hear them from the yard and you are not going in. */
-  row(28, 25, 'zz');
-  row(28, 26, 'ZZ');
-  row(28, 27, 'Hw');
-  box(15, 27, 5, 1, 'A');
-  box(15, 28, 5, 1, 'A');
-  row(15, 29, 'AADAA');
-  put(14, 28, 'U'); put(20, 28, 'U');         // the First Keep, fallen in
+  row(28, 26, 'zzz');
+  row(28, 27, 'ZZZ');
+  row(28, 28, 'HwH');                        // shuttered: there is no going in
 
-  /* A few things to walk round rather than through. */
-  for (const [x, y] of [[22, 21], [25, 21], [30, 22], [30, 26], [22, 30],
-                        [26, 30], [29, 30], [19, 26], [13, 30]]) put(x, y, 'P');
+
+  /* A few things to walk round rather than through — and only in open ground.
+     A pine dropped into a one-tile gap does not read as scenery, it reads as a
+     door that will not open. */
+  for (const [x, y] of [[22, 21], [25, 21], [30, 22], [30, 24],
+                        [13, 30]]) put(x, y, 'P');
 
   return g.map((r) => r.join(''));
 }
@@ -1559,7 +1578,7 @@ export const MAPS = {
       '@@@@@@@@_@@@@@@@@',
     ],
     warps: [
-      { x: 8, y: 14, to: 'winterfell', tx: 17, ty: 30, dir: 'down' },
+      { x: 8, y: 14, to: 'winterfell', tx: 18, ty: 29, dir: 'down' },
     ],
     signs: [
       { x: 4, y: 1, text: 'BRANDON THE BUILDER\nHe raised the Wall, they say, and this castle, and half of what is north of the Neck.\nNobody knows which of that is true.' },
@@ -1625,7 +1644,7 @@ export const MAPS = {
       { x: 31, y: 12, to: 'weepingWater', tx: 11, ty: 28, dir: 'right' },
       { x: 25, y: 6, to: 'winterfellInn', tx: 6, ty: 10, dir: 'up' },
       { x: 28, y: 6, to: 'winterfellHouse', tx: 6, ty: 10, dir: 'up' },
-      { x: 17, y: 29, to: 'winterfellCrypt', tx: 8, ty: 13, dir: 'up' },
+      { x: 18, y: 28, to: 'winterfellCrypt', tx: 8, ty: 13, dir: 'up' },
     ],
     signs: [
       { x: 9, y: 7, text: 'THE GREAT KEEP OF WINTERFELL\nSeat of House Stark.\nSigil-holder: LORD RICKARD.' },
@@ -1634,7 +1653,7 @@ export const MAPS = {
       { x: 8, y: 25, text: 'THE HEART TREE\nThe old gods have no songs and no septons.\nYou come, and you say it, and you go.' },
       { x: 28, y: 10, text: 'THE WINTER TOWN\nEmpty in summer. Full when the snows come.\nIt has been full for two years.' },
       { x: 16, y: 20, text: 'THE GLASS GARDENS\nHot springs run under this ground.\nIt is the only place in the North where anything is green.' },
-      { x: 15, y: 31, text: 'THE FIRST KEEP\nNobody has lived in it for six hundred years.\nThe stair down goes to the crypt.' },
+      { x: 17, y: 28, text: 'THE FIRST KEEP\nNobody has lived in it for six hundred years.\nThey cut the water round it before that, and never filled it in.\nThe stair down goes to the crypt.' },
     ],
     npcs: [
       { x: 7, y: 16, dir: 'down', name: 'Landless Knight', sprite: 'noble',

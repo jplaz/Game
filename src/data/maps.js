@@ -1945,6 +1945,63 @@ function highgardenCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
   };
 }
 
+/* Sunspear: the Winding Walls, and the three towers at the end of them. You do
+   not walk into Sunspear — you walk along it, doubling back three times between
+   walls too high to see over, which is how a castle with no moat and no hill
+   has never been stormed. At the end of it the Tower of the Sun under its dome,
+   the Spear Tower on the left, and the Sandship, which looks like a dromond
+   that ran aground a thousand years ago and was built on where it lay. */
+function sunspearCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
+  const { put, row, span, done } = coreGrid(W);
+
+  span(1, 1, 22, 1, P);
+  span(1, 25, 22, 1, P);
+  for (let yy = 2; yy <= 24; yy++) { put(1, yy, P); put(22, yy, P); }
+  span(2, 2, 20, 23, g);
+  for (const yy of [0, 1, 25, 26]) put(11, yy, g);
+
+  /* The Winding Walls. Nobody stands in here and nothing is dressed in here:
+     it is a lane one turn wide and anything left in it is a door that shuts. */
+  span(2, 4, 17, 1, P);
+  span(5, 7, 17, 1, P);
+
+  // the Tower of the Sun, domed, and the great hall of Dorne under it
+  row(8, 10, 'q'.repeat(8));
+  row(8, 11, 'Q'.repeat(8));
+  [
+    A + 'w' + A + V + V + A + 'w' + A,
+    A.repeat(8),
+    A + 'w' + A.repeat(4) + 'w' + A,
+    A.repeat(8),
+    A.repeat(3) + 'D' + A.repeat(4),
+  ].forEach((line, j) => row(8, 12 + j, line));
+
+  // the Spear Tower, and the Sandship
+  for (const [x0, doorAt] of [[2, 1], [18, 2]]) {
+    row(x0, 11, 'q'.repeat(4));
+    row(x0, 12, 'Q'.repeat(4));
+    row(x0, 13, A + 'w' + A + A);
+    row(x0, 14, A.repeat(4));
+    row(x0, 15, A + 'w' + A + A);
+    row(x0, 16, A.repeat(4));
+    put(x0 + doorAt, 16, 'D');
+  }
+
+  // and the rest of it, south of the towers where the ground is flat
+  row(2, 19, y.repeat(5)); row(2, 20, Y.repeat(5)); row(2, 21, H + 'wDw' + H);
+  row(15, 19, y.repeat(5)); row(15, 20, Y.repeat(5)); row(15, 21, H + 'wDw' + H);
+  row(9, 20, z.repeat(4)); row(9, 21, A + A + 'D' + A);
+
+  return {
+    tiles: done(),
+    doors: {
+      maester: [3, 16], forge: [20, 16], keep: [11, 16],
+      cellar: [11, 21], inn: [4, 21], house: [17, 21],
+      northGate: [11, 0], southGate: [11, 26],
+    },
+  };
+}
+
 // The Eyrie: four terraces cut into the Giant's Lance, each one cut back from
 // the one below it, with Alyssa's Tears falling the whole height of the map
 // down the west face and the drop widening on your right the whole climb.
@@ -2890,13 +2947,19 @@ export const MAPS = {
       { dir: 'down', sprite: 'merchant', name: 'A Shade Seller', script: 'townTalk',
         data: { line: 'A Shade Seller: Water, shade, or somewhere to sit. In the shadow city all three cost the same and all three are worth it.' } },
     ],
-    outskirts: OUTSKIRTS.shadowCity, gate: 13,
-    quarter: 1,
+    outskirts: OUTSKIRTS.shadowCity, gate: 18,
+    core: sunspearCore,
     banner: 'V',
-    dressing: [[14, 12, '~'], [15, 12, '~'], [16, 12, '~'], [14, 13, '~'], [15, 13, '~'],
-               [16, 13, '~'], [4, 17, '#'], [7, 17, '#'], [5, 18, '*'], [17, 17, '#'],
-               [20, 17, '#'], [18, 18, '*'], [2, 1, '#'], [21, 2, '#'], [13, 17, '*'],
-               [21, 12, '#'], [2, 12, '#'], [13, 2, '*'], [20, 13, '*']],
+    /* Nothing solid on the two-row yard at 17-18: Oberyn stands on one row and
+       a date palm on the row beside him is a wall across the whole west end. */
+    dressing: [[3, 23, '#'], [7, 23, '#'], [16, 23, '#'], [20, 23, '#'],
+               [8, 22, '*'], [14, 22, '*'], [10, 18, '*'], [12, 18, '*'],
+               [6, 12, 'F'], [17, 12, 'F'],
+               /* Cressets down the winding walls, all on one row of each lane
+                  and three apart, so no two of them ever make a wall. */
+               [5, 3, 'F'], [11, 3, 'F'], [17, 3, 'F'],
+               [8, 6, 'F'], [14, 6, 'F'],
+               [5, 8, 'F'], [11, 8, 'F'], [17, 8, 'F']],
     roof: 'Q', ridge: 'q',
     name: 'Sunspear', ground: 'sand', wall: 'C', floor: 's', music: 'town',
     warps: [
@@ -2910,23 +2973,24 @@ export const MAPS = {
       { door: 'forge', to: 'sunspearArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
-      { x: 22, y: 12, text: 'THE SHADOW CITY\nTen thousand people living against the outside of the wall.\nNobody planned any of it and nobody ever will.' },
-      { x: 13, y: 10, text: 'SUNSPEAR\nSeat of House Martell.\nUnbowed. Unbent. Unbroken.' },
+      { x: 22, y: 19, text: 'THE SHADOW CITY\nTen thousand people living against the outside of the wall.\nNobody planned any of it and nobody ever will.' },
+      { x: 10, y: 16, text: 'THE TOWER OF THE SUN\nSeat of House Martell.\nUnbowed. Unbent. Unbroken.' },
+      { x: 12, y: 4, text: 'THE WINDING WALLS\nThree turns between walls you cannot see over.\nAn army that gets through the gate has got nowhere at all.' },
     ],
     npcs: [
-      { x: 11, y: 5, dir: 'down', sprite: 'guard', name: 'Sunspear Guard', script: 'quest',
+      { x: 9, y: 18, dir: 'down', sprite: 'guard', name: 'Sunspear Guard', script: 'quest',
         data: { quest: 'theDornishHostage' } },
-      { x: 11, y: 4, dir: 'down', sprite: 'martell', name: 'Orchard-Keeper', script: 'deedBroker',
+      { x: 13, y: 18, dir: 'down', sprite: 'martell', name: 'Orchard-Keeper', script: 'deedBroker',
         data: { property: 'dorneOrchard' } },
-      { x: 8, y: 9, dir: 'down', sprite: 'martell', name: 'Oberyn Martell', script: 'duel',
+      { x: 6, y: 17, dir: 'right', sprite: 'martell', name: 'Oberyn Martell', script: 'duel',
         data: { duel: 'oberyn' } },
-      { x: 14, y: 10, dir: 'left', sprite: 'oldman', name: 'Prince Doran', script: 'doran' },
-      { x: 5, y: 17, dir: 'right', sprite: 'child', name: 'Orphan', script: 'dorneHint' },
+      { x: 17, y: 17, dir: 'left', sprite: 'oldman', name: 'Prince Doran', script: 'doran' },
+      { x: 5, y: 23, dir: 'right', sprite: 'child', name: 'Orphan', script: 'dorneHint' },
     ],
   }),
 
   maesterHallSunspear: maesterHall({
-    exitTo: 'sunspear', exitX: 6, exitY: 7,
+    exitTo: 'sunspear', exitX: 3, exitY: 17,
     stock: ['kingsguardBanner', 'kingsRansom', 'antidote', 'weirwoodSap', 'kissOfFire'],
     healerLine: 'Dornish sun burns creatures raised in the North. Rest them.',
     merchantLine: 'Sun-dried, salt-cured and strong enough to strip paint.',
@@ -2946,8 +3010,8 @@ export const MAPS = {
       'IIIII__IIIII',
     ],
     warps: [
-      { x: 5, y: 7, to: 'sunspear', tx: 17, ty: 7, dir: 'down' },
-      { x: 6, y: 7, to: 'sunspear', tx: 17, ty: 7, dir: 'down' },
+      { x: 5, y: 7, to: 'sunspear', tx: 20, ty: 17, dir: 'down' },
+      { x: 6, y: 7, to: 'sunspear', tx: 20, ty: 17, dir: 'down' },
     ],
     npcs: [
       { x: 7, y: 1, dir: 'down', sprite: 'martell', name: 'Bazaar Smith', script: 'smith',
@@ -3245,8 +3309,8 @@ export const MAPS = {
       'IIIIIII__IIIIIIII',
     ],
     warps: [
-      { x: 7, y: 9, to: 'sunspear', tx: 7, ty: 15, dir: 'down' },
-      { x: 8, y: 9, to: 'sunspear', tx: 7, ty: 15, dir: 'down' },
+      { x: 7, y: 9, to: 'sunspear', tx: 11, ty: 17, dir: 'down' },
+      { x: 8, y: 9, to: 'sunspear', tx: 11, ty: 17, dir: 'down' },
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'martell', name: 'Aryanne Sand', script: 'courtship',
@@ -5291,8 +5355,8 @@ export const MAPS = {
       'IIIIIII__IIIIII',
     ],
     warps: [
-      { x: 7, y: 10, to: 'sunspear', tx: 14, ty: 16, dir: 'down' },
-      { x: 8, y: 10, to: 'sunspear', tx: 14, ty: 16, dir: 'down' },
+      { x: 7, y: 10, to: 'sunspear', tx: 12, ty: 23, dir: 'down' },
+      { x: 8, y: 10, to: 'sunspear', tx: 12, ty: 23, dir: 'down' },
     ],
     signs: [
       { x: 4, y: 0, text: 'THE ORCHARD HOUSE\nFour hundred trees, and a well that has not failed in ninety years.\nThe deed does not mention your father once.' },

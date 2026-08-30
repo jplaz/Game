@@ -5647,6 +5647,12 @@ export const MAPS = {
       { x: 11, y: 21, to: 'fleaBottom', tx: 2, ty: 1, dir: 'down' },
     ],
     signs: [
+      /* The way out, named. King's Landing is the biggest map in the game and
+         its one road out is four tiles wide at the very bottom of it -- which
+         is findable if you already know, and not otherwise. "You still can't
+         leave King's Landing" was somebody telling us they could not find a
+         door that was there the whole time. */
+      { x: 13, y: 31, text: 'THE GATE OF THE GODS\nSouth from here to the Kingsroad, and the rest of the realm.\nThe Red Keep stands north-east. Flea Bottom is the door in the wall behind you.' },
       { x: 13, y: 11, text: "KING'S LANDING\nHalf a million people and one chair.\nMind your purse." },
       /* Signposts at both ends of the great way, because a city ten screens
          tall with one gate at the bottom of it needs to say so somewhere a

@@ -496,34 +496,42 @@ const OUTSKIRTS = {
     'CCCCCCCC',
   ],
   /* Dragonstone: black sand and steam, and nothing growing on any of it. */
+  /* Dragonstone's Smoking Strand: black sand under a black cliff, with the
+     great stair coming down off the sea gate to it and a dragon lying on it
+     where the boats come in. Four columns of dirt and a straight rock wall is
+     what was here, which is a corridor rather than a beach.
+
+     The sand is the island's own dark grit rather than the shore tile, which
+     is a Dornish yellow: a beach the colour of a desert on a black volcanic
+     island looked like somebody had spilled it there. */
   smokingStrand: [
-    'CCCCCCCC',
-    'ddddC~~~',
-    'dUddC~~~',
-    'ddddC~~~',
-    'ddddC~~~',
-    'ddddC~~~',
-    'dddUC~~~',
-    'ddddC~~~',
-    'ddddC~~~',
-    'ddddC~~~',
-    'ddddC~~~',
-    'ddUdC~~~',
-    'ddddC~~~',
-    'ddddd~~~',
-    'ddddC~~~',
-    'ddddC~~~',
-    'dddUC~~~',
-    'ddddC~~~',
-    'ddddC~~~',
-    'ddddC~~~',
-    'ddddC~~~',
-    'dUddC~~~',
-    'ddddC~~~',
-    'ddddC~~~',
-    'ddUdC~~~',
-    'ddddC~~~',
-    'CCCCCCCC',
+    '@@@@@@@@',
+    '@@@@@~~~',
+    '@@@@@~~~',
+    '@@@@~~~~',
+    '@@@@~~~~',
+    '@@@@@~~~',
+    '@@n@@~~~',
+    '@@@@@~~~',
+    '@@@@~~~~',
+    '@@@@~~~~',
+    '@@@@@~~~',
+    '@@@@@~~~',
+    '@@@@@~~~',
+    '@@U@@~~~',
+    '@@@@@~~~',
+    '@//@@~~~',
+    '///@@~~~',
+    '@//@@~~~',
+    '@//@@~~~',
+    '@//%%~~~',
+    '%%!%%~~~',
+    '%123%~~~',
+    '%456%~~~',
+    '%789%~~~',
+    '%%%%%~~~',
+    '@%%U%~~~',
+    '@@@@@@@@',
   ],
   /* Braavos: canals, and bridges over them, and nowhere flat to build. */
   canals: [
@@ -2025,60 +2033,121 @@ function sunspearCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
   };
 }
 
-/* Dragonstone: black stone that was shaped while it was still soft, under a
-   mountain that has never gone out. The Dragonmont lies across the whole north
-   of the map with its vents smoking, and there is a gate in the castle's back
-   wall that goes straight into it. Below that the Stone Drum, and the Sea
-   Dragon Tower and the Windwyrm standing off its shoulders. Nothing here is
-   thatched, painted or grown — the whole island is one colour. */
+/* Dragonstone: a castle on the side of a volcano, built of the volcano.
+   Nothing here is quarried and carted in — the whole island is one black
+   extrusion, and the Targaryens shaped the top of it while it was still soft.
+   Which is why the ground, the walls and the mountain are all the same colour
+   and the only things on the map that are not are a wood, a dragon and the
+   sea. It used to be drawn in the same brown rock and grey floor as every
+   other seat in Westeros, with a flat empty yard in the middle of it. */
 function dragonstoneCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
   const { put, row, span, done } = coreGrid(W);
 
-  // the mountain, and the one pass down through it
-  span(2, 1, 20, 5, 'C');
-  for (const [x, yy] of [[4, 3], [8, 2], [14, 4], [18, 3], [6, 5], [16, 2], [20, 4]]) put(x, yy, 'n');
+  /* --------------------------------------------------- the Dragonmont ---
+     The road in from the Sea Dragon Tower comes down a gorge, doubles back
+     west along a high ledge past the mouth of the mountain, and comes out
+     again over the castle's own postern. A straight road down a mountain is
+     not a road anybody ever cut. */
   put(11, 0, g);
-  span(11, 1, 2, 5, g);
+  span(10, 1, 3, 2, g);
+  span(4, 3, 9, 1, g);
+  span(4, 4, 2, 2, g);
+  span(4, 6, 9, 1, g);
+  span(10, 7, 3, 1, g);
+  put(3, 5, 'D');                                 // the way into the mountain
+  // Vents. The ground is warm here in midwinter, and this is why.
+  for (const [x, yy] of [[7, 1], [14, 2], [18, 1], [20, 4], [16, 5], [8, 4], [21, 2]]) {
+    put(x, yy, 'n');
+  }
+  for (const [x, yy] of [[15, 3], [19, 6], [6, 2], [13, 5]]) put(x, yy, 'U');
 
-  // the castle's back wall, with the gate into the Dragonmont standing in it
-  span(2, 6, 20, 1, M);
-  put(11, 6, g);
-  put(5, 6, 'D');
-  span(2, 7, 20, 18, g);          // the whole court, before anything stands on it
+  /* ------------------------------------------------------ the curtain ---
+     One wall the whole way round: the postern under the mountain, the sea
+     gate through the east face, and the mud gate at the bottom. */
+  span(2, 8, 20, 1, M);
+  put(11, 8, g);
+  span(2, 9, 20, 16, g);
+  span(1, 8, 1, 18, M); span(22, 8, 1, 18, M);
+  span(2, 25, 20, 1, M);
+  put(11, 25, g); put(11, 26, g);
 
-  /* The Stone Drum. Corners cut, because it is round, and because the only
-     thing in this castle anybody remembers is that none of it has edges. */
-  row(9, 9, M.repeat(6));
+  /* ------------------------------------------------------- the towers ---
+     The Sea Dragon Tower west and the Windwyrm east, both standing a course
+     above the wall they are set into. */
+  for (const [x0, doorAt] of [[2, 1], [18, 2]]) {
+    row(x0, 10, M.repeat(4));
+    row(x0, 11, A + 'w' + A + A);
+    row(x0, 12, A.repeat(4));
+    row(x0, 13, A + V + A + A);
+    row(x0, 14, A.repeat(4));
+    put(x0 + doorAt, 14, 'D');
+  }
+
+  /* ---------------------------------------------------- the Stone Drum ---
+     The keep, with its corners cut top and bottom because it is round, the
+     house's banners either side of the way in, and behind that door the
+     Chamber of the Painted Table — where the woman this island belongs to
+     is standing, instead of out in the yard where she used to be. */
+  row(9, 10, M.repeat(6));
   [
     M + A.repeat(6) + M,
     A + 'w' + A + V + V + A + 'w' + A,
     A.repeat(8),
     A + 'w' + A.repeat(4) + 'w' + A,
     A.repeat(3) + 'D' + A.repeat(4),
-  ].forEach((line, j) => row(8, 10 + j, line));
+  ].forEach((line, j) => row(8, 11 + j, line));
+  put(9, 17, 'F'); put(13, 17, 'F');
 
-  // the Sea Dragon Tower and the Windwyrm, off its shoulders
-  for (const [x0, doorAt] of [[2, 1], [18, 2]]) {
-    row(x0, 9, M.repeat(4));
-    row(x0, 10, A + 'w' + A + A);
-    row(x0, 11, A.repeat(4));
-    row(x0, 12, A + V + A + A);
-    row(x0, 13, A.repeat(4));
-    put(x0 + doorAt, 13, 'D');
+  /* ---------------------------------------------------- the lower ward ---
+     A maester and an armoury above, an inn and a common house below, each of
+     them with a clear row under its own door — which the draft before this
+     one did not have, and four doors nobody can reach is what that looks like
+     from inside the game.
+
+     Roofed in slate, not thatch. A common house is thatched everywhere else
+     in the world so that it can be found without trying the door, but there
+     is no straw on this island and never has been, and three bright yellow
+     rectangles were the only thing anybody looked at on the whole map. The
+     limewashed walls still say maester and the chimney still says forge. */
+  row(2, 17, 'ggggg'); row(2, 18, 'GGGGG'); row(2, 19, P + 'wDw' + P);
+  row(16, 17, z.repeat(5)); row(16, 18, Z.repeat(5)); row(16, 19, H + 'wDw' + H);
+  put(18, 16, 'n');
+  row(2, 21, 'ggggg'); row(2, 22, 'GGGGG'); row(2, 23, H + 'wDw' + H);
+  row(16, 21, 'ggggg'); row(16, 22, 'GGGGG'); row(16, 23, H + 'wDw' + H);
+
+  /* --------------------------------------------------------- the dragon --
+     Lying in the middle of the ward with the castle built round it, because
+     that is where one would lie and because it is the first thing anybody
+     coming through any of the three gates ought to see. There was not one
+     anywhere on this island before, on the island the house is named for. */
+  row(9, 20, '123'); row(9, 21, '456'); row(9, 22, '789');
+
+  /* ------------------------------------------------------ Aegon's Garden --
+     A wood of dark trees inside the walls: the only living thing on the
+     island and the last thing anybody expects to find on it. Grown in a C
+     rather than a ring — a ring of trees is a wall with two tiles of garden
+     sealed inside it. */
+  /* Planted in two rows with a walk between them, and never one tree above
+     another: trees autotile into a single mass when they touch top to bottom,
+     so a column of three is a green wall rather than three trees. */
+  for (const [x, yy] of [[7, 21], [12, 21], [13, 21], [14, 21], [15, 21],
+                         [12, 23], [13, 23], [14, 23], [15, 23]]) {
+    put(x, yy, '#');
   }
-  // and the two places on this island where a fire is lit for a reason
-  row(3, 17, z.repeat(5)); row(3, 18, Z.repeat(5)); row(3, 19, H + 'wDw' + H);
-  row(15, 17, z.repeat(5)); row(15, 18, Z.repeat(5)); row(15, 19, H + 'wDw' + H);
-  put(5, 16, 'n'); put(17, 16, 'n');
+  /* One fire in the garden and no more. A brazier at the foot of the inn's
+     own steps and a priestess standing beside it walled off six tiles of yard
+     and the inn door with them, which is what a decoration costs when it is
+     put down without looking. */
+  put(14, 20, 'F');
 
-  span(2, 25, 20, 1, M);
-  put(11, 25, g); put(11, 26, g);
+  put(12, 20, '!');                               // and something to read
 
   return {
     tiles: done(),
     doors: {
-      maester: [11, 14], forge: [3, 13], keep: [5, 6],
-      cellar: [20, 13], inn: [5, 19], house: [17, 19],
+      painted: [11, 15], tower: [3, 14], keep: [3, 5],
+      cellar: [20, 14], maester: [4, 19], forge: [18, 19],
+      inn: [4, 23], house: [18, 23],
       northGate: [11, 0], southGate: [11, 26],
     },
   };
@@ -2981,8 +3050,8 @@ export const MAPS = {
       'IIIII__IIIII',
     ],
     warps: [
-      { x: 5, y: 7, to: 'dragonstone', tx: 3, ty: 14, dir: 'down' },
-      { x: 6, y: 7, to: 'dragonstone', tx: 3, ty: 14, dir: 'down' },
+      { x: 5, y: 7, to: 'dragonstone', tx: 18, ty: 20, dir: 'down' },
+      { x: 6, y: 7, to: 'dragonstone', tx: 18, ty: 20, dir: 'down' },
     ],
     npcs: [
       { x: 5, y: 1, dir: 'down', sprite: 'smallfolk', name: 'Dragonsmith', script: 'smith',
@@ -3646,59 +3715,170 @@ export const MAPS = {
     outskirts: OUTSKIRTS.smokingStrand, gate: 16,
     core: dragonstoneCore,
     banner: 'V',
-    dressing: [[4, 21, 'U'], [8, 23, 'U'], [13, 21, 'U'], [18, 23, 'U'], [6, 8, 'U'],
-               [16, 8, 'U'], [10, 22, 'n'], [14, 22, 'n'], [3, 23, 'n'], [20, 21, 'n']],
+    /* Nothing scattered on the floor any more. Ten pieces of rubble and four
+       chimneys used to be thrown across the yard here to break up the grey,
+       which from inside the game is litter: the mountain, the wood, the
+       braziers and the dragon are all placed by the plan now, where they
+       mean something. */
+    dressing: [],
     roof: 'Z', ridge: 'z',
-    name: 'Dragonstone', ground: 'stone', wall: 'C', floor: 'o', music: 'battleBoss',
+    /* Black, all of it. The island is one extrusion of volcanic rock, so the
+       ground under everything is the same dark stone the walls are cut from,
+       and the only colours on the map that are not black are the wood, the
+       fires, the dragon and the sea. */
+    name: 'Dragonstone', ground: 'cave', wall: '@', floor: '%', music: 'battleBoss',
     warps: [
       { door: 'cellar', to: 'dragonstoneCellar', tx: 6, ty: 8, dir: 'up' },
       { door: 'inn', to: 'dragonstoneInn', tx: 6, ty: 10, dir: 'up' },
       { door: 'house', to: 'dragonstoneHouse', tx: 6, ty: 10, dir: 'up' },
       { door: 'southGate', to: 'mudGate', tx: 9, ty: 7, dir: 'down' },
-      { door: 'northGate', to: 'seaDragonHold', tx: 11, ty: 20, dir: 'up' },
       { door: 'maester', to: 'maesterHallDragonstone', tx: 5, ty: 7, dir: 'up' },
       { door: 'keep', to: 'dragonmont', tx: 8, ty: 14, dir: 'up' },
       { door: 'forge', to: 'dragonstoneArmoury', tx: 5, ty: 6, dir: 'up' },
+      /* Two ways into the Sea Dragon Tower: its own door in the ward, and the
+         head of the mountain road, which comes out at the top of the same
+         stair. Both put you down in the same place inside it. */
+      { door: 'northGate', to: 'seaDragonHold', tx: 11, ty: 20, dir: 'up' },
+      { door: 'tower', to: 'seaDragonHold', tx: 11, ty: 20, dir: 'up' },
+      /* The Stone Drum, and the room at the top of it. Every other great
+         house has its head sitting in a hall; this one had hers standing out
+         in the yard with the weather on her. */
+      { door: 'painted', to: 'paintedTable', tx: 9, ty: 13, dir: 'up' },
     ],
     signs: [
-      { x: 22, y: 17, text: 'THE SMOKING STRAND\nBlack sand, and steam coming out of it.\nNothing has grown on this beach in living memory.' },
-      { x: 10, y: 14, text: 'THE STONE DRUM\nAncient seat of House Targaryen.\nThe stone here was shaped while it was still soft.' },
-      { x: 6, y: 6, text: 'THE DRAGONMONT\nThe mountain has never gone out and the ground stays warm in midwinter.\nThat stops being comforting once you have thought about why.' },
+      { x: 26, y: 20, text: 'THE SMOKING STRAND\nBlack sand, and steam coming out of it.\nNothing has grown on this beach in living memory, and something is lying on it.' },
+      { x: 12, y: 15, text: 'THE STONE DRUM\nAncient seat of House Targaryen.\nThe stone was shaped while it was still soft, and nobody will say by what.\nThe Chamber of the Painted Table is at the top of the stair inside.' },
+      { x: 3, y: 4, text: 'THE DRAGONMONT\nThe mountain has never gone out and the ground stays warm in midwinter.\nThat stops being comforting once you have thought about why.' },
+      { x: 12, y: 20, text: "AEGON'S GARDEN\nDark trees, brought over the water and planted before the Conquest.\nThe only thing on this island that grows." },
     ],
     npcs: [
-      { x: 8, y: 15, dir: 'down', sprite: 'unsullied', name: 'Grey Worm', script: 'duel',
+      { x: 8, y: 16, dir: 'down', sprite: 'unsullied', name: 'Grey Worm', script: 'duel',
         data: { duel: 'greyWorm' } },
-      { x: 14, y: 15, dir: 'left', sprite: 'braavosi', name: 'Daario', script: 'duel',
+      { x: 14, y: 16, dir: 'left', sprite: 'braavosi', name: 'Daario', script: 'duel',
         data: { duel: 'daario' } },
-      { x: 11, y: 21, dir: 'up', sprite: 'targaryen', name: 'Daenerys Targaryen',
-        script: 'gymTargaryen', data: { trainer: 'gymTargaryen' } },
-      { x: 16, y: 23, dir: 'left', sprite: 'ironborn', name: 'Euron Greyjoy', script: 'duel',
+      { x: 19, y: 24, dir: 'left', sprite: 'ironborn', name: 'Euron Greyjoy', script: 'duel',
         data: { duel: 'euron' } },
+      /* Somebody to ask about the animal in the yard, because the animal in
+         the yard is not going to answer. */
+      { x: 12, y: 19, dir: 'down', sprite: 'targaryen', name: 'A Dragonkeeper',
+        script: 'townTalk',
+        data: { line: 'A Dragonkeeper: Stand where you are. It knows the smell of everyone who lives here and it does not know yours.\nIt was chained once. Everything a dragon is stops being true the day you chain it, so now it is not.' } },
+      { x: 10, y: 23, dir: 'up', sprite: 'redPriest', name: 'A Red Priestess',
+        script: 'townTalk',
+        data: { line: 'A Red Priestess: The night is dark and full of terrors, and the fire shows me one face over and over.\nSometimes it is hers. Lately it has been yours, which I have not decided how to feel about.' } },
     ],
   }),
 
   maesterHallDragonstone: maesterHall({
-    exitTo: 'dragonstone', exitX: 11, exitY: 15,
+    exitTo: 'dragonstone', exitX: 4, exitY: 20,
     stock: ['kingsguardBanner', 'kingsRansom', 'weirwoodSap', 'kissOfFire'],
     healerLine: 'The island is hot and the stone never cools. Rest them here.',
     merchantLine: 'Little trade reaches the island. What there is, is good.',
   }),
 
+  /*
+   * The Chamber of the Painted Table, at the top of the Stone Drum.
+   *
+   * Every other great house in this game has its head sitting in a hall of
+   * their own: Eddard in the Great Keep, Catelyn in Riverrun, Jaime under
+   * Casterly Rock. Dragonstone had no hall at all, so Daenerys Targaryen —
+   * the one member of the nine you are most likely to have heard of — was
+   * standing on a flagstone in an empty yard in the rain, and there was
+   * nothing behind the door of her own keep because there was no door.
+   *
+   * The table is the room. Aegon had it carved before the Conquest as a map
+   * of a country he did not yet hold, fifty feet of it, and every hard
+   * decision in this house's history has been taken standing round it. It is
+   * laid out here as Westeros actually is — the Wall across the top, the Vale
+   * bulging east, Dorne running out to the south-east and the arm of it
+   * broken off — because a table shaped like a table would be furniture, and
+   * this is the reason the room exists.
+   */
+  paintedTable: {
+    name: 'The Painted Table',
+    indoor: true,
+    music: 'battleBoss',
+    /* Read it as a map and it is one: the North across the top, the Neck
+       pinched to three tiles in the middle of it, the Vale and the
+       Westerlands swelling out below that, the Reach and the Stormlands at
+       their widest, Dorne coming down to a point, and the Broken Arm lying
+       off the end of it across two tiles of water. The first version of this
+       was a wooden blob that got wider as it went down, which is a table. */
+    /* Two clear rows at the head of the table and two at the foot, because
+       the walk round it is the only way from one side to the other and a
+       single row is a single person wide: the queen at one end and a guard at
+       the other cut this room in half, and sixty-two tiles of it — including
+       both of them — went where nobody could get. */
+    tiles: [
+      'IIIIIIIIIIIIIIIIIII',
+      'I=================I',
+      'I=================I',
+      'I=B===TTTTT====B==I',
+      'I=B==TTTTTTT===B==I',
+      'I=F===TTTTT=====F=I',
+      'I======TTT========I',
+      'I====TTTTTTTTT====I',
+      'I===TTTTTTTTTT====I',
+      'I====TTTTTTTT=====I',
+      'I=B===TTTTTT=TT=B=I',
+      'I=F====TTTTT====F=I',
+      'I=================I',
+      'I=================I',
+      'IIIIIIIII__IIIIIIII',
+    ],
+    warps: [
+      { x: 9, y: 14, to: 'dragonstone', dir: 'down', back: true },
+      { x: 10, y: 14, to: 'dragonstone', dir: 'down', back: true },
+    ],
+    signs: [
+      { x: 7, y: 6, text: 'THE PAINTED TABLE\nCarved for Aegon before he sailed, in the shape of a country '
+        + 'he did not hold yet.\nThe Wall at the top, Dorne at the bottom, and every seat between them '
+        + 'marked in a hand three hundred years dead.' },
+    ],
+    npcs: [
+      /* At the head of the table, on the far side of it, looking down the
+         length of a country she has never once set foot in. */
+      { x: 8, y: 2, dir: 'down', sprite: 'targaryen', name: 'Daenerys Targaryen',
+        script: 'gymTargaryen', data: { trainer: 'gymTargaryen' } },
+      { x: 12, y: 4, dir: 'left', sprite: 'noble', name: 'Missandei', script: 'townTalk',
+        data: { line: 'Missandei: She stands there for hours. She is not looking at the table, she is '
+          + 'looking at the part of it she was born in and has never seen.\nWhen you speak to her, '
+          + 'speak plainly. She has had a lifetime of the other thing.' } },
+      { x: 15, y: 8, dir: 'left', sprite: 'lannister', name: 'Tyrion Lannister', script: 'townTalk',
+        data: { line: 'Tyrion: Nine seats on that table and every one of them held by somebody who '
+          + 'thinks the other eight are the problem.\nTake them in order and you climb. Take them out '
+          + 'of order and you learn what a warden is for. That is the whole of the strategy and it '
+          + 'took me a year to get anyone to hear it.' } },
+      { x: 12, y: 13, dir: 'left', sprite: 'unsullied', name: 'An Unsullied', script: 'townTalk',
+        data: { line: 'An Unsullied: We do not sit. We do not lean on the table. It is not ours.' } },
+    ],
+  },
+
   dragonmont: {
     name: 'The Dragonmont',
-    indoor: true, music: 'wild',
+    /* The ground has to be named. Anything that paints the floor under itself
+       — a tree, a chimney, a signpost, a dragon — falls through to grass when
+       a map does not say, and a dragon on a bright green lawn in the middle of
+       a volcano is what that looks like. */
+    indoor: true, music: 'wild', ground: 'cave',
+    /* The roost is wider than it was, because there is something in it now.
+       The chamber at the heart of the mountain used to be three tiles across
+       with a man in a red cloak standing in the middle of it, and every word
+       the game said about him — enormous, one eye the colour of a forge, a
+       head that comes down level with yours — was contradicted by the picture
+       on the screen. */
     tiles: [
       '@@@@@@@@@@@@@@@@@',
       '@%%%%%%%%%%%%%%%@',
       '@%%@@@%%%%%@@@%%@',
       '@%%@@@%%%%%@@@%%@',
       '@%%%%%%%%%%%%%%%@',
-      '@%%%%%@@@@@%%%%%@',
-      '@%%%%%@%%%@%%%%%@',
-      '@%%%%%@%%%@%%%%%@',
-      '@%%%%%@%%%@%%%%%@',
-      '@%%%%%@@%@@%%%%%@',
-      '@%%%%%%%%%%%%%%%@',
+      '@%%%%@@@@@@@%%%%@',
+      '@%%%%@123%%@%%%%@',
+      '@%%%%@456%%@%%%%@',
+      '@%%%%@789%%@%%%%@',
+      '@%%%%@%%%%%@%%%%@',
+      '@%%%%@@@%@@@%%%%@',
       '@%%@@@%%%%%@@@%%@',
       '@%%@@@%%%%%@@@%%@',
       '@%%%%%%%%%%%%%%%@',
@@ -3715,11 +3895,17 @@ export const MAPS = {
       { beast: 'pyremaw', min: 40, max: 45, weight: 10 },
     ],
     warps: [
-      { x: 8, y: 15, to: 'dragonstone', tx: 5, ty: 7, dir: 'down' },
+      { x: 8, y: 15, to: 'dragonstone', tx: 4, ty: 5, dir: 'down' },
     ],
+    signs: [
+      { x: 8, y: 5, text: 'Somebody has cut three words into the rock over the mouth of this chamber, '
+        + 'a long time ago and not deeply.\n\nFIRE AND BLOOD' },
+    ],
+    /* Whoever keeps it. Not the animal itself any more — that is drawn into
+       the floor of the chamber now and needs nobody to describe it. */
     npcs: [
-      { x: 8, y: 7, dir: 'down', sprite: 'targaryen', name: '?', script: 'blackdread',
-        hideIfFlag: 'blackdread_done' },
+      { x: 9, y: 7, dir: 'left', sprite: 'targaryen', name: 'A Dragonkeeper',
+        script: 'blackdread' },
     ],
     items: [
       { x: 2, y: 1, item: 'dragonglass', count: 1, flag: 'item_dragonmont_glass' },
@@ -7749,6 +7935,7 @@ export const REGIONS = {
   waterGardens: 'Dorne', pavilionOfOranges: 'Dorne',
   wreckersHold: 'The Stormlands', wreckersHall: 'The Stormlands',
   dragonstone: 'Dragonstone', dragonmont: 'Dragonstone',
+  paintedTable: 'Dragonstone',
   dragonstoneArmoury: 'Dragonstone',
   maesterHallDragonstone: 'Dragonstone',
 };

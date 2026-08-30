@@ -1477,15 +1477,26 @@ export const SCRIPTS = {
    * The nest under the Dragonmont. You do not fight what lives here — you
    * could not — you decide whether to take something from it.
    */
+  /* The keeper who tends it, rather than the animal.
+     This was the animal: an NPC with no name and a red cloak standing in the
+     middle of a three-tile chamber, and every word written here — enormous,
+     an eye the colour of a forge, a head that comes down level with yours —
+     was contradicted by the man-shaped sprite saying it. The dragon is drawn
+     into the floor of the roost now and needs nobody to describe it, so this
+     is the one person in Westeros who is not afraid of it. It also means it
+     does not have to vanish afterwards: a dragon leaving because you took an
+     egg was only ever a way of getting a wrong picture off the screen. */
   async blackdread({ say, choose, npc, setFlag, flag }) {
     if (flag('blackdread_done')) {
-      await say('The warmth is still here. Whatever left it has not come back.');
-      npc.hidden = true;
+      await say('Dragonkeeper: Two left in the ash, and neither of them is yours. Go and walk the '
+        + 'one you have — they hatch for the walking, not the waiting.');
       return;
     }
-    await say('The heat here is wrong for a cave. The rock underfoot is warm as a hearthstone.');
-    await say('Something enormous shifts in the dark, and opens one eye the colour of a forge.');
-    await say('It does not attack. It watches you, the way you would watch a mouse cross a room.');
+    await say('Dragonkeeper: Stop there. It has seen you, and it will decide about you in its '
+      + 'own time and not in yours.');
+    await say('The heat in here is wrong for a cave. The rock underfoot is warm as a hearthstone.');
+    await say('The great head comes round, and one eye the colour of a forge opens on you.');
+    await say('It does not attack. It watches you the way you would watch a mouse cross a room.');
 
     // It knows a Targaryen banner when it sees one, which is the whole of what
     // being one is worth.
@@ -1493,10 +1504,11 @@ export const SCRIPTS = {
     if (dragonblood) {
       await say('Then it puts its head down, level with yours, and breathes out — hot, and '
         + 'not at you.');
+      await say('Dragonkeeper: Well. It has not done that for anybody in my lifetime.');
       await say('Whatever your banner means to the men who fight under it, it means '
         + 'something older down here.');
     }
-    await say('Behind it, banked in the ash, are three eggs.');
+    await say('Dragonkeeper: Behind it, banked in the ash. Three of them.');
 
     const take = await choose('Take one?', ['Take an egg', 'Leave them be']);
     if (take !== 0) {
@@ -1504,7 +1516,6 @@ export const SCRIPTS = {
       await say('You back out the way you came. The eye follows you the whole way and does not blink.');
       await say('Some part of you will wonder about that for the rest of your life.');
       setFlag('blackdread_done');
-      npc.hidden = true;
       return;
     }
 
@@ -1529,7 +1540,6 @@ export const SCRIPTS = {
       changeStanding('targaryen', -10);
     }
     setFlag('blackdread_done');
-    npc.hidden = true;
   },
 
   // --------------------------------------------------------- the endgame ---

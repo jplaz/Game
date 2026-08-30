@@ -17,7 +17,10 @@
 export const PORTS = [
   { map: 'kingsLanding', name: "King's Landing", x: 11, y: 20, dir: 'down', fare: 400, needs: 0 },
   { map: 'lordsportDocks', name: 'Lordsport', x: 11, y: 6, dir: 'down', fare: 350, needs: 0 },
-  { map: 'dragonstone', name: 'Dragonstone', x: 11, y: 18, dir: 'up', fare: 600, needs: 0 },
+  /* The berth is on the Smoking Strand now, at the foot of the great stair,
+     rather than on a flagstone in the middle of the castle ward. A ship does
+     not tie up inside somebody's walls. */
+  { map: 'dragonstone', name: 'Dragonstone', x: 28, y: 22, dir: 'left', fare: 600, needs: 0 },
   { map: 'braavos', name: 'Braavos', x: 11, y: 18, dir: 'up', fare: 500, needs: 4 },
   { map: 'pentos', name: 'Pentos', x: 11, y: 18, dir: 'up', fare: 450, needs: 5 },
   { map: 'volantis', name: 'Volantis', x: 16, y: 8, dir: 'up', fare: 900, needs: 7 },

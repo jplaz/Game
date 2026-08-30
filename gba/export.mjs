@@ -52,6 +52,7 @@ const MAP_IDS = [
      until it is sold, and until that exists shipping the rooms alone is worse
      than not shipping them. */
   'dragonstone', 'maesterHallDragonstone', 'dragonstoneArmoury', 'dragonmont',
+  'paintedTable',
   'redKeep', 'barrowCave',
   // The south. Three more seats to begin at, three more leaders holding a
   // sigil, and somewhere to go once the Kingsroad runs out.

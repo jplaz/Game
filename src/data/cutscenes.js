@@ -133,7 +133,7 @@ export const CUTSCENES = {
 
   /** Dragonstone: what is under it. */
   underTheMountain: {
-    map: 'dragonmont', x: 8, y: 8, flag: 'cs_dragonmont', name: 'Under the Mountain',
+    map: 'dragonmont', x: 8, y: 10, flag: 'cs_dragonmont', name: 'Under the Mountain',
     beats: [
       ['say', 'The tunnel is not cut. Nothing with a chisel made this. '
             + 'The walls are smooth the way a candle is smooth.'],

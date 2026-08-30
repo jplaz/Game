@@ -145,6 +145,185 @@ export function groundVariants(name) {
   return (GROUND_ART[name] ?? GROUND_ART.grass).rows.length;
 }
 
+/* ------------------------------------------------------- a dragon, drawn --
+ *
+ * Forty-eight pixels square, which is exactly three tiles by three: a dragon
+ * lying with its wings out, seen from above like everything else in this
+ * world. The bestiary's own dragon was tried here first and was wrong for the
+ * job — a creature is painted face-on for a duel screen, so dropped onto a
+ * beach it read as a mask nailed to the ground rather than an animal lying on
+ * it. Nothing that goes on a map can be borrowed from something that goes on
+ * a portrait.
+ *
+ * Balerion's colours: near-black scale with the fire showing through the
+ * wings, which is what everything on Dragonstone is the colour of.
+ */
+const D_EDGE = '#0d0a12';        // the keyline, and the bones in the wing
+const D_SCALE = '#241d2e';       // its back
+const D_SCALE_LIT = '#3a3049';   // and the light down the middle of it
+const D_WING = '#6f1a14';        // the membrane
+const D_WING_LIT = '#9e2a1c';    // where the sun is through it
+const D_HORN = '#8b8296';        // horns, claws and the ridge of the spine
+const D_FIRE = '#f0a830';        // an eye
+
+/* Every part of it is a polygon or a tapering worm, rasterised here rather
+   than by the canvas, because a canvas fill feathers its edges and a feathered
+   edge is not a pixel: it costs colours, and the cartridge has fifteen per
+   tile to spend. */
+function dragonTools(ctx) {
+  const fill = (pts, colour) => {
+    const lo = Math.max(0, Math.min(...pts.map((q) => q[1])));
+    const hi = Math.min(47, Math.max(...pts.map((q) => q[1])));
+    for (let y = lo; y <= hi; y++) {
+      const xs = [];
+      for (let i = 0; i < pts.length; i++) {
+        const [x0, y0] = pts[i], [x1, y1] = pts[(i + 1) % pts.length];
+        if ((y0 <= y && y1 > y) || (y1 <= y && y0 > y)) {
+          xs.push(x0 + ((y - y0) * (x1 - x0)) / (y1 - y0));
+        }
+      }
+      xs.sort((a, b) => a - b);
+      for (let i = 0; i + 1 < xs.length; i += 2) {
+        const a = Math.round(xs[i]), b = Math.round(xs[i + 1]);
+        if (b >= a) rect(ctx, a, y, b - a + 1, 1, colour);
+      }
+    }
+  };
+  const stroke = (pts, colour, shut = true) => {
+    for (let i = 0; i < (shut ? pts.length : pts.length - 1); i++) {
+      const [x0, y0] = pts[i], [x1, y1] = pts[(i + 1) % pts.length];
+      const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) || 1;
+      for (let s = 0; s <= steps; s++) {
+        rect(ctx, Math.round(x0 + ((x1 - x0) * s) / steps),
+                  Math.round(y0 + ((y1 - y0) * s) / steps), 1, 1, colour);
+      }
+    }
+  };
+  const dot = (cx, cy, r, colour) => {
+    for (let y = Math.ceil(cy - r); y <= cy + r; y++) {
+      for (let x = Math.ceil(cx - r); x <= cx + r; x++) {
+        if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= r * r + 0.25) {
+          rect(ctx, x, y, 1, 1, colour);
+        }
+      }
+    }
+  };
+  /* A neck, a tail or a leg: a line of shrinking circles down a path. Cheaper
+     to steer than a polygon, and a dragon is mostly things that taper. */
+  const worm = (path, r0, r1, colour) => {
+    let run = 0;
+    const legs = [];
+    for (let i = 0; i + 1 < path.length; i++) {
+      const d = Math.hypot(path[i + 1][0] - path[i][0], path[i + 1][1] - path[i][1]);
+      legs.push(d); run += d;
+    }
+    let gone = 0;
+    for (let i = 0; i + 1 < path.length; i++) {
+      const steps = Math.max(1, Math.ceil(legs[i] * 2));
+      for (let s = 0; s <= steps; s++) {
+        const t = (gone + (legs[i] * s) / steps) / run;
+        dot(path[i][0] + ((path[i + 1][0] - path[i][0]) * s) / steps,
+            path[i][1] + ((path[i + 1][1] - path[i][1]) * s) / steps,
+            r0 + (r1 - r0) * t, colour);
+      }
+      gone += legs[i];
+    }
+  };
+  return { fill, stroke, dot, worm };
+}
+
+/* Curled on its own ground with its head up: an S of neck, a long body, the
+   wings folded over the back and the tail coming round the front of it. Two
+   straight wings out either side was tried first and read as a moth every
+   time — nothing symmetrical about a vertical line is ever going to be an
+   animal at this size. The curl is what makes it one. */
+const D_NECK = [[24, 26], [20, 20], [16, 15], [14, 10], [15, 6]];
+const D_TAIL = [[32, 32], [35, 38], [32, 43], [25, 46], [16, 46], [9, 42]];
+const D_BODY = [
+  [20, 21], [26, 18], [32, 20], [36, 25], [35, 31],
+  [30, 35], [23, 35], [19, 30], [18, 25],
+];
+const D_HEAD = [[17, 9], [14, 4], [9, 2], [5, 4], [7, 8], [12, 11], [17, 12]];
+/* The near wing, folded along the spine, and the far one showing over it. */
+const D_WING_NEAR = [[23, 19], [30, 12], [38, 12], [44, 18], [45, 25], [38, 21], [30, 19]];
+const D_WING_FAR = [[26, 17], [32, 8], [40, 6], [46, 11], [46, 16], [40, 12], [32, 14]];
+const D_RIBS = [[[27, 18], [37, 13]], [[29, 19], [41, 16]], [[31, 20], [44, 21]]];
+
+let dragonArt = null;
+function dragonCanvas() {
+  if (dragonArt) return dragonArt;
+  const { canvas, ctx } = makeCanvas(48, 48);
+  const { fill, stroke, dot, worm } = dragonTools(ctx);
+
+  // Back to front, the way it would be built if it were standing there.
+  fill(D_WING_FAR, D_EDGE); stroke(D_WING_FAR, D_EDGE);
+  fill(D_WING_FAR.map(([x, y]) => [x, y + 1]), D_WING);
+
+  worm(D_TAIL, 4.4, 1.8, D_EDGE);
+  worm(D_TAIL, 3.4, 1.1, D_SCALE);
+  // The spade on the end of it, pointing the way the tail was going.
+  fill([[13, 43], [8, 37], [3, 39], [3, 44], [9, 46]], D_EDGE);
+  fill([[12, 43], [8, 39], [5, 40], [5, 43], [9, 45]], D_WING);
+
+  for (const [from, to] of [[[22, 28], [15, 32]], [[30, 33], [27, 39]]]) {
+    worm([from, to], 3.2, 1.8, D_EDGE);
+    worm([from, to], 2.4, 1.2, D_SCALE);
+    /* Three claws, short and stubby. Drawn long and pale to begin with, which
+       from a tile away was a white starburst rather than a foot. */
+    for (let i = -1; i <= 1; i++) {
+      rect(ctx, to[0] - 3, to[1] + i * 2, 3, 1, D_EDGE);
+      rect(ctx, to[0] - 3, to[1] + i * 2, 2, 1, D_HORN);
+    }
+  }
+
+  fill(D_BODY, D_SCALE); stroke(D_BODY, D_EDGE);
+  // The light along the top of its back, where the sun would be on it.
+  fill([[22, 22], [27, 20], [32, 22], [33, 26], [28, 28], [23, 27]], D_SCALE_LIT);
+
+  fill(D_WING_NEAR, D_WING); stroke(D_WING_NEAR, D_EDGE);
+  fill([[23, 19], [30, 12], [38, 12], [41, 15], [33, 16], [27, 19]], D_WING_LIT);
+  for (const rib of D_RIBS) stroke(rib, D_EDGE, false);
+
+  worm(D_NECK, 4.6, 2.6, D_EDGE);
+  worm(D_NECK, 3.6, 1.8, D_SCALE);
+  /* The ridge of the spine, off the back of the skull and down the neck. Plates
+     rather than points: a one-radius circle is a plus sign, and six plus signs
+     down an animal's back read as sparkles on it. */
+  for (const [x, y] of [[17, 8], [17, 12], [19, 16], [22, 20], [25, 23], [29, 24]]) {
+    rect(ctx, x, y, 2, 2, D_EDGE);
+    rect(ctx, x, y, 2, 1, D_HORN);
+  }
+
+  fill(D_HEAD, D_SCALE); stroke(D_HEAD, D_EDGE);
+  fill([[16, 9], [13, 5], [9, 3], [6, 5], [9, 8], [14, 10]], D_SCALE_LIT);
+  stroke([[7, 7], [12, 10]], D_EDGE, false);              // the line of the jaw
+  rect(ctx, 10, 5, 2, 2, D_FIRE);                          // and an eye in it
+  rect(ctx, 11, 6, 1, 1, D_EDGE);
+  rect(ctx, 5, 4, 1, 1, D_EDGE);                           // a nostril
+  /* Horns, swept back off the skull. Two, thick, and short enough to belong to
+     the head: three long pale ones made it a moth with antennae, which is the
+     second time this drawing has gone that way. */
+  for (const horn of [[[14, 4], [18, 1], [22, 1]], [[15, 8], [19, 6], [22, 7]]]) {
+    worm(horn, 2.2, 0.6, D_EDGE);
+    worm(horn, 1.4, 0.4, D_HORN);
+  }
+
+  dragonArt = canvas;
+  return dragonArt;
+}
+
+/* One painter per ninth, named dragon1 to dragon9, reading left to right and
+   top to bottom exactly as the nine characters do in a map row. */
+const DRAGON_TILES = {};
+for (let i = 0; i < 9; i++) {
+  const col = i % 3, row = (i / 3) | 0;
+  DRAGON_TILES[`dragon${i + 1}`] = (ctx, _frame, _mask, under = GROUNDS.stone, variant = 0) => {
+    under(ctx, variant);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(dragonCanvas(), col * TILE, row * TILE, TILE, TILE, 0, 0, TILE, TILE);
+  };
+}
+
 // ---------------------------------------------------------------- painters --
 
 const painters = {
@@ -894,6 +1073,27 @@ const painters = {
     rect(ctx, 3, 9, 3, 2, '#8c8c98');
   },
 
+  /* -------------------------------------------------------- a dragon, drawn --
+   *
+   * There was not one anywhere in this world you could look at. There were
+   * dragons in the bestiary, dragons on the wing in a cutscene and a dragon in
+   * the dark under the Dragonmont that the map drew as a man in a red cloak,
+   * and the island the whole house is named for had nothing on it but grey
+   * floor. "No dragon" was the correct report.
+   *
+   * A creature is a forty-eight square and a tile is sixteen, which is exactly
+   * three by three — so the animal the game already knows how to draw can be
+   * laid straight into the ground it is standing on, one ninth per tile. It
+   * costs no sprite, no object, no palette bank and not one line of the
+   * cartridge's C: the exporter rasterises whatever a tile painter puts on the
+   * canvas, so a dragon on a map is a dragon on the cartridge.
+   *
+   * Which is also why it is scenery rather than somebody to talk to. Nothing
+   * here needs to be: it is four times the size of a man and it is in the way,
+   * and both of those are the point.
+   */
+  ...DRAGON_TILES,
+
   caveFloor(ctx, _frame, _mask, _ground, variant = 0) {
     ground(ctx, 'cave', variant);
   },
@@ -1067,6 +1267,19 @@ export const TILE_DEFS = {
   'U': { paint: painters.rubble, kind: 'solid' },
   '%': { paint: painters.caveFloor, kind: 'floor', varies: true },
   '@': { paint: painters.caveWall, kind: 'solid', autotile: true },
+  /* The nine ninths of a dragon. Solid all the way round, including the two
+     bottom corners where only wingtip reaches: the gap under a spread wing is
+     not a gap you walk through, and a hole in the middle of an animal is worse
+     to meet than a wall. */
+  '1': { paint: painters.dragon1, kind: 'solid', grounded: true },
+  '2': { paint: painters.dragon2, kind: 'solid', grounded: true },
+  '3': { paint: painters.dragon3, kind: 'solid', grounded: true },
+  '4': { paint: painters.dragon4, kind: 'solid', grounded: true },
+  '5': { paint: painters.dragon5, kind: 'solid', grounded: true },
+  '6': { paint: painters.dragon6, kind: 'solid', grounded: true },
+  '7': { paint: painters.dragon7, kind: 'solid', grounded: true },
+  '8': { paint: painters.dragon8, kind: 'solid', grounded: true },
+  '9': { paint: painters.dragon9, kind: 'solid', grounded: true },
 };
 
 const rendered = new Map();

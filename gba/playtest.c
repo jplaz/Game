@@ -1714,6 +1714,13 @@ int main(int argc, char **argv) {
       int m = ports[i].map;
       if (m >= 0 && m < MAP_COUNT) anyRoad[m] = 1;
     }
+    /* A room you have bought is not reached on foot and never will be: the way
+       in is the deed, bought in front of the person selling it, which is a
+       door no warp records. */
+    for (i = 0; i < DEED_COUNT; i++) {
+      int m = deeds[i].map;
+      if (m >= 0 && m < MAP_COUNT) anyRoad[m] = 1;
+    }
     for (i = 0; i < MAP_COUNT; i++) if (anyRoad[i]) q[tail++] = i;
     while (head < tail) {
       int a = q[head++];

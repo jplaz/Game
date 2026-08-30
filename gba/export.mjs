@@ -1016,6 +1016,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
           const open = openAt(x, y);
           if (open < 1 || open > 2) continue;      /* a nook, not a thoroughfare */
           const far = away(x, y);
+          /* And never on a doorstep. Distance from a door was only ever a
+             score, so a nook could sit against one - and a chest is furniture,
+             so that is a door you arrive inside of. */
+          if (far < 2) continue;
           if (far < 5) continue;                   /* not on anybody's doorstep */
           /* And well clear of where anybody stands, so a chest and a person
              cannot pinch a way through between them. */

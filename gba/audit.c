@@ -2491,9 +2491,18 @@ int main(void) {
       }
       note("%d of %d maps are ground the cold can reach", outdoors, MAP_COUNT);
     }
-    if (reached[WINTER_DEEPEST] < MAP_COUNT / 4) {
-      bad("at the Long Night the dead have only reached %d of %d roads",
-        reached[WINTER_DEEPEST], MAP_COUNT);
+    {
+      /* Against the roads, not against every map there is. Only ground with a
+         cold on it can ever be reached, and the world has grown four dozen
+         upstairs rooms, cellars and caves that never see weather - so measuring
+         the Long Night against the total said the winter was shrinking when
+         what had happened is that the world got more indoors. */
+      int roads = 0, k;
+      for (k = 0; k < MAP_COUNT; k++) if (maps[k].cold) roads++;
+      if (reached[WINTER_DEEPEST] < roads / 2) {
+        bad("at the Long Night the dead have only reached %d of the %d roads "
+            "a cold can reach", reached[WINTER_DEEPEST], roads);
+      }
     }
     for (stage = 0; stage <= WINTER_DEEPEST; stage++) {
       note("at %s the dead walk %d of %d roads",

@@ -1070,6 +1070,28 @@ function makeHold({ name, town, townGate, hall, ground = 'grass', wall = '#',
   };
   const taken = new Set([`11,${H - 1}`, `12,${H - 1}`,
     `${doors[0][0]},${doors[0][1] + 1}`, `${doors[1][0]},${doors[1][1] + 1}`]);
+  /* Would standing here shut the yard? A person who roams and lands in a
+     one-tile gap is a wall that walks: Harrenhal's Bloody Mummer stood in the
+     neck of the burnt hall and closed seventy-two tiles behind him. */
+  const walkFrom = (blocked) => {
+    const seen = new Set(), q = [[11, H - 2]];
+    while (q.length) {
+      const [cx, cy] = q.pop(), key = `${cx},${cy}`;
+      if (seen.has(key) || blocked.has(key) || shut(cx, cy)) continue;
+      seen.add(key);
+      q.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+    }
+    return seen.size;
+  };
+  /* Against the yard as it already stands, not against every open tile there
+     is: the door itself counts as shut to this walk, so the keep's own rooms
+     are never in it, and measuring against the whole map therefore called
+     every tile in the world a blockage and left nobody anywhere to stand. */
+  const wouldShut = (x, y) => {
+    const was = walkFrom(taken);
+    const blocked = new Set(taken); blocked.add(`${x},${y}`);
+    return walkFrom(blocked) < was - 1;
+  };
   const settle = (things, what) => things.map((p) => {
     let best = null;
     for (let r = 0; r < 12 && !best; r++) {
@@ -1078,6 +1100,7 @@ function makeHold({ name, town, townGate, hall, ground = 'grass', wall = '#',
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           const x = p.x + dx, y = p.y + dy;
           if (shut(x, y) || taken.has(`${x},${y}`)) continue;
+          if (p.roams && wouldShut(x, y)) continue;
           best = [x, y];
         }
       }
@@ -5525,7 +5548,7 @@ export const MAPS = {
 
   pirateCave: makeCave({
     id: 'pirateCave', name: 'A Pirate Hold', w: 24, h: 18, chambers: 4,
-    back: 'stepstones', backX: 4, backY: 3,
+    back: 'stepstones', backX: 4, backY: 6,
     encounters: [
       { beast: 'sandviper', min: 24, max: 28, weight: 28 },
       { beast: 'dornspine', min: 24, max: 28, weight: 24 },
@@ -5645,8 +5668,7 @@ export const MAPS = {
     name: 'The Stepstones',
     draw: ({ put, isle, crossing, quay, wreck, mouth }) => {
       isle(3, 3, 3, 3);
-      put(4, 2, 's');
-      mouth(4, 3, 'pirateCave', 2, 16, 'down');
+      mouth(4, 5, 'pirateCave', 2, 16, 'up');
       isle(9, 7, 4, 3);
       isle(17, 4, 3, 4);
       isle(24, 9, 3, 3);

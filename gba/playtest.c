@@ -64,6 +64,8 @@ static void finding(const char *fmt, ...) {
 static int frameNo;
 static int mapSeen[MAP_COUNT];
 static unsigned char entitled[MAP_COUNT];
+/* And where any road at all leads, with every gate open. */
+static unsigned char anyRoad[MAP_COUNT];
 /* The most seats this run ever held while stood at a berth. */
 static int seatsAtBerth;
 static int portsSeen, sailed, talesSeen, crownRun;
@@ -1412,7 +1414,27 @@ void hostFrame(void) {
             keys = 0;      /* somebody is in the doorway; wait for them to move */
           } else {
             blocked = 0;
-            finding("%s: no way through to %d,%d", world->name, gx, gy);
+            /* Whether that is a fault depends on the ground, not on the walk.
+               A goal with somewhere open to stand beside it is one the player
+               can reach and this run could not -- a body on a one-tile bridge
+               in a canal city will do it, and Braavos is nothing but one-tile
+               bridges. A goal with nowhere at all beside it is a fault in the
+               world, and stays a finding. */
+            {
+              int k3, open = 0;
+              for (k3 = 0; k3 < 4; k3++) {
+                int nx = gx + DIR_X[k3], ny = gy + DIR_Y[k3];
+                if (nx < 0 || ny < 0 || nx >= world->w || ny >= world->h) continue;
+                if (solidAt(nx, ny) || ledgeAt(nx, ny) || warpHere(nx, ny)) continue;
+                open = 1; break;
+              }
+              if (open) {
+                printf("      never got to: %s %d,%d, which has open ground "
+                       "beside it\n", world->name, gx, gy);
+              } else {
+                finding("%s: no way through to %d,%d", world->name, gx, gy);
+              }
+            }
             if (goalKind == GOAL_NPC) npcStuck[worldId][goalIndex] = 1;
             else if (goalKind == GOAL_SIGN) signRead[worldId][goalIndex] = 1;
             goalKind = GOAL_NONE;
@@ -1603,6 +1625,26 @@ int main(int argc, char **argv) {
         if (b >= 0 && b < MAP_COUNT && !entitled[b]) { entitled[b] = 1; q[tail++] = b; }
       }
     }
+    /* And the same walk again with every gate wide open: what a player who
+       held all nine seats could get to. Three verdicts, and each of them says
+       something different and true. Nothing leads here at all is a hole in the
+       world; the seats did not open it is the gate working; and everything
+       else is a gap in this one walk, which is a fact about the frame budget
+       and not about the map table. */
+    head = tail = 0;
+    for (i = 0; i < MAP_COUNT; i++) anyRoad[i] = (unsigned char)(mapSeen[i] != 0);
+    for (i = 0; i < PORT_COUNT; i++) {
+      int m = ports[i].map;
+      if (m >= 0 && m < MAP_COUNT) anyRoad[m] = 1;
+    }
+    for (i = 0; i < MAP_COUNT; i++) if (anyRoad[i]) q[tail++] = i;
+    while (head < tail) {
+      int a = q[head++];
+      for (j = 0; j < maps[a].warpCount; j++) {
+        int b = maps[a].warps[j].to;
+        if (b >= 0 && b < MAP_COUNT && !anyRoad[b]) { anyRoad[b] = 1; q[tail++] = b; }
+      }
+    }
   }
   for (i = 0; i < MAP_COUNT; i++) {
     if (mapSeen[i]) seenMaps++;
@@ -1613,10 +1655,24 @@ int main(int argc, char **argv) {
     /* A directed climb goes where the ladder sends it and nowhere else, so
        what it did not visit is not a fault in the world. Only the wandering
        sweep is a coverage check. */
+    /* Nothing anywhere leads here: not a door in the world, not a berth. That
+       is a hole in the map table and it is a fault whatever any one run did. */
+    else if (!anyRoad[i]) finding("%s is never reachable on foot", maps[i].name);
     else if (ladderMode) seenMaps += 0;
     /* Behind a gate this run never earned the right to open. */
     else if (!entitled[i]) seenMaps++;
-    else finding("%s is never reachable on foot", maps[i].name);
+    else {
+      /* "Never reachable on foot" and "never got round to" are not the same
+         sentence, and only one of them is a fault in the world. Braavos has a
+         door onto the House of Black and White; a sweep that stood in Braavos,
+         did not open it, and then reported the place unreachable was saying
+         something untrue about a map that is fine. What has a door from ground
+         the run stood on is a gap in the walk; what has a door from nowhere at
+         all is a gap in the world, and that is still a finding. */
+      seenMaps++;
+      printf("      never opened: %s, which has a door from ground the run "
+             "walked on\n", maps[i].name);
+    }
     totalNpcs += maps[i].npcCount;
     totalSigns += maps[i].signCount;
   }

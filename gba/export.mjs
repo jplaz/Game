@@ -1335,6 +1335,13 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     brokenTower:      { map: 'kingsroadNorth', x: 4, y: 20 },
     maestersDebt:     { map: 'roseroad',      x: 4,  y: 20 },
     deserterAtTheGate:{ map: 'castleBlack',   x: 3,  y: 16 },
+    // The later five stand where the browser's giver stands, so the two builds
+    // agree about who is where rather than drifting apart quest by quest.
+    saltWivesOfPyke:  { map: 'pyke',          x: 11, y: 5 },
+    theGrainCount:    { map: 'highgarden',    x: 11, y: 5 },
+    theDornishHostage:{ map: 'sunspear',      x: 11, y: 5 },
+    theBastardsLetter:{ map: 'weepingWater',  x: 12, y: 5 },
+    theSellswordsWage:{ map: 'kingsroad',     x: 11, y: 5 },
   };
   for (const [id, q] of Object.entries(QUESTS)) {
     const place = QUEST_PLACES[id];

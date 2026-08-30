@@ -2061,6 +2061,64 @@ function dragonstoneCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
   };
 }
 
+/* Braavos: a hundred islets and no ground between them. The streets are canals
+   and every one of them has to be crossed on a bridge, so getting from the
+   House of Black and White to the Iron Bank is a route rather than a walk. No
+   walls, no gate, no keep — the Titan is the wall, and it is out in the lagoon
+   where you cannot see it from inside your own city. */
+function braavosCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
+  const { put, row, span, done } = coreGrid(W);      // W is water here
+
+  span(2, 1, 20, 25, g);                             // the islets, before cutting
+  span(7, 1, 1, 24, W); span(16, 1, 1, 24, W);       // the two long canals
+  span(2, 8, 20, 1, W); span(2, 17, 20, 1, W);       // and the two crossing them
+  put(11, 0, g); put(11, 26, g);
+
+  /* Every crossing is a bridge, and no two of them line up. A canal city where
+     the bridges are all at the same x is a city with streets in it. */
+  for (const [x, yy] of [[7, 6], [7, 13], [7, 21], [16, 7], [16, 14], [16, 20],
+                         [4, 8], [11, 8], [19, 8], [3, 17], [12, 17], [20, 17]]) put(x, yy, 't');
+
+  // the House of Black and White, which is built of exactly those two things
+  row(2, 1, M.repeat(5));
+  row(2, 2, A + P + A + P + A);
+  row(2, 3, P + A + P + A + P);
+  row(2, 4, A + P + A + P + A);
+  row(2, 5, A + 'wDw' + A);                          // its door at 4,5
+
+  // the Sealord's Palace, with the road out of the city running under it
+  row(8, 1, M.repeat(3) + g + M.repeat(4));
+  row(8, 2, A.repeat(3) + g + A.repeat(4));
+  row(8, 3, A + 'w' + A + g + A + 'w' + A + A);
+  row(8, 4, A.repeat(3) + g + A + V + A + A);
+  row(8, 5, A.repeat(3) + g + A.repeat(4));
+
+  // the Iron Bank, which will have its due
+  row(17, 1, z.repeat(5));
+  row(17, 2, Z.repeat(5));
+  row(17, 3, A + 'w' + A + 'w' + A);
+  row(17, 4, A.repeat(5));
+  row(17, 5, A + 'wDw' + A);                         // its vault at 19,5
+
+  // the Happy Port, and an inn across two canals from it
+  row(2, 9, y.repeat(5)); row(2, 10, Y.repeat(5)); row(2, 11, H + 'wDw' + H);
+  row(17, 9, y.repeat(5)); row(17, 10, Y.repeat(5)); row(17, 11, H + 'wDw' + H);
+  put(4, 8, 't'); put(19, 8, 't');                   // (the roofs took the bridgeheads)
+
+  /* The Moon Pool, in the middle, which is the one piece of water in this city
+     that nobody has ever needed to cross. */
+  span(10, 11, 4, 3, W);
+  put(9, 10, 'F'); put(14, 14, 'F');
+
+  return {
+    tiles: done(),
+    doors: {
+      maester: [4, 5], cellar: [19, 5], inn: [19, 11], house: [4, 11],
+      northGate: [11, 0], southGate: [11, 26],
+    },
+  };
+}
+
 // The Eyrie: four terraces cut into the Giant's Lance, each one cut back from
 // the one below it, with Alyssa's Tears falling the whole height of the map
 // down the west face and the drop widening on your right the whole climb.
@@ -4167,32 +4225,37 @@ export const MAPS = {
         data: { line: 'A Canal Poler: There are no horses in Braavos. There is water, and there is me, and I am cheaper than a horse.' } },
     ],
     outskirts: OUTSKIRTS.canals, gate: 12,
-    quarter: 0,
-    roof: 'G', ridge: 'g', shut: ['forge', 'keep'],
+    core: braavosCore,
+    roof: 'G', ridge: 'g',
+    dressing: [[9, 20, 'U'], [13, 23, 'U'], [4, 22, 'F'], [19, 22, 'F'],
+               [10, 25, 'U'], [14, 19, 'F'], [3, 14, 'F'], [20, 14, 'F']],
     // Canals rather than walls, which is the one thing everybody knows
     // about Braavos and makes it read as somewhere else at a glance.
     name: 'Braavos', music: 'town', ground: 'stone', wall: '~', floor: 'o',
     npcs: [
-      { x: 11, y: 3, dir: 'down', sprite: 'braavosi', name: 'Factor of the Iron Bank', script: 'deedBroker',
+      { x: 18, y: 6, dir: 'down', sprite: 'braavosi', name: 'Factor of the Iron Bank', script: 'deedBroker',
         data: { property: 'braavosCounting' } },
-      { x: 7, y: 9, dir: 'down', name: 'Jaqen H\'ghar', sprite: 'braavosi',
+      { x: 3, y: 6, dir: 'down', name: 'Jaqen H\'ghar', sprite: 'braavosi',
         script: 'freeCityLocal', data: { line: "Jaqen H'ghar: A man was no one, and is someone again, "
           + 'and will be no one after. Valar morghulis.' } },
-      { x: 15, y: 9, dir: 'down', name: 'Arya', sprite: 'girl',
+      { x: 5, y: 7, dir: 'down', name: 'Arya', sprite: 'girl',
         script: 'freeCityLocal', data: { line: 'Arya: I am no one. That is what they keep telling me. '
           + 'I am fairly sure I am still someone.' } },
-      { x: 11, y: 16, dir: 'down', name: 'Iron Banker', sprite: 'merchant',
+      { x: 11, y: 15, dir: 'down', name: 'Iron Banker', sprite: 'merchant',
         script: 'shop', data: { line: 'Iron Banker: The Iron Bank will have its due. '
           + 'In the meantime, we also sell things.',
           stock: ['maesterKit', 'sigilBanner', 'warBanner', 'kingsguardBanner'] } },
-      { x: 4, y: 9, dir: 'right', name: 'Water Dancer', sprite: 'braavosi',
+      { x: 6, y: 20, dir: 'right', name: 'Water Dancer', sprite: 'braavosi',
         script: 'duel', data: { duel: 'syrio' } },
-      { x: 18, y: 9, dir: 'left', name: 'Braavosi Bravo', sprite: 'sellsword',
+      { x: 17, y: 23, dir: 'left', name: 'Braavosi Bravo', sprite: 'sellsword',
         script: 'freeCityLocal', data: { line: 'Bravo: In Braavos we fight with the point. '
           + 'Hacking is for people who chop wood.' } },
     ],
     signs: [
-      { x: 22, y: 12, text: 'THE CANALS\nA hundred islands and no ground between them.\nEverything here goes by water or it does not go.' },{ x: 13, y: 10, text: 'THE TITAN OF BRAAVOS STANDS BEHIND YOU. IT IS THE ONLY THING THAT DOES.' }],
+      { x: 22, y: 12, text: 'THE CANALS\nA hundred islands and no ground between them.\nEverything here goes by water or it does not go.' },
+      { x: 4, y: 4, text: 'THE HOUSE OF BLACK AND WHITE\nValar morghulis.\nThe door answers to two words and neither of them is a knock.' },
+      { x: 19, y: 4, text: 'THE IRON BANK OF BRAAVOS\nThe Iron Bank will have its due.\nIt has outlived every king who decided otherwise.' },
+      { x: 11, y: 4, text: 'THE SEALORD\u2019S PALACE\nBraavos has no king and never has.\nThe Titan is the wall, and it is out where you cannot see it.' }],
     warps: [
       { door: 'cellar', to: 'braavosCellar', tx: 6, ty: 8, dir: 'up' },
       { door: 'inn', to: 'braavosInn', tx: 6, ty: 10, dir: 'up' },
@@ -5355,8 +5418,8 @@ export const MAPS = {
       'IIIIII__IIIII',
     ],
     warps: [
-      { x: 6, y: 9, to: 'braavos', tx: 13, ty: 13, dir: 'down' },
-      { x: 7, y: 9, to: 'braavos', tx: 13, ty: 13, dir: 'down' },
+      { x: 6, y: 9, to: 'braavos', tx: 18, ty: 7, dir: 'down' },
+      { x: 7, y: 9, to: 'braavos', tx: 18, ty: 7, dir: 'down' },
     ],
     signs: [
       { x: 5, y: 3, text: 'THE LEDGER\nEvery sum in it balances. The Iron Bank sent somebody once to check,\nand he is still here, and he still checks.' },

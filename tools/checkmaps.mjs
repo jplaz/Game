@@ -10,6 +10,8 @@
 import { MAPS } from '/home/user/Game/src/data/maps.js';
 import { TILE_DEFS } from '/home/user/Game/src/art/tiles.js';
 import { PORTS, PORT_MAPS } from '/home/user/Game/src/data/ports.js';
+import { ROAMERS } from '/home/user/Game/src/data/duellists.js';
+import { CUTSCENES } from '/home/user/Game/src/data/cutscenes.js';
 
 const kindOf = (c) => TILE_DEFS[c]?.kind ?? 'missing';
 const SOLID = new Set(['solid', 'water']);
@@ -365,6 +367,41 @@ for (const p of PORTS) {
   }
   if ((map.npcs ?? []).some((n) => !n.roams && n.x === p.x && n.y === p.y)) {
     say(`the ${p.name} berth at ${p.x},${p.y} has somebody standing on it`);
+  }
+}
+
+/* How many faces one map needs resident at once.
+ *
+ * Object memory holds the player's frames and then twelve other appearances,
+ * and an appearance is one person's own drawing: the art is keyed by sprite
+ * AND name, so two merchants with different names are two of the twelve, not
+ * one. Adding a thirteenth person to King's Landing cost twenty-five minutes
+ * of export before the packer said so, which is the wrong end of the build to
+ * find that out at. It is an approximation of what gba/export.mjs counts -
+ * everyone standing here, one for each roamer on the encounter table, and
+ * anybody a cutscene walks in - and it has matched it exactly so far. */
+const ACTOR_LIMIT = 12;
+const spawnsOn = (mapId) => {
+  const out = [];
+  for (const cs of Object.values(CUTSCENES ?? {})) {
+    if (cs.map !== mapId) continue;
+    for (const beat of cs.beats ?? cs.script ?? []) {
+      if (!Array.isArray(beat) || beat[0] !== 'enter') continue;
+      const at = beat[2] ?? {};
+      out.push(`${at.sprite ?? 'smallfolk'}|${at.name ?? ''}`);
+    }
+  }
+  return out;
+};
+for (const [id, map] of Object.entries(MAPS)) {
+  const faces = new Set();
+  for (const n of map.npcs ?? []) faces.add(`${n.sprite}|${n.name ?? ''}`);
+  for (const row of map.encounters ?? []) {
+    if (row.roamer && ROAMERS[row.roamer]) faces.add(`roamer:${row.roamer}`);
+  }
+  for (const s of spawnsOn(id)) faces.add(s);
+  if (faces.size > ACTOR_LIMIT) {
+    say(`${id} needs ${faces.size} appearances resident and there is room for ${ACTOR_LIMIT}`);
   }
 }
 

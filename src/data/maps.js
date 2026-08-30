@@ -5899,13 +5899,6 @@ export const MAPS = {
       { x: 21, y: 19, dir: 'left', sprite: 'kingsguard', name: 'Ser Meryn Trant', script: 'duel',
         data: { duel: 'meryn' } },
       { x: 26, y: 20, dir: 'down', sprite: 'brotherhood', name: 'Recruiter', script: 'blackBrother' },
-      /* And the same at the mouth of the Blackwater, which is where most
-         players will first hear that a ship is a thing you can own. */
-      { x: 18, y: 29, dir: 'right', sprite: 'merchant', name: 'Shipwright',
-        script: 'shipwright',
-        data: { berth: { map: 'blackwaterBay', x: 3, y: 12 },
-                where: 'the Mud Gate steps',
-                line: 'Shipwright: Four of them on the stocks and one of me. Buy a keel and the sea stops being somebody else\'s road.' } },
       { x: 20, y: 30, dir: 'up', sprite: 'braavosi', name: 'Harbourmaster', script: 'ship',
         data: { line: 'Harbourmaster: Every hull on the Blackwater answers to this quay. '
           + 'Name a port and I will find you a berth.' } },
@@ -5954,6 +5947,16 @@ export const MAPS = {
       { x: 8, y: 7, dir: 'up', sprite: 'braavosi', name: 'The Ferryman', script: 'ship',
         data: { line: 'The Ferryman: The island, then. Or further, if your purse runs to it. '
           + 'Say nothing to anyone about who rowed you.' } },
+      /* And a shipwright, at the mouth of the Blackwater, which is where most
+         players will first hear that a ship is a thing a person can own. He
+         stands here rather than inside the walls because King's Landing has
+         twelve faces resident already and there is room for twelve - and
+         because the Mud Gate is where the hulls actually are. */
+      { x: 5, y: 9, dir: 'down', sprite: 'merchant', name: 'Shipwright',
+        script: 'shipwright',
+        data: { berth: { map: 'blackwaterBay', x: 3, y: 12 },
+                where: 'the Blackwater strand, off the Mud Gate',
+                line: 'Shipwright: Four of them on the stocks and one of me. Buy a keel and the sea stops being somebody else\'s road.' } },
       { x: 15, y: 9, dir: 'left', sprite: 'ironborn', name: 'Dock Thief', script: 'duel',
         data: { duel: 'ironbornReaver' } },
     ],

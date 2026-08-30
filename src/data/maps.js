@@ -888,51 +888,215 @@ function makeCellar({ town, name, keeper, keeperDuel, line, loot }) {
  * The compound is twenty-four wide so it lines up with the town gate at
  * eleven, and the way out is the same two tiles you came in by.
  */
+/* A stronghold.
+ *
+ * There were eleven of these and they were one map. The same twenty-four by
+ * twenty-two courtyard with the same keep in the middle of it, the same gate
+ * sentry, the same two garrison men and the same two yard watch, and only the
+ * wall character changed from region to region - so a player who had taken one
+ * had taken all of them and quite reasonably stopped going in. They are eleven
+ * different kinds of place in the fiction and they are eleven different places
+ * now: a burnt colossus, a stake compound, a mountain camp with no walls at
+ * all, a sea tower, kennels, a palace on canals, a walled manse, an avenue
+ * behind a fused wall, a sand pit with tiers round it, four pools under orange
+ * trees, and a shingle beach full of broken hulls.
+ *
+ * `plan` draws the place. The gate is always the foot of the middle two
+ * columns, because the town outside has a road to it; everything else is the
+ * hold's own business, including where its door is - `hall` finds it by
+ * looking for the D the plan drew.
+ */
+/* Eleven plans, one per stronghold. Each one is the place the fiction says it
+   is rather than a courtyard with a different wall colour. */
+const HOLD_PLANS = {
+  /* Harrenhal: five towers melted like candles, and a ward you could lose a
+     village in. Nothing in it stands straight. */
+  harrenhal: ({ put, span, box }) => {
+    span(1, 1, 22, 20, 'd');
+    for (const [x, y] of [[2, 2], [9, 1], [17, 2], [3, 12], [18, 12]]) box(x, y, 5, 5, 'A', 'U');
+    span(9, 6, 6, 5, 'A'); span(10, 7, 4, 3, 'U');
+    put(11, 10, 'D'); put(12, 10, 'D');
+    span(7, 15, 10, 1, 'U'); span(2, 18, 5, 1, 'U'); span(17, 18, 5, 1, 'U');
+    put(5, 9, 'F'); put(18, 9, 'F');
+    span(11, 11, 2, 10, 'd');
+  },
+  /* Craster's: a stake wall, mud to the ankle, a longhouse and two pens. */
+  crastersKeep: ({ put, span, box }) => {
+    span(2, 3, 20, 17, 'd');
+    span(2, 3, 20, 1, 'f'); span(2, 3, 1, 17, 'f'); span(21, 3, 1, 17, 'f');
+    span(6, 5, 12, 5, 'H'); span(7, 6, 10, 3, 'Y');
+    put(11, 9, 'D'); put(12, 9, 'D');
+    box(3, 12, 5, 4, 'f', 'd'); box(16, 12, 5, 4, 'f', 'd');
+    put(7, 13, 'd'); put(16, 13, 'd');
+    put(11, 12, 'F'); put(12, 16, 'F');
+    span(11, 10, 2, 11, 'd');
+  },
+  /* The Stone Crows keep no walls. Boulders, cookfires, and a cave they sleep
+     in, which is the whole difference between a clan and a castle. */
+  stoneCrowHold: ({ put, span }) => {
+    span(2, 2, 20, 18, 'o');
+    for (const [x, y] of [[4, 4], [8, 3], [15, 4], [19, 6], [3, 10], [20, 12], [6, 17], [17, 17]]) {
+      span(x, y, 2, 2, 'C');
+    }
+    span(9, 5, 6, 4, 'C'); put(11, 8, 'D'); put(12, 8, 'D');
+    put(6, 12, 'F'); put(17, 12, 'F'); put(11, 15, 'F');
+    span(11, 9, 2, 12, 'o');
+  },
+  /* The Sea Dragon Tower: black rock with the sea on every side of it and two
+     stairs cut down the outside. */
+  seaDragonHold: ({ put, span, box }) => {
+    span(3, 2, 18, 18, '%');
+    span(1, 1, 22, 1, '@'); span(1, 1, 2, 20, '@'); span(21, 1, 2, 20, '@');
+    box(8, 3, 8, 7, 'A', '%');
+    put(11, 9, 'D'); put(12, 9, 'D');
+    span(6, 11, 3, 6, '/'); span(15, 11, 3, 6, '/');
+    put(5, 5, 'F'); put(18, 5, 'F');
+    span(11, 10, 2, 11, '%');
+  },
+  /* The Dreadfort kennels: eight runs, and a post in the middle of the yard
+     that nobody explains to you. */
+  kennelHold: ({ put, span, box }) => {
+    span(1, 1, 22, 20, 'd');
+    span(2, 2, 20, 1, 'A'); span(2, 2, 1, 18, 'A'); span(21, 2, 1, 18, 'A');
+    for (let i = 0; i < 4; i++) {
+      box(3 + i * 5, 4, 4, 4, 'f', 'd'); box(3 + i * 5, 14, 4, 4, 'f', 'd');
+      put(4 + i * 5, 7, 'd'); put(4 + i * 5, 14, 'd');
+    }
+    span(9, 9, 6, 4, 'A'); put(11, 12, 'D'); put(12, 12, 'D');
+    put(11, 19, 'V'); put(12, 19, 'V');
+    span(11, 13, 2, 8, 'd');
+  },
+  /* The Sealord's palace: two canals, six bridges and a colonnade between. */
+  sealordHold: ({ put, span, box }) => {
+    span(1, 1, 22, 20, '=');
+    span(1, 5, 22, 2, '~'); span(1, 14, 22, 2, '~');
+    for (const x of [4, 11, 18]) { span(x, 5, 2, 2, 't'); span(x, 14, 2, 2, 't'); }
+    for (let x = 3; x < 21; x += 4) { put(x, 9, 'A'); put(x, 12, 'A'); }
+    box(8, 1, 8, 4, 'A', '='); put(11, 4, 'D'); put(12, 4, 'D');
+    put(5, 10, 'F'); put(18, 10, 'F');
+    span(11, 7, 2, 14, '=');
+  },
+  /* A Pentoshi manse: two walled gardens, two pools, and a wall round the lot
+     of it because Pentos has no army. */
+  cheesemongerHold: ({ put, span, box }) => {
+    span(1, 1, 22, 20, 's');
+    span(2, 2, 20, 1, 'Q'); span(2, 2, 1, 18, 'Q'); span(21, 2, 1, 18, 'Q');
+    box(3, 3, 7, 7, 'Q', ','); box(14, 3, 7, 7, 'Q', ',');
+    put(6, 9, ','); put(17, 9, ',');
+    span(4, 12, 4, 3, '~'); span(16, 12, 4, 3, '~');
+    box(8, 2, 8, 4, 'Q', 's'); put(11, 5, 'D'); put(12, 5, 'D');
+    put(4, 17, 'F'); put(19, 17, 'F');
+    span(11, 6, 2, 6, 's'); span(11, 15, 2, 6, 's');
+  },
+  /* Behind the Black Wall: one avenue, banners down both sides of it, and two
+     hundred feet of fused dragonstone that nothing has ever got through. */
+  blackWallHold: ({ put, span, box }) => {
+    span(2, 2, 20, 18, 'A');
+    span(2, 2, 20, 2, '@'); span(2, 18, 20, 2, '@');
+    span(2, 2, 2, 18, '@'); span(20, 2, 2, 18, '@');
+    span(4, 4, 16, 14, '=');
+    for (let y = 6; y < 16; y += 3) { put(6, y, 'V'); put(17, y, 'V'); }
+    box(9, 4, 6, 4, 'A', '='); put(11, 7, 'D'); put(12, 7, 'D');
+    put(8, 11, 'F'); put(15, 11, 'F');
+    span(11, 8, 2, 13, '=');
+  },
+  /* Meereen: a sand oval with tiers of stone round it, and the sand is the
+     colour it is for a reason. */
+  fightingPits: ({ put, span }) => {
+    span(1, 1, 22, 20, 'A');
+    span(4, 3, 16, 14, 's');
+    span(6, 5, 12, 10, 'd');
+    for (let x = 5; x < 19; x += 2) { put(x, 3, 'A'); put(x, 16, 'A'); }
+    span(9, 1, 6, 3, 'A'); put(11, 3, 'D'); put(12, 3, 'D');
+    put(6, 9, 'F'); put(17, 9, 'F');
+    span(11, 4, 2, 17, 'd');
+  },
+  /* The Water Gardens: four pools, orange trees, and shade, which in Dorne is
+     the only wealth that matters. */
+  waterGardens: ({ put, span, box }) => {
+    span(1, 1, 22, 20, 's');
+    span(4, 4, 6, 5, '~'); span(14, 4, 6, 5, '~');
+    span(4, 13, 6, 5, '~'); span(14, 13, 6, 5, '~');
+    for (const [x, y] of [[3, 10], [7, 10], [16, 10], [20, 10]]) put(x, y, '#');
+    box(9, 1, 6, 4, 'Q', 's'); put(11, 4, 'D'); put(12, 4, 'D');
+    put(6, 11, 'F'); put(17, 11, 'F');
+    span(10, 5, 4, 16, 's');
+    span(1, 10, 22, 2, 's');
+  },
+  /* A wreckers' den under the storm coast: shingle, broken hulls, and a fire
+     they light on the headland on the wrong nights. */
+  wreckersHold: ({ put, span }) => {
+    span(2, 2, 20, 18, 's');
+    span(1, 1, 22, 3, '~');
+    span(3, 6, 18, 12, 'd');
+    for (const [x, y] of [[4, 7], [9, 6], [16, 7], [6, 16], [18, 15]]) span(x, y, 3, 2, 'U');
+    span(9, 3, 6, 4, 'C'); put(11, 6, 'D'); put(12, 6, 'D');
+    put(7, 12, 'F'); put(16, 12, 'F');
+    span(11, 7, 2, 14, 'd');
+  },
+};
+
 function makeHold({ name, town, townGate, hall, ground = 'grass', wall = '#',
                     floor = '.', banner = 'V', grass = ',', encounters = [],
-                    npcs = [], signs = [], items = [] }) {
-  const W = wall;    // whatever this part of the world is walled with
-  const f = floor;   // and whatever grows outside the gate
-  const A = 'A';     // dressed stone, because every hold in the world is
-  const M = 'M';     // crenellated along the top course
-  const d = 'd';     // a yard is beaten dirt wherever it stands
-  const V = banner;
-  const out = f.repeat(3);
-  const wide = (inner) => W + out + 'A' + inner + 'A' + out + W;
+                    plan, npcs = [], signs = [], items = [] }) {
+  const W = 24, H = 22;
+  const G = Array.from({ length: H }, () => new Array(W).fill(wall));
+  const put = (x, y, c) => { if (G[y] && G[y][x] !== undefined) G[y][x] = c; };
+  const span = (x, y, w, h, c) => {
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, y + j, c);
+  };
+  const box = (x, y, w, h, edge, inner) => {
+    span(x, y, w, h, edge);
+    if (inner && w > 2 && h > 2) span(x + 1, y + 1, w - 2, h - 2, inner);
+  };
+  plan({ put, span, box, floor, grass, banner });
+  put(11, H - 1, 'd'); put(12, H - 1, 'd');
+
+  const tiles = G.map((r) => r.join(''));
+  /* Where the plan put its door. Two tiles side by side, always, so a fight in
+     the gateway is not a fight in a slot. */
+  const doors = [];
+  tiles.forEach((r, y) => [...r].forEach((c, x) => { if (c === 'D') doors.push([x, y]); }));
+  if (doors.length !== 2) throw new Error(`${name}: a hold wants exactly two door tiles, not ${doors.length}`);
+
+  /* And everybody and everything, put down on the plan rather than on the
+     coordinates that suited the one map these all used to be. Eleven different
+     layouts means eleven sets of coordinates that are now wrong; shunting them
+     is the difference between rewriting a hundred and ten numbers by hand and
+     rewriting none. */
+  const shut = (x, y) => {
+    const c = tiles[y]?.[x];
+    return c === undefined || !WALKABLE.includes(c) || c === 'D';
+  };
+  const taken = new Set([`11,${H - 1}`, `12,${H - 1}`,
+    `${doors[0][0]},${doors[0][1] + 1}`, `${doors[1][0]},${doors[1][1] + 1}`]);
+  const settle = (things, what) => things.map((p) => {
+    let best = null;
+    for (let r = 0; r < 12 && !best; r++) {
+      for (let dy = -r; dy <= r && !best; dy++) {
+        for (let dx = -r; dx <= r && !best; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = p.x + dx, y = p.y + dy;
+          if (shut(x, y) || taken.has(`${x},${y}`)) continue;
+          best = [x, y];
+        }
+      }
+    }
+    if (!best) throw new Error(`${name}: nowhere to put the ${what} from ${p.x},${p.y}`);
+    taken.add(`${best[0]},${best[1]}`);
+    return { ...p, x: best[0], y: best[1] };
+  });
 
   return {
-    name, music: 'wild', ground, wall, encounters,
-    tiles: [
-      W.repeat(24),
-      W + out + M.repeat(16) + out + W,
-      wide(d.repeat(14)),
-      wide('dd' + M.repeat(10) + 'dd'),
-      wide('dd' + A.repeat(10) + 'dd'),
-      wide('dd' + 'AA' + V + 'AAAA' + V + 'AA' + 'dd'),
-      wide('dd' + A.repeat(10) + 'dd'),
-      wide('dd' + 'AAAA' + 'DD' + 'AAAA' + 'dd'),
-      wide(d.repeat(14)),
-      wide(d.repeat(14)),
-      wide('dF' + d.repeat(10) + 'Fd'),
-      wide(d.repeat(14)),
-      wide('ddTT' + d.repeat(6) + 'TTdd'),
-      wide(d.repeat(14)),
-      wide('dl' + d.repeat(10) + 'ld'),
-      wide(d.repeat(14)),
-      wide(d.repeat(14)),
-      W + out + 'A'.repeat(7) + 'dd' + 'A'.repeat(7) + out + W,
-      W + f.repeat(4) + grass.repeat(6) + 'dd' + grass.repeat(6) + f.repeat(4) + W,
-      W + f.repeat(4) + grass.repeat(6) + 'dd' + grass.repeat(6) + f.repeat(4) + W,
-      W + f.repeat(10) + 'dd' + f.repeat(10) + W,
-      W.repeat(11) + 'dd' + W.repeat(11),
-    ],
+    name, music: 'wild', ground, wall, encounters, tiles,
     warps: [
-      { x: 11, y: 7, to: hall, tx: 7, ty: 11, dir: 'up' },
-      { x: 12, y: 7, to: hall, tx: 8, ty: 11, dir: 'up' },
-      { x: 11, y: 21, to: town, tx: townGate[0], ty: townGate[1], dir: townGate[2] },
-      { x: 12, y: 21, to: town, tx: townGate[0], ty: townGate[1], dir: townGate[2] },
+      { x: doors[0][0], y: doors[0][1], to: hall, tx: 7, ty: 11, dir: 'up' },
+      { x: doors[1][0], y: doors[1][1], to: hall, tx: 8, ty: 11, dir: 'up' },
+      { x: 11, y: H - 1, to: town, tx: townGate[0], ty: townGate[1], dir: townGate[2] },
+      { x: 12, y: H - 1, to: town, tx: townGate[0], ty: townGate[1], dir: townGate[2] },
     ],
-    npcs, signs, items,
+    npcs: settle(npcs, 'people'), signs: settle(signs, 'signs'),
+    items: settle(items, 'loot'),
   };
 }
 
@@ -3559,7 +3723,7 @@ export const MAPS = {
         data: { duel: 'bronn' } },
     ],
     items: [
-      { x: 3, y: 21, item: 'kingsguardBanner', count: 2, flag: 'item_roseroad_banner' },
+      { x: 3, y: 21, item: 'maestersSalts', count: 1, flag: 'item_roseroad_salts' },
     ],
   }),
 
@@ -4304,7 +4468,7 @@ export const MAPS = {
       { x: 16, y: 20, dir: 'left', sprite: 'oldman', name: 'Woodsman', script: 'wolfswoodHint' },
     ],
     items: [
-      { x: 3, y: 3, item: 'sigilBanner', count: 3, flag: 'item_wolfswood_banners' },
+      { x: 3, y: 3, item: 'snare', count: 2, flag: 'item_wolfswood_snare' },
       { x: 13, y: 16, item: 'maesterKit', count: 1, flag: 'item_wolfswood_kit' },
     ],
   },
@@ -4519,7 +4683,7 @@ export const MAPS = {
       { x: 14, y: 4, dir: 'down', sprite: 'girl', name: 'Traveller\u2019s Daughter', script: 'riverlandsHint' },
     ],
     items: [
-      { x: 3, y: 19, item: 'warBanner', count: 2, flag: 'item_riverlands_banner' },
+      { x: 3, y: 19, item: 'warhorn', count: 1, flag: 'item_riverlands_horn' },
       { x: 17, y: 8, item: 'kissOfFire', count: 1, flag: 'item_riverlands_revive' },
     ],
   },
@@ -4690,7 +4854,7 @@ export const MAPS = {
       { x: 4, y: 4, dir: 'down', sprite: 'oldman', name: 'Miner', script: 'goldRoadHint' },
     ],
     items: [
-      { x: 18, y: 12, item: 'kingsguardBanner', count: 1, flag: 'item_goldroad_banner' },
+      { x: 18, y: 12, item: 'greatNet', count: 1, flag: 'item_goldroad_net' },
       { x: 3, y: 8, item: 'weirwoodSap', count: 1, flag: 'item_goldroad_sap' },
     ],
   },
@@ -4933,7 +5097,7 @@ export const MAPS = {
     ],
     items: [
       { x: 2, y: 16, item: 'kingsRansom', count: 1, flag: 'item_kingsroad_ransom' },
-      { x: 18, y: 4, item: 'kingsguardBanner', count: 2, flag: 'item_kingsroad_banner' },
+      { x: 18, y: 4, item: 'weirwoodPaste', count: 1, flag: 'item_kingsroad_paste' },
     ],
   },
 
@@ -5334,7 +5498,7 @@ export const MAPS = {
         data: { duel: 'sellsword' } },
     ],
     items: [
-      { room: 0, item: 'warBanner', count: 1, flag: 'item_wreck_banner' },
+      { room: 0, item: 'warhorn', count: 1, flag: 'item_wreck_horn' },
       { room: 2, item: 'weirwoodSap', count: 1, flag: 'item_wreck_sap' },
     ],
     signs: [],
@@ -5354,7 +5518,7 @@ export const MAPS = {
     ],
     items: [
       { room: 0, item: 'frostTonic', count: 2, flag: 'item_drowned_tonic' },
-      { room: 2, item: 'kingsguardBanner', count: 1, flag: 'item_drowned_cloak' },
+      { room: 2, item: 'valyrianMesh', count: 1, flag: 'item_drowned_mesh' },
     ],
     signs: [],
   }),
@@ -5451,7 +5615,7 @@ export const MAPS = {
       put(16, 12, 'C'); put(29, 4, 'C');
       crossing('w', 9, 15, 'blackwaterBay');
       crossing('s', 8, 20, 'stepstones');
-      wreck(7, 2, 'warBanner', 'sea_gullet_banner');
+      wreck(7, 2, 'warhorn', 'sea_gullet_horn');
       wreck(26, 19, 'burnSalve', 'sea_gullet_salve');
       crossing('n', 6, 16, 'sunsetSea');
     },
@@ -5492,7 +5656,7 @@ export const MAPS = {
       put(20, 13, 'C'); put(8, 23, 'C');
       quay(23, 10, 'volantis', 12, 25, 'down');
       wreck(4, 2, 'weirwoodSap', 'sea_step_sap');
-      wreck(18, 3, 'kingsguardBanner', 'sea_step_cloak');
+      wreck(18, 3, 'greatNet', 'sea_step_net');
       crossing('n', 8, 20, 'theGullet');
     },
   }),
@@ -7301,6 +7465,7 @@ export const MAPS = {
   /* Harrenhal. Built to be the largest castle ever raised and melted the day
      it was finished, and every family given it since has ended. */
   harrenhal: makeHold({
+    plan: HOLD_PLANS.harrenhal,
     name: 'Harrenhal', town: 'theCrossroads', townGate: [11, 28, 'up'],
     hall: 'harrenhalHall', ground: 'grass', wall: '#', floor: '.', banner: 'V',
     encounters: [
@@ -7494,6 +7659,7 @@ export const MAPS = {
   }),
 
   crastersKeep: makeHold({
+    plan: HOLD_PLANS.crastersKeep,
     name: "Craster's Keep", town: 'frostfangs', townGate: [11, 1, 'down'],
     hall: 'crastersHall', ground: 'snow', wall: 'P', floor: 'S', banner: 'v',
     grass: ';',
@@ -7645,6 +7811,7 @@ export const MAPS = {
      a yard, a keep behind it, and six rooms inside worth going through. */
 
   stoneCrowHold: makeHold({
+    plan: HOLD_PLANS.stoneCrowHold,
     grass: ';',
     encounters: [
       { roamer: 'clansman', min: 30, max: 40, weight: 26 },
@@ -7657,23 +7824,23 @@ export const MAPS = {
       { x: 11, y: 16, text: 'THE STONE CROW CAMP\nThe clans hold the high ground above the Vale.\nThey did not ask leave, and will not give it.' },
     ],
     npcs: [
-      { x: 11, y: 15, dir: 'up', sprite: 'wildling', name: 'Gate Sentry', script: 'duel',
+      { x: 11, y: 15, dir: 'up', sprite: 'wildling', name: 'Chella of the Black Ears', script: 'duel',
         data: { duel: 'clansman', host: 3 } },
-      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'wildling', name: 'Garrison Man',
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'wildling', name: 'A Moon Brother',
         script: 'duel', data: { duel: 'clansman' } },
-      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'wildling', name: 'Garrison Man',
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'wildling', name: 'A Burned Man',
         script: 'duel', data: { duel: 'clansman' } },
-      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'wildling', name: 'Yard Watch',
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'wildling', name: 'A Painted Dog',
         script: 'duel', data: { duel: 'clansman' } },
-      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'wildling', name: 'Yard Watch',
-        script: 'duel', data: { duel: 'clansman' } },
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'wildlingWoman', name: 'A Woman of the Clans',
+        script: 'duel', data: { duel: 'spearwife' } },
       { x: 18, y: 13, dir: 'left', sprite: 'guard', name: 'Captive Knight',
         script: 'hideoutLocal', data: { line: 'They took my horse, my sword and my name. Get the door at the back open and I will not be here when you come out.' } },
     ],
     items: [
       { x: 5, y: 9, item: 'ashHaft', count: 1, flag: 'item_stonecrowhold_0' },
       { x: 18, y: 9, item: 'ironScrap', count: 1, flag: 'item_stonecrowhold_1' },
-      { x: 5, y: 16, item: 'snare', count: 1, flag: 'item_stonecrowhold_2' },
+      { x: 5, y: 16, item: 'netTrap', count: 1, flag: 'item_stonecrowhold_2' },
       { x: 18, y: 16, item: 'frostTonic', count: 1, flag: 'item_stonecrowhold_3' },
     ],
   }),
@@ -7709,6 +7876,7 @@ export const MAPS = {
   }),
 
   seaDragonHold: makeHold({
+    plan: HOLD_PLANS.seaDragonHold,
     grass: ',',
     encounters: [
       { roamer: 'redPriestess', min: 30, max: 40, weight: 26 },
@@ -7723,11 +7891,11 @@ export const MAPS = {
       { x: 18, y: 4, text: 'THE THRONE OF FIRE\nOnce seated, a queen fears nothing.\nThe dragon sees to that.' },
     ],
     npcs: [
-      { x: 11, y: 15, dir: 'up', sprite: 'redPriest', name: 'Gate Sentry', script: 'duel',
+      { x: 11, y: 15, dir: 'up', sprite: 'redPriest', name: 'Watch of the Stair', script: 'duel',
         data: { duel: 'redPriestess', host: 3 } },
-      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'redPriest', name: 'Yard Watch',
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'redPriest', name: 'A Stair Watch',
         script: 'duel', data: { duel: 'redPriestess' } },
-      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'redPriest', name: 'Yard Watch',
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'redPriest', name: 'A Man of the Tower',
         script: 'duel', data: { duel: 'redPriestess' } },
       { x: 11, y: 10, dir: 'right', sprite: 'targaryen', name: 'Daenerys Targaryen',
         script: 'duel', data: { duel: 'daenerys' } },
@@ -7737,7 +7905,7 @@ export const MAPS = {
     items: [
       { x: 5, y: 9, item: 'dragonglass', count: 1, flag: 'item_seadragonhold_0' },
       { x: 18, y: 9, item: 'fireblood', count: 2, flag: 'item_seadragonhold_1' },
-      { x: 5, y: 16, item: 'burnSalve', count: 1, flag: 'item_seadragonhold_2' },
+      { x: 5, y: 16, item: 'dragonHorn', count: 1, flag: 'item_seadragonhold_2' },
       { x: 18, y: 16, item: 'wildfire', count: 2, flag: 'item_seadragonhold_3' },
       { x: 12, y: 2, item: 'kissOfFire', count: 1, flag: 'item_seadragonhold_crown' },
     ],
@@ -7774,6 +7942,7 @@ export const MAPS = {
   }),
 
   kennelHold: makeHold({
+    plan: HOLD_PLANS.kennelHold,
     grass: ';',
     encounters: [
       { roamer: 'manAtArms', min: 30, max: 40, weight: 26 },
@@ -7786,15 +7955,15 @@ export const MAPS = {
       { x: 11, y: 16, text: 'THE BOLTON KENNELS\nThe girls are fed on Thursdays.\nDo not be here on a Wednesday.' },
     ],
     npcs: [
-      { x: 11, y: 15, dir: 'up', sprite: 'bolton', name: 'Gate Sentry', script: 'duel',
+      { x: 11, y: 15, dir: 'up', sprite: 'bolton', name: 'The Kennelmaster', script: 'duel',
         data: { duel: 'manAtArms', host: 3 } },
-      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'bolton', name: 'Garrison Man',
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'bolton', name: 'A Bolton Kennelman',
         script: 'duel', data: { duel: 'manAtArms' } },
-      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'bolton', name: 'Garrison Man',
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'bolton', name: 'A Houndkeeper',
         script: 'duel', data: { duel: 'manAtArms' } },
-      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'bolton', name: 'Yard Watch',
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'bolton', name: 'A Flayed Man',
         script: 'duel', data: { duel: 'manAtArms' } },
-      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'bolton', name: 'Yard Watch',
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'bolton', name: 'A Houndkeeper',
         script: 'duel', data: { duel: 'manAtArms' } },
       { x: 18, y: 13, dir: 'left', sprite: 'girl', name: 'Kennel Girl',
         script: 'hideoutLocal', data: { line: 'He names them after girls. When one of them stops answering to her name he gets another girl. Do not ask me any more than that.' } },
@@ -7838,6 +8007,7 @@ export const MAPS = {
   }),
 
   sealordHold: makeHold({
+    plan: HOLD_PLANS.sealordHold,
     grass: ',',
     encounters: [
       { roamer: 'sellsword', min: 30, max: 40, weight: 26 },
@@ -7850,21 +8020,21 @@ export const MAPS = {
       { x: 11, y: 16, text: 'THE SEALORD\'S YARD\nValar morghulis. The guard here says it back\nand keeps their hand where you can see it.' },
     ],
     npcs: [
-      { x: 11, y: 15, dir: 'up', sprite: 'braavosi', name: 'Gate Sentry', script: 'duel',
+      { x: 11, y: 15, dir: 'up', sprite: 'braavosi', name: 'A Sword of the Sealord', script: 'duel',
         data: { duel: 'sellsword', host: 3 } },
-      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'braavosi', name: 'Garrison Man',
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'braavosi', name: 'A Bravo of the Palace',
         script: 'duel', data: { duel: 'sellsword' } },
-      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'braavosi', name: 'Garrison Man',
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'braavosi', name: 'A Sword of the Palace',
         script: 'duel', data: { duel: 'sellsword' } },
-      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'braavosi', name: 'Yard Watch',
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'braavosi', name: 'A Water Dancer',
         script: 'duel', data: { duel: 'sellsword' } },
-      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'braavosi', name: 'Yard Watch',
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'braavosi', name: 'A Sword of the Palace',
         script: 'duel', data: { duel: 'sellsword' } },
       { x: 18, y: 13, dir: 'left', sprite: 'sellsword', name: 'Bravo',
         script: 'hideoutLocal', data: { line: 'A bravo fights for the shape of it, not the coin. Which is what a bravo says when nobody is paying him.' } },
     ],
     items: [
-      { x: 5, y: 9, item: 'ironScrap', count: 1, flag: 'item_sealordhold_0' },
+      { x: 5, y: 9, item: 'seaChest', count: 1, flag: 'item_sealordhold_0' },
       { x: 18, y: 9, item: 'valyrianShard', count: 1, flag: 'item_sealordhold_1' },
       { x: 5, y: 16, item: 'stillwater', count: 1, flag: 'item_sealordhold_2' },
       { x: 18, y: 16, item: 'birdLime', count: 1, flag: 'item_sealordhold_3' },
@@ -7902,6 +8072,7 @@ export const MAPS = {
   }),
 
   cheesemongerHold: makeHold({
+    plan: HOLD_PLANS.cheesemongerHold,
     grass: ',',
     encounters: [
       { roamer: 'sellsword', min: 30, max: 40, weight: 26 },
@@ -7914,21 +8085,21 @@ export const MAPS = {
       { x: 11, y: 16, text: 'THE SLAVERS\' COMPOUND\nPentos signed a treaty forbidding this.\nPentos signs a great many things.' },
     ],
     npcs: [
-      { x: 11, y: 15, dir: 'up', sprite: 'merchant', name: 'Gate Sentry', script: 'duel',
+      { x: 11, y: 15, dir: 'up', sprite: 'merchant', name: 'A Magister\'s Hired Man', script: 'duel',
         data: { duel: 'sellsword', host: 3 } },
-      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'merchant', name: 'Garrison Man',
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'merchant', name: 'A Garden Guard',
         script: 'duel', data: { duel: 'sellsword' } },
-      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'merchant', name: 'Garrison Man',
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'merchant', name: 'A Hired Blade',
         script: 'duel', data: { duel: 'sellsword' } },
-      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'merchant', name: 'Yard Watch',
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'merchant', name: 'A Manse Steward',
         script: 'duel', data: { duel: 'sellsword' } },
-      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'merchant', name: 'Yard Watch',
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'merchant', name: 'A Hired Blade',
         script: 'duel', data: { duel: 'sellsword' } },
       { x: 18, y: 13, dir: 'left', sprite: 'smallfolk', name: 'Freed Man',
         script: 'hideoutLocal', data: { line: 'There is a ledger in the back with names in it. Mine is in it. Take the ledger and I do not care what else you take.' } },
     ],
     items: [
-      { x: 5, y: 9, item: 'poppySeed', count: 1, flag: 'item_cheesemongerhold_0' },
+      { x: 5, y: 9, item: 'shadeOfTheEvening', count: 1, flag: 'item_cheesemongerhold_0' },
       { x: 18, y: 9, item: 'greenbriar', count: 1, flag: 'item_cheesemongerhold_1' },
       { x: 5, y: 16, item: 'wakingDraught', count: 1, flag: 'item_cheesemongerhold_2' },
       { x: 18, y: 16, item: 'snare', count: 1, flag: 'item_cheesemongerhold_3' },
@@ -7966,6 +8137,7 @@ export const MAPS = {
   }),
 
   blackWallHold: makeHold({
+    plan: HOLD_PLANS.blackWallHold,
     grass: ',',
     encounters: [
       { roamer: 'sellsword', min: 30, max: 40, weight: 26 },
@@ -7978,15 +8150,15 @@ export const MAPS = {
       { x: 11, y: 16, text: 'THE BLACK WALL\nTwo hundred feet of fused dragonstone.\nOnly those of the old blood may pass within.' },
     ],
     npcs: [
-      { x: 11, y: 15, dir: 'up', sprite: 'unsullied', name: 'Gate Sentry', script: 'duel',
+      { x: 11, y: 15, dir: 'up', sprite: 'unsullied', name: 'A Tiger Cloak Serjeant', script: 'duel',
         data: { duel: 'sellsword', host: 3 } },
-      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'unsullied', name: 'Garrison Man',
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'unsullied', name: 'A Tiger Cloak',
         script: 'duel', data: { duel: 'sellsword' } },
-      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'unsullied', name: 'Garrison Man',
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'unsullied', name: 'A Wall Watch',
         script: 'duel', data: { duel: 'sellsword' } },
-      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'unsullied', name: 'Yard Watch',
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'unsullied', name: 'An Elephant Man',
         script: 'duel', data: { duel: 'sellsword' } },
-      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'unsullied', name: 'Yard Watch',
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'unsullied', name: 'A Wall Watch',
         script: 'duel', data: { duel: 'sellsword' } },
       { x: 18, y: 13, dir: 'left', sprite: 'guard', name: 'Tiger Cloak',
         script: 'hideoutLocal', data: { line: 'Tigers want war and elephants want trade. The wall does not care either way. It has outlasted both of them twice.' } },
@@ -8030,6 +8202,7 @@ export const MAPS = {
   }),
 
   fightingPits: makeHold({
+    plan: HOLD_PLANS.fightingPits,
     grass: ',',
     encounters: [
       { roamer: 'sellsword', min: 30, max: 40, weight: 26 },
@@ -8042,15 +8215,15 @@ export const MAPS = {
       { x: 11, y: 16, text: 'THE FIGHTING PITS OF MEEREEN\nThe sand is raked between bouts.\nIt is the only thing here anyone bothers to clean.' },
     ],
     npcs: [
-      { x: 11, y: 15, dir: 'up', sprite: 'unsullied', name: 'Gate Sentry', script: 'duel',
+      { x: 11, y: 15, dir: 'up', sprite: 'unsullied', name: 'The Pitmaster', script: 'duel',
         data: { duel: 'sellsword', host: 3 } },
-      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'unsullied', name: 'Garrison Man',
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'unsullied', name: 'A Pit Fighter',
         script: 'duel', data: { duel: 'sellsword' } },
-      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'unsullied', name: 'Garrison Man',
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'unsullied', name: 'A Sand Master',
         script: 'duel', data: { duel: 'sellsword' } },
-      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'unsullied', name: 'Yard Watch',
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'unsullied', name: 'A Beast Handler',
         script: 'duel', data: { duel: 'sellsword' } },
-      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'unsullied', name: 'Yard Watch',
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'unsullied', name: 'A Sand Master',
         script: 'duel', data: { duel: 'sellsword' } },
       { x: 18, y: 13, dir: 'left', sprite: 'sellsword', name: 'Pit Fighter',
         script: 'hideoutLocal', data: { line: 'I have won eleven. The eleventh is the one that frightens me, because it means there has to be a twelfth.' } },
@@ -8094,6 +8267,7 @@ export const MAPS = {
   }),
 
   waterGardens: makeHold({
+    plan: HOLD_PLANS.waterGardens,
     grass: ',',
     encounters: [
       { roamer: 'dornishOutrider', min: 30, max: 40, weight: 26 },
@@ -8106,15 +8280,15 @@ export const MAPS = {
       { x: 11, y: 16, text: 'THE WATER GARDENS\nChildren of every birth swim in the same pools here.\nThat was somebody\'s idea, once.' },
     ],
     npcs: [
-      { x: 11, y: 15, dir: 'up', sprite: 'martell', name: 'Gate Sentry', script: 'duel',
+      { x: 11, y: 15, dir: 'up', sprite: 'martell', name: 'A Spear of Sunspear', script: 'duel',
         data: { duel: 'dornishOutrider', host: 3 } },
-      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'martell', name: 'Garrison Man',
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'martell', name: 'A Sand Steed Rider',
         script: 'duel', data: { duel: 'dornishOutrider' } },
-      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'martell', name: 'Garrison Man',
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'martell', name: 'A Water Guard',
         script: 'duel', data: { duel: 'dornishOutrider' } },
-      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'martell', name: 'Yard Watch',
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'martell', name: 'A Spear of Dorne',
         script: 'duel', data: { duel: 'dornishOutrider' } },
-      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'martell', name: 'Yard Watch',
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'martell', name: 'A Water Guard',
         script: 'duel', data: { duel: 'dornishOutrider' } },
       { x: 18, y: 13, dir: 'left', sprite: 'goodwife', name: 'Sand Steward',
         script: 'hideoutLocal', data: { line: 'The prince sits and watches the children and everyone calls him idle. Unbowed, unbent, unbroken. He is doing the third one.' } },
@@ -8158,6 +8332,7 @@ export const MAPS = {
   }),
 
   wreckersHold: makeHold({
+    plan: HOLD_PLANS.wreckersHold,
     grass: ',',
     encounters: [
       { roamer: 'manAtArms', min: 30, max: 40, weight: 26 },
@@ -8170,15 +8345,15 @@ export const MAPS = {
       { x: 11, y: 16, text: 'SHIPBREAKER BAY\nEvery hull that ever came at this coast is under it.\nSomebody has been going down after them.' },
     ],
     npcs: [
-      { x: 11, y: 15, dir: 'up', sprite: 'baratheon', name: 'Gate Sentry', script: 'duel',
+      { x: 11, y: 15, dir: 'up', sprite: 'baratheon', name: 'The Wreck Captain', script: 'duel',
         data: { duel: 'manAtArms', host: 3 } },
-      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'baratheon', name: 'Garrison Man',
+      { x: 7, y: 11, dir: 'right', roams: true, sprite: 'baratheon', name: 'A Wrecker',
         script: 'duel', data: { duel: 'manAtArms' } },
-      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'baratheon', name: 'Garrison Man',
+      { x: 16, y: 11, dir: 'left', roams: true, sprite: 'baratheon', name: 'A Lamp Man',
         script: 'duel', data: { duel: 'manAtArms' } },
-      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'baratheon', name: 'Yard Watch',
+      { x: 9, y: 15, dir: 'up', roams: true, sprite: 'baratheon', name: 'A Beachcomber',
         script: 'duel', data: { duel: 'manAtArms' } },
-      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'baratheon', name: 'Yard Watch',
+      { x: 14, y: 15, dir: 'up', roams: true, sprite: 'baratheon', name: 'A Lamp Man',
         script: 'duel', data: { duel: 'manAtArms' } },
       { x: 18, y: 13, dir: 'left', sprite: 'smallfolk', name: 'Wrecker',
         script: 'hideoutLocal', data: { line: 'We do not sink them. The bay does that. We only go down after and ask what they were carrying.' } },
@@ -8393,6 +8568,29 @@ for (const town of Object.keys(REGIONS)) {
   }
 }
 
+/* ------------------------------------------------ back out of the hall --
+ *
+ * Every stronghold hall used to return you to 11,8, because every stronghold
+ * had its door at 11,7 - they were all the same map. They are eleven different
+ * places now and their doors are wherever their own plan put them, so the way
+ * back is read off the hold rather than written down twice.
+ */
+for (const hall of Object.values(MAPS)) {
+  for (const w of hall.warps ?? []) {
+    const hold = MAPS[w.to];
+    if (!hold || !HOLD_PLANS[w.to]) continue;
+    /* The hall's door, not the hold's gate. A hold has warps back to both its
+       hall and its town, and matching either rewrote the town's arrival to one
+       row past the bottom of the map - which is where every one of these
+       already put you before any of this, on a hold twenty-two rows tall. */
+    const door = (hold.warps ?? []).find(
+      (b) => b.to === hall.id && b.y !== hold.height - 1);
+    if (!door) continue;
+    w.tx = door.x;
+    w.ty = door.y + 1;
+  }
+}
+
 /* --------------------------------------------------------- a way under it --
  *
  * A cave off fourteen roads, one for every part of the map you can walk.
@@ -8493,7 +8691,7 @@ export const CAVE_IDS = [];
   });
 
   hang('wolfswood', den('wolfsDen', "A Wolf's Den", ['snowpup', 'direwolf'], 'poacher', 8,
-    ['antidote', 'sigilBanner'],
+    ['antidote', 'huntersDraught'],
     'A Poacher: There was a she-wolf in here with six of them. I took nothing and I left quickly, and I would advise the same.',
     'A Poacher', 'smallfolk', 4));
   hang('weepingWater', den('weepingBarrow', 'A Barrow on the Weeping Water', ['wightling', 'barrowlord'], 'gravedigger', 16,
@@ -8509,7 +8707,7 @@ export const CAVE_IDS = [];
     'A Crannogman: Walk where I walk. The Neck has swallowed three armies and it was not in a hurry about any of them.',
     'A Crannogman', 'smallfolk', 3));
   hang('riverlands', den('whisperingCave', 'The Whispering Cave', ['ravenling', 'silverfin'], 'brotherhoodBowman', 15,
-    ['warBanner', 'poppyMilk'],
+    ['netTrap', 'poppyMilk'],
     'A Brotherhood Bowman: We hang men in here where the rain cannot wash them. It is not a nice room and we are not nice men, but we are the only law left on this road.',
     'A Bowman of the Brotherhood', 'brotherhood', 3));
   hang('goldRoad', den('goldMine', 'A Lannister Goldmine', ['cubmane', 'goldmane'], 'goldCloak', 18,
@@ -8521,7 +8719,7 @@ export const CAVE_IDS = [];
     'A Roadside Thief: Everything in here came off somebody on that road. Take what you like. I am past caring and so are they.',
     'A Roadside Thief', 'smallfolk', 2));
   hang('bloodyGate', den('clansmenCave', "A Clansmen's Cave", ['falconet', 'skytalon'], 'clansman', 17,
-    ['warBanner', 'frostTonic'],
+    ['huntersDraught', 'frostTonic'],
     'A Man of the Burned Men: The Vale is ours. The knights say otherwise and the knights stay behind their gate, so on the whole the argument is going our way.',
     'A Man of the Burned Men', 'wildling', 3));
   hang('roseroad', den('honeycombCave', 'The Honeycomb Caves', ['sapling', 'heartwarden'], 'hedgeKnight', 20,
@@ -8533,7 +8731,7 @@ export const CAVE_IDS = [];
     'A Water-Keeper: Dorne is not short of water. Dorne is short of people who know where it is kept, and I am one of four.',
     'A Water-Keeper', 'martell', 1));
   hang('stormlands', den('stormCave', 'A Cave under Shipbreaker Bay', ['crabcrag', 'krakenling'], 'sellsword', 21,
-    ['kingsguardBanner', 'burnSalve'],
+    ['shadeOfTheEvening', 'burnSalve'],
     'A Wrecker: The bay does the work. We only carry it up the beach, and we have been carrying it up the beach since before there was a castle on that headland.',
     'A Wrecker', 'sellsword', 2));
   hang('theGift', den('molesTown', "Mole's Town, Below", ['ravenling', 'wightling'], 'deserter', 19,

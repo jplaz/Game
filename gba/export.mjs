@@ -605,6 +605,14 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     if (def.pocket !== 'medicine') continue;
     if (def.use?.kind === 'heal') ware(id, def, 'potion', def.use.amount * 4);
     else if (def.use?.kind === 'fullHeal') ware(id, def, 'potion', 9999);
+    /* And the five cures and the one revival, which were not wares at all.
+       Six of the ten things on the medicine shelf could not be bought, could
+       not be carried and could not be in a chest - so every chest in the world
+       holding one handed over a lid and some coins. The console has no poison,
+       but it does have bleeding and burning, and a remedy stops both and
+       patches you up a little, which is what a remedy is for. */
+    else if (def.use?.kind === 'cure') ware(id, def, 'potion', 60);
+    else if (def.use?.kind === 'revive') ware(id, def, 'potion', 400);
   }
   for (const [id, def] of Object.entries(WEAPONS)) if (def.price) ware(id, def, 'weapon');
   for (const [id, def] of Object.entries(ARMOUR)) if (def.price) ware(id, def, 'armour');
@@ -674,6 +682,16 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       if (wareIndex.has(`${k}:${id}`)) return wareIndex.get(`${k}:${id}`);
     }
     throw new Error(`recipe makes ${id}, which is not a ware`);
+  };
+  /* The same lookup for a chest, naming its own map when it fails. A bare
+     "not a ware" thrown out of two hundred and thirty maps is a needle in a
+     haystack, and this is the third time one has been thrown. */
+  const wareOfChest = (id, where) => {
+    for (const k of ['weapon', 'armour', 'shield', 'helm', 'gloves',
+                     'potion', 'stuff', 'snare', 'egg', 'relic', 'oath']) {
+      if (wareIndex.has(`${k}:${id}`)) return wareIndex.get(`${k}:${id}`);
+    }
+    throw new Error(`${where} has a chest holding ${id}, which is not a ware`);
   };
   const recipes = RECIPES.map((r) => ({
     at: r.at === 'forge' ? 1 : 0,
@@ -1323,10 +1341,15 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         /* What is in it: the thing the map names if this game has such a thing,
            otherwise the road decides, which is what makes a chest at the far end
            of the world worth the walk. */
-        ware: wareIndex.get(`potion:${it.item}`) ?? wareIndex.get(`weapon:${it.item}`)
-          ?? wareIndex.get(`armour:${it.item}`) ?? wareIndex.get(`shield:${it.item}`)
-          ?? wareIndex.get(`helm:${it.item}`) ?? wareIndex.get(`gloves:${it.item}`)
-          ?? wareIndex.get(`stuff:${it.item}`) ?? 255,
+        /* Every kind of ware there is, not the seven this used to list.
+           It missed snares, relics, oaths and eggs - which is to say it missed
+           the dragon egg, the wildfire, the Valyrian mesh, the dragon horn, the
+           lord's warrant and the sea chest. Forty-seven chests across the world,
+           every one of them holding the best thing in the game, and every one of
+           them handed over an empty lid and some coins. `wareOf` has known about
+           all eleven kinds since it was written; the chests just never asked
+           it. */
+        ware: wareOfChest(it.item, map.name),
         gold: 40 + roadLevel * 22,
       })).concat(hidden.map((h, n) => ({
         x: h.x, y: h.y,

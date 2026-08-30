@@ -16,8 +16,22 @@ import { HOUSES, HOUSE_IDS, SWEARABLE, SPRITE_HOUSE } from '../src/data/houses.j
 import { COMPANIONS, AID_DESCRIPTION } from '../src/data/companions.js';
 import { QUESTS } from '../src/data/quests.js';
 import { CUTSCENES } from '../src/data/cutscenes.js';
+
 import { ROAMERS as ROAMER_TABLE } from '../src/data/duellists.js';
 import { WEAPONS, ARMOUR, SHIELDS, TECHNIQUES, HELMS, GLOVES } from '../src/data/gear.js';
+import { MATERIALS, SNARES, RELICS, OATHS, EGG_ITEMS } from '../src/data/craft.js';
+
+/* Everything gba/export.mjs will turn into a ware, in the same order it tries
+   them. If it is in none of these the chest is empty. */
+const WARE_TABLES = [WEAPONS, ARMOUR, SHIELDS, HELMS, GLOVES,
+                     MATERIALS, SNARES, RELICS, OATHS, EGG_ITEMS];
+/* A medicine only becomes a ware if the exporter knows what its use does, so
+   "on the medicine shelf" is not the test - six of the ten were on that shelf
+   and none of those six existed on the cartridge. */
+const MEDICINE_USES = new Set(['heal', 'fullHeal', 'cure', 'revive']);
+const wareExists = (id) =>
+  WARE_TABLES.some((t) => t[id])
+  || (ITEMS[id]?.pocket === 'medicine' && MEDICINE_USES.has(ITEMS[id].use?.kind));
 import { SCRIPTS } from '../src/data/scripts.js';
 import { TILE_DEFS } from '../src/art/tiles.js';
 import { ARCHETYPES } from '../src/art/creatures.js';
@@ -240,7 +254,15 @@ for (const [mapId, map] of Object.entries(MAPS)) {
 
   const seenFlags = new Set();
   for (const it of map.items ?? []) {
-    if (!ITEMS[it.item]) fail(`map ${mapId}: ground item "${it.item}" is unknown`);
+    /* Against every table the cartridge can draw a ware from, not just the
+       pouch. Checking ITEMS alone called two hundred real chests unknown and
+       said nothing at all about the thirteen that really were empty, which is
+       the worst of both: noise where there was no fault, and silence where
+       there was. A chest holding something the console has no ware for hands
+       the player a lid and some coins. */
+    if (!wareExists(it.item)) {
+      fail(`map ${mapId}: ground item "${it.item}" is nothing the cartridge can hand over`);
+    }
     if (!it.flag) fail(`map ${mapId}: ground item at ${it.x},${it.y} has no flag`);
     if (seenFlags.has(it.flag)) fail(`map ${mapId}: duplicate item flag "${it.flag}"`);
     seenFlags.add(it.flag);

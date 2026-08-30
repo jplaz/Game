@@ -5036,10 +5036,16 @@ static int useWare(int at) {
   if (!you.bag[at]) return 0;
   if (wares[at].kind != WARE_POTION) return wearWare(at);
   heal = wares[at].heal >= 9999 ? max : wares[at].heal;
-  if (you.hp >= max) {
+  /* A remedy is worth drinking when you are opened up even if you are otherwise
+     whole. Five of the ten things on this shelf are cures rather than draughts
+     and until now none of them was a ware at all, so nothing in the game ever
+     stopped a wound bleeding except the end of the fight. */
+  if (you.hp >= max && !mine.bleeding && !mine.burning) {
     wareBalked = "There is nothing wrong with you. Keep it for when there is.";
     return 0;
   }
+  mine.bleeding = 0;
+  mine.burning = 0;
   you.hp += heal;
   if (you.hp > max) you.hp = max;
   you.bag[at]--;

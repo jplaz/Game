@@ -40,6 +40,17 @@ for f in ../src/data/*.js ../src/art/*.js; do
   node --check "$f" || exit 1
 done
 
+# And the two checks that cost a second here and half an hour at the far end.
+#
+# The audit at the end of this script finds both of these, but only after the
+# export and the compile. Worse, it finds them wearing a disguise: the audit
+# floods each map from the tile the house that lives there starts on, so three
+# houses starting inside a wall came out as four unreachable chests, a map with
+# nothing on it at all, and a walkable tile with nothing to find - six problems,
+# none of which mentioned a start position, all of them one bug.
+node ../tools/checkmaps.mjs || exit 1
+node ../tools/checkstarts.mjs || exit 1
+
 # The font is indexed by byte, so a curly quote or an em dash in a line the game
 # draws comes out as three wrong glyphs. Catch it before it is ever seen.
 node -e '

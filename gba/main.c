@@ -6503,13 +6503,18 @@ static int mapCleared(int id) {
 /* Six lines, because six is what a hundred and twelve pixels of text will hold
    under a heading and over a line of explanation. The three offices used to be
    three lines of their own, and the card ran off the bottom of the screen. */
-#define HOUSE_ROWS 6
+#define HOUSE_ROWS 7
 #define HROW_ARMS   0
 #define HROW_SEAT   1
 #define HROW_COFFER 2
 #define HROW_HOUSEHOLD 3
 #define HROW_WED    4
 #define HROW_OATHS  5
+/* What you have bought outright, as against what was granted to you or taken
+   off somebody. This row is here mostly so that a player who has never happened
+   to speak to the right person in the right town still finds out that anything
+   at all is for sale. */
+#define HROW_LANDS  6
 
 static int housePick, officeShown;
 static const char *houseSaid;         /* one line of feedback under the heading */
@@ -6543,6 +6548,7 @@ static void paintHouse(void) {
     else if (housePick == HROW_COFFER) hint = "A: send for what the rents have made";
     else if (housePick == HROW_HOUSEHOLD) hint = OFFICE_DOES[officeShown];
     else if (housePick == HROW_WED) hint = "A septon will arrange it. Find a sept.";
+    else if (housePick == HROW_LANDS) hint = "A: what is for sale, and where";
     else if (seat.warLive) {
       copyString(scratch, "Your swords are at ", sizeof scratch);
       appendString(scratch, maps[seat.warMap].name, sizeof scratch);
@@ -6590,12 +6596,34 @@ static void paintHouse(void) {
         }
         side = scratch;
       }
-    } else {
+    } else if (i == HROW_OATHS) {
       what = "Oaths";
       copyString(scratch, "", sizeof scratch);
       appendNumber(scratch, vassalCount(), sizeof scratch);
       appendString(scratch, " halls sworn", sizeof scratch);
       side = scratch;
+    } else {
+      int k, held = 0, owed = 0;
+      what = "Lands";
+      for (k = 0; k < DEED_COUNT; k++) {
+        if (!ownsLand(k)) continue;
+        held++;
+        owed += rentDue(k);
+      }
+      if (!held) {
+        side = "none bought";
+      } else {
+        copyString(scratch, "", sizeof scratch);
+        appendNumber(scratch, held, sizeof scratch);
+        appendString(scratch, " of ", sizeof scratch);
+        appendNumber(scratch, DEED_COUNT, sizeof scratch);
+        if (owed > 0) {
+          appendString(scratch, ", ", sizeof scratch);
+          appendNumber(scratch, owed, sizeof scratch);
+          appendString(scratch, " owed you", sizeof scratch);
+        }
+        side = scratch;
+      }
     }
     if (i == housePick) drawCursor(10, y + 1, C_GOLD);
     drawText(20, y, what, i == housePick ? C_GOLD : C_INK);
@@ -6732,6 +6760,39 @@ static int houseAct(void) {
       copyString(scratch, "A septon arranges these. It will cost about ", sizeof scratch);
       appendNumber(scratch, bridePrice(), sizeof scratch);
       appendString(scratch, " gold.", sizeof scratch);
+      houseSaid = scratch;
+    }
+    return 0;
+  }
+
+  /* Lands. Nobody can buy anything from this card - a deed changes hands in
+     front of the person selling it - but a player who has never met one of the
+     five needs to be told they exist, and told where. So this names the next
+     one they could afford, or the nearest one they could not. */
+  if (housePick == HROW_LANDS) {
+    int k, next = -1, dear = -1;
+    for (k = 0; k < DEED_COUNT; k++) {
+      if (ownsLand(k)) continue;
+      if (you.gold >= (int)deeds[k].price) { if (next < 0) next = k; }
+      else if (dear < 0) dear = k;
+    }
+    if (next < 0 && dear < 0) {
+      houseSaid = "Everything in the realm that was for sale is yours.";
+    } else if (next >= 0) {
+      copyString(scratch, "You could buy ", sizeof scratch);
+      appendString(scratch, deeds[next].name, sizeof scratch);
+      appendString(scratch, " today. It is in ", sizeof scratch);
+      appendString(scratch, deeds[next].where, sizeof scratch);
+      appendString(scratch, "; find whoever is selling it.", sizeof scratch);
+      houseSaid = scratch;
+    } else {
+      copyString(scratch, "The cheapest thing for sale is ", sizeof scratch);
+      appendString(scratch, deeds[dear].name, sizeof scratch);
+      appendString(scratch, ", ", sizeof scratch);
+      appendNumber(scratch, (int)deeds[dear].price, sizeof scratch);
+      appendString(scratch, " gold, in ", sizeof scratch);
+      appendString(scratch, deeds[dear].where, sizeof scratch);
+      appendString(scratch, ".", sizeof scratch);
       houseSaid = scratch;
     }
     return 0;

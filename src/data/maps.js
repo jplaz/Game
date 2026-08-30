@@ -3512,8 +3512,6 @@ export const MAPS = {
       { x: 9, y: 1, text: "THE KINGSROAD\nSouth to King's Landing.\nThe end of the road, one way or another." },
     ],
     npcs: [
-      { x: 11, y: 5, dir: 'down', sprite: 'sellsword', name: 'Company Serjeant', script: 'quest',
-        data: { quest: 'theSellswordsWage' } },
       { x: 8, y: 14, dir: 'down', name: 'Samwell Tarly', sprite: 'nightswatch',
         script: 'recruit', data: { companion: 'sam' } },
       { x: 5, y: 6, dir: 'right', sprite: 'baratheon', name: 'Ser Lyle', script: 'trainer',
@@ -4646,6 +4644,8 @@ export const MAPS = {
       /* He is a ferryman. He had no way of ferrying anybody anywhere: the
          script he was given was the one the forge assistants use, so the only
          man on the quay said his line and stood there. */
+      { x: 9, y: 5, dir: 'down', sprite: 'sellsword', name: 'Company Serjeant', script: 'quest',
+        data: { quest: 'theSellswordsWage' } },
       { x: 8, y: 7, dir: 'up', sprite: 'braavosi', name: 'The Ferryman', script: 'ship',
         data: { line: 'The Ferryman: The island, then. Or further, if your purse runs to it. '
           + 'Say nothing to anyone about who rowed you.' } },

@@ -1346,7 +1346,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     theGrainCount:    { map: 'highgarden',    x: 11, y: 5 },
     theDornishHostage:{ map: 'sunspear',      x: 11, y: 5 },
     theBastardsLetter:{ map: 'weepingWater',  x: 12, y: 5 },
-    theSellswordsWage:{ map: 'kingsroad',     x: 11, y: 5 },
+    theSellswordsWage:{ map: 'mudGate',       x: 9,  y: 5 },
   };
   for (const [id, q] of Object.entries(QUESTS)) {
     const place = QUEST_PLACES[id];

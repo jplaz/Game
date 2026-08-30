@@ -100,7 +100,8 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
     row(W, fill(2), 'u', fill(1), 'n', fill(5), '-', g, g, 'n', fill(8), W),
     row(W, fill(2), t.repeat(6), fill(2), '-', fill(2), f.repeat(6), fill(3), W),
     row(W, fill(2), R.repeat(6), fill(2), '-', fill(2), F.repeat(6), fill(3), W),
-    row(W, fill(2), R.repeat(6), fill(2), '-', fill(2), F.repeat(6), fill(3), W),
+    // The upper storey: shuttered above, trading below.
+    row(W, fill(2), P, 'w', P, 'w', P, 'w', fill(2), '-', fill(2), A, 'w', A, 'w', A, A, fill(3), W),
     row(W, fill(2), P, 'e', P, 'D', P, 'w', fill(2), '-', fill(2), A, 'k', A, 'D', A, A, fill(3), W),
     row(W, fill(5), '-', fill(4), '-', fill(5), '-', fill(5), W),
     row(W, fill(2), '-'.repeat(18), fill(2), W),
@@ -125,7 +126,7 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
        door already written down is exactly where it was. */
     row(W, fill(2), y.repeat(5), fill(3), '-', fill(2), y.repeat(5), fill(4), W),
     row(W, fill(2), Y.repeat(5), fill(3), '-', fill(2), Y.repeat(5), fill(4), W),
-    row(W, fill(2), Y.repeat(5), fill(3), '-', fill(2), Y.repeat(5), fill(4), W),
+    row(W, fill(2), H, 'w', H, 'w', H, fill(3), '-', fill(2), H, 'w', H, 'w', H, fill(4), W),
     row(W, fill(2), H, 'w', 'D', 'w', H, fill(3), '-', fill(2), H, 'w', 'D', 'w', H, fill(4), W),
     row(W, fill(4), '-', fill(5), '-', fill(4), '-', fill(6), W),
     row(W, fill(2), '-'.repeat(18), fill(2), W),

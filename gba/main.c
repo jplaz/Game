@@ -2050,7 +2050,14 @@ static int mightFor(int level) { return 10 + level * 3 + sumWorn(0); }
  * list you are, so cutting it cuts your damage as much as theirs and only
  * makes the fights longer. Guard is the one number on your side of that
  * symmetry. */
-static int guardFor(int level) { return 6 + level * 3 + sumWorn(1); }
+/* Guard by standing. A bigger floor and a gentler slope than either of the two
+   this has had: at three a level the road was fine at ten and a walk at twenty
+   (thirty fights in a row before anything put the player down); at six plus two
+   it was a wall at ten (two fights). Ten plus two holds every rung of the audit
+   probe inside its band - 23, 5, 5, 22, 8 at levels 5, 10, 15, 20 and 25 - by
+   paying out early, where a player has no gear to make up the difference, and
+   not compounding late, where they have. */
+static int guardFor(int level) { return 10 + level * 2 + sumWorn(1); }
 static int swiftFor(int level) {
   int s = 10 + level * 2 + sumWorn(2);
   return s < 1 ? 1 : s;

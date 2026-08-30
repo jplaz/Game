@@ -2722,11 +2722,20 @@ function makeSea({ name, music = 'route', draw }) {
     put(x, y, 'o');
     warps.push({ x, y, to: dest, tx, ty, dir });
   };
+  /* Salvage, run up on a beach. A sea with nothing on it is a corridor with
+     fights in it: the only reason to go anywhere out here was that a port was
+     on the other side. What washes up gets better the further out you go,
+     which is the same rule the roads follow. */
+  const items = [];
+  const wreck = (x, y, item, flag) => {
+    put(x, y, 's');
+    items.push({ x, y, item, count: 1, flag });
+  };
 
-  draw({ put, span, isle, crossing, quay });
+  draw({ put, span, isle, crossing, quay, wreck });
   return {
     name, music, ground: 'stone', sea: true,
-    tiles: G.map((r) => r.join('')), warps,
+    tiles: G.map((r) => r.join('')), warps, items,
   };
 }
 
@@ -5167,7 +5176,7 @@ export const MAPS = {
   // ==========================================================================
   blackwaterBay: makeSea({
     name: 'Blackwater Bay',
-    draw: ({ put, span, isle, crossing, quay }) => {
+    draw: ({ put, span, isle, crossing, quay, wreck }) => {
       span(1, 6, 3, 15, 's'); span(1, 7, 2, 13, 'C');
       quay(3, 13, 'kingsLanding', 21, 28, 'right');
       isle(26, 2, 4, 4);
@@ -5176,13 +5185,15 @@ export const MAPS = {
       isle(12, 5, 2, 2);
       isle(17, 19, 3, 2);
       put(8, 22, 'C'); put(21, 9, 'C');
+      wreck(12, 4, 'maesterKit', 'sea_bay_kit');
+      wreck(16, 20, 'antidote', 'sea_bay_antidote');
       crossing('e', 9, 19, 'theGullet');
     },
   }),
 
   theGullet: makeSea({
     name: 'The Gullet',
-    draw: ({ put, isle, crossing }) => {
+    draw: ({ put, isle, crossing, wreck }) => {
       isle(6, 3, 4, 3);
       isle(9, 17, 5, 3);
       isle(20, 7, 3, 6);
@@ -5190,13 +5201,15 @@ export const MAPS = {
       put(16, 12, 'C'); put(29, 4, 'C');
       crossing('w', 9, 19, 'blackwaterBay');
       crossing('s', 8, 20, 'stepstones');
+      wreck(7, 2, 'warBanner', 'sea_gullet_banner');
+      wreck(26, 19, 'burnSalve', 'sea_gullet_salve');
       crossing('n', 6, 16, 'sunsetSea');
     },
   }),
 
   sunsetSea: makeSea({
     name: 'The Sunset Sea',
-    draw: ({ put, isle, crossing, quay }) => {
+    draw: ({ put, isle, crossing, quay, wreck }) => {
       isle(26, 10, 4, 6);
       quay(25, 13, 'lannisport', 22, 18, 'left');
       isle(3, 4, 4, 4);
@@ -5206,13 +5219,15 @@ export const MAPS = {
       isle(19, 21, 3, 2);
       put(11, 22, 'C');
       crossing('s', 6, 16, 'theGullet');
+      wreck(4, 3, 'poppyMilk', 'sea_sunset_poppy');
+      wreck(20, 20, 'frostTonic', 'sea_sunset_tonic');
       crossing('n', 10, 20, 'shiveringSea');
     },
   }),
 
   stepstones: makeSea({
     name: 'The Stepstones',
-    draw: ({ put, isle, crossing, quay }) => {
+    draw: ({ put, isle, crossing, quay, wreck }) => {
       isle(3, 3, 3, 3);
       isle(9, 7, 4, 3);
       isle(17, 4, 3, 4);
@@ -5222,21 +5237,25 @@ export const MAPS = {
       isle(23, 19, 3, 3);
       put(20, 13, 'C'); put(8, 23, 'C');
       quay(23, 10, 'volantis', 12, 25, 'down');
+      wreck(4, 2, 'weirwoodSap', 'sea_step_sap');
+      wreck(18, 3, 'kingsguardBanner', 'sea_step_cloak');
       crossing('n', 8, 20, 'theGullet');
     },
   }),
 
   shiveringSea: makeSea({
     name: 'The Shivering Sea',
-    draw: ({ put, span, isle, crossing, quay }) => {
+    draw: ({ put, span, isle, crossing, quay, wreck }) => {
       span(1, 1, 30, 1, 'i');
       span(1, 21, 3, 5, 's'); span(1, 22, 2, 4, 'C');
       quay(3, 23, 'eastwatch', 11, 19, 'right');
       span(27, 3, 4, 4, 's'); span(28, 3, 3, 3, 'C');
-      quay(27, 5, 'hardhome', 11, 20, 'left');
+      quay(27, 5, 'hardhome', 11, 21, 'left');
       isle(11, 10, 3, 2);
       isle(19, 16, 3, 2);
       put(7, 8, 'i'); put(22, 7, 'i'); put(14, 21, 'i');
+      wreck(12, 9, 'kissOfFire', 'sea_shiver_fire');
+      wreck(18, 16, 'kingsRansom', 'sea_shiver_ransom');
       crossing('s', 10, 20, 'sunsetSea');
     },
   }),

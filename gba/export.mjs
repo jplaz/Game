@@ -2507,9 +2507,14 @@ L.push('  const Sign *signs; u8 signCount;');
 L.push('  const Npc  *npcs;  u8 npcCount;');
 L.push('  const Ambush *ambushes; u8 ambushCount;');
 L.push('  const Wild *wilds; u8 wildCount;');
+L.push('  const Chest *chests; u8 chestCount;');
+/* After the chests, because that is the order the rows below are written in.
+   Declared before them, every map's initialiser handed its chest table to
+   `lanes` and its chest count to a pointer, and the whole file stopped
+   compiling. A braced initialiser is positional: the struct and the emit are
+   one thing written in two places and they have to be read together. */
 L.push('  const Lane *lanes; u8 laneCount;   /* who is out on this water */');
 L.push('  u8 sea;               /* the rules are the other way up here */');
-L.push('  const Chest *chests; u8 chestCount;');
 L.push('  u8 nest;              /* the egg that is found here, or 255 */');
 L.push('  u8 seat;              /* what this hall costs in hundreds, 0 not for sale */');
 L.push('  u8 courtX, courtY;    /* where the chair is, 255 if there is no chair */');
@@ -2585,7 +2590,12 @@ harvest.maps.forEach((map, i) => {
     L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.ranges}, ${n.evening}, ${n.gate}, ${n.builds}, ${n.duellist},`);
     L.push(`    ${cstr(name)}, ${cstr(line.trim())} },`);
   }
-  if (!map.npcs.length) L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');
+  /* One row of nothing, so an empty table is still a legal array. Every number
+     the struct declares, spelt out: it used to carry twelve for eighteen
+     fields, which quietly slid the two strings onto `weds` and `ranges`. */
+  if (!map.npcs.length) {
+    L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');
+  }
   L.push('};');
   L.push('');
 });

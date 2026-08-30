@@ -17,7 +17,7 @@ import { COMPANIONS, AID_DESCRIPTION } from '../src/data/companions.js';
 import { QUESTS } from '../src/data/quests.js';
 import { CUTSCENES } from '../src/data/cutscenes.js';
 import { ROAMERS as ROAMER_TABLE } from '../src/data/duellists.js';
-import { WEAPONS, ARMOUR, SHIELDS, TECHNIQUES } from '../src/data/gear.js';
+import { WEAPONS, ARMOUR, SHIELDS, TECHNIQUES, HELMS, GLOVES } from '../src/data/gear.js';
 import { SCRIPTS } from '../src/data/scripts.js';
 import { TILE_DEFS } from '../src/art/tiles.js';
 import { ARCHETYPES } from '../src/art/creatures.js';
@@ -185,7 +185,12 @@ for (const [mapId, map] of Object.entries(MAPS)) {
         if (!ITEMS[id]) fail(`map ${mapId}: shop stocks unknown item "${id}"`);
       }
     } else if (stock && typeof stock === 'object') {
-      const tables = { weapon: WEAPONS, armour: ARMOUR, shield: SHIELDS };
+      /* All five slots. helm and gloves were missing, so every armoury in the
+         game -- twelve of them -- reported two failures apiece for stocking
+         perfectly ordinary kit, and the noise sat in the backlog looking like
+         somebody else's problem. */
+      const tables = { weapon: WEAPONS, armour: ARMOUR, shield: SHIELDS,
+                       helm: HELMS, gloves: GLOVES };
       for (const [slot, ids] of Object.entries(stock)) {
         if (!tables[slot]) { fail(`map ${mapId}: smith stocks unknown slot "${slot}"`); continue; }
         for (const id of ids) {

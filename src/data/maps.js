@@ -2991,7 +2991,7 @@ export const MAPS = {
             + 'Neither has the steel they make.',
           stock: {
             weapon: ['ironSword', 'castleForged', 'warhammer'],
-            armour: ['ringmail', 'scaleArmour', 'knightsPlate'],
+            armour: ['ringmail', 'scaleArmour', 'knightPlate'],
             helm: ['nasalHelm', 'kettleHat', 'bascinet'],
             gloves: ['mailMittens', 'splintedGauntlets'],
             shield: ['oakShield', 'towerShield'],
@@ -4582,9 +4582,10 @@ export const MAPS = {
         script: 'freeCityLocal', data: { line: 'Arya: I am no one. That is what they keep telling me. '
           + 'I am fairly sure I am still someone.' } },
       { x: 11, y: 15, dir: 'down', name: 'Iron Banker', sprite: 'merchant',
-        script: 'shop', data: { line: 'Iron Banker: The Iron Bank will have its due. '
-          + 'In the meantime, we also sell things.',
-          stock: ['maesterKit', 'sigilBanner', 'warBanner', 'kingsguardBanner'] } },
+        script: 'smith', data: { line: 'Iron Banker: The Iron Bank will have its due, and while '
+          + 'we are waiting for it we sell the best steel in the world. Braavos never bent to '
+          + 'Valyria and has never bent to Westeros. What is on this counter is most of why.',
+          stock: { weapon: ['ancestralBlade'], armour: ['dragonscaleMail'], helm: ['armet'], shield: ['ironwoodTower'] } } },
       { x: 6, y: 20, dir: 'right', name: 'Water Dancer', sprite: 'braavosi',
         script: 'duel', data: { duel: 'syrio' } },
       { x: 17, y: 23, dir: 'left', name: 'Braavosi Bravo', sprite: 'sellsword',
@@ -4595,7 +4596,7 @@ export const MAPS = {
       { x: 22, y: 12, text: 'THE CANALS\nA hundred islands and no ground between them.\nEverything here goes by water or it does not go.' },
       { x: 4, y: 4, text: 'THE HOUSE OF BLACK AND WHITE\nValar morghulis.\nThe door answers to two words and neither of them is a knock.' },
       { x: 19, y: 4, text: 'THE IRON BANK OF BRAAVOS\nThe Iron Bank will have its due.\nIt has outlived every king who decided otherwise.' },
-      { x: 11, y: 4, text: 'THE SEALORD\u2019S PALACE\nBraavos has no king and never has.\nThe Titan is the wall, and it is out where you cannot see it.' }],
+      { x: 10, y: 4, text: 'THE SEALORD\u2019S PALACE\nBraavos has no king and never has.\nThe Titan is the wall, and it is out where you cannot see it.' }],
     warps: [
       { door: 'cellar', to: 'braavosCellar', tx: 6, ty: 8, dir: 'up' },
       { door: 'inn', to: 'braavosInn', tx: 6, ty: 10, dir: 'up' },
@@ -4652,8 +4653,8 @@ export const MAPS = {
         script: 'freeCityLocal', data: { line: 'Ser Jorah Mormont: I was a lord in Bear Island once. '
           + 'Now I am a man who knows where the ships go.' } },
       { x: 11, y: 16, dir: 'down', name: 'Spice Merchant', sprite: 'merchant',
-        script: 'shop', data: { line: 'Spice Merchant: From Qarth, Yi Ti and the Jade Sea. Mostly.',
-          stock: ['maesterKit', 'poppyMilk', 'sigilBanner', 'warBanner'] } },
+        script: 'shop', data: { line: 'Spice Merchant: Pentos grows nothing and sells everything. Every remedy worth the name passes over this table on its way somewhere else, and I take my cut of it before it goes.',
+          stock: ['kissOfFire', 'weirwoodSap', 'kingsRansom', 'poppyMilk', 'antidote', 'stillwater', 'frostTonic'] } },
       { x: 4, y: 9, dir: 'right', name: 'Dothraki Rider', sprite: 'wildling',
         script: 'freeCityLocal', data: { line: 'Dothraki Rider: A khal who cannot ride is no khal. '
           + 'You walk everywhere. It is very strange.' } },
@@ -4690,9 +4691,8 @@ export const MAPS = {
         script: 'freeCityLocal', data: { line: 'Triarch: Old Volantis was first. Everything since '
           + 'has been a copy, and a poor one.' } },
       { x: 12, y: 22, dir: 'down', name: 'Slaver', sprite: 'merchant',
-        script: 'shop', data: { line: 'Slaver: I deal in cargo. You would not like my usual stock, '
-          + 'so here is the other kind.',
-          stock: ['maesterKit', 'poppyMilk', 'warBanner', 'kingsguardBanner'] } },
+        script: 'smith', data: { line: 'Slaver: War gear, and I do not ask what for. Volantis has been arming other people\u2019s quarrels since before your kingdoms had names, and the heavy end of it comes over this bridge.',
+          stock: { weapon: ['greatsword', 'poleaxe'], armour: ['knightPlate', 'halfPlate'], shield: ['scutum', 'towerShield'] } } },
       { x: 13, y: 14, dir: 'right', name: 'Bridge Guard', sprite: 'unsullied',
         script: 'freeCityLocal', data: { line: 'Bridge Guard: The Long Bridge has stood a thousand '
           + 'years. Walk on the left.' } },
@@ -4730,9 +4730,8 @@ export const MAPS = {
       { x: 15, y: 9, dir: 'down', name: 'Grey Worm', sprite: 'unsullied',
         script: 'duel', data: { duel: 'greyWorm' } },
       { x: 11, y: 16, dir: 'down', name: 'Ghiscari Trader', sprite: 'merchant',
-        script: 'shop', data: { line: 'Ghiscari Trader: The Queen has views about what may be sold. '
-          + 'These are the things that remain.',
-          stock: ['maesterKit', 'poppyMilk', 'kingsguardBanner'] } },
+        script: 'smith', data: { line: 'Ghiscari Trader: Pit gear. Everything on this table has been worn by somebody who went down onto that sand and most of it came back up again, which is more than can be said for them.',
+          stock: { weapon: ['dragonboneBow', 'dornishSpear', 'arakh'], armour: ['lamellar'], helm: ['sallet'] } } },
       { x: 4, y: 9, dir: 'right', name: 'Daario Naharis', sprite: 'braavosi',
         script: 'duel', data: { duel: 'daario' } },
     ],

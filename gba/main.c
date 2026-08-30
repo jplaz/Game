@@ -5134,9 +5134,35 @@ static const char *mendAll(void) {
    both do; a maester and a pedlar do not, whatever shelf you are reading. */
 static int keeperMends(void) { return shopKeeper == 1 || shopKeeper == 2; }
 
+/* What this road will sell you.
+ *
+ * Every stall holds every ware of its kind, which meant a pedlar on the first
+ * road out of Winterfell would sell you an ancestral blade and a suit of
+ * dragonscale mail. Nothing in the game got better as the story went on, and
+ * there was no reason on earth to spend fourteen hundred gold sailing to
+ * Meereen -- the trader there had the same shelf as the one you started beside.
+ *
+ * A ware names the road it appears on. The shelf shows what has reached here,
+ * so the ladder climbs with you and the far end of the world is the only place
+ * the top of it is for sale. */
+static int shelfCount(const Stall *st) {
+  int here = groundBy[you.house][worldId], n = 0, i;
+  for (i = 0; i < st->count; i++) if (wares[st->ware[i]].far <= here) n++;
+  return n;
+}
+static int shelfWare(const Stall *st, int nth) {
+  int here = groundBy[you.house][worldId], n = 0, i;
+  for (i = 0; i < st->count; i++) {
+    if (wares[st->ware[i]].far > here) continue;
+    if (n++ == nth) return st->ware[i];
+  }
+  return st->ware[0];
+}
+
 static void paintShop(void) {
   const Stall *stall = &stalls[shopStall];
-  int top = listTop(shopPick, stall->count), i;
+  int shelf = shelfCount(stall);
+  int top = listTop(shopPick, shelf), i;
   int x = 14, k;
   clearRows(0, TXT_H);
   drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
@@ -5152,8 +5178,8 @@ static void paintShop(void) {
   showGold(6);
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
 
-  for (i = 0; i < LIST_ROWS && top + i < stall->count; i++) {
-    int at = stall->ware[top + i];
+  for (i = 0; i < LIST_ROWS && top + i < shelf; i++) {
+    int at = shelfWare(stall, top + i);
     int y = 22 + i * 11;
     int mine = (wares[at].kind == WARE_POTION) ? 0 : worn(at);
     if (top + i == shopPick) drawCursor(14, y + 1, C_GOLD);
@@ -5164,9 +5190,9 @@ static void paintShop(void) {
     drawText(TXT_W - 24 - textWidth(scratch), y, scratch,
       you.gold >= askingPrice(at) ? C_INK : C_DYING);
   }
-  if (!stall->count) drawText(24, 34, "This shelf is bare.", C_DIM);
+  if (!shelf) drawText(24, 34, "Nothing on this road comes with that.", C_DIM);
   {
-    if (stall->count) describeWare(stall->ware[shopPick], 0);
+    if (shelf) describeWare(shelfWare(stall, shopPick), 0);
     else copyString(scratch, "", sizeof scratch);
     drawText(14, TXT_H - 30, scratch, C_DIM);
     /* Nobody would ever have found any of this by pressing buttons at a
@@ -9468,7 +9494,7 @@ int main(void) {
         continue;
       }
       if (hit(KEY_UP) && shopPick > 0) shopPick--;
-      if (hit(KEY_DOWN) && shopPick < stall->count - 1) shopPick++;
+      if (hit(KEY_DOWN) && shopPick < shelfCount(stall) - 1) shopPick++;
       /* Along the counter rather than down it. Four shelves at one counter is
          what a shop looks like; one list of everything is a warehouse. */
       if (hit(KEY_LEFT) || hit(KEY_RIGHT)) {
@@ -9492,8 +9518,8 @@ int main(void) {
         scene = SCENE_WORLD;
         clearPage();
         layoutTextRows(TEXT_PLAY);
-      } else if (hit(KEY_A) && stall->count) {
-        const char *said = buyWare(stall->ware[shopPick]);
+      } else if (hit(KEY_A) && shelfCount(stall)) {
+        const char *said = buyWare(shelfWare(stall, shopPick));
         paintShop();
         scene = SCENE_WORLD;
         clearPage();

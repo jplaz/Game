@@ -556,6 +556,15 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     wareIndex.set(key, at);
     wares.push({
       id, kind, name: def.name, price: def.price ?? 0, heal: heal ?? 0,
+      /* How far out you have to be before anybody will sell it.
+      
+         Every stall on the cartridge holds every ware of its kind, so a pedlar
+         on the first road out of Winterfell would sell you an ancestral blade
+         and a suit of dragonscale -- which is why nothing got better as the
+         story went on and why there was no reason on earth to sail to Braavos.
+         The road runs from three at your own gate to forty-four at the far end
+         of everything; a ware now names where on it a merchant has one. */
+      far: Math.min(42, Math.round((def.price ?? 0) / 240)),
       might: def.might ?? 0, guard: def.guard ?? 0, swiftness: def.swiftness ?? 0,
       hold: def.hold ?? 0,
       /* Obsidian, or Valyrian steel, which is obsidian's cleverer cousin: the
@@ -655,6 +664,34 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     upTo: band.upTo, drops: band.drops.map(wareOf),
   }));
   const forage = FORAGE.map(wareOf);
+
+  /* ------------------------------------------------------------ the loot ---
+   *
+   * A chest held gold, or a handful of makings, and never anything else -- at
+   * every point in the game and everywhere on the map. So nothing you ever dug
+   * out of a corner was worth wearing, and a nook at the far end of the world
+   * paid in the same coin as the first hedge outside Winterfell. The gold
+   * scaled; the interest never did.
+   *
+   * Real kit comes out of chests now, drawn from a band of the gear ladder
+   * that slides with how hard the ground is. The top of the band climbs and
+   * the bottom trails behind it, so a late chest can still turn up something
+   * ordinary but an early one can never turn up an ancestral blade -- the road
+   * decides what is worth carrying home from it. */
+  const LOOT_LADDER = wares
+    .map((w, at) => ({ at, price: w.price, kind: w.kind }))
+    .filter((w) => w.price > 0
+      && ['weapon', 'armour', 'helm', 'gloves', 'shield'].includes(w.kind))
+    .sort((a, b) => a.price - b.price);
+  /* roadLevel runs from nothing at your own gate to the high forties beyond
+     the Wall and across the sea. */
+  const lootAt = (roadLevel, n) => {
+    if (!LOOT_LADDER.length) return 255;
+    const last = LOOT_LADDER.length - 1;
+    const top = Math.round(last * Math.min(1, Math.max(0, roadLevel) / 44));
+    const low = Math.max(0, top - 6);
+    return LOOT_LADDER[low + (n % (top - low + 1))].at;
+  };
 
   /* ----------------------------------------------------------- the beasts ---
      Thirty-five animals the browser game already knows how to draw and how to
@@ -930,9 +967,13 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
           return walkable(nx, ny) && !blocked.has(`${nx},${ny}`) && openAt(nx, ny) < 2;
         });
         if (severs || pinches) { blocked.delete(`${spot.x},${spot.y}`); continue; }
-        /* Two in three are a purse somebody hid and did not come back for; the
-           rest are makings, so that walking into corners feeds the forge. */
-        took.push({ x: spot.x, y: spot.y, stuff: roll() < 0.34 });
+        /* What is in it. Under half are a purse somebody hid and did not come
+           back for, three in ten are makings so that walking into corners
+           feeds the forge, and a quarter are something you can actually put
+           on -- which is the whole reason to open one. */
+        const what = roll();
+        took.push({ x: spot.x, y: spot.y,
+          find: what < 0.30 ? 'makings' : what < 0.55 ? 'gear' : 'gold' });
       }
       return took;
     })();
@@ -1212,12 +1253,13 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         gold: 40 + roadLevel * 22,
       })).concat(hidden.map((h, n) => ({
         x: h.x, y: h.y,
-        /* Makings scale with how hard the road is, so a nook at the Wall is
-           worth going into and one outside Winterfell is worth a hafted stick. */
-        ware: h.stuff
+        /* Makings and kit both scale with how hard the road is, so a nook at
+           the Wall is worth going into and one outside Winterfell is worth a
+           hafted stick. */
+        ware: h.find === 'makings'
           ? forage[Math.min(forage.length - 1, Math.floor(roadLevel / 6) + (n % 2))] ?? 255
-          : 255,
-        gold: 55 + roadLevel * 30,
+          : h.find === 'gear' ? lootAt(roadLevel, n) : 255,
+        gold: h.find === 'gold' ? 55 + roadLevel * 30 : Math.round(20 + roadLevel * 8),
       }))),
       /* Nests: the one place in the world a given egg is ever found. */
       nest: (NESTS[id] ?? []).map((it) => wareIndex.get(`egg:${it}`))
@@ -1964,6 +2006,7 @@ L.push('  u16 price, heal;');
 L.push('  u8 kind, might, guard, tier, hold, obsidian, relic;');
 L.push('  s8 swiftness;');
 L.push('  u8 tech[3], techCount;');
+L.push('  u8 far;               /* the road you have to be on before it is sold */');
 L.push('} Ware;');
 L.push('static const Ware wares[WARE_COUNT] = {');
 {
@@ -1975,7 +2018,7 @@ L.push('static const Ware wares[WARE_COUNT] = {');
     const techs = (w.techs ?? []).map((id) => techSlotOf(id)).filter((n) => n >= 0).slice(0, 3);
     L.push(`  { ${cstr(w.name)}, ${w.price}, ${Math.min(9999, w.heal)}, ${kindOf[w.kind]},`);
     L.push(`    ${w.might}, ${w.guard}, ${LOOK[w.id] ?? 0}, ${w.hold ?? 0}, ${w.obsidian ?? 0}, ${w.relic ?? 0}, ${w.swiftness},`);
-    L.push(`    { ${[...techs, 0, 0, 0].slice(0, 3).join(', ')} }, ${techs.length} },`);
+    L.push(`    { ${[...techs, 0, 0, 0].slice(0, 3).join(', ')} }, ${techs.length}, ${w.far ?? 0} },`);
   }
 }
 L.push('};');

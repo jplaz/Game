@@ -20,6 +20,12 @@ import {
   holdFeast, feastCount, grantHoldfast, gather,
 } from '../game/holdfast.js';
 import { HOUSE_IDS } from './houses.js';
+import { SHIPS } from './ships.js';
+import {
+  ship, ownsShip, buyShip, tradeIn, shipName, shipDef, conditionWord,
+  repairShip, repairCost, berth, tally, board,
+} from '../game/ship.js';
+import { seaFight as runSeaFight } from '../game/seafight.js';
 import { openQuest, closeQuest, isOpen, isClosed } from '../game/questlog.js';
 import { COMPANIONS } from './companions.js';
 import {
@@ -102,6 +108,123 @@ export async function settleFate({ say, choose, id, def }) {
 }
 
 export const SCRIPTS = {
+  /**
+   * A shipwright. Sells hulls, takes your old one in trade at half what he
+   * charged you for it, and puts right whatever the sea has done to the one you
+   * have. Asks nothing at all about your house, because a keel does not care.
+   */
+  async shipwright({ say, choose, npc, overworld }) {
+    /* Where she is tied up when you buy her. A ship berthed nowhere is a ship
+       you can never board, so the man who sells her says where she is. */
+    const home = npc?.data?.berth;
+    for (;;) {
+      const have = ship();
+      const bill = repairCost();
+      const opts = ['See the hulls', have ? 'Put her right' : null, 'Nothing today']
+        .filter(Boolean);
+      const opened = have
+        ? `Shipwright: ${shipName()}, and she is ${conditionWord()}.`
+          + (bill ? ` I can have that off her for ${bill}g.` : ' Nothing wants doing to her.')
+        : 'Shipwright: You have no ship. That is a thing I can put right, for money.';
+      const pick = await choose(opened, opts);
+      if (opts[pick] === 'Nothing today') {
+        await say('Shipwright: The tide will still be there tomorrow.');
+        return;
+      }
+
+      if (opts[pick] === 'Put her right') {
+        if (!bill) { await say('Shipwright: She is sound. Go and ruin her properly first.'); continue; }
+        const yes = await choose(`${bill}g to make her whole. Do it?`, ['Pay him', 'Leave it']);
+        if (yes !== 0) continue;
+        if (!repairShip()) {
+          audio.sfx('cancel');
+          await say('Shipwright: I work in gold, not in good intentions.');
+          continue;
+        }
+        audio.sfx('confirm');
+        await say(`Shipwright: Caulked, pitched and re-planked. ${conditionWord()} again.`);
+        continue;
+      }
+
+      const ids = Object.keys(SHIPS);
+      const trade = tradeIn();
+      const labels = ids.map((id) => {
+        const d = SHIPS[id];
+        if (have?.id === id) return `${d.name} — yours already`;
+        return `${d.name} — ${Math.max(0, d.price - trade)}g`;
+      });
+      const which = await choose(
+        trade ? `He will put ${trade}g towards a new one for the hull you have.`
+              : 'Shipwright: Four of them on the stocks. Take your time.',
+        [...labels, 'Not today']);
+      if (which === labels.length) continue;
+
+      const id = ids[which];
+      const def = SHIPS[id];
+      await say(def.broker);
+      const owed = Math.max(0, def.price - (have?.id === id ? 0 : trade));
+      const buy = await choose(`${def.name}\n${def.summary}\n${owed}g. Take her?`,
+        ['Pay him', 'Think about it']);
+      if (buy !== 0) continue;
+
+      const outcome = buyShip(id);
+      if (outcome === 'already') { await say('Shipwright: You are standing on her.'); continue; }
+      if (outcome === 'poor') { audio.sfx('cancel'); await say(def.poor); continue; }
+      audio.sfx('confirm');
+      if (outcome === 'sold') {
+        await say(`Shipwright: And I will take the old one off you — ${trade}g against her, `
+          + 'and no questions asked about the state of her bilges.');
+      }
+      await say(def.bought);
+      /* Naming her. Offered once, when she is new, because a ship somebody has
+         named is a ship they will be sorry to lose — which is the whole reason
+         game/ship.js makes a hull a number that does not come back. */
+      const name = await choose('What will you call her?',
+        ['Name her', `Leave her "${def.name}"`]);
+      if (name === 0) {
+        await overworld.nameShip();
+        await say(`Shipwright: ${shipName()}, then. She will answer to it.`);
+      }
+      if (home) {
+        board(home.map, home.x, home.y);
+        game.state.ship.aboard = false;
+        await say(`Shipwright: She is tied up at ${npc?.data?.where ?? 'the quay'}. `
+          + 'Walk off the stones into the water and she is under you.');
+      }
+      return;
+    }
+  },
+
+  /**
+   * A harbourmaster. Says where your ship is, which is the one thing a player
+   * genuinely cannot work out for themselves.
+   */
+  async harbourmaster({ say, npc, overworld }) {
+    if (!ownsShip()) {
+      await say(npc?.data?.line ?? 'Harbourmaster: No ship of yours on my book. '
+        + 'The shipwright is the man you want, and he is not cheap.');
+      return;
+    }
+    const b = berth();
+    const took = tally();
+    await say(b && b.map === overworld.mapId
+      ? `Harbourmaster: ${shipName()} is tied up here, and she is ${conditionWord()}.`
+      : `Harbourmaster: ${shipName()} is not in this harbour. You will have left her `
+        + 'wherever you last stepped off her.');
+    if (took) {
+      await say(`Harbourmaster: ${took} hull${took === 1 ? '' : 's'} taken, they tell me. `
+        + 'That gets about a good deal faster than you do.');
+    }
+  },
+
+  /** Somebody has found you out on the water. The rest is in game/seafight.js. */
+  async seaFight(api) {
+    const fleet = api.data?.fleet;
+    if (!fleet || !ownsShip()) return;
+    audio.sfx('encounter');
+    await runSeaFight(api, fleet);
+  },
+
   // ------------------------------------------------------------- defaults --
   async generic({ say, npc }) {
     // Even a nobody notices you if you have become somebody.

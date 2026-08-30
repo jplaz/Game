@@ -145,7 +145,10 @@ for (const [id, map] of Object.entries(MAPS)) {
     const there = MAPS[w.to];
     if (!there) { say(`${id}: a door to ${w.to}, which does not exist`); continue; }
     const land = there.grid[w.ty]?.[w.tx] ?? '#';
-    if (SOLID.has(kindOf(land)) || kindOf(land) === 'ledge') {
+    /* Open water is somewhere to arrive if what you are arriving in is a ship,
+       which is what the far map being a sea means. */
+    const wet = there.sea && kindOf(land) === 'water';
+    if ((SOLID.has(kindOf(land)) && !wet) || kindOf(land) === 'ledge') {
       say(`${id}: the door to ${w.to} lands on ${w.tx},${w.ty}, which is '${land}'`);
     }
   }
@@ -232,7 +235,7 @@ for (const [id, map] of Object.entries(MAPS)) {
     const at = (x, y) => (x < 0 || y < 0 || x >= there.width || y >= there.height)
       ? '#' : there.grid[y][x];
     const solid = (x, y) => x < 0 || y < 0 || x >= there.width || y >= there.height
-      || SOLID.has(kindOf(at(x, y)));
+      || (SOLID.has(kindOf(at(x, y))) && !(there.sea && kindOf(at(x, y)) === 'water'));
     const ledge = (x, y) => kindOf(at(x, y)) === 'ledge';
     const stand = (x, y) => !solid(x, y) && !ledge(x, y);
     const planted = new Set((there.npcs ?? [])

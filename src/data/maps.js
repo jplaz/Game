@@ -2501,6 +2501,59 @@ function eyriePlan() {
   return g.map((r) => r.join(''));
 }
 
+/* The open water.
+ *
+ * A sea map is every other map in this file turned inside out: the water is
+ * the ground and the land is the wall. Two things follow, and both are easy to
+ * get wrong.
+ *
+ * The rim. Ground at the edge of a map with no way off it is the commonest way
+ * this game has of looking broken, and on a sea map every edge tile is ground.
+ * So each sea is ringed with reef, and where it opens onto the next it opens
+ * wide -- a whole band, every tile of it a crossing. You cannot sail to the
+ * end of the world here. You sail to a reef, or you sail somewhere else.
+ *
+ * The islands. Every islet has a beach you can run a keel up, and on foot each
+ * of those is ground walled off from every door. That is what `sea: true`
+ * tells tools/checkmaps.mjs, and it is the truth: you get there in a ship or
+ * you do not get there.
+ */
+function makeSea({ name, music = 'route', draw }) {
+  const W = 32, H = 27;
+  const G = [];
+  for (let y = 0; y < H; y++) G.push(new Array(W).fill('~'));
+  const warps = [];
+  const put = (x, y, c) => { if (G[y] && G[y][x] !== undefined) G[y][x] = c; };
+  const span = (x, y, w, h, c) => {
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, y + j, c);
+  };
+  const isle = (x, y, w, h) => { span(x - 1, y - 1, w + 2, h + 2, 's'); span(x, y, w, h, 'C'); };
+  for (let x = 0; x < W; x++) { put(x, 0, 'C'); put(x, H - 1, 'C'); }
+  for (let y = 0; y < H; y++) { put(0, y, 'C'); put(W - 1, y, 'C'); }
+
+  const crossing = (side, from, to, dest) => {
+    for (let i = from; i <= to; i++) {
+      const [x, y, tx, ty] = {
+        w: [0, i, W - 2, i], e: [W - 1, i, 1, i],
+        n: [i, 0, i, H - 2], s: [i, H - 1, i, 1],
+      }[side];
+      put(x, y, '~');
+      warps.push({ x, y, to: dest, tx, ty,
+        dir: { w: 'left', e: 'right', n: 'up', s: 'down' }[side] });
+    }
+  };
+  const quay = (x, y, dest, tx, ty, dir = 'down') => {
+    put(x, y, 'o');
+    warps.push({ x, y, to: dest, tx, ty, dir });
+  };
+
+  draw({ put, span, isle, crossing, quay });
+  return {
+    name, music, ground: 'stone', sea: true,
+    tiles: G.map((r) => r.join('')), warps,
+  };
+}
+
 export const MAPS = {
   // ------------------------------------------------ the winter town, inside --
   winterfellInn: makeInn({
@@ -4265,6 +4318,7 @@ export const MAPS = {
     get tiles() { return lannisportPlan(); },
     encounters: [],
     warps: [
+      { x: 22, y: 18, to: 'sunsetSea', tx: 25, ty: 12, dir: 'right' },
       { x: 8, y: 0, to: 'goldRoad', tx: 10, ty: 22, dir: 'up' },
       { x: 4, y: 7, to: 'maesterHallLannisport', tx: 5, ty: 7, dir: 'up' },
       { x: 11, y: 7, to: 'lannisportForge', tx: 5, ty: 6, dir: 'up' },
@@ -4278,6 +4332,9 @@ export const MAPS = {
       { x: 18, y: 11, text: 'THE HARBOUR\nHalf the gold of the west leaves from these three jetties.\nThe other half never leaves at all.' },
     ],
     npcs: [
+      { x: 21, y: 20, dir: 'left', sprite: 'merchant', name: 'Shipwright', script: 'shipwright',
+        data: { berth: { map: 'sunsetSea', x: 25, y: 12 }, where: 'the Lannisport quay' } },
+      { x: 21, y: 14, dir: 'left', sprite: 'oldman', name: 'Harbourmaster', script: 'harbourmaster' },
       { x: 7, y: 4, dir: 'down', sprite: 'lannister', name: 'Gold Cloak', script: 'lannisportGuard' },
       { x: 22, y: 16, dir: 'left', sprite: 'goodwife', name: 'Goldsmith', script: 'lannisportHint' },
       { x: 15, y: 21, dir: 'right', sprite: 'rival', name: 'Joffrey', script: 'rivalLannisport',
@@ -4780,6 +4837,84 @@ export const MAPS = {
   },
 
   /** The crossing itself: a deck, and the sea going past. */
+  // ==========================================================================
+  //  THE OPEN SEA -- five waters you cross in a ship of your own
+  // ==========================================================================
+  blackwaterBay: makeSea({
+    name: 'Blackwater Bay',
+    draw: ({ put, span, isle, crossing, quay }) => {
+      span(1, 6, 3, 15, 's'); span(1, 7, 2, 13, 'C');
+      quay(3, 13, 'kingsLanding', 21, 28, 'right');
+      isle(26, 2, 4, 4);
+      put(25, 4, 's'); quay(25, 4, 'dragonstone', 11, 25, 'down');
+      put(28, 3, 'n');
+      isle(12, 5, 2, 2);
+      isle(17, 19, 3, 2);
+      put(8, 22, 'C'); put(21, 9, 'C');
+      crossing('e', 9, 19, 'theGullet');
+    },
+  }),
+
+  theGullet: makeSea({
+    name: 'The Gullet',
+    draw: ({ put, isle, crossing }) => {
+      isle(6, 3, 4, 3);
+      isle(9, 17, 5, 3);
+      isle(20, 7, 3, 6);
+      isle(25, 20, 3, 3);
+      put(16, 12, 'C'); put(29, 4, 'C');
+      crossing('w', 9, 19, 'blackwaterBay');
+      crossing('s', 8, 20, 'stepstones');
+      crossing('n', 6, 16, 'sunsetSea');
+    },
+  }),
+
+  sunsetSea: makeSea({
+    name: 'The Sunset Sea',
+    draw: ({ put, isle, crossing, quay }) => {
+      isle(26, 10, 4, 6);
+      quay(25, 13, 'lannisport', 22, 18, 'left');
+      isle(3, 4, 4, 4);
+      quay(7, 6, 'lordsportDocks', 11, 6, 'right');
+      isle(2, 18, 3, 3);
+      isle(14, 9, 2, 2);
+      isle(19, 21, 3, 2);
+      put(11, 22, 'C');
+      crossing('s', 6, 16, 'theGullet');
+    },
+  }),
+
+  stepstones: makeSea({
+    name: 'The Stepstones',
+    draw: ({ put, isle, crossing, quay }) => {
+      isle(3, 3, 3, 3);
+      isle(9, 7, 4, 3);
+      isle(17, 4, 3, 4);
+      isle(24, 9, 3, 3);
+      isle(5, 15, 4, 3);
+      isle(13, 18, 4, 3);
+      isle(23, 19, 3, 3);
+      put(20, 13, 'C'); put(8, 23, 'C');
+      quay(23, 10, 'volantis', 11, 25, 'down');
+      crossing('n', 8, 20, 'theGullet');
+    },
+  }),
+
+  shiveringSea: makeSea({
+    name: 'The Shivering Sea',
+    draw: ({ put, span, isle, crossing, quay }) => {
+      span(1, 1, 30, 1, 'i');
+      span(1, 21, 3, 5, 's'); span(1, 22, 2, 4, 'C');
+      quay(3, 23, 'eastwatch', 11, 19, 'right');
+      span(27, 3, 4, 4, 's'); span(28, 3, 3, 3, 'C');
+      quay(27, 5, 'hardhome', 11, 20, 'left');
+      isle(11, 10, 3, 2);
+      isle(19, 16, 3, 2);
+      put(7, 8, 'i'); put(22, 7, 'i'); put(14, 21, 'i');
+      crossing('s', 10, 20, 'sunsetSea');
+    },
+  }),
+
   narrowSea: {
     name: 'The Narrow Sea', music: 'route', ground: 'stone',
     tiles: [
@@ -5482,6 +5617,7 @@ export const MAPS = {
       { beast: 'corvarch', min: 30, max: 38, weight: 40 },
     ],
     warps: [
+      { x: 21, y: 28, to: 'blackwaterBay', tx: 3, ty: 12, dir: 'down' },
       { x: 14, y: 31, to: 'kingsroad', tx: 10, ty: 21, dir: 'up' },
       { x: 15, y: 31, to: 'kingsroad', tx: 10, ty: 21, dir: 'up' },
       { x: 16, y: 31, to: 'kingsroad', tx: 10, ty: 21, dir: 'up' },
@@ -6649,6 +6785,7 @@ export const MAPS = {
       [2, 9, 'U'], [21, 12, 'U'], [19, 24, 'U'],
     ],
     warps: [
+      { x: 11, y: 19, to: 'shiveringSea', tx: 3, ty: 22, dir: 'down' },
       { door: 'cellar', to: 'eastwatchCellar', tx: 6, ty: 8, dir: 'up' },
       { door: 'inn', to: 'eastwatchInn', tx: 6, ty: 10, dir: 'up' },
       { door: 'house', to: 'eastwatchHouse', tx: 6, ty: 10, dir: 'up' },
@@ -6811,7 +6948,13 @@ export const MAPS = {
       { beast: 'palewalker', min: 38, max: 46, weight: 16 },
       { roamer: 'gravedigger', min: 34, max: 42, weight: 20 },
     ],
-    warps: [],
+    warps: [
+      /* The way back to your own ship. Hardhome had no door out at all -- a
+         paid passage from Eastwatch was the only way anybody ever left, which
+         was the point of the place right up until somebody could sail here
+         themselves. */
+      { x: 11, y: 21, to: 'shiveringSea', tx: 27, ty: 6, dir: 'down' },
+    ],
     signs: [
       { x: 11, y: 6, text: 'HARDHOME\nSix thousand free folk lived here.\nThe Watch have counted them twice since and got the same number.' },
       { x: 6, y: 13, text: 'A cookfire, laid and never lit.\nThe wood is dry. Nobody has touched it in years.' },

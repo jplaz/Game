@@ -69,6 +69,7 @@ function maesterHall({ exitTo, exitX, exitY, stock, healerLine, merchantLine, ex
 function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = '.',
                     roof = 'R', ridge = 'r', house = 'H', banner = 'V', dressing = [],
                     shut = [], quarter = 0, outskirts = null, gate = 13, outsiders = [],
+                    core = null,
                     encounters = [], warps = [], npcs = [], signs = [], items = [] }) {
   const W = wall;
   const g = floor;
@@ -111,6 +112,16 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
   const y = 'y';
   const P = 'p';       // and a maester's hall is limewashed, wherever it stands
   const V = banner;
+
+  /* A hand-drawn core, for the seats that are a place and not a town plan.
+     Storm's End is one drum tower on a cliff; Pyke is broken across sea stacks;
+     the Eyrie climbs a mountain. None of those is this template with a
+     different roof on it, so those maps draw their own west half and say where
+     their own doors ended up. Everything else — the outskirts, the dressing,
+     the people, the gates — works the same either way. */
+  const built = core
+    ? core({ W, g, A, M, R, t, H, Z: F, z: f, Y, y, P, V })
+    : null;
 
   const tiles = [
     W.repeat(11) + '-' + W.repeat(12),
@@ -201,8 +212,8 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
                   '  AAAAA  ',
                   '  AADAA  '];
 
-  const grid = tiles.map((r) => [...r]);
-  {
+  const grid = (built ? built.tiles : tiles).map((r) => [...r]);
+  if (!built) {
     const plan = QUARTERS[quarter % QUARTERS.length];
     const stamp = (art, atY) => art.forEach((line, j) => {
       [...line].forEach((c, i) => {
@@ -231,8 +242,9 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
   /* A door with nothing behind it is worse than a wall: the player walks up to
      it, presses A, and the game says nothing at all. Towns that have no room to
      spare behind a given building get a shuttered window there instead. */
-  const SHUT = { hall: [lead + 4, 6], forge: [17, 6], keep: [7, 14],
-                 inn: [5, 21], house: [16, 21], cellar: [17, 11] };
+  const SHUT = built ? (built.doors || {}) : {
+    hall: [lead + 4, 6], forge: [17, 6], keep: [7, 14],
+    inn: [5, 21], house: [16, 21], cellar: [17, 11] };
   for (const which of shut) {
     const at = SHUT[which];
     if (at) grid[at[1]][at[0]] = 'w';
@@ -241,7 +253,7 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
      after the quarter and after this town's own dressing, either of which will
      otherwise put a pool or a rose bed in front of the door and make it a door
      nobody can open. */
-  for (let y = 12; y <= 15; y++) if (grid[y]) grid[y][17] = g;
+  if (!built) for (let y = 12; y <= 15; y++) if (grid[y]) grid[y][17] = g;
 
   /* And anybody the new quarter has built on top of. The cellar and its roof
      take three rows of ground that eleven towns had people standing on, and a
@@ -275,7 +287,7 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
      walled off behind them. Nothing that is placed by construction can do
      that. */
   if (outskirts && outsiders.length) {
-    const spots = [];
+    const spots = [], junctions = [];
     for (let y = 2; y < 25; y++) {
       for (let x = 25; x < 31; x++) {
         if (y === gate) continue;                     /* never in the gateway */
@@ -286,11 +298,17 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
           if (!solidHere(x + dx, y + dy)) open++;
         }
         if (open >= 2) spots.push([x, y]);
+        /* A junction, by preference. A tile with exactly two ways off it is a
+           corridor, and a person standing in a corridor is a wall across it —
+           which in a maze walls off everything beyond them. Highgarden's
+           gardener corked eighteen tiles of his own hedge maze that way. */
+        if (open >= 3) junctions.push([x, y]);
       }
     }
+    const where = junctions.length >= outsiders.length ? junctions : spots;
     outsiders.forEach((who, i) => {
-      if (!spots.length) return;
-      const at = spots[Math.floor(((i + 1) * spots.length) / (outsiders.length + 1))];
+      if (!where.length) return;
+      const at = where[Math.floor(((i + 1) * where.length) / (outsiders.length + 1))];
       movedNpcs.push({ ...who, x: at[0], y: at[1] });
     });
   }
@@ -334,7 +352,7 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
      settlement unchangeable: move a building and you break eight warps in
      eleven places. A warp can name the door instead, and then the plan is free
      to put that door wherever it likes. */
-  const DOORS = {
+  const DOORS = built ? built.doors : {
     maester: [lead + 4, 6], forge: [17, 6], keep: [7, 14],
     cellar: [17, 11], inn: [5, 21], house: [16, 21],
     northGate: [11, 0], southGate: [11, 26],
@@ -1795,6 +1813,138 @@ function pykePlan() {
  * the hall and the armoury below it, everybody else below that, and the mule
  * track up from the Bloody Gate at the bottom.
  */
+/* A blank twenty-four by twenty-seven core, and the helpers every hand-drawn
+   town wants. The east eight columns are the outskirts and belong to makeTown,
+   so a core never draws past x=23. */
+function coreGrid(fill) {
+  const G = [];
+  for (let i = 0; i < 27; i++) G.push(new Array(24).fill(fill));
+  const ok = (x, yy) => G[yy] && G[yy][x] !== undefined;
+  return {
+    put: (x, yy, c) => { if (ok(x, yy)) G[yy][x] = c; },
+    row: (x, yy, s) => [...s].forEach((c, i) => { if (ok(x + i, yy)) G[yy][x + i] = c; }),
+    span: (x, yy, w, h, c) => {
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+        if (ok(x + i, yy + j)) G[yy + j][x + i] = c;
+      }
+    },
+    done: () => G.map((r) => r.join('')),
+  };
+}
+
+/* Storm's End: one drum tower inside one unbroken curtain wall, on the cliff
+   over Shipbreaker Bay. There is no town here and there never was — the wall is
+   forty feet thick and jointed so smoothly the wind cannot get a grip on it,
+   everything anybody needs is built against the inside of it, and the tower in
+   the middle is the tallest thing in Westeros. Drawing that as a crossroads
+   with four sheds around it was the worst thing this map table ever did. */
+function stormsEndCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
+  const { put, row, span, done } = coreGrid(W);
+
+  // the curtain: two courses thick the whole way round, and the yard it holds
+  span(3, 1, 18, 1, M);
+  span(3, 2, 18, 1, A);
+  span(3, 24, 18, 1, A);
+  span(3, 25, 18, 1, M);
+  for (let yy = 3; yy <= 23; yy++) { span(3, yy, 2, 1, A); span(19, yy, 2, 1, A); }
+  span(5, 3, 14, 21, g);
+  // the two gates, north to the storm lands and south to the wreckers
+  for (const yy of [0, 1, 2, 24, 25, 26]) put(11, yy, g);
+
+  // the maester and the forge, built against the inside of the north wall
+  row(5, 3, t.repeat(5)); row(5, 4, R.repeat(5)); row(5, 5, P + 'wDw' + P);
+  row(14, 3, z.repeat(5)); row(14, 4, Z.repeat(5)); row(14, 5, A + 'wDw' + A);
+
+  /* The drum tower. Every window in it faces the sea, because for three hundred
+     years the only thing worth watching for came off the sea. */
+  row(9, 8, M.repeat(6));                          // corners cut, so it reads round
+  [
+    M + A.repeat(6) + M,
+    A + 'w' + A.repeat(4) + 'w' + A,
+    A.repeat(2) + V + A.repeat(2) + V + A.repeat(2),
+    A + 'w' + A.repeat(4) + 'w' + A,
+    A.repeat(8),
+    A + 'w' + A.repeat(4) + 'w' + A,
+  ].forEach((line, j) => row(8, 9 + j, line));
+  row(9, 15, A.repeat(2) + 'D' + A.repeat(3));
+
+  // and the rest of it against the south wall: an inn, a house, a cellar
+  put(7, 17, 'n'); put(16, 17, 'n');
+  row(5, 18, y.repeat(5)); row(5, 19, Y.repeat(5)); row(5, 20, H + 'wDw' + H);
+  row(14, 18, y.repeat(5)); row(14, 19, Y.repeat(5)); row(14, 20, H + 'wDw' + H);
+  row(10, 19, z.repeat(4)); row(10, 20, A + 'D' + A + A);
+
+  return {
+    tiles: done(),
+    doors: {
+      maester: [7, 5], forge: [16, 5], keep: [11, 15],
+      cellar: [11, 20], inn: [7, 20], house: [16, 20],
+      northGate: [11, 0], southGate: [11, 26],
+    },
+  };
+}
+
+/* Highgarden: two rings of white stone with the gardens in between, because the
+   gardens are the reason anybody has ever heard of the place. Roses on low
+   rails you walk between rather than look at, an orchard outside the wall, and
+   the briar labyrinth down the east side — planted three hundred years ago as a
+   joke, never cut down, and still the long way round. */
+function highgardenCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
+  const { put, row, span, done } = coreGrid(W);
+
+  // ring one: the white garden wall, with the orchard crowding it outside
+  span(1, 1, 22, 1, P);
+  span(1, 25, 22, 1, P);
+  for (let yy = 2; yy <= 24; yy++) { put(1, yy, P); put(22, yy, P); }
+  span(2, 2, 20, 23, g);
+  for (const yy of [0, 1, 25, 26]) put(11, yy, g);
+
+  // the beds. Rails rather than hedges, so a rose is something you walk past.
+  for (const yy of [3, 6]) {
+    for (const x0 of [2, 8, 14]) { row(x0, yy, 'f'.repeat(5)); row(x0, yy + 1, '*'.repeat(5)); }
+  }
+  put(11, 3, g); put(11, 4, g); put(11, 6, g); put(11, 7, g);   // the walk to the gate
+  put(19, 3, '#'); put(20, 6, '#');
+
+  // ring two: the inner court, open to the south because that is the way in
+  span(6, 8, 12, 1, P);
+  for (let yy = 9; yy <= 18; yy++) { put(6, yy, P); put(17, yy, P); }
+
+  /* The keep fills the court wall to wall. Drawn an inch narrower it left a
+     one-tile slot down each flank, which is a dead end you can see into and a
+     dead end anybody standing at its mouth seals — eighteen tiles of this
+     castle were unreachable because two women were talking in the yard. */
+  [
+    M.repeat(10),
+    A.repeat(10),
+    A + 'w' + A + V + A.repeat(2) + V + A + 'w' + A,
+    A.repeat(4) + 'D' + A.repeat(5),
+  ].forEach((line, j) => row(7, 9 + j, line));
+
+  row(7, 15, t.repeat(4)); row(7, 16, R.repeat(4)); row(7, 17, P + 'wD' + P);
+  row(13, 15, z.repeat(4)); row(13, 16, Z.repeat(4)); row(13, 17, A + 'wD' + A);
+
+  /* The labyrinth. A switchback, not a puzzle — a maze with dead ends in it is
+     a maze the player walks into once and never enters again. */
+  [[10, '###.'], [12, '.###'], [14, '###.'], [16, '.###'], [18, '###.']]
+    .forEach(([yy, s]) => row(18, yy, s));
+
+  // and the pavilions among the roses: an inn, a house, a cellar
+  put(4, 19, 'n'); put(18, 19, 'n');
+  row(2, 20, y.repeat(5)); row(2, 21, Y.repeat(5)); row(2, 22, H + 'wDw' + H);
+  row(16, 20, y.repeat(5)); row(16, 21, Y.repeat(5)); row(16, 22, H + 'wDw' + H);
+  row(8, 21, z.repeat(4)); row(8, 22, A + A + 'D' + A);
+
+  return {
+    tiles: done(),
+    doors: {
+      maester: [9, 17], forge: [15, 17], keep: [11, 12],
+      cellar: [10, 22], inn: [4, 22], house: [18, 22],
+      northGate: [11, 0], southGate: [11, 26],
+    },
+  };
+}
+
 // The Eyrie: four terraces cut into the Giant's Lance, each one cut back from
 // the one below it, with Alyssa's Tears falling the whole height of the map
 // down the west face and the drop widening on your right the whole climb.
@@ -2609,12 +2759,10 @@ export const MAPS = {
         data: { line: 'A Lost Bannerman: I came in here at noon to think about something and I have entirely forgotten what it was.' } },
     ],
     outskirts: OUTSKIRTS.roseMaze, gate: 13,
-    quarter: 4,
+    core: highgardenCore,
     banner: 'V',
-    dressing: [[4, 17, '*'], [5, 17, '*'], [6, 17, '*'], [7, 17, '*'], [4, 18, '*'],
-               [5, 18, '*'], [6, 18, '*'], [15, 17, '*'], [16, 17, '*'], [17, 17, '*'],
-               [16, 18, '*'], [17, 18, '*'], [14, 12, '#'], [17, 12, '#'], [15, 14, '#'],
-               [19, 13, '#'], [13, 2, '*'], [20, 2, '*'], [2, 1, '*'], [21, 17, '#']],
+    dressing: [[3, 10, '*'], [4, 13, '*'], [3, 16, '*'], [5, 11, '*'], [4, 9, '#'],
+               [13, 20, '*'], [14, 23, '*'], [7, 19, '*'], [21, 21, '*'], [9, 24, '*']],
     roof: 'Y', ridge: 'y',
     name: 'Highgarden', ground: 'grass', music: 'town',
     warps: [
@@ -2628,20 +2776,21 @@ export const MAPS = {
       { door: 'forge', to: 'highgardenArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
-      { x: 22, y: 12, text: 'THE BRIAR MAZE\nPlanted three hundred years ago as a joke and never cut down.\nThe fountain is in the middle. So are several people.' },
-      { x: 13, y: 10, text: 'HIGHGARDEN\nSeat of House Tyrell.\nEvery hedge is deliberate.' },
+      { x: 20, y: 10, text: 'THE BRIAR MAZE\nPlanted three hundred years ago as a joke and never cut down.\nThe fountain is in the middle. So are several people.' },
+      { x: 10, y: 12, text: 'HIGHGARDEN\nSeat of House Tyrell.\nEvery hedge is deliberate.' },
+      { x: 6, y: 12, text: 'THE WHITE WALLS\nTwo rings of it, and the gardens in between.\nNo other castle in the realm wastes that much ground on flowers.' },
     ],
     npcs: [
-      { x: 11, y: 5, dir: 'down', sprite: 'tyrell', name: 'Highgarden Steward', script: 'quest',
+      { x: 12, y: 5, dir: 'down', sprite: 'tyrell', name: 'Highgarden Steward', script: 'quest',
         data: { quest: 'theGrainCount' } },
-      { x: 8, y: 9, dir: 'down', sprite: 'goodwife', name: 'Lady Olenna', script: 'olenna' },
-      { x: 14, y: 10, dir: 'left', sprite: 'starkLady', name: 'Margaery', script: 'margaery' },
-      { x: 5, y: 17, dir: 'right', sprite: 'girl', name: 'Gardener\u2019s Girl', script: 'reachHint' },
+      { x: 8, y: 14, dir: 'down', sprite: 'goodwife', name: 'Lady Olenna', script: 'olenna' },
+      { x: 13, y: 14, dir: 'left', sprite: 'starkLady', name: 'Margaery', script: 'margaery' },
+      { x: 3, y: 12, dir: 'right', sprite: 'girl', name: 'Gardener\u2019s Girl', script: 'reachHint' },
     ],
   }),
 
   maesterHallHighgarden: maesterHall({
-    exitTo: 'highgarden', exitX: 6, exitY: 7,
+    exitTo: 'highgarden', exitX: 9, exitY: 18,
     stock: ['kingsguardBanner', 'kingsRansom', 'weirwoodSap', 'kissOfFire', 'poppyMilk'],
     healerLine: 'The Reach feeds the realm. It can certainly feed your creatures.',
     merchantLine: 'Everything here is grown, brewed or embroidered within a mile.',
@@ -2661,8 +2810,8 @@ export const MAPS = {
       'IIIII__IIIII',
     ],
     warps: [
-      { x: 5, y: 7, to: 'highgarden', tx: 17, ty: 7, dir: 'down' },
-      { x: 6, y: 7, to: 'highgarden', tx: 17, ty: 7, dir: 'down' },
+      { x: 5, y: 7, to: 'highgarden', tx: 15, ty: 18, dir: 'down' },
+      { x: 6, y: 7, to: 'highgarden', tx: 15, ty: 18, dir: 'down' },
     ],
     npcs: [
       { x: 7, y: 1, dir: 'down', sprite: 'tyrell', name: 'Master Smith', script: 'smith',
@@ -2884,12 +3033,9 @@ export const MAPS = {
         data: { line: 'The Bell Ringer: When the bell goes, you are already too late to get off the cliff. I ring it anyway.' } },
     ],
     outskirts: OUTSKIRTS.seaCliff, gate: 13,
-    quarter: 3,
+    core: stormsEndCore,
     banner: 'V',
-    dressing: [[14, 17, '~'], [15, 17, '~'], [16, 17, '~'], [17, 17, '~'], [14, 18, '~'],
-               [15, 18, '~'], [16, 18, '~'], [17, 18, '~'], [4, 17, 'U'], [5, 17, 'U'],
-               [4, 18, 'U'], [20, 2, 'U'], [21, 3, 'U'], [2, 2, 'U'], [19, 12, 'U'],
-               [13, 13, 'U'], [3, 1, 'U']],
+    dressing: [[9, 16, 'F'], [13, 16, 'F'], [6, 22, 'U'], [17, 22, 'U'], [11, 22, 'U']],
     roof: 'G', ridge: 'g',
     name: "Storm's End", ground: 'grass', wall: 'C', music: 'town',
     warps: [
@@ -2903,18 +3049,19 @@ export const MAPS = {
       { door: 'forge', to: 'stormsEndArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
-      { x: 22, y: 12, text: 'SHIPBREAKER BAY\nThe wall on this side is forty feet thick.\nIt has to be.' },
-      { x: 13, y: 10, text: "STORM'S END\nSeat of House Baratheon.\nNo storm has ever taken it. Many have tried." },
+      { x: 19, y: 12, text: 'SHIPBREAKER BAY\nThe wall on this side is forty feet thick.\nIt has to be.' },
+      { x: 11, y: 8, text: "STORM'S END\nSeat of House Baratheon.\nNo storm has ever taken it. Many have tried." },
+      { x: 4, y: 12, text: 'THE CURTAIN WALL\nOne unbroken ring, jointed so close the wind finds nothing to pull at.\nThere is no second wall. There has never needed to be.' },
     ],
     npcs: [
-      { x: 8, y: 9, dir: 'down', sprite: 'redPriest', name: 'Melisandre', script: 'melisandre' },
-      { x: 14, y: 10, dir: 'left', sprite: 'baratheon', name: 'Ser Davos', script: 'davos' },
-      { x: 5, y: 17, dir: 'right', sprite: 'goodwife', name: 'Fisherwife', script: 'stormHint' },
+      { x: 7, y: 7, dir: 'down', sprite: 'redPriest', name: 'Melisandre', script: 'melisandre' },
+      { x: 17, y: 7, dir: 'left', sprite: 'baratheon', name: 'Ser Davos', script: 'davos' },
+      { x: 8, y: 22, dir: 'right', sprite: 'goodwife', name: 'Fisherwife', script: 'stormHint' },
     ],
   }),
 
   maesterHallStormsEnd: maesterHall({
-    exitTo: "stormsEnd", exitX: 6, exitY: 7,
+    exitTo: "stormsEnd", exitX: 7, exitY: 6,
     stock: ['kingsguardBanner', 'kingsRansom', 'weirwoodSap', 'kissOfFire', 'stillwater'],
     healerLine: 'Storm-country creatures are hardy. Yours look tired all the same.',
     merchantLine: 'Salt, rope, and whatever the last wreck gave up.',
@@ -2934,8 +3081,8 @@ export const MAPS = {
       'IIIII__IIIII',
     ],
     warps: [
-      { x: 5, y: 7, to: 'stormsEnd', tx: 17, ty: 7, dir: 'down' },
-      { x: 6, y: 7, to: 'stormsEnd', tx: 17, ty: 7, dir: 'down' },
+      { x: 5, y: 7, to: 'stormsEnd', tx: 16, ty: 6, dir: 'down' },
+      { x: 6, y: 7, to: 'stormsEnd', tx: 16, ty: 6, dir: 'down' },
     ],
     npcs: [
       { x: 7, y: 1, dir: 'down', sprite: 'baratheon', name: 'Forgemaster', script: 'smith',
@@ -3064,8 +3211,8 @@ export const MAPS = {
       'IIIIIII__IIIIIIII',
     ],
     warps: [
-      { x: 7, y: 9, to: 'highgarden', tx: 7, ty: 15, dir: 'down' },
-      { x: 8, y: 9, to: 'highgarden', tx: 7, ty: 15, dir: 'down' },
+      { x: 7, y: 9, to: 'highgarden', tx: 11, ty: 13, dir: 'down' },
+      { x: 8, y: 9, to: 'highgarden', tx: 11, ty: 13, dir: 'down' },
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'tyrell', name: 'Willas', script: 'courtship',

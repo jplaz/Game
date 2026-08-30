@@ -70244,7 +70244,7 @@ static const Duellist duellists[DUELLIST_COUNT] = {
     { 11, 12, 0, 0 }, 602, 332,
     "Someone paid me to be on this road. They did not say who for.", "Enough! Take the road, it is not worth my life." },
   { "Tyrell Man-at-arms", 236, 30, 86, 71, 62, 1, 0, 0,
-    255, 0, tyrell,
+    255, 0, 3,
     { 2, 3, 0, 0 }, 810, 444,
     "My lord holds this ground and I hold it for him.", "Enough! Take the road, it is not worth my life." },
   { "Sellsword", 202, 32, 86, 50, 93, 1, 0, 0,

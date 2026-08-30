@@ -41,9 +41,10 @@ const MAP_IDS = [
   'kingsroad', 'kingsLanding', 'maesterHallKL', 'klArmoury',
   // The capital, and the four places in it you have to go and find.
   'greatSept', 'dragonpit', 'fleaBottom', 'mudGate',
-  // The five deeds anybody can buy, title or no title.
-  'propFleaRoom', 'propRiverCottage', 'propBraavosCounting', 'propValeWatchtower',
-  'propDorneOrchard',
+  /* The five deeds anybody can buy are browser-only for now: the cartridge has
+     no deedBroker, so shipping their interiors put five maps on the ROM with no
+     way into any of them, which the audit rightly called out. They come back
+     when the C side can sell a deed. */
   'dragonstone', 'maesterHallDragonstone', 'dragonstoneArmoury', 'dragonmont',
   'redKeep', 'barrowCave',
   // The south. Three more seats to begin at, three more leaders holding a

@@ -1861,7 +1861,8 @@ export const MAPS = {
     ],
     npcs: [
       { x: 7, y: 2, dir: 'down', sprite: 'stark', name: 'Alys Karstark', script: 'courtship',
-        data: { match: 'alysKarstark' } },
+        data: { match: 'alysKarstark',
+                line: "Alys Karstark: My uncle wants me married to a man twice my age. You are not that, which is a start." } },
       { x: 8, y: 4, dir: 'down', sprite: 'stark', name: 'Lord Eddard', script: 'gymStark',
         data: { trainer: 'gymStark' } },
       { x: 5, y: 10, dir: 'right', sprite: 'guard', name: 'Hallis', script: 'trainer',
@@ -2026,7 +2027,8 @@ export const MAPS = {
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'arryn', name: 'Mya Stone', script: 'courtship',
-        data: { match: 'mya' } },
+        data: { match: 'mya',
+                line: "Mya Stone: I drive mules up a mountain and my father was a king. Nobody can decide which to treat me as." } },
       { x: 9, y: 2, dir: 'down', sprite: 'arryn', name: 'Bronze Yohn Royce',
         script: 'gymArryn', data: { trainer: 'gymArryn' } },
       { x: 7, y: 4, dir: 'down', sprite: 'goodwife', name: 'Lady of the Vale',
@@ -2820,7 +2822,8 @@ export const MAPS = {
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'tyrell', name: 'Willas', script: 'courtship',
-        data: { match: 'willasTyrell' } },
+        data: { match: 'willasTyrell',
+                line: "Willas: I breed hounds and horses and read a great deal. My grandmother finds me difficult to place." } },
       { x: 7, y: 4, dir: 'down', sprite: 'tyrell', name: 'Lord Randyll Tarly',
         script: 'gymTyrell', data: { trainer: 'gymTyrell' } },
       { x: 3, y: 7, dir: 'right', sprite: 'guard', name: 'Household Guard', script: 'duel',
@@ -2853,7 +2856,8 @@ export const MAPS = {
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'martell', name: 'Aryanne Sand', script: 'courtship',
-        data: { match: 'aryanneMartell' } },
+        data: { match: 'aryanneMartell',
+                line: "Aryanne Sand: I am a bastard of a bastard and have never once been ashamed of it." } },
       { x: 7, y: 4, dir: 'down', sprite: 'martell', name: 'Prince Oberyn',
         script: 'gymMartell', data: { trainer: 'gymMartell' } },
       { x: 3, y: 7, dir: 'right', sprite: 'sellsword', name: 'Spear of Dorne', script: 'duel',
@@ -2885,7 +2889,8 @@ export const MAPS = {
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'baratheon', name: 'Elena', script: 'courtship',
-        data: { match: 'elenaBaratheon' } },
+        data: { match: 'elenaBaratheon',
+                line: "Elena: Everyone who comes to this castle wants something. You have not asked me for anything yet." } },
       { x: 7, y: 4, dir: 'down', sprite: 'baratheon', name: 'Stannis Baratheon',
         script: 'gymBaratheon', data: { trainer: 'gymBaratheon' } },
       { x: 3, y: 7, dir: 'right', sprite: 'redPriest', name: 'Melisandre', script: 'duel',
@@ -3291,7 +3296,8 @@ export const MAPS = {
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'tully', name: 'Jeyne', script: 'courtship',
-        data: { match: 'jeyneTully' } },
+        data: { match: 'jeyneTully',
+                line: "Jeyne: Family, duty, honour, in that order. I should like to pick the family part myself." } },
       { x: 8, y: 4, dir: 'down', sprite: 'tullyLady', name: 'Lady Catelyn', script: 'gymTully',
         data: { trainer: 'gymTully' } },
       { x: 4, y: 7, dir: 'right', sprite: 'tully', name: 'Ser Edmure', script: 'trainer',
@@ -4220,7 +4226,8 @@ export const MAPS = {
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'ironborn', name: 'Asha', script: 'courtship',
-        data: { match: 'asharaGreyjoy' } },
+        data: { match: 'asharaGreyjoy',
+                line: "Asha: I captain my own ship and I will go on captaining it. Say now if that is a difficulty." } },
       { x: 7, y: 3, dir: 'down', sprite: 'ironborn', name: 'Captain of the Iron Fleet',
         script: 'duel', data: { duel: 'euron' } },
       { x: 3, y: 6, dir: 'right', sprite: 'maester', name: 'Maester', script: 'healer',
@@ -4418,7 +4425,8 @@ export const MAPS = {
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'bolton', name: 'Domeric', script: 'courtship',
-        data: { match: 'domericBolton' } },
+        data: { match: 'domericBolton',
+                line: "Domeric: My family has a reputation, and I have spent nineteen years not being it." } },
       { x: 4, y: 6, dir: 'right', sprite: 'maester', name: 'Maester', script: 'healer',
         data: { line: 'Maester: I keep the ravens and I keep quiet. Both are a service.' } },
       { x: 10, y: 10, dir: 'left', sprite: 'merchant', name: 'Steward', script: 'shop',

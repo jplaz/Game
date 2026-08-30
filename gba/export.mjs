@@ -803,6 +803,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     const cover = [];
     const ledge = [];
     const counter = [];
+    const water = [];
     /* Every pickup the browser game puts on the ground becomes a chest here:
        a thing you walk up to and open, rather than a tile you happen to tread
        on and a line of text you may not have read. */
@@ -959,6 +960,11 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         // is behind it. Without this a stallholder could only be reached by
         // walking round the end of their own stall and standing beside them.
         counter.push(char === 'K' ? 1 : 0);
+        /* Open water. It is already in `solid`, because on foot it is a wall --
+           but a ship needs to know WHICH walls are the sea, since under sail
+           those are the only ground there is and everything else is the wall.
+           One bit a tile, and the cartridge can turn a map inside out. */
+        water.push(tileDef(char).kind === 'water' ? 1 : 0);
       }
     }
 
@@ -1174,7 +1180,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     }
 
     out.maps.push({
-      id, name: map.name, width, height, cells, solid, cover, ledge, counter,
+      id, name: map.name, width, height, cells, solid, cover, ledge, counter, water,
       /* What plays here. Three tunes covered a hundred and fifty-seven maps
          and a hundred and one of them asked for the same one, so the Wall,
          Dorne, Braavos and Winterfell were the same piece of music. */
@@ -2329,6 +2335,7 @@ L.push('  const u8  *solid;');
 L.push('  const u8  *cover;     /* where something can be hiding */');
 L.push('  const u8  *ledge;     /* a drop you can take but not climb */');
 L.push('  const u8  *counter;   /* solid, but you can speak across it */');
+L.push('  const u8  *water;     /* solid on foot; the only road under sail */');
 L.push('  u8 frost;             /* whether the cover here is under snow */');
 L.push('  u8 cold;              /* how far north, 0 Dorne to 5 beyond the Wall */');
 L.push('  u8 tune;              /* what plays here */');
@@ -2367,6 +2374,9 @@ harvest.maps.forEach((map, i) => {
   L.push('};');
   L.push(`static const u8 counter_${i}[${map.height} * ${map.width}] = {`);
   L.push(block(map.counter, 24));
+  L.push('};');
+  L.push(`static const u8 water_${i}[${map.height} * ${map.width}] = {`);
+  L.push(block(map.water, 24));
   L.push('};');
   L.push(`static const u16 residents_${i}[${Math.max(1, map.residents.length)}] = { ${map.residents.join(', ') || '0'} };`);
 
@@ -2416,7 +2426,7 @@ harvest.maps.forEach((map, i) => {
 L.push('static const Map maps[MAP_COUNT] = {');
 harvest.maps.forEach((map, i) => {
   L.push(`  { ${cstr(map.name)}, ${map.width}, ${map.height}, ${map.bank.length}, tiles_${i},`);
-  L.push(`    entries_${i}, solid_${i}, cover_${i}, ledge_${i}, counter_${i}, ${map.frost}, ${map.cold}, ${map.tune}, ${map.scene}, residents_${i}, ${map.residents.length},`);
+  L.push(`    entries_${i}, solid_${i}, cover_${i}, ledge_${i}, counter_${i}, water_${i}, ${map.frost}, ${map.cold}, ${map.tune}, ${map.scene}, residents_${i}, ${map.residents.length},`);
   L.push(`    warps_${i}, ${map.liveWarps}, signs_${i}, ${map.signs.length},`);
   L.push(`    npcs_${i}, ${map.npcs.length}, ambushes_${i}, ${map.ambushes.length},`);
   L.push(`    wilds_${i}, ${map.wilds.length}, chests_${i}, ${map.chests.length},`);

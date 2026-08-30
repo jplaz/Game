@@ -1382,12 +1382,24 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         };
       }),
       /* One of these has to be argued with steel before it is settled. */
-      duel: opts.map((o) => (o.roamer
-        ? pushDuellist(Object.assign(
-            makeRoamer(typeof o.roamer === 'string' ? o.roamer : o.roamer.id,
-                       groundBy[0][mapIds.indexOf(place.map)], (l) => l[0]),
-            { mortal: 1, fixed: 0, sworn: 255, host: 0, dead: 0 }))
-        : 0xFFFF)),
+      /* makeRoamer hands back `techniques`; the cartridge writes `techs`, and
+         nothing here was translating between them. It only ever worked because
+         pushDuellist dedupes on name-and-level and every quest roamer written
+         so far happened to collide with one an ambush had already pushed
+         properly. The first quest to name a pairing nobody had used crashed the
+         export on d.techs.join. */
+      duel: opts.map((o) => {
+        if (!o.roamer) return 0xFFFF;
+        const made = makeRoamer(typeof o.roamer === 'string' ? o.roamer : o.roamer.id,
+                                typeof o.roamer === 'string'
+                                  ? groundBy[0][mapIds.indexOf(place.map)]
+                                  : (o.roamer.level ?? groundBy[0][mapIds.indexOf(place.map)]),
+                                (l) => l[0]);
+        return pushDuellist(Object.assign(made, {
+          techs: techSlots(made.techniques),
+          mortal: 1, fixed: 0, sworn: 255, host: 0, dead: 0,
+        }));
+      }),
     });
     scenes.push({ id, map: place.map, x: spot.x, y: spot.y,
       flag: flagAt(`quest_${id}`), first, count: beats.length - first, people: 0,

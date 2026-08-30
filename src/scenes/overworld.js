@@ -27,6 +27,7 @@ import {
 import { SCRIPTS } from '../data/scripts.js';
 import { TRAINERS } from '../data/trainers.js';
 import { saveGame } from '../game/save.js';
+import { aboutNow, isNight } from '../game/clock.js';
 
 const SCREEN_W = 240;
 const SCREEN_H = 160;
@@ -116,21 +117,30 @@ export class Overworld {
     this.frameTimer = 0;
     game.state.position = { map: mapId, x, y, dir: this.player.dir };
 
-    this.npcs = (this.map.npcs ?? []).map((def, index) => ({
-      ...def,
-      id: `${mapId}:${index}`,
-      homeX: def.x,
-      homeY: def.y,
-      startDir: def.dir,
-      step: 0,
-      moving: null,
+    this.npcs = (this.map.npcs ?? []).map((def, index) => {
       // Anyone you killed is gone from the world for good, on every map and
-      // every reload.
-      hidden: (def.hideIfFlag ? flag(def.hideIfFlag) : false)
+      // every reload. That is separate from being indoors because it is the
+      // small hours, which comes and goes.
+      const gone = (def.hideIfFlag ? flag(def.hideIfFlag) : false)
         || (def.data?.trainer ? isDead(`trainer_${def.data.trainer}`) : false)
         || (def.data?.duel ? isDead(`duel_${def.data.duel}`) : false)
-        || (def.data?.companion ? hasFallen(def.data.companion) : false),
-    }));
+        || (def.data?.companion ? hasFallen(def.data.companion) : false);
+      return {
+        ...def,
+        id: `${mapId}:${index}`,
+        homeX: def.x,
+        homeY: def.y,
+        startDir: def.dir,
+        step: 0,
+        moving: null,
+        strollTimer: 1 + Math.random() * 5,
+        hiddenBase: gone,
+        hidden: gone || !aboutNow(def.abroad),
+      };
+    });
+    // Worked out once on arrival rather than every frame: whether somebody is
+    // the sort of person who drifts about, and whether they have the room.
+    for (const npc of this.npcs) npc.roams = this.canRoam(npc);
 
     this.updateCamera(true);
     audio.play(this.map.music ?? 'town', TRACKS);
@@ -878,8 +888,95 @@ export class Overworld {
     this.runScript('trainer', npc);
   }
 
+  /**
+   * People who are allowed to drift about. Anybody you have to be able to find
+   * again stays where the map put them — a shopkeeper who wanders off his own
+   * counter is not alive, he is lost — so this is an allow-list of the flavour
+   * scripts rather than a block-list of the important ones.
+   */
+  static ROAMING_SCRIPTS = new Set([
+    'townTalk', 'bellowsHand', 'generic',
+    'hideoutLocal', 'houseTalk', 'freeCityLocal', 'taproom',
+  ]);
+
+  /* Ground an NPC may stand on. Deliberately not blocked(), which consults the
+     player's mount — a swimming mount would otherwise let the whole town walk
+     out onto the water behind you. */
+  standableForNpc(x, y) {
+    if (x < 0 || y < 0 || x >= this.map.width || y >= this.map.height) return false;
+    const kind = tileDef(tileAt(this.map, x, y)).kind;
+    return kind !== 'solid' && kind !== 'water' && kind !== 'ledge';
+  }
+
+  /** How much room a tile has around it. Three or four is open ground. */
+  openness(x, y) {
+    let open = 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      if (this.standableForNpc(x + dx, y + dy)) open++;
+    }
+    return open;
+  }
+
+  /**
+   * Whether this person has room to move without corking the place up. The
+   * test is not whether they are standing in open ground — almost nobody is,
+   * because people are sensibly placed against walls and counters and that
+   * ruled out ninety-eight of every hundred of them — but whether there is
+   * open ground next to them to step out into and back from.
+   */
+  canRoam(npc) {
+    if (!Overworld.ROAMING_SCRIPTS.has(npc.script ?? 'generic')) return false;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = npc.homeX + dx, ny = npc.homeY + dy;
+      if (this.standableForNpc(nx, ny) && this.openness(nx, ny) >= 3) return true;
+    }
+    return false;
+  }
+
+  /** Starts one idle step, if there is anywhere sensible to put a foot. */
+  strollOne(npc) {
+    const dirs = [['up', 0, -1], ['down', 0, 1], ['left', -1, 0], ['right', 1, 0]];
+    const options = [];
+    for (const [dir, dx, dy] of dirs) {
+      const nx = npc.x + dx, ny = npc.y + dy;
+      // Never further than a step or two from where they belong, so a town
+      // still has its people in it after ten minutes rather than a huddle in
+      // one corner.
+      if (Math.abs(nx - npc.homeX) > 2 || Math.abs(ny - npc.homeY) > 2) continue;
+      if (!this.standableForNpc(nx, ny)) continue;
+      // Out into the open and back to their own spot, and nowhere else. A body
+      // drifting into a one-tile alley is a door that opens and shuts at
+      // random, which is worse than a statue.
+      const home = nx === npc.homeX && ny === npc.homeY;
+      if (!home && this.openness(nx, ny) < 3) continue;
+      if (nx === this.player.x && ny === this.player.y) continue;
+      if (this.npcAt(nx, ny)) continue;
+      // Standing in a doorway would put somebody through a warp they never
+      // chose, and standing on a sign makes it unreadable.
+      if ((this.map.warps ?? []).some((w) => w.x === nx && w.y === ny)) continue;
+      options.push([dir, nx, ny]);
+    }
+    if (!options.length) return;
+    const [dir, nx, ny] = options[Math.floor(Math.random() * options.length)];
+    npc.dir = dir;
+    npc.moving = { toX: nx, toY: ny, t: 0, duration: 0.4 };
+  }
+
   updateNpcs(dt) {
     for (const npc of this.npcs) {
+      /* Whether somebody who keeps particular hours is about at all. */
+      if (npc.abroad) npc.hidden = npc.hiddenBase || !aboutNow(npc.abroad);
+
+      /* And the idle drift. Nobody moves while you are talking to them, or
+         while a scene is running, or in the dark. */
+      if (!npc.moving && !npc.hidden && !this.script && !this.busy
+          && npc.roams && !isNight()) {
+        npc.strollTimer = (npc.strollTimer ?? 1 + Math.random() * 4) - dt;
+        if (npc.strollTimer <= 0) {
+          npc.strollTimer = 2 + Math.random() * 5;
+          this.strollOne(npc);
+        }
+      }
       if (!npc.moving) continue;
       npc.moving.t += dt / npc.moving.duration;
       npc.step = 1 + (Math.floor(npc.moving.t * 4) % 4);

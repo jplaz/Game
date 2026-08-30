@@ -34,6 +34,7 @@ import {
   ownsProperty, buyProperty, collectRent, rentLine,
 } from '../game/property.js';
 import { maxVigour } from '../game/player.js';
+import { asideFor } from '../game/regard.js';
 import { audio } from '../engine/audio.js';
 
 const STARTERS = [
@@ -68,7 +69,23 @@ export async function settleFate({ say, choose, id, def }) {
 export const SCRIPTS = {
   // ------------------------------------------------------------- defaults --
   async generic({ say, npc }) {
+    // Even a nobody notices you if you have become somebody.
     await say(`${npc?.name ?? 'Someone'} has nothing to say to you today.`);
+    const aside = asideFor();
+    if (aside) await say(aside);
+  },
+
+  /**
+   * Somebody in a town with a line to say. This script was named by
+   * twenty-two people across the world and had never been written: every one
+   * of them fell through to `generic` and said "has nothing to say to you
+   * today" while the line somebody had authored for them sat in their data
+   * unread.
+   */
+  async townTalk({ say, npc }) {
+    await say(npc?.data?.line ?? `${npc?.name ?? 'Someone'} nods, and goes back to it.`);
+    const aside = asideFor();
+    if (aside) await say(aside);
   },
 
   /** Ground pickups. */
@@ -1069,6 +1086,8 @@ export const SCRIPTS = {
   /** Somebody with nothing to do but say the one line written on them. */
   async bellowsHand({ say, npc }) {
     await say(npc?.data?.line ?? 'They have nothing to say to you.');
+    const aside = asideFor();
+    if (aside) await say(aside);
   },
 
   async eyrieHint({ say }) {

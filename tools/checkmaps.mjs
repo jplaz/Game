@@ -52,8 +52,18 @@ for (const [id, map] of Object.entries(MAPS)) {
   /* Somebody who never moves is part of the wall. Somebody who roams shuffles
      about and the cartridge already keeps them out of corridors and doorways,
      so they are not a blockage. */
-  const planted = new Set((map.npcs ?? [])
-    .filter((p) => !p.roams).map((p) => `${p.x},${p.y}`));
+  /* And somebody who keeps hours is only part of the wall while they are
+     about. A night porter and a day washerwoman are two different casts
+     standing in two different places, and a map that is walkable with one of
+     them out can be cut in half with the other one in — which is exactly what
+     happened the first time anybody was given a reason to stand in Flea Bottom
+     after dark. Check the worst of both. */
+  const castAt = (phase) => new Set((map.npcs ?? [])
+    .filter((p) => !p.roams && (!p.abroad || p.abroad === phase))
+    .map((p) => `${p.x},${p.y}`));
+  const dayCast = castAt('day');
+  const nightCast = castAt('night');
+  const planted = new Set([...dayCast, ...nightCast]);
 
   // Where you can go from here, obeying the drop rule.
   const from = (x, y) => {

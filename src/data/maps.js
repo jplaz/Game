@@ -1609,8 +1609,13 @@ function fleaBottomPlan() {
     row(x, y + 6, front);
   };
   tall(8, 2, 'wHH');                          // rank one down into rank two
-  tall(14, 6, 'Hw', 'Y', 'y');                // rank two down into rank three
   tall(17, 10, 'HwH');                        // rank three down into rank four
+  /* There was a third of these standing on the ninth row, and between it and
+     the channel the plank became the only way from the north half of Flea
+     Bottom to the south half. One person standing anywhere near it cut the map
+     in two — which the passability check duly reported the moment somebody was
+     given a reason to stand there after dark. A warren wants loops, not a
+     single thread; the ninth row runs clear now and there are four ways down. */
 
   // Smoke, over the ones with a fire still in them.
   for (const [x, y] of [[3, 2], [10, 2], [18, 2], [25, 2], [7, 6], [24, 6],
@@ -1619,15 +1624,14 @@ function fleaBottomPlan() {
   /* The flea-channel: everything the city is done with, on its way to the bay,
      down the one alley wide enough to carry it. There is a plank over it in
      exactly one place, which is worth knowing before you need it. */
-  box(17, 9, 8, 1, '~');
+  box(17, 9, 5, 1, '~');
   put(20, 9, 't');
 
   /* The pot-shop. Not a building — a fire and a pot in the open, in the one
      court in Flea Bottom wide enough to hold a queue. The counter runs across
      the middle and the court runs round both ends of it, so the place can be
      walked through rather than backed out of. */
-  row(17, 7, 'KKKK');
-  put(17, 6, 'F');                            // the fire, behind the counter
+  row(17, 7, 'FKKK');                         // the fire, then the counter
 
   /* Tenements that came down and were never carted away. These go in the
      frontages, which are already walls — an alley down here is one tile wide,
@@ -1772,7 +1776,10 @@ export const MAPS = {
       { x: 5, y: 17, dir: 'right', sprite: 'septa', name: 'Septa Mordane', script: 'winterfellSepta' },
       { x: 4, y: 8, dir: 'down', sprite: 'nightswatch', name: 'Recruiter', script: 'blackBrother' },
       /* The winter town, which stands empty most of the year and is full now. */
-      { x: 28, y: 16, dir: 'left', sprite: 'child', name: 'Stable Girl', script: 'townTalk',
+      { x: 26, y: 22, dir: 'down', sprite: 'guard', name: 'Watch of the Gate', abroad: 'night',
+        script: 'townTalk',
+        data: { line: 'Watch of the Gate: Nothing moves out there but the snow. That is the good sort of night and I will take it.' } },
+      { x: 28, y: 16, dir: 'left', sprite: 'child', name: 'Stable Girl', abroad: 'day', script: 'townTalk',
         data: { line: 'Stable Girl: That grey is Lord Stark\'s and he does not like you. He does not like me either.' } },
       /* And the godswood, which people go into alone. */
       { x: 25, y: 27, dir: 'up', sprite: 'stark', name: 'Master-at-arms', script: 'duel',
@@ -4677,7 +4684,7 @@ export const MAPS = {
     npcs: [
       { x: 18, y: 6, dir: 'down', sprite: 'smallfolk', name: 'Bowl-of-Brown Man', script: 'bellowsHand',
         data: { line: 'Bowl-of-Brown Man: A copper the bowl. Do not ask what is in it and I will not have to lie to you.' } },
-      { x: 6, y: 13, dir: 'down', sprite: 'smallfolk', name: 'Alley Knife', script: 'duel',
+      { x: 9, y: 13, dir: 'down', sprite: 'smallfolk', name: 'Alley Knife', script: 'duel',
         data: { duel: 'alleyKnife' } },
       { x: 13, y: 9, dir: 'up', sprite: 'child', name: 'Barefoot Girl', script: 'bellowsHand',
         data: { line: 'Barefoot Girl: Follow the channel east and you come out by the Mud Gate. The gold cloaks have forgotten there is a way through.' } },
@@ -4685,7 +4692,10 @@ export const MAPS = {
         data: { line: 'Pot-Shop Cook: Forty years I have kept that pot on the boil. It has never once been empty and never once been washed.' } },
       { x: 21, y: 8, dir: 'left', sprite: 'noble', name: 'Deed-Broker', script: 'deedBroker',
         data: { property: 'fleaRoom' } },
-      { x: 25, y: 13, dir: 'left', sprite: 'goodwife', name: 'Washerwoman', script: 'bellowsHand',
+      { x: 18, y: 8, dir: 'up', sprite: 'smallfolk', name: 'A Man Not Buying Anything', abroad: 'night',
+        script: 'townTalk',
+        data: { line: 'A Man Not Buying Anything: You have been down here a while now. People notice a thing like that, and some of them charge for noticing.' } },
+      { x: 25, y: 13, dir: 'left', sprite: 'goodwife', name: 'Washerwoman', abroad: 'day', script: 'bellowsHand',
         data: { line: 'Washerwoman: You want to keep your hand on your purse down here, and your purse where your hand is.' } },
     ],
   },

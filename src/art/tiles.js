@@ -1120,6 +1120,11 @@ export const GROUNDS = {
   snow: (ctx, variant) => painters.snow(ctx, 0, 0, null, variant),
   sand: (ctx, variant) => painters.sand(ctx, 0, 0, null, variant),
   stone: (ctx, variant) => painters.stone(ctx, 0, 0, null, variant),
+  // A map laid on bare earth had no ground of its own here, so every grounded
+  // thing standing on it — chimneys, fences, signs, lone trees — fell through
+  // to the grass default and came up sitting on a bright green square in the
+  // middle of a mud alley.
+  earth: (ctx, variant) => painters.dirt(ctx, 0, 0, null, variant),
   cave: (ctx, variant) => painters.caveFloor(ctx, 0, 0, null, variant),
 };
 

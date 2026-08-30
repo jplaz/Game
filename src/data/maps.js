@@ -1533,6 +1533,110 @@ function winterfellPlan() {
   return g.map((r) => r.join(''));
 }
 
+/**
+ * Flea Bottom. The cartridge drew the poorest quarter of the largest city in
+ * the world as `warren()` — a procedural maze of dungeon wall and dungeon
+ * floor, two doors in it and nothing else. Corridors of blank stone are not a
+ * slum; they are not even a place.
+ *
+ * A warren is the right shape. A warren is made of houses. Four ranks of
+ * tenements with the alleys between them offset rank to rank, so no line of
+ * sight runs the length of it; the flea-channel down the middle carrying off
+ * what the city is finished with, with one plank over it; and the pot that the
+ * bowl of brown comes out of, boiling in the open where anyone can smell it.
+ */
+function fleaBottomPlan() {
+  const W = 30, H = 20;
+  const g = [];
+  for (let y = 0; y < H; y++) g.push(new Array(W).fill('d'));
+
+  const put = (x, y, c) => { if (g[y] && g[y][x] !== undefined) g[y][x] = c; };
+  const box = (x, y, w, h, c) => {
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, y + j, c);
+  };
+  const row = (x, y, text) => [...text].forEach((c, i) => put(x + i, y, c));
+
+  /* One rank of tenement: roof, roof, and whatever frontage the alley will
+     allow. Nothing down here has a door onto the street that is not barred, so
+     the fronts are shutters and daub — the ways in are off courts the map does
+     not show you. */
+  const block = (x, y, front, roof = 'Z', cap = 'z') => {
+    box(x, y, front.length, 1, cap);
+    box(x, y + 1, front.length, 1, roof);
+    row(x, y + 2, front);
+  };
+
+  // Walled in on every side by the backs of yet more of itself.
+  box(0, 0, W, 1, 'Z');
+  box(0, H - 2, W, 2, 'Z');
+  box(0, 0, 1, H, 'Z');
+  box(W - 1, 0, 1, H, 'Z');
+
+  // Rank one, under the Hill of Rhaenys.
+  block(1, 2, 'HwHHw');
+  block(7, 2, 'wHHHwHH', 'Y', 'y');
+  block(15, 2, 'HwHHHwH');
+  block(23, 2, 'wHHHwH', 'Y', 'y');
+
+  // Rank two. The gap at sixteen is not a building — it is the pot-shop, and
+  // it is the only thing in Flea Bottom anybody gives directions by.
+  block(1, 6, 'HHw', 'Y', 'y');
+  block(5, 6, 'wHHHwH');
+  block(12, 6, 'HwHH', 'Y', 'y');
+  block(22, 6, 'wHHHHwH');
+
+  // Rank three.
+  block(1, 10, 'HHwH', 'Y', 'y');
+  block(6, 10, 'wHHHHwH');
+  block(14, 10, 'HwHHwH', 'Y', 'y');
+  block(21, 10, 'wHHHw');
+  block(27, 10, 'Hw');
+
+  // Rank four, and the way out at the end of it.
+  block(1, 14, 'HwHHHwH', 'Y', 'y');
+  block(9, 14, 'wHHHwH');
+  block(16, 14, 'HHwHw', 'Y', 'y');
+  block(22, 14, 'wHHHHw');
+
+  /* Three tenements that have been built up through what used to be an alley,
+     joining one rank to the next. Without these the place is four terraces
+     with three straight streets between them and you can see the far wall from
+     anywhere; with them there is no line you can walk without turning, which
+     is the whole of why Flea Bottom is somewhere people get lost. */
+  const tall = (x, y, front, roof = 'Z', cap = 'z') => {
+    box(x, y, front.length, 1, cap);
+    box(x, y + 1, front.length, 5, roof);
+    row(x, y + 6, front);
+  };
+  tall(8, 2, 'wHH');                          // rank one down into rank two
+  tall(14, 6, 'Hw', 'Y', 'y');                // rank two down into rank three
+  tall(17, 10, 'HwH');                        // rank three down into rank four
+
+  // Smoke, over the ones with a fire still in them.
+  for (const [x, y] of [[3, 2], [10, 2], [18, 2], [25, 2], [7, 6], [24, 6],
+                        [9, 10], [16, 10], [4, 14], [12, 14], [25, 14]]) put(x, y, 'n');
+
+  /* The flea-channel: everything the city is done with, on its way to the bay,
+     down the one alley wide enough to carry it. There is a plank over it in
+     exactly one place, which is worth knowing before you need it. */
+  box(17, 9, 8, 1, '~');
+  put(20, 9, 't');
+
+  /* The pot-shop. Not a building — a fire and a pot in the open, in the one
+     court in Flea Bottom wide enough to hold a queue. The counter runs across
+     the middle and the court runs round both ends of it, so the place can be
+     walked through rather than backed out of. */
+  row(17, 7, 'KKKK');
+  put(17, 6, 'F');                            // the fire, behind the counter
+
+  /* Tenements that came down and were never carted away. These go in the
+     frontages, which are already walls — an alley down here is one tile wide,
+     and anything dropped into one is not scenery, it is a road closed. */
+  for (const [x, y] of [[2, 4], [10, 8], [24, 12], [18, 16], [27, 4]]) put(x, y, 'U');
+
+  return g.map((r) => r.join(''));
+}
+
 export const MAPS = {
   // ------------------------------------------------ the winter town, inside --
   winterfellInn: makeInn({
@@ -4540,32 +4644,31 @@ export const MAPS = {
     name: 'Flea Bottom',
     music: 'town',
     ground: 'earth',
-    get tiles() {
-      /* Eleven cells across and seven down: big enough to get lost in, and the
-         way out is at the far corner from the way in. */
-      const g = warren(0xF1EA, 11, 7, '=', 'I').map((r) => [...r]);
-      g[1][1] = 'd';                 /* down from the city */
-      g[13][21] = 'd';               /* and out to the docks, if you find it */
-      return g.map((r) => r.join(''));
-    },
+    get tiles() { return fleaBottomPlan(); },
     encounters: [
       { roamer: 'bandit', min: 28, max: 36, weight: 60 },
       { roamer: 'gravedigger', min: 28, max: 36, weight: 40 },
     ],
     warps: [
       { x: 1, y: 1, to: 'kingsLanding', tx: 11, ty: 20, dir: 'down' },
-      { x: 21, y: 13, to: 'mudGate', tx: 18, ty: 5, dir: 'down' },
+      { x: 28, y: 17, to: 'mudGate', tx: 18, ty: 5, dir: 'down' },
     ],
     signs: [
-      { x: 11, y: 1, text: 'Somebody has scratched an arrow into the wall, and then scratched three more pointing other ways.' },
+      { x: 12, y: 0, text: 'Somebody has scratched an arrow into the daub, and then scratched three more pointing other ways.' },
+      { x: 19, y: 7, text: 'A pot the size of a bathtub, and nobody will say what went into it.\nA bowl is a copper. Nobody asks twice.' },
+      { x: 12, y: 10, text: 'THE FLEA-CHANNEL\nEverything the city is finished with comes down here on its way to the bay.\nThere is one plank over it. Mind where you put your feet.' },
     ],
     npcs: [
-      { x: 19, y: 1, dir: 'down', sprite: 'smallfolk', name: 'Bowl-of-Brown Man', script: 'bellowsHand',
-        data: { line: 'Keep going down and east. Or do not. It is all the same to me.' } },
-      { x: 3, y: 5, dir: 'down', sprite: 'wildling', name: 'Alley Knife', script: 'duel',
-        data: { duel: 'bandit' } },
+      { x: 18, y: 6, dir: 'down', sprite: 'smallfolk', name: 'Bowl-of-Brown Man', script: 'bellowsHand',
+        data: { line: 'Bowl-of-Brown Man: A copper the bowl. Do not ask what is in it and I will not have to lie to you.' } },
+      { x: 6, y: 13, dir: 'down', sprite: 'smallfolk', name: 'Alley Knife', script: 'duel',
+        data: { duel: 'alleyKnife' } },
       { x: 13, y: 9, dir: 'up', sprite: 'child', name: 'Barefoot Girl', script: 'bellowsHand',
-        data: { line: 'There is a gate at the far end that the gold cloaks have forgotten about.' } },
+        data: { line: 'Barefoot Girl: Follow the channel east and you come out by the Mud Gate. The gold cloaks have forgotten there is a way through.' } },
+      { x: 19, y: 6, dir: 'down', sprite: 'oldman', name: 'Pot-Shop Cook', script: 'bellowsHand',
+        data: { line: 'Pot-Shop Cook: Forty years I have kept that pot on the boil. It has never once been empty and never once been washed.' } },
+      { x: 25, y: 13, dir: 'left', sprite: 'goodwife', name: 'Washerwoman', script: 'bellowsHand',
+        data: { line: 'Washerwoman: You want to keep your hand on your purse down here, and your purse where your hand is.' } },
     ],
   },
 

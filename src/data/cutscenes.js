@@ -222,12 +222,12 @@ export const CUTSCENES = {
 
   /** And the offer, made again, without the manners. */
   theSecondOffer: {
-    map: 'fleaBottom', x: 8, y: 10, flag: 'cs_secondOffer', name: 'The Second Offer',
+    map: 'fleaBottom', x: 11, y: 9, flag: 'cs_secondOffer', name: 'The Second Offer',
     needs: 'refusedTheOffer', sigils: 7,
     beats: [
       ['say', 'Flea Bottom at dusk. Somebody steps out of a doorway behind you '
             + 'and two more do not step out of the one opposite, which is worse.'],
-      ['spawn', 'agent', { x: 8, y: 7, dir: 'down', sprite: 'noble',
+      ['spawn', 'agent', { x: 11, y: 6, dir: 'down', sprite: 'noble',
         name: 'A Man in Good Boots' }],
       ['walk', 'agent', 'down', 2],
       ['shake', 0.6],

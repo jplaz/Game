@@ -354,6 +354,22 @@ export const DUELLISTS = {
     defeat: 'Daario Naharis: Beautiful. Truly. I shall tell it badly in every tavern from here to Meereen.',
     after: 'Daario Naharis: Fight for what you love, or do not fight. Anything else is just employment.',
   },
+  /* Flea Bottom's own. The alley knife who waits in the fourth rank had been
+     pointed at "bandit" since he was written, which is a roamer archetype and
+     not a duellist, so talking to him did nothing at all. */
+  alleyKnife: {
+    name: 'The Alley Knife', sprite: 'smallfolk', level: 30,
+    vigour: 190, might: 44, guard: 14, swiftness: 42, wind: 28,
+    techniques: ['backstab', 'quickCut', 'guard'],
+    reward: 900, exp: 520, canYield: true,
+    loot: ['weapon', 'huntingKnife'],
+    intro: 'The Alley Knife: You came down here wearing that. Down here. '
+         + 'I am doing you a kindness, taking it off you before somebody worse does.',
+    defeat: 'The Alley Knife: All right. All right! Keep the coat. '
+          + 'Nobody down here saw either of us.',
+    after: 'The Alley Knife: Still breathing, are you. Walk on the left, the right side floods.',
+  },
+
   daenerys: {
     name: 'Daenerys Targaryen', sprite: 'targaryen', level: 42,
     house: 'targaryen',

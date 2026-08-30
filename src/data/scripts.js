@@ -975,6 +975,17 @@ export const SCRIPTS = {
     }
 
     const port = ports[pick];
+    /* A captain will not carry you somewhere you have not earned. The wardens
+       hold the roads against anybody with too few seats behind them, and for a
+       long time the sea held nothing at all -- so a full purse skipped the
+       whole ladder. Gold is not an achievement. */
+    const held = sigilCount();
+    if ((port.needs ?? 0) > held) {
+      await say(`Ship's Captain: ${port.name}? With ${held} seat${held === 1 ? '' : 's'} `
+        + `behind you? They would have you off my deck and in the harbour. `
+        + `Come back with ${port.needs}.`);
+      return;
+    }
     if (!canAfford(port.fare)) {
       await say(`Ship's Captain: ${port.fare} gold dragons. Come back when you have them.`);
       return;

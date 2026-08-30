@@ -2352,12 +2352,12 @@ L.push(`#define MAP_COUNT ${harvest.maps.length}`);
   {
     const berths = PORTS.filter((p) => MAP_IDS.includes(p.map));
     L.push(`#define PORT_COUNT ${berths.length}`);
-    L.push('typedef struct { const char *name; u8 map, x, y, dir; u16 fare; } Port;');
+    L.push('typedef struct { const char *name; u8 map, x, y, dir; u16 fare; u8 needs; } Port;');
     L.push('static const Port ports[PORT_COUNT] = {');
     for (const p of berths) {
       const dir = ['down', 'up', 'left', 'right'].indexOf(p.dir ?? 'down');
       L.push(`  { ${cstr(p.name)}, ${MAP_IDS.indexOf(p.map)}, ${p.x}, ${p.y}, `
-        + `${dir < 0 ? 0 : dir}, ${p.fare} },`);
+        + `${dir < 0 ? 0 : dir}, ${p.fare}, ${p.needs ?? 0} },`);
     }
     L.push('};');
   }

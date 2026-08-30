@@ -5033,16 +5033,27 @@ static void paintPort(void) {
     int y, able;
     if (i < top) continue;
     y = 22 + row * 11;
-    able = i != mine && you.gold >= (int)ports[i].fare;
+    /* A captain will not carry you somewhere you have not earned. Wardens hold
+       the roads against too few seats; the sea held nothing at all, so a full
+       purse skipped the whole ladder. */
+    able = i != mine && you.gold >= (int)ports[i].fare
+        && countSigils() >= (int)ports[i].needs;
     if (i == portPick) drawCursor(14, y + 1, C_GOLD);
     drawText(24, y, ports[i].name,
       !able ? C_DIM : (i == portPick ? C_GOLD : C_INK));
     if (i == mine) {
       drawText(TXT_W - 62, y, "you are here", C_DIM);
     } else {
-      copyString(scratch, "", sizeof scratch);
-      appendNumber(scratch, (int)ports[i].fare, sizeof scratch);
-      drawText(TXT_W - 46, y, scratch, able ? C_GOLD : C_DIM);
+      if (countSigils() < (int)ports[i].needs) {
+        copyString(scratch, "", sizeof scratch);
+        appendNumber(scratch, (int)ports[i].needs, sizeof scratch);
+        appendString(scratch, " seats", sizeof scratch);
+        drawText(TXT_W - 52, y, scratch, C_DIM);
+      } else {
+        copyString(scratch, "", sizeof scratch);
+        appendNumber(scratch, (int)ports[i].fare, sizeof scratch);
+        drawText(TXT_W - 46, y, scratch, able ? C_GOLD : C_DIM);
+      }
     }
     row++;
   }
@@ -5053,6 +5064,10 @@ static void paintPort(void) {
 static const char *sailTo(int which) {
   const Port *p = &ports[which];
   if (p->map == worldId) return "You are already tied up here.";
+  if (countSigils() < (int)p->needs) {
+    return "\"With what is behind you? They would have you off my deck and "
+           "into the harbour. Come back when more of them have bent.\"";
+  }
   /* Getting off a beach costs nothing.
      Somewhere with no road on it is somewhere you can only leave by water, and
      charging a fare to leave it means a purse spent fighting your way across it

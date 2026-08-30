@@ -913,7 +913,11 @@ const HOLD_PLANS = {
      village in. Nothing in it stands straight. */
   harrenhal: ({ put, span, box }) => {
     span(1, 1, 22, 20, 'd');
-    for (const [x, y] of [[2, 2], [9, 1], [17, 2], [3, 12], [18, 12]]) box(x, y, 5, 5, 'A', 'U');
+    /* The lower east tower sat flush against the map's east edge and sealed
+       that column, which left the whole north-east hanging off one tile at
+       15,10 - sixty-four tiles behind one man standing still. Pulled in one,
+       so the ward is a ring and no single tile carries it. */
+    for (const [x, y] of [[2, 2], [9, 1], [17, 2], [3, 12], [17, 12]]) box(x, y, 5, 5, 'A', 'U');
     span(9, 6, 6, 5, 'A'); span(10, 7, 4, 3, 'U');
     put(11, 10, 'D'); put(12, 10, 'D');
     span(7, 15, 10, 1, 'U'); span(2, 18, 5, 1, 'U'); span(17, 18, 5, 1, 'U');
@@ -982,7 +986,10 @@ const HOLD_PLANS = {
     span(1, 1, 22, 20, 's');
     span(2, 2, 20, 1, 'Q'); span(2, 2, 1, 18, 'Q'); span(21, 2, 1, 18, 'Q');
     box(3, 3, 7, 7, 'Q', ','); box(14, 3, 7, 7, 'Q', ',');
+    /* Two gates each. One gate is what a walled garden has, and it is also
+       twenty-two tiles that one man standing in a gateway can close. */
     put(6, 9, ','); put(17, 9, ',');
+    put(9, 6, ','); put(14, 6, ',');
     span(4, 12, 4, 3, '~'); span(16, 12, 4, 3, '~');
     box(8, 2, 8, 4, 'Q', 's'); put(11, 5, 'D'); put(12, 5, 'D');
     put(4, 17, 'F'); put(19, 17, 'F');
@@ -1092,6 +1099,29 @@ function makeHold({ name, town, townGate, hall, ground = 'grass', wall = '#',
     const blocked = new Set(taken); blocked.add(`${x},${y}`);
     return walkFrom(blocked) < was - 1;
   };
+  /* And the plan itself has to be a ring, not a tree. A yard where one tile
+     carries sixty others is a yard one man standing still can close, and the
+     placement rule above only keeps people off the tiles it knows about at the
+     time - somebody who roams walks to the rest of them. Cheaper to refuse the
+     plan than to police the people on it. */
+  {
+    const base = walkFrom(new Set());
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        /* Except the gateway itself, which is a corridor by construction: a
+           castle with a gate you cannot stand in the middle of is not a
+           castle. Nobody is ever placed there anyway. */
+        if (shut(x, y) || ((x === 11 || x === 12) && y >= H - 3)) continue;
+        /* A dozen, not a handful: a pig pen with one gate loses six tiles
+           behind somebody standing in the gate and that is what a pen is. A
+           wing of the castle is a different thing. */
+        const lost = base - walkFrom(new Set([`${x},${y}`])) - 1;
+        if (lost > 12) {
+          throw new Error(`${name}: standing at ${x},${y} shuts ${lost} tiles off`);
+        }
+      }
+    }
+  }
   const settle = (things, what) => things.map((p) => {
     let best = null;
     for (let r = 0; r < 12 && !best; r++) {

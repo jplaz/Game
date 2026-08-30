@@ -99733,8 +99733,8 @@ static const Warp warps_82[6] = {
 };
 static const Sign signs_82[4] = {
   { 22, 12, "THE CANALS\nA hundred islands and no ground between them.\nEverything here goes by water or it does not go." },
-  { 4, 4, "THE HOUSE OF BLACK AND WHITE\nValar morghulis.\nThe door answers to two words and neither of them is a knock." },
-  { 19, 4, "THE IRON BANK OF BRAAVOS\nThe Iron Bank will have its due.\nIt has outlived every king who decided otherwise." },
+  { 3, 5, "THE HOUSE OF BLACK AND WHITE\nValar morghulis.\nThe door answers to two words and neither of them is a knock." },
+  { 18, 5, "THE IRON BANK OF BRAAVOS\nThe Iron Bank will have its due.\nIt has outlived every king who decided otherwise." },
   { 10, 4, "THE SEALORD'S PALACE\nBraavos has no king and never has.\nThe Titan is the wall, and it is out where you cannot see it." },
 };
 static const Ambush ambushes_82[1] = {
@@ -100578,7 +100578,7 @@ static const Warp warps_84[6] = {
 };
 static const Sign signs_84[2] = {
   { 22, 16, "THE SPICE MARKET\nPentos sells what everyone else grows.\nThat is the whole of the city, and it has made it very rich." },
-  { 11, 13, "PENTOS. NO WALLS WORTH THE NAME, AND NO NEED OF THEM YET." },
+  { 10, 14, "PENTOS. NO WALLS WORTH THE NAME, AND NO NEED OF THEM YET." },
 };
 static const Ambush ambushes_84[1] = {
   { 0, 0 },

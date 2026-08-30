@@ -35,6 +35,11 @@ import {
 } from '../game/property.js';
 import { maxVigour } from '../game/player.js';
 import { asideFor } from '../game/regard.js';
+import { MATCHES } from './matches.js';
+import {
+  willHear, betroth, wed, isMarried, spouse, betrothed, bearChild, childDue,
+  children, heir, ageWord, takeIntoService, sworn, hostSize, swornFull,
+} from '../game/household.js';
 import { audio } from '../engine/audio.js';
 
 const STARTERS = [
@@ -50,9 +55,39 @@ const STARTERS = [
  */
 export async function settleFate({ say, choose, id, def }) {
   if (!def.mortal) return 'spared';
-  const answer = await choose(`${def.name} is beaten and at your mercy.`,
-    ['Spare them', 'Finish it']);
-  if (answer !== 0) {
+  /* A third answer. Beating somebody used to offer exactly two — put them in
+     the ground, or let them walk — and there was nowhere in the world to put a
+     person you had beaten and wanted. The regard table has had lines about two,
+     four and six swords at your back since it was written, and no build could
+     ever make one of them true. */
+  const canTake = !swornFull() && def.canYield !== false && !def.boss;
+  const options = canTake
+    ? ['Spare them', 'Take them into your service', 'Finish it']
+    : ['Spare them', 'Finish it'];
+  const answer = await choose(`${def.name} is beaten and at your mercy.`, options);
+
+  if (canTake && answer === 1) {
+    const outcome = takeIntoService(def, id);
+    if (outcome === 'full') {
+      await say('You have as many swords behind you as you can feed.');
+    } else if (outcome === 'already') {
+      await say(`${def.name} already answers to you.`);
+    } else {
+      audio.sfx('confirm');
+      await say(`${def.name} looks at the ground a while, and then at you, `
+              + 'and says the words. There are now '
+              + `${hostSize()} sworn to you.`);
+      if (def.house) {
+        await say(`Word of it will reach ${def.name}'s people, and they will not `
+                + 'thank you for the arithmetic.');
+      }
+      recordChoice(`sworn_${id}`, true);
+    }
+    return 'spared';
+  }
+
+  const finish = canTake ? answer === 2 : answer !== 0;
+  if (finish) {
     markDead(id);
     audio.sfx('faint');
     await say(`You finish it. ${def.name} does not get up.`, { theme: 'royal' });
@@ -200,6 +235,131 @@ export const SCRIPTS = {
     if (line) await say(line);
 
     // Your own roof is where you wake up if the next thing goes badly.
+    game.state.respawn = { ...game.state.position, dir: 'down' };
+    if (saveGame && saveGame()) await say('(Your progress is written down.)');
+  },
+
+  /**
+   * Somebody you could marry, and then the marriage itself. One person handles
+   * the whole of it — the asking, the wedding, and afterwards the household —
+   * because a seat can only hold twelve appearances in object memory and three
+   * separate people per match would have cost twenty-four of them.
+   *
+   * Nothing in here asks whether you hold a seat or carry a name. What a match
+   * wants is standing with their own house, which is earned by what you do. A
+   * landless sword marrying up is a story this setting tells constantly and the
+   * game could not tell at all.
+   */
+  async courtship({ say, choose, npc }) {
+    const def = MATCHES[npc.data.match];
+    const mine = spouse();
+
+    // --- already married, to them or to somebody else --------------------
+    if (mine) {
+      if (mine.id !== def.id) {
+        await say(`${def.name}: You are married. I am many things and I am not that.`);
+        return;
+      }
+      if (childDue()) {
+        await say(`${def.name}: There is something you should be told, and I would `
+                + 'rather tell you than have you hear it in a hall.');
+        const child = bearChild();
+        audio.sfx('confirm');
+        await say(`A ${child.boy ? 'son' : 'daughter'}. ${child.name}. `
+                + `${def.name} is well, and says you look worse than she does.`);
+        return;
+      }
+      await say(def.married);
+      const kids = children();
+      if (kids.length) {
+        await say(kids.map((c) => `${c.name}, ${c.boy ? 'son' : 'daughter'}, ${ageWord(c)}`)
+          .join('. ') + '.');
+        const first = heir();
+        if (first) await say(`${first.name} is the eldest, and what you hold goes there.`);
+      } else {
+        await say('No children yet. These things take the time they take.');
+      }
+      if (hostSize()) await say(`${hostSize()} swords answer to you as well now.`);
+      return;
+    }
+
+    // --- promised --------------------------------------------------------
+    const b = betrothed();
+    if (b && b.id !== def.id) {
+      await say(`${def.name}: You are promised to somebody else. Go and sort that out.`);
+      return;
+    }
+    if (b) {
+      const now = await choose(`Wed ${def.name} today, here at ${def.seat}?`,
+        ['Say the words', 'Not yet']);
+      if (now !== 0) { await say(`${def.name}: Another day, then. I am not going anywhere.`); return; }
+      wed();
+      audio.sfx('confirm');
+      await say(def.wed);
+      await say(`(You are married to ${def.name}.)`);
+      return;
+    }
+
+    // --- the asking ------------------------------------------------------
+    await say(def.open);
+    const answer = await choose(`Ask for ${def.name}'s hand? The bride-gift is ${def.price}g.`,
+      ['Ask', 'Not today']);
+    if (answer !== 0) { await say('You leave it unsaid. It stays sayable.'); return; }
+
+    const verdict = willHear(def);
+    if (verdict === 'standing') { audio.sfx('cancel'); await say(def.tooLow); return; }
+    if (verdict === 'poor') { audio.sfx('cancel'); await say(def.poor); return; }
+
+    betroth(def);
+    audio.sfx('confirm');
+    await say(def.yes);
+    await say(`(You are betrothed. Come back to ${def.name} to be wed.)`);
+  },
+
+  /**
+   * The house with the red lamp over the door. One has stood in every town in
+   * this game since the towns were built, as a room with people in it and
+   * nothing you could do. What the place is for in this setting is that it is
+   * where the talk is, and where somebody will let you sit down and stop
+   * bleeding for a while.
+   */
+  async redLamp({ say, choose, npc, healParty, saveGame }) {
+    const line = npc.data?.line ?? `${npc.name}: You look like a long road. Come in off it.`;
+    await say(line);
+    const answer = await choose('What do you want?',
+      ['A bed and a wash \u2014 60g', 'What is being said', 'Nothing']);
+
+    if (answer === 1) {
+      const rumours = [
+        'Half the men who come through here are running from somebody, '
+        + 'and the other half are the somebody.',
+        'Coin has been moving through this town that nobody will put a name to.',
+        'A man was asking after somebody of your description. He paid to be '
+        + 'forgotten, and I have a poor memory for anything but faces.',
+        'Everybody tells this room things they would not tell a septon. '
+        + 'That is the whole of the trade, whatever anybody says it is.',
+      ];
+      await say(`${npc.name}: ${rumours[Math.floor(Math.random() * rumours.length)]}`);
+      const aside = asideFor();
+      if (aside) await say(aside);
+      return;
+    }
+    if (answer !== 0) { await say(`${npc.name}: Suit yourself. The door does not lock.`); return; }
+
+    if (!canAfford(60)) {
+      audio.sfx('cancel');
+      await say(`${npc.name}: Sixty. I do not run a charity and you do not want one.`);
+      return;
+    }
+    addMoney(-60);
+    healParty();
+    game.state.player.hp = maxVigour();
+    game.state.player.wounded = false;
+    const ally = activeCompanion();
+    if (ally && ally.hp < ally.maxHp) restCompanion();
+    audio.sfx('confirm');
+    await say('Hot water, a bed with nothing living in it, and nobody asking your '
+            + 'name. You sleep like something that has stopped being hunted.');
     game.state.respawn = { ...game.state.position, dir: 'down' };
     if (saveGame && saveGame()) await say('(Your progress is written down.)');
   },

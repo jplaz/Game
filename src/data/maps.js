@@ -1776,9 +1776,6 @@ export const MAPS = {
       { x: 5, y: 17, dir: 'right', sprite: 'septa', name: 'Septa Mordane', script: 'winterfellSepta' },
       { x: 4, y: 8, dir: 'down', sprite: 'nightswatch', name: 'Recruiter', script: 'blackBrother' },
       /* The winter town, which stands empty most of the year and is full now. */
-      { x: 26, y: 22, dir: 'down', sprite: 'guard', name: 'Watch of the Gate', abroad: 'night',
-        script: 'townTalk',
-        data: { line: 'Watch of the Gate: Nothing moves out there but the snow. That is the good sort of night and I will take it.' } },
       { x: 28, y: 16, dir: 'left', sprite: 'child', name: 'Stable Girl', abroad: 'day', script: 'townTalk',
         data: { line: 'Stable Girl: That grey is Lord Stark\'s and he does not like you. He does not like me either.' } },
       /* And the godswood, which people go into alone. */
@@ -1860,6 +1857,8 @@ export const MAPS = {
       { x: 8, y: 14, to: 'winterfell', tx: 12, ty: 7, dir: 'down' },
     ],
     npcs: [
+      { x: 7, y: 2, dir: 'down', sprite: 'stark', name: 'Alys Karstark', script: 'courtship',
+        data: { match: 'alysKarstark' } },
       { x: 8, y: 4, dir: 'down', sprite: 'stark', name: 'Lord Eddard', script: 'gymStark',
         data: { trainer: 'gymStark' } },
       { x: 5, y: 10, dir: 'right', sprite: 'guard', name: 'Hallis', script: 'trainer',
@@ -1956,6 +1955,9 @@ export const MAPS = {
       { x: 13, y: 10, text: 'CASTLE BLACK\nSeat of the Night\u2019s Watch.\nNorth of here the maps stop.' },
     ],
     npcs: [
+      { x: 11, y: 5, dir: 'down', sprite: 'nightswatch', name: 'Watch of the Gate', abroad: 'night',
+        script: 'townTalk',
+        data: { line: 'Watch of the Gate: Nothing moves out there but the snow. That is the good sort of night, and I will take it.' } },
       { x: 12, y: 4, dir: 'down', name: 'A Deserter', sprite: 'nightswatch',
         script: 'quest', data: { quest: 'deserterAtTheGate' } },
       { x: 8, y: 9, dir: 'down', sprite: 'nightswatch', name: 'Jon Snow', script: 'duel',
@@ -2020,6 +2022,8 @@ export const MAPS = {
       { x: 8, y: 9, to: 'theEyrie', tx: 7, ty: 15, dir: 'down' },
     ],
     npcs: [
+      { x: 3, y: 2, dir: 'down', sprite: 'arryn', name: 'Mya Stone', script: 'courtship',
+        data: { match: 'mya' } },
       { x: 9, y: 2, dir: 'down', sprite: 'arryn', name: 'Bronze Yohn Royce',
         script: 'gymArryn', data: { trainer: 'gymArryn' } },
       { x: 7, y: 4, dir: 'down', sprite: 'goodwife', name: 'Lady of the Vale',
@@ -2764,6 +2768,8 @@ export const MAPS = {
       { x: 8, y: 9, to: 'highgarden', tx: 7, ty: 15, dir: 'down' },
     ],
     npcs: [
+      { x: 3, y: 2, dir: 'down', sprite: 'tyrell', name: 'Willas', script: 'courtship',
+        data: { match: 'willasTyrell' } },
       { x: 7, y: 4, dir: 'down', sprite: 'tyrell', name: 'Lord Randyll Tarly',
         script: 'gymTyrell', data: { trainer: 'gymTyrell' } },
       { x: 3, y: 7, dir: 'right', sprite: 'guard', name: 'Household Guard', script: 'duel',
@@ -2795,6 +2801,8 @@ export const MAPS = {
       { x: 8, y: 9, to: 'sunspear', tx: 7, ty: 15, dir: 'down' },
     ],
     npcs: [
+      { x: 3, y: 2, dir: 'down', sprite: 'martell', name: 'Aryanne Sand', script: 'courtship',
+        data: { match: 'aryanneMartell' } },
       { x: 7, y: 4, dir: 'down', sprite: 'martell', name: 'Prince Oberyn',
         script: 'gymMartell', data: { trainer: 'gymMartell' } },
       { x: 3, y: 7, dir: 'right', sprite: 'sellsword', name: 'Spear of Dorne', script: 'duel',
@@ -2825,6 +2833,8 @@ export const MAPS = {
       { x: 8, y: 9, to: 'stormsEnd', tx: 7, ty: 15, dir: 'down' },
     ],
     npcs: [
+      { x: 3, y: 2, dir: 'down', sprite: 'baratheon', name: 'Elena', script: 'courtship',
+        data: { match: 'elenaBaratheon' } },
       { x: 7, y: 4, dir: 'down', sprite: 'baratheon', name: 'Stannis Baratheon',
         script: 'gymBaratheon', data: { trainer: 'gymBaratheon' } },
       { x: 3, y: 7, dir: 'right', sprite: 'redPriest', name: 'Melisandre', script: 'duel',
@@ -3229,6 +3239,8 @@ export const MAPS = {
       { x: 8, y: 15, to: 'riverrun', tx: 10, ty: 17, dir: 'down' },
     ],
     npcs: [
+      { x: 3, y: 2, dir: 'down', sprite: 'tully', name: 'Jeyne', script: 'courtship',
+        data: { match: 'jeyneTully' } },
       { x: 8, y: 4, dir: 'down', sprite: 'tullyLady', name: 'Lady Catelyn', script: 'gymTully',
         data: { trainer: 'gymTully' } },
       { x: 4, y: 7, dir: 'right', sprite: 'tully', name: 'Ser Edmure', script: 'trainer',
@@ -4156,6 +4168,8 @@ export const MAPS = {
       { x: 7, y: 12, to: 'pyke', tx: 7, ty: 15, dir: 'down' },
     ],
     npcs: [
+      { x: 3, y: 2, dir: 'down', sprite: 'ironborn', name: 'Asha', script: 'courtship',
+        data: { match: 'asharaGreyjoy' } },
       { x: 7, y: 3, dir: 'down', sprite: 'ironborn', name: 'Captain of the Iron Fleet',
         script: 'duel', data: { duel: 'euron' } },
       { x: 3, y: 6, dir: 'right', sprite: 'maester', name: 'Maester', script: 'healer',
@@ -4352,6 +4366,8 @@ export const MAPS = {
       { x: 7, y: 12, to: 'dreadfort', tx: 7, ty: 15, dir: 'down' },
     ],
     npcs: [
+      { x: 3, y: 2, dir: 'down', sprite: 'bolton', name: 'Domeric', script: 'courtship',
+        data: { match: 'domericBolton' } },
       { x: 4, y: 6, dir: 'right', sprite: 'maester', name: 'Maester', script: 'healer',
         data: { line: 'Maester: I keep the ravens and I keep quiet. Both are a service.' } },
       { x: 10, y: 10, dir: 'left', sprite: 'merchant', name: 'Steward', script: 'shop',

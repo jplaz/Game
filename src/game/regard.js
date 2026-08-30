@@ -14,17 +14,17 @@
 
 import { game, sigilCount, flag, choice } from './state.js';
 import { REGARD } from '../data/regard.js';
-import { activeCompanion } from './company.js';
+import { hostSize as swornCount } from './household.js';
 
 /**
- * How many sworn swords are at your back. The retinue is a cartridge feature —
- * main.c keeps a host, the browser keeps one companion — so in this build the
- * count is nought or one, and the REGARD lines that want two or more simply
- * never fire here. That is the honest answer rather than inventing a number to
- * unlock lines the browser cannot make true.
+ * How many sworn swords are at your back. This used to be nought or one — the
+ * browser had a single companion and no retinue at all — so the REGARD lines
+ * about two, four and six swords could never fire, in a table that had carried
+ * them since it was written. Beating somebody can now put them behind you, and
+ * those lines are reachable at last.
  */
 function hostSize() {
-  return activeCompanion() ? 1 : 0;
+  return swornCount();
 }
 
 /** How many people you have put in the ground. */

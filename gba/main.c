@@ -1482,6 +1482,13 @@ typedef struct {
      on the first morning as on the last. This is the one number that makes it
      a story - it climbs as the realm tears itself apart, and every region in
      Westeros has a depth at which the dead reach it. */
+  /* A ship of your own, which is the difference between the sea being a place
+     and the sea being a menu you paid at. `kind` is which of the four hulls, or
+     255 for none; `hull` is what she has left in her, which does not come back
+     on its own; `aboard` is whether you are standing on her deck rather than on
+     the ground. She is tied up wherever you last stepped off her. */
+  u8 shipKind, shipHull, shipTook, aboard;
+  u8 berthMap, berthX, berthY;
   u16 winter;
   u8 rangeWant, rangeGot, rangings;   /* the ranging you are out on, if any */
   u8 winterSaid;                      /* the deepest stage a raven has told you */
@@ -2251,8 +2258,20 @@ static int groundHouse(void) {
 static int worldId;
 static int camX, camY;
 
+static const Warp *warpAt(int x, int y);
+
+/* Water: solid on foot, and the only road there is under sail. */
+static int waterAt(int x, int y) {
+  if (x < 0 || y < 0 || x >= world->w || y >= world->h) return 0;
+  return world->water[y * world->w + x];
+}
+
 static int solidAt(int x, int y) {
   if (x < 0 || y < 0 || x >= world->w || y >= world->h) return 1;
+  /* Under sail the rules are the other way up: the water carries you and the
+     land is what stops you. A quay is the one tile where both are true, and it
+     stays steppable either way, because it is how anybody gets off. */
+  if (you.aboard) return !waterAt(x, y) && !warpAt(x, y);
   return world->solid[y * world->w + x];
 }
 
@@ -2340,6 +2359,37 @@ static void loadActors(void) {
     }
     for (w = 0; w < 16; w++) PAL_OBJ[(i + 1) * 16 + w] = a->pal[w];
   }
+}
+
+/* ------------------------------------------------------------ your hull ---
+   Thirty-two square, so sixteen character tiles and one object. It borrows the
+   twelfth resident appearance's room, which is free wherever it is needed: a
+   sea has no crowd on it at all, and the moment you step off onto a quay
+   loadActors runs again and puts that room back to whatever stands there. */
+#define BOAT_TILE (NPC_TILE_BASE + 11 * NPC_TILE_STRIDE)
+#define BOAT_BANK 12
+
+static int ownShip(void);
+
+static void loadHullArt(void) {
+  volatile u32 *dst = VRAM_OBJ + BOAT_TILE * 8;
+  const Hull *h;
+  int i;
+  if (!ownShip()) return;
+  h = &hulls[you.shipKind];
+  for (i = 0; i < SHIP_TILES * 2 * 8; i++) dst[i] = h->tiles[i];
+  for (i = 0; i < 16; i++) PAL_OBJ[BOAT_BANK * 16 + i] = h->pal[i];
+}
+
+/* `way` picks which of the two drawings, and the hardware flips it for the
+   other two facings, which is why only two were ever exported. */
+static void placeHull(int slot, int x, int y, int dir) {
+  int frame = dir < 2 ? 0 : 1;                    /* 0 down, 1 up, 2 left, 3 right */
+  int flip = dir == 0 ? 0x2000 : dir == 3 ? 0x1000 : 0;
+  if (x < -32 || x > SCREEN_W || y < -32 || y > SCREEN_H) { oam[slot * 4] = 0x0200; return; }
+  oam[slot * 4 + 0] = (u16)(y & 0xFF);                            /* square */
+  oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0x8000 | flip);         /* size 2 => 32x32 */
+  oam[slot * 4 + 2] = (u16)((BOAT_TILE + frame * SHIP_TILES) | (1 << 10) | (BOAT_BANK << 12));
 }
 
 static void loadWorldTiles(void) {
@@ -2430,6 +2480,10 @@ static void enterMap(int id, int tx, int ty, int dir) {
   }
   worldId = id;
   world = &maps[id];
+  /* Aboard is not a thing you carry about with you: it is where you are. You
+     are on your own deck if and only if you are on open water, which makes it
+     impossible to be walking down a street with a ship under you. */
+  you.aboard = (u8)(world->sea && ownShip());
   hero.px = (s16)(tx * 16);
   hero.py = (s16)(ty * 16);
   hero.dir = (u8)dir;
@@ -2477,6 +2531,10 @@ static void enterMap(int id, int tx, int ty, int dir) {
   loadWorldTiles();
   writeScreenblock();
   loadActors();
+  /* After it, deliberately: the hull lives in the twelfth appearance's room
+     and loadActors has just filled that room with whoever stands here. On a
+     sea there is nobody, so nothing is being painted over. */
+  if (you.aboard) loadHullArt();
   REG_DISPCNT = was;
   showPlate(world->name);
 }
@@ -4091,7 +4149,7 @@ extern unsigned char hostSram[65536];              /* the harness's stand-in */
    animals, sworn swords, scenes-already-seen, a hall you never bought, a horse
    to somewhere you have never been and nine grudges you never earned in places
    they were never written to. */
-#define RECORD_MAGIC 0x3A454349u
+#define RECORD_MAGIC 0x3A45434Au
 
 typedef struct {
   u32 magic;
@@ -4107,6 +4165,8 @@ typedef struct {
   /* The Long Night, and whatever ranging you are out on. A winter that reset
      to summer every time the cartridge was switched off would be a season in
      name only. */
+  u8 shipKind, shipHull, shipTook, aboard;
+  u8 berthMap, berthX, berthY, padShip;
   u16 winter;
   u8 rangeWant, rangeGot, rangings, winterSaid;
   u8 swoopMap, swoopsBeaten, swoopsBurned;
@@ -4171,6 +4231,13 @@ static void keepRecord(void) {
   record.x = (u8)(hero.px >> 4);
   record.y = (u8)(hero.py >> 4);
   { int k; for (k = 0; k < WARE_KINDS; k++) { record.worn[k] = you.worn[k]; record.wear[k] = you.wear[k]; } }
+  record.shipKind = you.shipKind;
+  record.shipHull = you.shipHull;
+  record.shipTook = you.shipTook;
+  record.aboard = you.aboard;
+  record.berthMap = you.berthMap;
+  record.berthX = you.berthX;
+  record.berthY = you.berthY;
   record.winter = you.winter;
   record.rangeWant = you.rangeWant;
   record.rangeGot = you.rangeGot;
@@ -4270,6 +4337,13 @@ static void takeUpRecord(void) {
   you.hp = (int)record.hp;
   you.kills = (int)record.kills;
   { int k; for (k = 0; k < WARE_KINDS; k++) { you.worn[k] = record.worn[k]; you.wear[k] = record.wear[k]; } }
+  you.shipKind = record.shipKind;
+  you.shipHull = record.shipHull;
+  you.shipTook = record.shipTook;
+  you.aboard = record.aboard;
+  you.berthMap = record.berthMap;
+  you.berthX = record.berthX;
+  you.berthY = record.berthY;
   you.winter = record.winter;
   you.rangeWant = record.rangeWant;
   you.rangeGot = record.rangeGot;
@@ -4359,6 +4433,7 @@ static int afterWindow;
 /* Set when the person you just spoke to was a harbourmaster: the passage
    list opens once they have finished talking, the same way a counter does. */
 static int afterPort;
+static int afterYard;
 /* Set when a kennelmaster has finished saying what they say, so the cages open
    as the window closes rather than needing a second press on the same person. */
 static int afterHold;
@@ -4892,6 +4967,16 @@ void newGameState(void) {
   courtAt = -1;
   courtAsking = 0;
   courtDone = 0;
+  /* And nobody starts with a keel under them. 255 is no ship: nought is the
+     skiff, and a player who had never been near a shipwright would otherwise
+     wake up owning one. */
+  you.shipKind = 255;
+  you.shipHull = 0;
+  you.shipTook = 0;
+  you.aboard = 0;
+  you.berthMap = 255;
+  you.berthX = 0;
+  you.berthY = 0;
   /* And nobody starts in the Long Night. */
   you.winter = 0;
   you.rangeWant = 0;
@@ -5034,8 +5119,101 @@ static int portHere(void) {
   return -1;
 }
 
+/* ============================================================ the sea ===
+ *
+ * Until now this cartridge's sea was a list of place names you paid at. You
+ * stood on somebody else's deck, told somebody else's captain where to go, and
+ * the screen changed -- which is a warp with a coat of paint on it.
+ *
+ * A hull of your own is a real number. It goes down when something rams it and
+ * it does not come back on its own; five waters are ground you steer across
+ * rather than a menu; and what is out there does not care that you have paid
+ * for anything. The arithmetic is one rule for both sides -- ram twice plus
+ * crew, scaled by how sound the hull still is -- so limping home matters and a
+ * skiff has no business anywhere near a war galley.
+ */
+
+static int ownShip(void) { return you.shipKind < HULL_COUNT; }
+static int shipMax(void) { return ownShip() ? (int)hulls[you.shipKind].hull : 0; }
+
+/* How sound she is, nought to a hundred. Everything she does is scaled by it. */
+static int shipSound(void) {
+  int m = shipMax();
+  return m ? (int)you.shipHull * 100 / m : 0;
+}
+
+static const char *soundWord(void) {
+  int c = shipSound();
+  return c >= 95 ? "sound" : c >= 70 ? "workable"
+       : c >= 40 ? "badly used" : c >= 15 ? "barely swimming" : "sinking under you";
+}
+
+/* What a shipwright wants to put her right. */
+static int mendCost(void) {
+  int short_ = shipMax() - (int)you.shipHull;
+  return short_ > 0 ? short_ * 8 : 0;
+}
+
+/* Which water lies off a given map, and where its quay onto that map is. The
+   quays are written on the sea's side -- a bay knows the towns on it, a town
+   does not know the bay -- so this reads them the other way round. */
+static int seaOff(int m, int *qx, int *qy) {
+  int i, j;
+  for (i = 0; i < MAP_COUNT; i++) {
+    if (!maps[i].sea) continue;
+    for (j = 0; j < maps[i].warpCount; j++) {
+      if (maps[i].warps[j].to != m) continue;
+      if (qx) *qx = maps[i].warps[j].x;
+      if (qy) *qy = maps[i].warps[j].y;
+      return i;
+    }
+  }
+  return -1;
+}
+
+/* Can you cast off from where you are standing? */
+static int canPutToSea(void) {
+  return ownShip() && you.shipHull > 0 && !you.aboard && seaOff(worldId, 0, 0) >= 0;
+}
+
+static void putToSea(void) {
+  int qx = 0, qy = 0, m = seaOff(worldId, &qx, &qy);
+  if (m < 0) return;
+  /* The stones you left from, so that going down out there puts you back on
+     your own quay rather than on whichever berth the port table happens to
+     list first for this water. */
+  you.berthMap = (u8)worldId;
+  you.berthX = (u8)(hero.px >> 4);
+  you.berthY = (u8)(hero.py >> 4);
+  /* Down onto the quay tile of the water itself. Arriving on a warp is safe:
+     one fires when a step finishes on it, and being put down is not a step. */
+  enterMap(m, qx, qy, 0);              /* facing down, out into open water */
+}
+
+/* ----------------------------------------------------- what is out there --
+   A lane is the sea's answer to an encounter table. */
+static int rollFleet(void) {
+  int i, total = 0, pick;
+  if (!world->laneCount) return -1;
+  for (i = 0; i < world->laneCount; i++) total += world->lanes[i].weight;
+  if (total <= 0) return -1;
+  pick = (int)roll((u32)total);
+  for (i = 0; i < world->laneCount; i++) {
+    pick -= world->lanes[i].weight;
+    if (pick < 0) return world->lanes[i].fleet;
+  }
+  return world->lanes[world->laneCount - 1].fleet;
+}
+
+static int foeFleet = -1;      /* who has come over the horizon, or -1 */
+static int foeHull;            /* and what she has left in her */
+static int seaPick;            /* Ram / Board / Away */
+static const char *seaSaid;    /* what just happened, shown under the menu */
+static int seaOver;            /* set when the fight is finished with */
+
 static void paintPort(void) {
   int i, row = 0, mine = portHere();
+  int own = canPutToSea();
   int top = portPick - (PORT_ROWS >> 1);
   if (top > PORT_COUNT - PORT_ROWS) top = PORT_COUNT - PORT_ROWS;
   if (top < 0) top = 0;
@@ -5045,10 +5223,23 @@ static void paintPort(void) {
   showGold(6);
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
 
-  for (i = 0; i < PORT_COUNT && row < PORT_ROWS; i++) {
+  /* Your own keel first, when there is water off this quay to put it on. A
+     passage is what you buy when you have not got one, and once you have, the
+     first thing on the list should be the thing you paid for. */
+  if (own) {
+    copyString(scratch, "Take out ", sizeof scratch);
+    appendString(scratch, hulls[you.shipKind].name, sizeof scratch);
+    if (portPick == -1) drawCursor(14, 23, C_GOLD);
+    drawText(24, 22, scratch, portPick == -1 ? C_GOLD : C_INK);
+    drawText(TXT_W - 46, 22, soundWord(), C_DIM);
+    fillRect(14, 34, TXT_W - 28, 1, C_EDGE);
+    row = 0;
+  }
+
+  for (i = 0; i < PORT_COUNT && row < PORT_ROWS - (own ? 2 : 0); i++) {
     int y, able;
     if (i < top) continue;
-    y = 22 + row * 11;
+    y = (own ? 38 : 22) + row * 11;
     /* A captain will not carry you somewhere you have not earned. Wardens hold
        the roads against too few seats; the sea held nothing at all, so a full
        purse skipped the whole ladder. */
@@ -5074,6 +5265,240 @@ static void paintPort(void) {
     row++;
   }
   drawText(14, TXT_H - 18, "A: sail    B: stay ashore", C_DIM);
+}
+
+/* ------------------------------------------------------ the shipwright's --
+ *
+ * Four hulls on the stocks and a man who will put right what the sea has done
+ * to the one you have. He asks nothing about your house, because a keel does
+ * not care. Trading the old one in gets you half of what he charged for it,
+ * which is what makes the skiff worth buying rather than saving past.
+ */
+
+static int yardPick;
+
+/* Half of what he charged you, and nothing for a hull that is half sunk. */
+static int tradeIn(void) {
+  if (!ownShip()) return 0;
+  return (int)hulls[you.shipKind].price / 2 * shipSound() / 100;
+}
+
+static int yardRows(void) { return HULL_COUNT + (ownShip() ? 1 : 0); }
+
+static void paintYard(void) {
+  int i, rows = yardRows();
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
+  drawText(14, 6, "THE STOCKS", C_GOLD);
+  showGold(6);
+  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+
+  for (i = 0; i < HULL_COUNT; i++) {
+    int y = 22 + i * 11, owed = (int)hulls[i].price - (i == you.shipKind ? 0 : tradeIn());
+    int able = i != you.shipKind && you.gold >= owed;
+    if (owed < 0) owed = 0;
+    if (i == yardPick) drawCursor(14, y + 1, C_GOLD);
+    drawText(24, y, hulls[i].name, !able ? C_DIM : (i == yardPick ? C_GOLD : C_INK));
+    if (i == you.shipKind) {
+      drawText(TXT_W - 46, y, "yours", C_DIM);
+    } else {
+      copyString(scratch, "", sizeof scratch);
+      appendNumber(scratch, owed, sizeof scratch);
+      drawText(TXT_W - 24 - textWidth(scratch), y, scratch, able ? C_GOLD : C_DYING);
+    }
+  }
+  if (ownShip()) {
+    int y = 22 + HULL_COUNT * 11, due = mendCost();
+    if (yardPick == HULL_COUNT) drawCursor(14, y + 1, C_GOLD);
+    copyString(scratch, "Put her right - she is ", sizeof scratch);
+    appendString(scratch, soundWord(), sizeof scratch);
+    drawText(24, y, scratch,
+      !due || you.gold < due ? C_DIM : (yardPick == HULL_COUNT ? C_GOLD : C_INK));
+    copyString(scratch, "", sizeof scratch);
+    appendNumber(scratch, due, sizeof scratch);
+    drawText(TXT_W - 24 - textWidth(scratch), y, scratch,
+      due && you.gold >= due ? C_GOLD : C_DIM);
+  }
+  fillRect(14, TXT_H - 42, TXT_W - 28, 1, C_EDGE);
+  if (yardPick < HULL_COUNT) {
+    int k;
+    wrapText(hulls[yardPick].summary, TXT_W - 28);
+    for (k = 0; k <= lineCount && k < 2; k++) {
+      drawText(14, TXT_H - 36 + k * 10, lines[k], C_DIM);
+    }
+  }
+  drawText(14, TXT_H - 14, "A: take her    B: another day", C_DIM);
+  (void)rows;
+}
+
+/* Buys, trades in, or mends. Returns what the shipwright says about it. */
+static const char *yardTake(int which) {
+  if (which == HULL_COUNT) {
+    int due = mendCost();
+    if (!due) return "\"She is sound. Go and ruin her properly first.\"";
+    if (you.gold < due) return "\"I work in gold, not in intentions.\"";
+    you.gold -= due;
+    you.shipHull = (u8)shipMax();
+    sfxRank();
+    return "\"Caulked, pitched and re-planked. She will not let you down for a while.\"";
+  }
+  if (which == you.shipKind) return "\"You are standing on her.\"";
+  {
+    int owed = (int)hulls[which].price - tradeIn();
+    if (owed < 0) owed = 0;
+    if (you.gold < owed) return "\"That is the price. I have taken worse offers, but not this week.\"";
+    you.gold -= owed;
+    you.shipKind = (u8)which;
+    you.shipHull = (u8)hulls[which].hull;
+    sfxRank();
+    return "\"She is yours, and she is tied up at the end of the quay. Walk down "
+           "to the harbourmaster and he will let you out of the chain.\"";
+  }
+}
+
+/* --------------------------------------------------------- the sea fight --
+ *
+ * Ships first and people second. You trade rams until one hull gives, and only
+ * then does anybody set foot on anybody else's deck -- which is why boarding
+ * is shut until she is a third gone. Both sides use the same arithmetic.
+ */
+
+/* What one bow-first run does, scaled by how sound the hull driving it is. */
+static int ramFor(int base, int sound) {
+  int hit = base * (50 + sound / 2) / 100;
+  hit = hit * (75 + (int)roll(51)) / 100;
+  return hit < 1 ? 1 : hit;
+}
+
+static void paintSeaFight(void) {
+  const Fleet *f = &fleets[foeFleet];
+  const Hull *h = &hulls[you.shipKind];
+  int i;
+  static const char *PICKS[3] = { "Go in bow-first", "Over the rail", "Come about and run" };
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
+  drawText(14, 6, "AT SEA", C_GOLD);
+
+  drawText(14, 20, f->name, C_INK);
+  drawText(TXT_W - 74, 20, "hull", C_DIM);
+  fillRect(TXT_W - 50, 22, 36, 5, C_EDGE);
+  if (foeHull > 0) fillRect(TXT_W - 50, 22, 36 * foeHull / f->hull, 5, C_GOLD);
+
+  drawText(14, 34, h->name, C_INK);
+  drawText(TXT_W - 74, 34, soundWord(), C_DIM);
+  fillRect(TXT_W - 50, 36, 36, 5, C_EDGE);
+  if (you.shipHull > 0) fillRect(TXT_W - 50, 36, 36 * (int)you.shipHull / shipMax(), 5, C_GOLD);
+
+  fillRect(14, 48, TXT_W - 28, 1, C_EDGE);
+  for (i = 0; i < 3; i++) {
+    int y = 54 + i * 12;
+    /* Nobody goes over a rail at a hull that is still whole: she has forty
+       hands on her and you would be stepping onto their deck, not yours. */
+    int able = i != 1 || foeHull * 3 <= (int)f->hull;
+    if (i == seaPick) drawCursor(14, y + 1, C_GOLD);
+    drawText(24, y, PICKS[i], !able ? C_DIM : (i == seaPick ? C_GOLD : C_INK));
+  }
+  if (seaSaid) {
+    int k;
+    wrapText(seaSaid, TXT_W - 28);
+    for (k = 0; k <= lineCount && k < 3; k++) drawText(14, 94 + k * 10, lines[k], C_INK);
+  }
+  drawText(14, TXT_H - 18, "A: do it", C_DIM);
+}
+
+/* She goes down under you. You keep your life and lose the rest. */
+static void founder(void) {
+  int lost = you.gold / 2;
+  you.gold -= lost;
+  you.shipKind = 255;
+  you.shipHull = 0;
+  copyString(scratch, "She goes over, and the sea takes her and half of what "
+                      "was in her hold with her. You come up somewhere, "
+                      "eventually, and somebody pulls you out.", sizeof scratch);
+  seaSaid = scratch;
+  seaOver = 2;
+}
+
+static void seaTurn(int what) {
+  const Fleet *f = &fleets[foeFleet];
+  const Hull *h = &hulls[you.shipKind];
+  int mine, theirs;
+
+  if (what == 1 && foeHull * 3 > (int)f->hull) {
+    seaSaid = "Not while she still swims. Put a hole in her first.";
+    return;
+  }
+
+  if (what == 2) {
+    /* Running. A shallow hull goes where a deep one cannot follow, which is
+       most of what a skiff is for. */
+    int odds = 40 + (3 - (int)h->draught) * 15 + shipSound() / 5;
+    if ((int)roll(100) < odds) {
+      seaSaid = "You put the helm over and lose her in the swell.";
+      seaOver = 1;
+      return;
+    }
+    theirs = ramFor((int)f->ram, 100);
+    you.shipHull = (u8)((int)you.shipHull > theirs ? (int)you.shipHull - theirs : 0);
+    if (!you.shipHull) { founder(); return; }
+    copyString(scratch, "She is faster than she looks. She catches you across "
+                        "the stern on the turn.", sizeof scratch);
+    seaSaid = scratch;
+    return;
+  }
+
+  if (what == 0) {
+    mine = ramFor((int)h->ram, shipSound());
+    theirs = ramFor((int)f->ram, 100);
+    foeHull -= mine;
+    you.shipHull = (u8)((int)you.shipHull > theirs ? (int)you.shipHull - theirs : 0);
+    if (foeHull <= 0) {
+      you.gold += (int)f->bounty;
+      if (you.shipTook < 250) you.shipTook++;
+      copyString(scratch, "You open her along the waterline and she goes down "
+                          "by the head. What floats out of her is yours.",
+                 sizeof scratch);
+      seaSaid = scratch;
+      seaOver = 1;
+      sfxRank();
+      if (!you.shipHull) founder();
+      return;
+    }
+    if (!you.shipHull) { founder(); return; }
+    if (foeHull * 100 < (int)f->hull * (int)f->flees) {
+      copyString(scratch, "She has had enough of it. She turns and runs, and "
+                          "you have not got the hull left to follow.",
+                 sizeof scratch);
+      seaSaid = scratch;
+      seaOver = 1;
+      return;
+    }
+    copyString(scratch, "Bow to bow. Both of you take it.", sizeof scratch);
+    seaSaid = scratch;
+    return;
+  }
+
+  /* Over the rail. Crew against crew, and what you are worth yourself on top
+     of it -- which is the one place in this fight your own sword counts. */
+  mine = (int)h->crew + you.level + (int)roll(20);
+  theirs = (int)f->crew + (int)roll(20);
+  if (mine > theirs) {
+    you.gold += (int)f->bounty;
+    if (you.shipTook < 250) you.shipTook++;
+    you.exp += 40 + (int)f->crew * 3;
+    copyString(scratch, "You go over the rail into them. It is short and it is "
+                        "ugly and it is yours at the end of it.", sizeof scratch);
+    seaSaid = scratch;
+    seaOver = 1;
+    sfxRank();
+    return;
+  }
+  theirs = ramFor((int)f->ram, 100);
+  you.shipHull = (u8)((int)you.shipHull > theirs ? (int)you.shipHull - theirs : 0);
+  if (!you.shipHull) { founder(); return; }
+  copyString(scratch, "They throw you back off it, and put a hole in you on "
+                      "the way past for the trouble.", sizeof scratch);
+  seaSaid = scratch;
 }
 
 /* Casts off, or says why not. */
@@ -6665,6 +7090,8 @@ static void paintTitle(void) {
 #define SCENE_ARMS 16     /* the charge, the field and the words, being chosen */
 #define SCENE_SEAT 17     /* your own house, and everything hanging off it */
 #define SCENE_RIDE 18     /* where a maester will find you a horse to */
+#define SCENE_YARD 19     /* four hulls on the stocks, and a man to mend one */
+#define SCENE_SEA  20     /* somebody has come over the horizon at you */
 
 static int scene;
 
@@ -6759,6 +7186,10 @@ static void endDuel(void) {
   loadWorldTiles();
   writeScreenblock();
   loadActors();
+  /* loadActors has just refilled the room the hull lives in. Nothing can start
+     a duel out on open water today, but leaving the world half-restored is how
+     that stops being true quietly. */
+  if (you.aboard) loadHullArt();
   PAL_BG[0] = bg_pal[0];
   REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
   /* Anything the story wanted to say about that fight says it now, with the
@@ -8618,6 +9049,7 @@ static void tryTalk(void) {
     openWindow(npc->name, scratch);
     if (npc->trade) { afterWindow = npc->trade; shopKeeper = npc->trade - 1; }
     if (npc->sails) { afterPort = 1; }
+    if (npc->builds) { afterYard = 1; }
     if (npc->holds) { afterHold = 1; }
     /* Somebody whose whole purpose is to fight you draws once they have said
        their piece. SELECT still challenges anybody at all; this is so that a
@@ -8698,6 +9130,24 @@ static void ambush(void) {
     const Ambush *a = &world->ambushes[roll(world->ambushCount)];
     callToArms(a->duellist, a->bank, -1);
   }
+}
+
+/* Open water has no cover to hide in, so what finds you out here finds you on
+   the open sea in plain sight and there is no walking round it: the whole of
+   the choice is made after you can already see whose sail it is. */
+static void meetAtSea(void) {
+  int which = rollFleet();
+  if (which < 0) return;
+  foeFleet = which;
+  foeHull = (int)fleets[which].hull;
+  seaPick = 0;
+  seaOver = 0;
+  seaSaid = fleets[which].hail;
+  scene = SCENE_SEA;
+  clearPage();
+  layoutTextRows(TEXT_TOP);
+  paintSeaFight();
+  sfxPick();
 }
 
 /* ------------------------------------------------------------- spotted ---- */
@@ -8862,6 +9312,13 @@ static void placeEveryone(void) {
     order[j + 1] = key;
   }
 
+  /* The hull under you, in a slot behind everything, because you are standing
+     in it and not on it. Thirty-two square against a sixteen-wide body, so it
+     is pulled eight left and set low enough that the deck comes up to your
+     boots rather than your waist. */
+  if (you.aboard) {
+    placeHull(MAX_CROWD + 3, hero.px - camX - 8, hero.py - camY - 10, hero.dir);
+  }
   if (coverAt(hero.px >> 4, hero.py >> 4)) {
     placeGrass(MAX_CROWD + 1, hero.px - camX, hero.py - camY,
       hero.walk ? (int)((frameClock >> 2) & 1) : 0,
@@ -9470,15 +9927,78 @@ int main(void) {
       } else {
         tickWindow(held(KEY_A));
       }
+    } else if (scene == SCENE_YARD) {
+      int was = yardPick, rows = yardRows();
+      if (hit(KEY_UP) && yardPick > 0) yardPick--;
+      if (hit(KEY_DOWN) && yardPick < rows - 1) yardPick++;
+      if (yardPick != was) { sfxPick(); paintYard(); }
+      if (hit(KEY_B)) {
+        scene = SCENE_WORLD;
+        clearPage();
+        layoutTextRows(TEXT_PLAY);
+      } else if (hit(KEY_A)) {
+        const char *said = yardTake(yardPick);
+        paintYard();
+        if (said) {
+          scene = SCENE_WORLD;
+          clearPage();
+          layoutTextRows(TEXT_PLAY);
+          openWindow("Shipwright", said);
+        }
+      }
+    } else if (scene == SCENE_SEA) {
+      int was = seaPick;
+      if (!seaOver) {
+        if (hit(KEY_UP) && seaPick > 0) seaPick--;
+        if (hit(KEY_DOWN) && seaPick < 2) seaPick++;
+        if (seaPick != was) { sfxPick(); paintSeaFight(); }
+      }
+      if (hit(KEY_A)) {
+        if (seaOver) {
+          int sank = seaOver == 2;
+          scene = SCENE_WORLD;
+          seaOver = 0;
+          foeFleet = -1;
+          clearPage();
+          layoutTextRows(TEXT_PLAY);
+          /* She went down under you, so you are not at sea any more. Whoever
+             pulled you out put you back where you last stood on stone. */
+          if (sank) {
+            if (you.berthMap < MAP_COUNT) {
+              enterMap(you.berthMap, you.berthX, you.berthY, 0);
+            } else {
+              /* Only if something has lost the berth - a record written before
+                 there were ships in the game, say. Any quay on this water will
+                 do to be pulled out onto. */
+              int qx = 0, qy = 0, home = 0, i;
+              for (i = 0; i < PORT_COUNT; i++) {
+                if (seaOff(ports[i].map, &qx, &qy) == worldId) { home = i; break; }
+              }
+              enterMap(ports[home].map, ports[home].x, ports[home].y, ports[home].dir);
+            }
+          }
+        } else {
+          seaTurn(seaPick);
+          paintSeaFight();
+        }
+      }
     } else if (scene == SCENE_PORT) {
-      int was = portPick;
-      if (hit(KEY_UP) && portPick > 0) portPick--;
+      int was = portPick, floor_ = canPutToSea() ? -1 : 0;
+      if (hit(KEY_UP) && portPick > floor_) portPick--;
       if (hit(KEY_DOWN) && portPick < PORT_COUNT - 1) portPick++;
       if (portPick != was) { sfxPick(); paintPort(); }
       if (hit(KEY_B)) {
         scene = SCENE_WORLD;
         clearPage();
         layoutTextRows(TEXT_PLAY);
+      } else if (hit(KEY_A) && portPick < 0) {
+        /* Off the end of the quay in your own hull. Nobody is charging you and
+           nobody is asking where you are going. */
+        scene = SCENE_WORLD;
+        clearPage();
+        layoutTextRows(TEXT_PLAY);
+        putToSea();
+        sfxRank();
       } else if (hit(KEY_A)) {
         const char *said = sailTo(portPick);
         scene = SCENE_WORLD;
@@ -9713,10 +10233,20 @@ int main(void) {
               clearPage();
               layoutTextRows(TEXT_TOP);
               paintHoldfast();
+            } else if (afterYard) {
+              afterYard = 0;
+              yardPick = 0;
+              scene = SCENE_YARD;
+              clearPage();
+              layoutTextRows(TEXT_TOP);
+              paintYard();
             } else if (afterPort) {
               int mine = portHere();
               afterPort = 0;
-              portPick = (mine == 0 && PORT_COUNT > 1) ? 1 : 0;
+              /* On your own keel the cursor opens on it, not on the first
+                 stranger's berth. You did not buy a ship to be sold a seat. */
+              portPick = canPutToSea() ? -1
+                       : (mine == 0 && PORT_COUNT > 1) ? 1 : 0;
               scene = SCENE_PORT;
               clearPage();
               layoutTextRows(TEXT_TOP);
@@ -9784,6 +10314,10 @@ int main(void) {
               startTale(TALE_CHAMPION, AFTER_CHAMPION);
             }
           }
+          /* A sail on the horizon. Rarer per step than the grass is, because
+             a sea is crossed in a great many more steps than a wood is and a
+             fight out here costs a hull that has to be paid to mend. */
+          else if (you.aboard && world->laneCount && roll(100) < 6) meetAtSea();
           /* Cover with something in it. Once the dead have reached this
              ground the grass is worth watching even where the map's own table
              is empty, because what is in it did not come from that table. */

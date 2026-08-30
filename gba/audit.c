@@ -45,8 +45,23 @@ static void note(const char *fmt, ...) {
   notes++;
 }
 
+static const Warp *warpOn(const Map *m, int x, int y);
+
 static int solidOn(const Map *m, int x, int y) {
   if (x < 0 || y < 0 || x >= m->w || y >= m->h) return 1;
+  /* Open water is every other map turned inside out: the sea is the ground and
+     the land is the wall. The cartridge inverts collision that way while you
+     are aboard, and without saying so here every sea reads as one stone quay
+     tile walled in on all four sides by an entire ocean.
+     The union of both sets, not the inversion: a sea is walked on two footings.
+     You come out of a town's gate onto its beach on your own two feet and you
+     cross the water on a keel, and a check that only knew about the keel called
+     the beach it puts you down on solid ground you could not stand on. */
+  if (m->sea) {
+    return m->solid[y * m->w + x]
+        && !m->water[y * m->w + x]
+        && !warpOn(m, x, y);
+  }
   return m->solid[y * m->w + x];
 }
 
@@ -173,6 +188,13 @@ static int firstWayIn(const Map *mp, int m) {
       flood(mp, ports[i].x, ports[i].y);
       return ports[i].y * mp->w + ports[i].x;
     }
+  }
+  /* A sea has no door into it at all. You put out from a quay in a hull you
+     bought, which is not a warp anybody can follow backwards, so the way in is
+     the sea's own side of the first thing on its shore. */
+  if (mp->sea && mp->warpCount) {
+    flood(mp, mp->warps[0].x, mp->warps[0].y);
+    return mp->warps[0].y * mp->w + mp->warps[0].x;
   }
   return -1;
 }

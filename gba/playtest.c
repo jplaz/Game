@@ -1608,7 +1608,7 @@ int main(int argc, char **argv) {
    * it held the seats for; so is anything either of those opens a door onto.
    * What is left outside that closure is ground the game meant to keep shut. */
   {
-    int q[MAP_COUNT], head = 0, tail = 0, j;
+    int q[MAP_COUNT], head = 0, tail = 0, j, s, k;
     for (i = 0; i < MAP_COUNT; i++) {
       entitled[i] = (unsigned char)(mapSeen[i] != 0);
       if (entitled[i]) q[tail++] = i;
@@ -1623,6 +1623,17 @@ int main(int argc, char **argv) {
       for (j = 0; j < maps[a].warpCount; j++) {
         int b = maps[a].warps[j].to;
         if (b >= 0 && b < MAP_COUNT && !entitled[b]) { entitled[b] = 1; q[tail++] = b; }
+      }
+      /* And the water off this shore. Nothing in the world warps onto a sea --
+         you put out from a quay in a hull you bought -- so a sea is open the
+         moment any coast on it is, and the quays are written on the sea's own
+         side, which is why this reads them backwards. */
+      for (s = 0; s < MAP_COUNT; s++) {
+        if (!maps[s].sea || entitled[s]) continue;
+        for (k = 0; k < maps[s].warpCount; k++) {
+          if (maps[s].warps[k].to != a) continue;
+          entitled[s] = 1; q[tail++] = s; break;
+        }
       }
     }
     /* And the same walk again with every gate wide open: what a player who
@@ -1643,6 +1654,13 @@ int main(int argc, char **argv) {
       for (j = 0; j < maps[a].warpCount; j++) {
         int b = maps[a].warps[j].to;
         if (b >= 0 && b < MAP_COUNT && !anyRoad[b]) { anyRoad[b] = 1; q[tail++] = b; }
+      }
+      for (s = 0; s < MAP_COUNT; s++) {
+        if (!maps[s].sea || anyRoad[s]) continue;
+        for (k = 0; k < maps[s].warpCount; k++) {
+          if (maps[s].warps[k].to != a) continue;
+          anyRoad[s] = 1; q[tail++] = s; break;
+        }
       }
     }
   }

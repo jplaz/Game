@@ -98,6 +98,11 @@ const MAP_IDS = [
   // in the realm meets, and the ruin nobody who has held it has died well in.
   'theGreenFork', 'theTwins', 'twinsHall', 'maesterHallTwins',
   'theCrossroads', 'crossroadsInn', 'harrenhal', 'harrenhalHall',
+  /* And the water between all of it. Five seas, which the cartridge has
+     never held: sailing here was a menu you opened at a quay, paid at, and
+     were put down at the far end of, which is a warp with a coat of paint on
+     it. These are ground you steer across. */
+  'blackwaterBay', 'theGullet', 'sunsetSea', 'stepstones', 'shiveringSea',
 ];
 
 // What the cartridge's hardware will hold.
@@ -147,6 +152,8 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
           RELICS, OATHS } =
     await import('/src/data/craft.js');
   const { SPECIES } = await import('/src/data/species.js');
+  const { SHIPS, FLEETS, SEA_LANES } = await import('/src/data/ships.js');
+  const shipArt = await import('/src/art/ship.js');
   const { CUTSCENES, CUTSCENE_IDS } = await import('/src/data/cutscenes.js');
   const { QUESTS } = await import('/src/data/quests.js');
   const { REGARD } = await import('/src/data/regard.js');
@@ -725,6 +732,45 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       w: 64, h: 64, frames: [read(big)],
     };
   });
+  /* ------------------------------------------------------- ships ---
+     Four hulls to buy and six things that will come at you on the water. A
+     fleet is fought as a ship first and a person second: rams until one hull
+     gives, and only then does anybody set foot on anybody's deck, which is
+     what `duellist` is for. */
+  const hullIds = Object.keys(SHIPS);
+  const hulls = hullIds.map((id) => {
+    const h = SHIPS[id];
+    return {
+      id, name: h.name, price: h.price, hull: h.hull, crew: h.crew,
+      ram: h.ram, draught: h.draught, summary: h.summary,
+      /* Bow up and bow left. The hardware flips for nothing, so those two
+         drawings are all four facings and a hull costs two kilobytes of
+         object memory resident rather than four. */
+      w: shipArt.SHIP_SIZE, h: shipArt.SHIP_SIZE,
+      frames: [read(shipArt.shipSprite(id, 'up')), read(shipArt.shipSprite(id, 'left'))],
+    };
+  });
+  const fleetIds = Object.keys(FLEETS);
+  const fleetSlot = new Map(fleetIds.map((id, i) => [id, i]));
+  const fleets = fleetIds.map((id) => {
+    const f = FLEETS[id];
+    const who = ROAMERS[f.duel] ? makeRoamer(f.duel, 20, (list) => list[0]) : null;
+    return {
+      id, name: f.name, hull: f.hull, crew: f.crew, ram: f.ram,
+      bounty: f.bounty, hail: f.hail,
+      /* How badly hurt she has to be before she runs, in hundredths, because
+         the cartridge has no fractions. */
+      flees: Math.round(f.flees * 100),
+      duellist: who ? pushDuellist({
+        name: who.name, level: who.level, vigour: who.vigour,
+        might: who.might, guard: who.guard, swiftness: who.swiftness,
+        techs: techSlots(who.techniques), reward: who.reward, exp: who.exp,
+        mortal: 1, sworn: 0, host: 0, dead: 0,
+        intro: who.intro, defeat: who.defeat,
+      }) : 0,
+    };
+  });
+
   const eggs = EGGS.map((e) => ({
     ware: wareIndex.get(`egg:${e.item}`),
     beast: beastSlot.get(e.hatches),
@@ -764,7 +810,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
 
   const out = { maps: [], houses, techniques, learned, duellists, wares, forSale,
                 recipes, spoils, forage, beasts, eggs, tales, throneChampion,
-                swornKinds,
+                swornKinds, hulls, fleets,
                 leaders: [], actors: null };
 
   /* The spine of the game, in the order it is meant to be walked. Nine seats,
@@ -1142,6 +1188,9 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
            Deriving a capability from the spelling of a script name is a trap
            every time; at least make it an exact one. */
         sails: /^(ship|harbour)$/i.test(n.script ?? '') ? 1 : 0,
+        /* A shipwright. Four hulls on the stocks and a man who will put
+           right what the sea has done to the one you have. */
+        builds: /shipwright/i.test(`${n.script ?? ''} ${n.name ?? ''}`) ? 1 : 0,
         /* A kennelmaster boards what you cannot carry. Speaking to one opens
            the holdfast rather than a counter or a conversation. */
         holds: /^kennel/i.test(n.script ?? '') ? 1 : 0,
@@ -1208,6 +1257,13 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       if (wilds.length >= 4) break;
     }
 
+    /* And what is out on the water here. A lane is the sea's answer to an
+       encounter table: who comes over the horizon, and how often. */
+    const lanes = (SEA_LANES[id] ?? [])
+      .filter((row) => fleetSlot.has(row.fleet))
+      .slice(0, 4)
+      .map((row) => ({ fleet: fleetSlot.get(row.fleet), weight: row.weight }));
+
     // Which sky a duel fought here is fought under. Every fight in the game
     // used the same dusk, which made the most repeated screen in the whole
     // cartridge the one screen that never changed.
@@ -1241,7 +1297,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
          and a hundred and one of them asked for the same one, so the Wall,
          Dorne, Braavos and Winterfell were the same piece of music. */
       tune: TUNE_FOR[REGIONS[id] ?? ''] ?? (map.indoor ? 8 : 0),
-      npcs, ambushes, wilds,
+      npcs, ambushes, wilds, lanes, sea: map.sea ? 1 : 0,
       chests: (map.items ?? []).map((it) => ({
         x: it.x, y: it.y,
         /* What is in it: the thing the map names if this game has such a thing,
@@ -1722,7 +1778,7 @@ for (const map of harvest.maps) {
 // Four bits a pixel with a palette apiece, which is what lets a town's worth of
 // different people be resident at once.
 
-for (const actor of [...harvest.actors, ...harvest.beasts]) {
+for (const actor of [...harvest.actors, ...harvest.beasts, ...harvest.hulls]) {
   const pal = buildPalette(actor.frames, 15);
   actor.colours = pal.palette;
   actor.tiles = actor.frames.flatMap((rgba) => cut8(indexify(rgba, pal.lookup), actor.w, actor.h));
@@ -1966,6 +2022,46 @@ L.push('typedef struct { u8 ware, beast, wins; } Egg;');
 L.push('static const Egg eggs[EGG_COUNT] = {');
 for (const e of harvest.eggs) L.push(`  { ${e.ware}, ${e.beast}, ${e.wins} },`);
 L.push('};');
+L.push('');
+
+/* --------------------------------------------------------------- ships ---
+   Four hulls a shipwright will sell you and six things that will come over
+   the horizon at you. The arithmetic is one rule for both sides: ram twice
+   plus crew, scaled by how sound your hull still is, which is why limping
+   home matters and why a skiff should not be anywhere near a war galley. */
+L.push(`#define HULL_COUNT ${harvest.hulls.length}`);
+L.push('typedef struct {');
+L.push('  const char *name, *summary;');
+L.push('  u16 price;');
+L.push('  u8 hull, crew, ram, draught;');
+L.push('  const u16 *pal; const u32 *tiles;   /* bow up, then bow left */');
+L.push('} Hull;');
+L.push('#define SHIP_TILES 16      /* a 32x32 hull is 4 x 4 character tiles */');
+harvest.hulls.forEach((h, i) => {
+  L.push(`static const u16 hullpal_${i}[16] = {`);
+  L.push(block([0, ...h.colours, ...new Array(15 - h.colours.length).fill(0)].map(hex), 8));
+  L.push('};');
+  L.push(`static const u32 hulltiles_${i}[${h.tiles.length * 8}] = {`);
+  L.push(block(h.tiles.flatMap(words4).map(hex), 8));
+  L.push('};');
+});
+L.push('static const Hull hulls[HULL_COUNT] = {');
+harvest.hulls.forEach((h, i) => {
+  L.push(`  { ${cstr(h.name)}, ${cstr(h.summary)}, ${h.price}, ${h.hull}, ${h.crew}, ${h.ram}, ${h.draught}, hullpal_${i}, hulltiles_${i} },  /* ${h.id} */`);
+});
+L.push('};');
+L.push(`#define FLEET_COUNT ${harvest.fleets.length}`);
+L.push('typedef struct {');
+L.push('  const char *name, *hail;');
+L.push('  u16 bounty, duellist;');
+L.push('  u8 hull, crew, ram, flees;   /* flees in hundredths of her hull */');
+L.push('} Fleet;');
+L.push('static const Fleet fleets[FLEET_COUNT] = {');
+for (const f of harvest.fleets) {
+  L.push(`  { ${cstr(f.name)}, ${cstr(f.hail)}, ${f.bounty}, ${f.duellist}, ${f.hull}, ${f.crew}, ${f.ram}, ${f.flees} },  /* ${f.id} */`);
+}
+L.push('};');
+L.push('typedef struct { u8 fleet, weight; } Lane;');
 L.push('');
 
 // Houses.
@@ -2379,7 +2475,7 @@ L.push('typedef struct { u16 duellist; u8 bank; } Ambush;');
 L.push('typedef struct { u8 beast, level; } Wild;');
 L.push('typedef struct { u8 x, y, ware; u16 gold; } Chest;');
 L.push('typedef struct {');
-L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sails, holds, weds, ranges, evening, gate;');
+L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sails, holds, weds, ranges, evening, gate, builds;');
 L.push('  u16 duellist;');
 L.push('  const char *name, *line;');
 L.push('} Npc;');
@@ -2404,6 +2500,8 @@ L.push('  const Sign *signs; u8 signCount;');
 L.push('  const Npc  *npcs;  u8 npcCount;');
 L.push('  const Ambush *ambushes; u8 ambushCount;');
 L.push('  const Wild *wilds; u8 wildCount;');
+L.push('  const Lane *lanes; u8 laneCount;   /* who is out on this water */');
+L.push('  u8 sea;               /* the rules are the other way up here */');
 L.push('  const Chest *chests; u8 chestCount;');
 L.push('  u8 nest;              /* the egg that is found here, or 255 */');
 L.push('  u8 seat;              /* what this hall costs in hundreds, 0 not for sale */');
@@ -2459,6 +2557,10 @@ harvest.maps.forEach((map, i) => {
   if (!map.wilds.length) L.push('  { 0, 0 },');
   L.push('};');
   if (map.chests.length > 8) throw new Error(`${map.id} has ${map.chests.length} chests; the record holds 8`);
+  L.push(`static const Lane lanes_${i}[${Math.max(1, map.lanes.length)}] = {`);
+  for (const w of map.lanes) L.push(`  { ${w.fleet}, ${w.weight} },`);
+  if (!map.lanes.length) L.push('  { 0, 0 },');
+  L.push('};');
   L.push(`static const Chest chests_${i}[${Math.max(1, map.chests.length)}] = {`);
   for (const c of map.chests) L.push(`  { ${c.x}, ${c.y}, ${c.ware}, ${c.gold} },`);
   if (!map.chests.length) L.push('  { 255, 255, 255, 0 },');
@@ -2473,10 +2575,10 @@ harvest.maps.forEach((map, i) => {
       name = n.name.startsWith(spoken[1]) ? n.name : spoken[1];
       line = spoken[2];
     }
-    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.ranges}, ${n.evening}, ${n.gate}, ${n.duellist},`);
+    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.ranges}, ${n.evening}, ${n.gate}, ${n.builds}, ${n.duellist},`);
     L.push(`    ${cstr(name)}, ${cstr(line.trim())} },`);
   }
-  if (!map.npcs.length) L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');
+  if (!map.npcs.length) L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');
   L.push('};');
   L.push('');
 });
@@ -2488,6 +2590,7 @@ harvest.maps.forEach((map, i) => {
   L.push(`    warps_${i}, ${map.liveWarps}, signs_${i}, ${map.signs.length},`);
   L.push(`    npcs_${i}, ${map.npcs.length}, ambushes_${i}, ${map.ambushes.length},`);
   L.push(`    wilds_${i}, ${map.wilds.length}, chests_${i}, ${map.chests.length},`);
+  L.push(`    lanes_${i}, ${map.lanes.length}, ${map.sea},`);
   L.push(`    ${map.nest}, ${map.seat}, ${map.courtX}, ${map.courtY}, ${map.holder} },`);
 });
 L.push('};');

@@ -18,9 +18,10 @@ import { walkEggs, hatch, deepenBond, willCarry } from '../game/eggs.js';
 import { activeCompanion, hasFallen, kill as killCompanion } from '../game/company.js';
 import { ownsHoldfast, gather, INGREDIENTS } from '../game/holdfast.js';
 import {
-  ownsShip, aboard, board, goAshore, berthedAt, shipName, conditionWord,
+  ship, ownsShip, aboard, board, goAshore, berthedAt, shipName, conditionWord,
   lane as seaLane, rollFleet,
 } from '../game/ship.js';
+import { shipSprite, SHIP_SIZE } from '../art/ship.js';
 import { creatureSprite, SPRITE_SIZE } from '../art/creatures.js';
 import { dialog } from '../ui/textbox.js';
 import { drawPanel } from '../ui/panel.js';
@@ -1435,6 +1436,31 @@ export class Overworld {
         // Mounted, the beast is drawn first and you sit above it, so a rider
         // reads as one figure rather than a sprite standing on another.
         const lift = mount ? RIDER_LIFT : 0;
+        /* Under sail the hull goes down first and you stand in it, the same way
+           a rider sits above a mount: one thing on the water rather than a man
+           walking about on the sea. Without this, buying a ship changed the
+           collision rules and nothing else, and open water was a man striding
+           across it. */
+        const hull = this.sailing ? ship()?.id : null;
+        if (hull) {
+          const dir = this.player.dir;
+          const sideways = dir === 'left' || dir === 'right';
+          const art = shipSprite(hull, sideways ? 'left' : 'up');
+          const dx = Math.round(px.x - camX + (TILE - SHIP_SIZE) / 2);
+          const dy = Math.round(px.y - camY + (TILE - SHIP_SIZE) / 2 + 4 - px.lift);
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          /* Two drawings make four facings; the other two are these mirrored,
+             which is what the cartridge's hardware does for nothing. */
+          if (dir === 'down' || dir === 'right') {
+            ctx.translate(dx + SHIP_SIZE / 2, dy + SHIP_SIZE / 2);
+            ctx.scale(dir === 'right' ? -1 : 1, dir === 'down' ? -1 : 1);
+            ctx.drawImage(art, -SHIP_SIZE / 2, -SHIP_SIZE / 2);
+          } else {
+            ctx.drawImage(art, dx, dy);
+          }
+          ctx.restore();
+        }
         if (mount) {
           const sprite = creatureSprite(creatureSpecies(mount.creature));
           const size = MOUNT_SIZE;

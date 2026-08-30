@@ -3738,6 +3738,11 @@ export const MAPS = {
       { door: 'inn', to: 'dragonstoneInn', tx: 6, ty: 10, dir: 'up' },
       { door: 'house', to: 'dragonstoneHouse', tx: 6, ty: 10, dir: 'up' },
       { door: 'southGate', to: 'mudGate', tx: 9, ty: 7, dir: 'down' },
+      /* The foot of the Smoking Strand, and a way back out to the water.
+         Dragonstone and Volantis both had a quay a ship could put in at and
+         then no jetty to walk back down to her, which is a place you sail to
+         once and then leave your ship at forever. */
+      { x: 28, y: 25, to: 'blackwaterBay', tx: 25, ty: 3, dir: 'right' },
       { door: 'maester', to: 'maesterHallDragonstone', tx: 5, ty: 7, dir: 'up' },
       { door: 'keep', to: 'dragonmont', tx: 8, ty: 14, dir: 'up' },
       { door: 'forge', to: 'dragonstoneArmoury', tx: 5, ty: 6, dir: 'up' },
@@ -4901,6 +4906,8 @@ export const MAPS = {
       { door: 'inn', to: 'volantisInn', tx: 6, ty: 10, dir: 'up' },
       { door: 'house', to: 'volantisHouse', tx: 6, ty: 10, dir: 'up' },
       { door: 'southGate', to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      /* And the same at Volantis: the water steps outside the south gate. */
+      { x: 12, y: 25, to: 'stepstones', tx: 23, ty: 9, dir: 'down' },
       { door: 'northGate', to: 'blackWallHold', tx: 11, ty: 20, dir: 'up' },
       { door: 'keep', to: 'templeOfRhllor', tx: 7, ty: 10, dir: 'up' },
     ],
@@ -5058,7 +5065,7 @@ export const MAPS = {
       span(1, 6, 3, 15, 's'); span(1, 7, 2, 13, 'C');
       quay(3, 13, 'kingsLanding', 21, 28, 'right');
       isle(26, 2, 4, 4);
-      put(25, 4, 's'); quay(25, 4, 'dragonstone', 11, 25, 'down');
+      put(25, 4, 's'); quay(25, 4, 'dragonstone', 28, 25, 'down');
       put(28, 3, 'n');
       isle(12, 5, 2, 2);
       isle(17, 19, 3, 2);
@@ -5087,7 +5094,7 @@ export const MAPS = {
       isle(26, 10, 4, 6);
       quay(25, 13, 'lannisport', 22, 18, 'left');
       isle(3, 4, 4, 4);
-      quay(7, 6, 'lordsportDocks', 11, 6, 'right');
+      quay(7, 6, 'lordsportDocks', 20, 10, 'right');
       isle(2, 18, 3, 3);
       isle(14, 9, 2, 2);
       isle(19, 21, 3, 2);
@@ -5108,7 +5115,7 @@ export const MAPS = {
       isle(13, 18, 4, 3);
       isle(23, 19, 3, 3);
       put(20, 13, 'C'); put(8, 23, 'C');
-      quay(23, 10, 'volantis', 11, 25, 'down');
+      quay(23, 10, 'volantis', 12, 25, 'down');
       crossing('n', 8, 20, 'theGullet');
     },
   }),
@@ -5447,12 +5454,27 @@ export const MAPS = {
       { roamer: 'ironbornReaver', min: 24, max: 29, weight: 30 },
     ],
     warps: [
+      { x: 20, y: 10, to: 'sunsetSea', tx: 7, ty: 5, dir: 'right' },
+      /* The end of the jetty. Every other harbour in the game already put you
+         out onto its own water this way; Lordsport was the one that sold you a
+         ship and then had nowhere to walk to her. */
       { x: 11, y: 2, to: 'pyke', tx: 12, ty: 25, dir: 'up' },
     ],
     signs: [
       { x: 6, y: 4, text: 'LORDSPORT\nThe fleet is out. It is always out.\nAsk the captain what a berth costs.' },
     ],
     npcs: [
+      /* A shipwright, on the two quays anybody actually walks through.
+         There was exactly one in the world, at Lannisport, which is a
+         long way to go to find out that ships are for sale at all.
+         `berth` is where she is tied up the moment the money changes hands:
+         the water tile off the end of this quay. A hull with no berth is a
+         hull that exists in the ledger and nowhere on any map. */
+      { x: 7, y: 7, dir: 'up', sprite: 'merchant', name: 'Shipwright',
+        script: 'shipwright',
+        data: { berth: { map: 'sunsetSea', x: 7, y: 5 },
+                where: 'the Lordsport quay',
+                line: 'Shipwright: Four of them on the stocks and one of me. Buy a keel and the sea stops being somebody else\'s road.' } },
       { x: 4, y: 7, dir: 'down', sprite: 'ironborn', name: 'Harbourmaster', script: 'ship',
         data: { line: 'Harbourmaster: Longships go where I say and come back when they like. '
           + 'Name a port.' } },
@@ -5877,6 +5899,13 @@ export const MAPS = {
       { x: 21, y: 19, dir: 'left', sprite: 'kingsguard', name: 'Ser Meryn Trant', script: 'duel',
         data: { duel: 'meryn' } },
       { x: 26, y: 20, dir: 'down', sprite: 'brotherhood', name: 'Recruiter', script: 'blackBrother' },
+      /* And the same at the mouth of the Blackwater, which is where most
+         players will first hear that a ship is a thing you can own. */
+      { x: 18, y: 29, dir: 'right', sprite: 'merchant', name: 'Shipwright',
+        script: 'shipwright',
+        data: { berth: { map: 'blackwaterBay', x: 3, y: 12 },
+                where: 'the Mud Gate steps',
+                line: 'Shipwright: Four of them on the stocks and one of me. Buy a keel and the sea stops being somebody else\'s road.' } },
       { x: 20, y: 30, dir: 'up', sprite: 'braavosi', name: 'Harbourmaster', script: 'ship',
         data: { line: 'Harbourmaster: Every hull on the Blackwater answers to this quay. '
           + 'Name a port and I will find you a berth.' } },
@@ -7890,6 +7919,13 @@ export const REGIONS = {
   braavos: 'Braavos', houseOfBlackAndWhite: 'Braavos',
   pentos: 'Pentos', volantis: 'Volantis', meereen: 'Meereen',
   narrowSea: 'The Narrow Sea',
+  /* The five open waters. Salt is salt, so they all take the Narrow Sea's
+     entry: no winter reaches them, which matters - a map with no region falls
+     through to the middling cold, and the middling cold puts wights in the
+     grass. There is no grass out here and nothing dead walks on water. */
+  blackwaterBay: 'The Narrow Sea', theGullet: 'The Narrow Sea',
+  sunsetSea: 'The Narrow Sea', stepstones: 'The Narrow Sea',
+  shiveringSea: 'The Narrow Sea',
   heroHouse: 'The North', winterfell: 'The North', winterfellForge: 'The North',
   greatKeep: 'The North', maesterHallWinterfell: 'The North', wolfswood: 'The North',
   kingsroadNorth: 'The North',

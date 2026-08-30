@@ -30,10 +30,16 @@ if (!OUT || !WANT) {
 
 const src = await readFile(resolve(HERE, 'data.h'), 'utf8');
 
-/** Pulls the numbers out of one `... name[...] = { ... };` table. */
+/** Pulls the numbers out of one `... name[...] = { ... };` table.
+ *
+ * The name has to be anchored. Looking for "tiles_42[" as a plain substring
+ * finds "beasttiles_42[" thirty thousand lines earlier, and a dragon's battle
+ * sprite unpacked as a map is a screen of confetti with the castle faintly
+ * visible through it — which is exactly what this drew the first time. */
 function table(name) {
-  const at = src.indexOf(`${name}[`);
-  if (at < 0) return null;
+  const found = new RegExp(`(?:^|[^A-Za-z0-9_])${name}\\[`, 'm').exec(src);
+  if (!found) return null;
+  const at = found.index + found[0].length - name.length - 1;
   const open = src.indexOf('{', at);
   const shut = src.indexOf('};', open);
   const body = src.slice(open + 1, shut);

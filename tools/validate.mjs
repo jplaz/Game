@@ -43,6 +43,9 @@ const warnings = [];
 const fail = (msg) => problems.push(msg);
 const warn = (msg) => warnings.push(msg);
 
+/* The four tiles you can be standing on when you are facing a thing. */
+const BESIDE = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+
 const tileAt = (map, x, y) => (
   x < 0 || y < 0 || y >= map.height || x >= map.width ? '#' : map.grid[y][x]
 );
@@ -266,8 +269,13 @@ for (const [mapId, map] of Object.entries(MAPS)) {
     if (!it.flag) fail(`map ${mapId}: ground item at ${it.x},${it.y} has no flag`);
     if (seenFlags.has(it.flag)) fail(`map ${mapId}: duplicate item flag "${it.flag}"`);
     seenFlags.add(it.flag);
-    if (!walkable(map, it.x, it.y)) {
-      fail(`map ${mapId}: ground item at ${it.x},${it.y} sits on a solid tile`);
+    /* A pickup is a chest, in both builds: you walk up to it and open it, and
+       the tile it stands on is furniture whether or not the map drew a chest
+       there. So the question is not whether you can walk onto it - twenty of
+       these are sitting on a drawn chest and were meant to be - but whether
+       there is anywhere at all to stand and open it. */
+    if (!BESIDE.some(([dx, dy]) => walkable(map, it.x + dx, it.y + dy))) {
+      fail(`map ${mapId}: ground item at ${it.x},${it.y} has nowhere to stand to open it`);
     }
   }
 
@@ -278,6 +286,11 @@ for (const [mapId, map] of Object.entries(MAPS)) {
     if (walkable(map, sign.x, sign.y)) {
       fail(`map ${mapId}: sign at ${sign.x},${sign.y} is on a walkable tile `
          + `("${tileAt(map, sign.x, sign.y)}") and can never be faced`);
+    } else if (!BESIDE.some(([dx, dy]) => walkable(map, sign.x + dx, sign.y + dy))) {
+      /* And solid is only half of it. A sign in the middle of a wall is as
+         unread as one underfoot, and neither reads as a fault to anyone
+         looking at the map - it just quietly says nothing forever. */
+      fail(`map ${mapId}: sign at ${sign.x},${sign.y} has nowhere to stand to read it`);
     }
   }
 

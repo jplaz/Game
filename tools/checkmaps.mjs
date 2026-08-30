@@ -290,6 +290,48 @@ for (const [id, map] of Object.entries(MAPS)) {
   }
 }
 
+/* What a map's scenery is standing on.
+ *
+ * A tree, a chimney, a signpost, a fence, a dragon — anything marked
+ * `grounded` — paints the map's own ground under itself before it draws, and a
+ * map that does not name one falls through to grass. That default is right for
+ * most of the world and silent when it is wrong, so a dragon lying in the
+ * heart of a volcano was lying on a bright green lawn and every check in this
+ * file was perfectly happy with it: the tile is solid, it is in the right
+ * place, and nothing here ever looked at a colour.
+ *
+ * A map with nothing green anywhere in it and no ground of its own is the
+ * shape of that mistake, so that is the question asked. */
+const GROUNDED = Object.entries(TILE_DEFS)
+  .filter(([, d]) => d.grounded).map(([c]) => c);
+const GREENERY = new Set([...'.,*']);
+for (const [id, map] of Object.entries(MAPS)) {
+  if (map.ground) continue;
+  const chars = new Set(map.grid.flatMap((r) => [...r]));
+  if ([...chars].some((c) => GREENERY.has(c))) continue;
+  const on = GROUNDED.filter((c) => chars.has(c));
+  if (!on.length) continue;
+  say(`${id}: names no ground, so '${on.join("' '")}' will be drawn standing on grass`);
+}
+
+/* And the berths. A port names a tile on a map, and a ship puts you down on it
+   whether or not it is a tile: the Dragonstone berth sat on a flagstone in the
+   middle of the castle ward for the whole life of this game, and moving it to
+   the beach is exactly the kind of edit that lands somebody in a wall. */
+for (const p of PORTS) {
+  const map = MAPS[p.map];
+  if (!map) { say(`the ${p.name} berth is on ${p.map}, which is not a map`); continue; }
+  const at = (x, y) => (x < 0 || y < 0 || x >= map.width || y >= map.height) ? '#' : map.grid[y][x];
+  const kind = kindOf(at(p.x, p.y));
+  if (SOLID.has(kind) || kind === 'ledge' || kind === 'missing') {
+    say(`the ${p.name} berth at ${p.x},${p.y} is '${at(p.x, p.y)}', which nobody can be rowed onto`);
+    continue;
+  }
+  if ((map.npcs ?? []).some((n) => !n.roams && n.x === p.x && n.y === p.y)) {
+    say(`the ${p.name} berth at ${p.x},${p.y} has somebody standing on it`);
+  }
+}
+
 console.log(problems ? `\n${problems} problems` : `\n${Object.keys(MAPS).length} maps, nothing wrong`);
 /* And say so in the exit code, so the cartridge build can refuse to spend
    twenty-five minutes packing a world you cannot walk across. */

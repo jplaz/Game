@@ -2002,6 +2002,65 @@ function sunspearCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
   };
 }
 
+/* Dragonstone: black stone that was shaped while it was still soft, under a
+   mountain that has never gone out. The Dragonmont lies across the whole north
+   of the map with its vents smoking, and there is a gate in the castle's back
+   wall that goes straight into it. Below that the Stone Drum, and the Sea
+   Dragon Tower and the Windwyrm standing off its shoulders. Nothing here is
+   thatched, painted or grown — the whole island is one colour. */
+function dragonstoneCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
+  const { put, row, span, done } = coreGrid(W);
+
+  // the mountain, and the one pass down through it
+  span(2, 1, 20, 5, 'C');
+  for (const [x, yy] of [[4, 3], [8, 2], [14, 4], [18, 3], [6, 5], [16, 2], [20, 4]]) put(x, yy, 'n');
+  put(11, 0, g);
+  span(11, 1, 2, 5, g);
+
+  // the castle's back wall, with the gate into the Dragonmont standing in it
+  span(2, 6, 20, 1, M);
+  put(11, 6, g);
+  put(5, 6, 'D');
+  span(2, 7, 20, 18, g);          // the whole court, before anything stands on it
+
+  /* The Stone Drum. Corners cut, because it is round, and because the only
+     thing in this castle anybody remembers is that none of it has edges. */
+  row(9, 9, M.repeat(6));
+  [
+    M + A.repeat(6) + M,
+    A + 'w' + A + V + V + A + 'w' + A,
+    A.repeat(8),
+    A + 'w' + A.repeat(4) + 'w' + A,
+    A.repeat(3) + 'D' + A.repeat(4),
+  ].forEach((line, j) => row(8, 10 + j, line));
+
+  // the Sea Dragon Tower and the Windwyrm, off its shoulders
+  for (const [x0, doorAt] of [[2, 1], [18, 2]]) {
+    row(x0, 9, M.repeat(4));
+    row(x0, 10, A + 'w' + A + A);
+    row(x0, 11, A.repeat(4));
+    row(x0, 12, A + V + A + A);
+    row(x0, 13, A.repeat(4));
+    put(x0 + doorAt, 13, 'D');
+  }
+  // and the two places on this island where a fire is lit for a reason
+  row(3, 17, z.repeat(5)); row(3, 18, Z.repeat(5)); row(3, 19, H + 'wDw' + H);
+  row(15, 17, z.repeat(5)); row(15, 18, Z.repeat(5)); row(15, 19, H + 'wDw' + H);
+  put(5, 16, 'n'); put(17, 16, 'n');
+
+  span(2, 25, 20, 1, M);
+  put(11, 25, g); put(11, 26, g);
+
+  return {
+    tiles: done(),
+    doors: {
+      maester: [11, 14], forge: [3, 13], keep: [5, 6],
+      cellar: [20, 13], inn: [5, 19], house: [17, 19],
+      northGate: [11, 0], southGate: [11, 26],
+    },
+  };
+}
+
 // The Eyrie: four terraces cut into the Giant's Lance, each one cut back from
 // the one below it, with Alyssa's Tears falling the whole height of the map
 // down the west face and the drop widening on your right the whole climb.
@@ -2511,8 +2570,8 @@ export const MAPS = {
       'IIIII__IIIII',
     ],
     warps: [
-      { x: 5, y: 7, to: 'dragonstone', tx: 17, ty: 7, dir: 'down' },
-      { x: 6, y: 7, to: 'dragonstone', tx: 17, ty: 7, dir: 'down' },
+      { x: 5, y: 7, to: 'dragonstone', tx: 3, ty: 14, dir: 'down' },
+      { x: 6, y: 7, to: 'dragonstone', tx: 3, ty: 14, dir: 'down' },
     ],
     npcs: [
       { x: 5, y: 1, dir: 'down', sprite: 'smallfolk', name: 'Dragonsmith', script: 'smith',
@@ -3173,13 +3232,11 @@ export const MAPS = {
       { dir: 'down', sprite: 'smallfolk', name: 'A Sulphur Gatherer', script: 'townTalk',
         data: { line: 'A Sulphur Gatherer: The ground is warm here in midwinter. That is not comforting once you have thought about why.' } },
     ],
-    outskirts: OUTSKIRTS.smokingStrand, gate: 13,
-    quarter: 1,
+    outskirts: OUTSKIRTS.smokingStrand, gate: 16,
+    core: dragonstoneCore,
     banner: 'V',
-    dressing: [[14, 17, 'U'], [15, 17, 'U'], [16, 17, 'U'], [14, 18, 'U'], [17, 17, 'U'],
-               [4, 17, 'U'], [5, 17, 'U'], [6, 18, 'U'], [4, 18, 'U'], [20, 2, 'C'],
-               [21, 3, 'C'], [2, 1, 'C'], [3, 2, 'C'], [19, 12, 'C'], [13, 13, 'U'],
-               [20, 13, 'C'], [13, 2, 'U']],
+    dressing: [[4, 21, 'U'], [8, 23, 'U'], [13, 21, 'U'], [18, 23, 'U'], [6, 8, 'U'],
+               [16, 8, 'U'], [10, 22, 'n'], [14, 22, 'n'], [3, 23, 'n'], [20, 21, 'n']],
     roof: 'Z', ridge: 'z',
     name: 'Dragonstone', ground: 'stone', wall: 'C', floor: 'o', music: 'battleBoss',
     warps: [
@@ -3193,23 +3250,24 @@ export const MAPS = {
       { door: 'forge', to: 'dragonstoneArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
-      { x: 22, y: 12, text: 'THE SMOKING STRAND\nBlack sand, and steam coming out of it.\nNothing has grown on this beach in living memory.' },
-      { x: 13, y: 10, text: 'DRAGONSTONE\nAncient seat of House Targaryen.\nThe stone here was shaped while it was still soft.' },
+      { x: 22, y: 17, text: 'THE SMOKING STRAND\nBlack sand, and steam coming out of it.\nNothing has grown on this beach in living memory.' },
+      { x: 10, y: 14, text: 'THE STONE DRUM\nAncient seat of House Targaryen.\nThe stone here was shaped while it was still soft.' },
+      { x: 6, y: 6, text: 'THE DRAGONMONT\nThe mountain has never gone out and the ground stays warm in midwinter.\nThat stops being comforting once you have thought about why.' },
     ],
     npcs: [
-      { x: 8, y: 9, dir: 'down', sprite: 'unsullied', name: 'Grey Worm', script: 'duel',
+      { x: 8, y: 15, dir: 'down', sprite: 'unsullied', name: 'Grey Worm', script: 'duel',
         data: { duel: 'greyWorm' } },
-      { x: 14, y: 10, dir: 'left', sprite: 'braavosi', name: 'Daario', script: 'duel',
+      { x: 14, y: 15, dir: 'left', sprite: 'braavosi', name: 'Daario', script: 'duel',
         data: { duel: 'daario' } },
-      { x: 5, y: 17, dir: 'right', sprite: 'targaryen', name: 'Daenerys Targaryen',
+      { x: 11, y: 21, dir: 'up', sprite: 'targaryen', name: 'Daenerys Targaryen',
         script: 'gymTargaryen', data: { trainer: 'gymTargaryen' } },
-      { x: 16, y: 17, dir: 'left', sprite: 'ironborn', name: 'Euron Greyjoy', script: 'duel',
+      { x: 16, y: 23, dir: 'left', sprite: 'ironborn', name: 'Euron Greyjoy', script: 'duel',
         data: { duel: 'euron' } },
     ],
   }),
 
   maesterHallDragonstone: maesterHall({
-    exitTo: 'dragonstone', exitX: 6, exitY: 7,
+    exitTo: 'dragonstone', exitX: 11, exitY: 15,
     stock: ['kingsguardBanner', 'kingsRansom', 'weirwoodSap', 'kissOfFire'],
     healerLine: 'The island is hot and the stone never cools. Rest them here.',
     merchantLine: 'Little trade reaches the island. What there is, is good.',
@@ -3246,7 +3304,7 @@ export const MAPS = {
       { beast: 'pyremaw', min: 40, max: 45, weight: 10 },
     ],
     warps: [
-      { x: 8, y: 15, to: 'dragonstone', tx: 7, ty: 15, dir: 'down' },
+      { x: 8, y: 15, to: 'dragonstone', tx: 5, ty: 7, dir: 'down' },
     ],
     npcs: [
       { x: 8, y: 7, dir: 'down', sprite: 'targaryen', name: '?', script: 'blackdread',

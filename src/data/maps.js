@@ -97,7 +97,7 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
   const tiles = [
     W.repeat(11) + '-' + W.repeat(12),
     row(W, fill(10), '-', fill(11), W),
-    row(W, fill(2), 'u', fill(7), '-', g, g, 'n', fill(8), W),
+    row(W, fill(2), 'u', fill(1), 'n', fill(5), '-', g, g, 'n', fill(8), W),
     row(W, fill(2), t.repeat(6), fill(2), '-', fill(2), f.repeat(6), fill(3), W),
     row(W, fill(2), R.repeat(6), fill(2), '-', fill(2), F.repeat(6), fill(3), W),
     row(W, fill(2), R.repeat(6), fill(2), '-', fill(2), F.repeat(6), fill(3), W),
@@ -116,7 +116,7 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
     row(W, fill(2), A, A, A, A, 'D', A, A, A, '-', fill(11), W),
     row(W, fill(6), '-', fill(3), '-', fill(11), W),
     row(W, fill(2), '-'.repeat(18), fill(2), W),
-    row(W, fill(10), '-', fill(11), W),
+    row(W, fill(4), 'n', fill(5), '-', fill(4), 'n', fill(6), W),
     /* Below the keep, the part of a town people actually live in.
        Every settlement in this game had a maester, a smith and a lord, and
        nowhere at all that anybody went in the evening. Two thatched common

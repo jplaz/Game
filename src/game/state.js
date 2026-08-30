@@ -55,6 +55,10 @@ export function newGame(playerName = 'Snow') {
     // shopfronts.
     properties: [],
     rentFrom: {},
+    /* The ship you own, or null. Bought with gold like everything else in the
+       two lines above it, and lost for good when somebody puts a bronze beak
+       through her -- see game/ship.js. */
+    ship: null,
     position: { map: 'heroHouse', x: 4, y: 5, dir: 'down' },
     // Where the player wakes after a whiteout.
     respawn: { map: 'winterfell', x: 15, y: 20, dir: 'down' },

@@ -109,6 +109,13 @@ export class Overworld {
     this.mapId = mapId;
     this.region = regionOf(mapId);
     setLocalRegion(this.region);
+    /* Never aboard on dry land. Loading a save, waking up after a whiteout and
+       being carried home all put you down somewhere the ship is not, and a
+       player standing in a field with the water rules on cannot walk in any
+       direction at all. */
+    if (aboard() && tileDef(tileAt(this.map, x, y)).kind !== 'water') {
+      goAshore(mapId, x, y);
+    }
     // You leave the beast outside; it does not follow you through a doorway.
     if (this.map.indoor) this.mount = null;
     // Nor does a mount that has been taken out of your party or knocked down.

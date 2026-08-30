@@ -1339,6 +1339,10 @@ export const GROUNDS = {
   // middle of a mud alley.
   earth: (ctx, variant) => painters.dirt(ctx, 0, 0, null, variant),
   cave: (ctx, variant) => painters.caveFloor(ctx, 0, 0, null, variant),
+  // Boards. Every room somebody actually lives in is floored in them, and
+  // until now there was no way for a map to say so — so a chest standing in
+  // a cottage in the Riverlands was standing on a lawn.
+  wood: (ctx) => painters.floorWood(ctx),
 };
 
 /** Returns the painted canvas for a tile at a given frame, mask and ground. */

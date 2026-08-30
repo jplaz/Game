@@ -2129,9 +2129,15 @@ function dragonstoneCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
      sealed inside it. */
   /* Planted in two rows with a walk between them, and never one tree above
      another: trees autotile into a single mass when they touch top to bottom,
-     so a column of three is a green wall rather than three trees. */
-  for (const [x, yy] of [[7, 21], [12, 21], [13, 21], [14, 21], [15, 21],
-                         [12, 23], [13, 23], [14, 23], [15, 23]]) {
+     so a column of three is a green wall rather than three trees.
+
+     And a gap straight through the middle of both rows. Two unbroken rows of
+     four, with the dragon on one side and the common house on the other, made
+     the walk between them a sealed lane of four tiles — small enough to slip
+     under the map checker's threshold and large enough for the cartridge's
+     own audit to refuse the build over it. A garden wants a way in. */
+  for (const [x, yy] of [[7, 21], [12, 21], [14, 21], [15, 21],
+                         [12, 23], [14, 23], [15, 23]]) {
     put(x, yy, '#');
   }
   /* One fire in the garden and no more. A brazier at the foot of the inn's
@@ -4585,8 +4591,9 @@ export const MAPS = {
      down to Lannisport. It was a seventeen-by-eighteen room. */
   casterlyRock: {
     name: 'Casterly Rock',
+    /* Halls cut into the rock, which is what the chests in them stand on. */
     indoor: true,
-    music: 'town',
+    music: 'town', ground: 'cave',
     tiles: [
       '@@@@@@@@@@@@@@@@@@@@@@@@@@',
       '@@@@==================@@@@',
@@ -5965,7 +5972,7 @@ export const MAPS = {
      nine-hundred-gold version and the twenty-two-thousand one. */
   propFleaRoom: {
     name: 'Your Room, Flea Bottom',
-    indoor: true, music: 'town',
+    indoor: true, music: 'town', ground: 'wood',
     tiles: [
       'IIIIIIIII',
       'I_b_____I',
@@ -5991,7 +5998,7 @@ export const MAPS = {
 
   propRiverCottage: {
     name: 'Your Cottage, the Crossroads',
-    indoor: true, music: 'town',
+    indoor: true, music: 'town', ground: 'wood',
     tiles: [
       'IIIIIIIIIII',
       'I__b____B_I',
@@ -6018,7 +6025,7 @@ export const MAPS = {
 
   propBraavosCounting: {
     name: 'Your Counting-House, Braavos',
-    indoor: true, music: 'town',
+    indoor: true, music: 'town', ground: 'wood',
     tiles: [
       'IIIIIIIIIIIII',
       'I_b____BBB__I',
@@ -6046,7 +6053,7 @@ export const MAPS = {
 
   propValeWatchtower: {
     name: 'Your Watchtower, the Vale',
-    indoor: true, music: 'town',
+    indoor: true, music: 'town', ground: 'wood',
     tiles: [
       'IIIIIIIIIIIII',
       'I__b______l_I',
@@ -6075,7 +6082,7 @@ export const MAPS = {
 
   propDorneOrchard: {
     name: 'Your Orchard House, Dorne',
-    indoor: true, music: 'town',
+    indoor: true, music: 'town', ground: 'wood',
     tiles: [
       'IIIIIIIIIIIIIII',
       'I__b_______BB_I',
@@ -6124,7 +6131,15 @@ export const MAPS = {
       { x: 9, y: 10, to: 'kingsLanding', tx: 6, ty: 8, dir: 'down' },
     ],
     signs: [
-      { x: 5, y: 8, text: 'THE SEVEN\nFather, Mother, Warrior, Maiden, Smith, Crone, Stranger.\nSix of them are looking at you.' },
+      /* Both of these are on the altar rail rather than on the floor, so
+         they can be faced and read. A sign on a tile you can stand on is a
+         sign nobody can ever face, and this one had been one since it was
+         written. The match sign is on the tile you are looking at the
+         instant you come through the door, because "I still don't know how
+         to marry" is a fair thing to say about a game that never once
+         mentions it. */
+      { x: 8, y: 8, text: 'A MATCH IS MADE HERE\nSpeak to the High Septon.\n\nHe will want three things of you first:\nA roof of your own \u2014 buy a hall from YOUR HOUSE in the menu, in any seat you have cleared.\nOne great house bent to you \u2014 no house marries a name it has not heard.\nAnd the gifts, in gold, on the day.' },
+      { x: 7, y: 8, text: 'THE SEVEN\nFather, Mother, Warrior, Maiden, Smith, Crone, Stranger.\nSix of them are looking at you.' },
     ],
     npcs: [
       { x: 8, y: 3, dir: 'down', sprite: 'septa', name: 'High Septon', script: 'bellowsHand',

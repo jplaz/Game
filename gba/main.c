@@ -2027,7 +2027,23 @@ static int sumWorn(int which) {
 }
 
 static int mightFor(int level) { return 10 + level * 3 + sumWorn(0); }
-static int guardFor(int level) { return 6 + level * 2 + sumWorn(1); }
+/* Guard rises three a level, not two.
+ *
+ * It was the shallowest of the three things a body is made of — might three a
+ * level, swiftness two, guard two — and it is the only one of them that has to
+ * stand against people whose gear budget grows with the SQUARE of their level.
+ * So the middle of the game had a hole in it: measured over everybody you can
+ * meet within two levels of yourself, one fight cost you a quarter of your
+ * vigour at level five, and forty-four per cent of it at level ten. You won
+ * ninety-nine of those fights in a hundred and still went down on the third,
+ * because winning them was costing nearly half of you each time.
+ *
+ * Flattening the gear budget instead was tried and does nothing, which is the
+ * useful part of the finding: everybody on the road is dressed out of the same
+ * list you are, so cutting it cuts your damage as much as theirs and only
+ * makes the fights longer. Guard is the one number on your side of that
+ * symmetry. */
+static int guardFor(int level) { return 6 + level * 3 + sumWorn(1); }
 static int swiftFor(int level) {
   int s = 10 + level * 2 + sumWorn(2);
   return s < 1 ? 1 : s;

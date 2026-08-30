@@ -200,8 +200,18 @@ for (const [id, map] of Object.entries(MAPS)) {
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
     if (stand(x, y)) open++;
   }
-  const marooned = open - seen.size;
-  if (marooned > 12) {
+  /* Counted through people, not against them. Somebody standing in front of
+     you is a different complaint and this file already makes it by name; what
+     this one is asking is whether the ground itself was carved wrong. */
+  const marooned = open - loose.size;
+  /* Three, which is where the cartridge's own audit draws it. Twelve was the
+     line here, and a four-tile lane sealed inside a garden at Dragonstone went
+     straight under it and stopped the build twenty-five minutes later instead.
+     Two checks asking the same question with different thresholds means the
+     cheap one is decoration. Measured before it was moved: across the whole
+     world only Riverrun (one tile) and the fifteen maester's halls (two, and
+     the same two, from one template) sit below it. */
+  if (marooned > 3) {
     say(`${id}: ${marooned} tiles of ground are walled off from every door`);
   }
 

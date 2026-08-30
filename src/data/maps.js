@@ -1688,6 +1688,103 @@ function fleaBottomPlan() {
   return g.map((r) => r.join(''));
 }
 
+/**
+ * Pyke, which is not a village.
+ *
+ * It was drawn by the same generator as every other settlement — a hall, a
+ * forge, a keep and two common houses on a crossroads — and the one thing that
+ * makes Pyke Pyke, a castle broken across sea stacks with rope bridges strung
+ * between the pieces, existed only as decoration down the right-hand edge. You
+ * could walk the whole town and never cross water.
+ *
+ * Everything stands on a pillar of rock in open sea now, and every way from one
+ * piece to the next is a rope bridge over nothing. Checked before it was wired
+ * in: all eight doors reachable from the landward bridge, no stranded ground.
+ */
+function pykePlan() {
+  const W = 32, H = 27;
+  const g = [];
+  for (let y = 0; y < H; y++) g.push(new Array(W).fill('~'));
+
+  const put = (x, y, c) => { if (g[y] && g[y][x] !== undefined) g[y][x] = c; };
+  const row = (x, y, text) => [...text].forEach((c, i) => put(x + i, y, c));
+  const span = (x, y, w, h, c) => {
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, y + j, c);
+  };
+  // A rope bridge draws the drop under itself, so a crossing is visibly over
+  // nothing at all.
+  const bridgeV = (x, y0, y1) => { for (let y = y0; y <= y1; y++) put(x, y, 'm'); };
+  const bridgeH = (y, x0, x1) => { for (let x = x0; x <= x1; x++) put(x, y, 'm'); };
+
+  // --- the gatehouse, and the only bridge to the land ----------------------
+  bridgeV(12, 0, 0);
+  row(10, 1, 'MMoMM');
+  row(10, 2, 'MoooM');
+  row(10, 3, 'MoooM');
+  row(10, 4, 'MoooM');
+  row(10, 5, 'ooooo');
+  bridgeV(12, 6, 7);
+
+  // --- the middle stack: the yard everything else hangs off ----------------
+  span(9, 8, 7, 7, 'o');
+  put(11, 10, 'F'); put(13, 10, 'F');       // braziers, because it is always dark
+
+  // --- the Sea Tower, west: the maester's hall -----------------------------
+  span(1, 8, 7, 7, 'o');
+  put(3, 8, 'n');
+  row(2, 9, 'zzzzz');
+  row(2, 10, 'ZZZZZ');
+  row(2, 11, 'AwAwA');
+  row(2, 12, 'AeADA');                       // door at 5,12
+  bridgeH(13, 8, 8);
+
+  // --- the Bloody Keep, east: the forge ------------------------------------
+  span(17, 8, 7, 7, 'o');
+  put(21, 8, 'n');
+  row(18, 9, 'zzzzz');
+  row(18, 10, 'ZZZZZ');
+  row(18, 11, 'AwAwA');
+  row(18, 12, 'AkADA');                      // door at 21,12
+  bridgeH(13, 16, 16);
+
+  // --- the Great Keep, south: reached only across the water ----------------
+  /* Walkways down both flanks, because the bridge lands on the north face and
+     the gate is on the south one — without them the two halves of the stack are
+     walled apart and the keep is a door you can see and never reach. */
+  span(8, 17, 9, 7, 'o');
+  row(9, 18, 'MMMMMMM');
+  row(9, 19, 'MAAAAAM');
+  row(9, 20, 'AAvAvAA');
+  row(9, 21, 'AwAAAwA');
+  row(9, 22, 'AAADAAA');                     // door at 12,22
+  bridgeV(12, 15, 16);
+  bridgeV(12, 24, 25);
+  bridgeV(12, 26, 26);
+
+  // --- the drowned vault, south-west --------------------------------------
+  span(1, 17, 6, 5, 'o');
+  row(2, 18, 'AAAA');
+  row(2, 19, 'AADA');                        // door at 4,19
+  bridgeV(4, 15, 16);
+
+  // --- the two houses, out east on their own stacks ------------------------
+  span(25, 8, 6, 7, 'o');
+  put(27, 9, 'n');
+  row(26, 10, 'yyyy');
+  row(26, 11, 'YYYY');
+  row(26, 12, 'ADAA');                       // inn door at 27,12
+  bridgeH(13, 24, 24);
+
+  span(25, 17, 6, 7, 'o');
+  put(27, 18, 'n');
+  row(26, 19, 'yyyy');
+  row(26, 20, 'YYYY');
+  row(26, 21, 'ADAA');                       // house door at 27,21
+  bridgeV(27, 15, 16);
+
+  return g.map((r) => r.join(''));
+}
+
 export const MAPS = {
   // ------------------------------------------------ the winter town, inside --
   winterfellInn: makeInn({
@@ -4138,8 +4235,8 @@ export const MAPS = {
     warps: [
       { x: 8, y: 0, to: 'ironCoast', tx: 11, ty: 28, dir: 'up' },
       { x: 9, y: 0, to: 'ironCoast', tx: 11, ty: 28, dir: 'up' },
-      { x: 6, y: 19, to: 'pyke', tx: 11, ty: 1, dir: 'down' },
-      { x: 7, y: 19, to: 'pyke', tx: 11, ty: 1, dir: 'down' },
+      { x: 6, y: 19, to: 'pyke', tx: 12, ty: 1, dir: 'down' },
+      { x: 7, y: 19, to: 'pyke', tx: 12, ty: 1, dir: 'down' },
     ],
     signs: [
       { x: 6, y: 2, text: 'THE BRIDGES OF PYKE\nWalk in the middle. The ropes are older than you are.' },
@@ -4154,57 +4251,47 @@ export const MAPS = {
     ],
   },
 
-  pyke: makeTown({
-    outsiders: [
-      { dir: 'down', sprite: 'ironborn', name: 'A Drowned Man', script: 'townTalk',
-        data: { line: 'A Drowned Man: What is dead may never die. We hold them under until they stop, and then we bring them back. Most of them.' } },
-      { dir: 'down', sprite: 'ironborn', name: 'A Reaver', script: 'duel',
-        data: { duel: 'ironborn' } },
+  pyke: {
+    name: 'Pyke', music: 'town', ground: 'stone',
+    get tiles() { return pykePlan(); },
+    encounters: [
+      { roamer: 'ironbornReaver', min: 26, max: 34, weight: 60 },
+      { roamer: 'sellsword', min: 26, max: 34, weight: 40 },
     ],
-    outskirts: OUTSKIRTS.seaStacks, gate: 13,
-    quarter: 4,
-    // A castle on broken rock, walled by the sea itself.
-    roof: 'G', ridge: 'g', house: 'A', banner: 'v',
-    name: 'Pyke', music: 'town', ground: 'stone', wall: '~', floor: 'o',
-    dressing: [
-      [3, 1, '^'], [20, 1, '^'], [3, 18, '^'], [20, 18, '^'],
-      [2, 8, 'U'], [21, 11, 'U'], [4, 17, 'U'],
-      [19, 2, 'f'], [19, 3, 'f'],
+    warps: [
+      { x: 4, y: 19, to: 'pykeCellar', tx: 6, ty: 8, dir: 'up' },
+      { x: 27, y: 12, to: 'pykeInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 27, y: 21, to: 'pykeHouse', tx: 6, ty: 10, dir: 'up' },
+      { x: 12, y: 0, to: 'pykeBridge', tx: 6, ty: 18, dir: 'up' },
+      { x: 5, y: 12, to: 'maesterHallPyke', tx: 5, ty: 7, dir: 'up' },
+      { x: 21, y: 12, to: 'pykeForge', tx: 5, ty: 6, dir: 'up' },
+      { x: 12, y: 22, to: 'pykeKeep', tx: 7, ty: 12, dir: 'up' },
+      { x: 12, y: 26, to: 'lordsportDocks', tx: 11, ty: 2, dir: 'down' },
+    ],
+    signs: [
+      { x: 12, y: 21, text: 'THE GREAT KEEP\nSeat of House Greyjoy.\nWe Do Not Sow.' },
+      { x: 12, y: 3, text: 'THE BRIDGE\nThe only one joined to land, and they watch it day and night.\nEverything else here you cross over water.' },
     ],
     npcs: [
-      { x: 11, y: 5, dir: 'down', sprite: 'goodwife', name: 'A Woman of Fair Isle', script: 'quest',
+      { x: 10, y: 5, dir: 'down', sprite: 'goodwife', name: 'A Woman of Fair Isle', script: 'quest',
         data: { quest: 'saltWivesOfPyke' } },
-      { x: 11, y: 11, dir: 'down', sprite: 'ironborn', name: 'Yara Greyjoy',
+      { x: 11, y: 13, dir: 'down', sprite: 'ironborn', name: 'Yara Greyjoy',
         script: 'trainer', data: { trainer: 'gymGreyjoy' } },
-      { x: 14, y: 12, dir: 'left', sprite: 'ironborn', name: 'Balon Greyjoy',
+      { x: 13, y: 17, dir: 'down', sprite: 'ironborn', name: 'Balon Greyjoy',
         script: 'duel', data: { duel: 'balon' } },
-      { x: 8, y: 17, dir: 'up', sprite: 'goodwife', name: 'Salt Wife', script: 'pykeLocal',
+      { x: 10, y: 23, dir: 'up', sprite: 'goodwife', name: 'Salt Wife', script: 'pykeLocal',
         data: { line: 'Salt Wife: Rock wife or salt wife, the rock is the same. '
           + 'Cold, and it does not care.' } },
-      { x: 16, y: 17, dir: 'up', sprite: 'child', name: 'Ironborn Boy', script: 'pykeLocal',
+      { x: 28, y: 13, dir: 'left', sprite: 'child', name: 'Ironborn Boy', script: 'pykeLocal',
         data: { line: 'Ironborn Boy: I am going to be a captain. I have not been on a boat.' } },
-      { x: 4, y: 8, dir: 'up', sprite: 'ironborn', name: 'Drowned Man', script: 'pykeLocal',
+      { x: 3, y: 13, dir: 'up', sprite: 'ironborn', name: 'Drowned Man', script: 'pykeLocal',
         data: { line: 'Drowned Man: We drown them and then we bring them back. '
           + 'Mostly we bring them back.' } },
     ],
-    signs: [
-      { x: 25, y: 12, text: 'THE SEA STACKS\nThe castle stands on rocks the sea has not finished with yet.\nOne of the bridges goes down every year.' },
-      { x: 11, y: 10, text: 'PYKE\nSeat of House Greyjoy.\nWe Do Not Sow.' },
-    ],
-    warps: [
-      { door: 'cellar', to: 'pykeCellar', tx: 6, ty: 8, dir: 'up' },
-      { door: 'inn', to: 'pykeInn', tx: 6, ty: 10, dir: 'up' },
-      { door: 'house', to: 'pykeHouse', tx: 6, ty: 10, dir: 'up' },
-      { door: 'northGate', to: 'pykeBridge', tx: 6, ty: 18, dir: 'up' },
-      { door: 'maester', to: 'maesterHallPyke', tx: 5, ty: 7, dir: 'up' },
-      { door: 'forge', to: 'pykeForge', tx: 5, ty: 6, dir: 'up' },
-      { door: 'keep', to: 'pykeKeep', tx: 7, ty: 12, dir: 'up' },
-      { door: 'southGate', to: 'lordsportDocks', tx: 11, ty: 2, dir: 'down' },
-    ],
-  }),
+  },
 
   maesterHallPyke: maesterHall({
-    exitTo: 'pyke', exitX: 6, exitY: 7,
+    exitTo: 'pyke', exitX: 5, exitY: 13,
     stock: ['maesterKit', 'poppyMilk', 'weirwoodSap', 'snare', 'netTrap', 'sigilBanner'],
     healerLine: 'Maester Wendamyr: Salt in everything, including the wounds. '
       + 'Sit down and let me get at it.',
@@ -4225,8 +4312,8 @@ export const MAPS = {
       'IIIII__IIIII',
     ],
     warps: [
-      { x: 5, y: 7, to: 'pyke', tx: 17, ty: 7, dir: 'down' },
-      { x: 6, y: 7, to: 'pyke', tx: 17, ty: 7, dir: 'down' },
+      { x: 5, y: 7, to: 'pyke', tx: 21, ty: 13, dir: 'down' },
+      { x: 6, y: 7, to: 'pyke', tx: 21, ty: 13, dir: 'down' },
     ],
     npcs: [
       { x: 5, y: 1, dir: 'down', sprite: 'ironborn', name: 'Saltsmith', script: 'smith',
@@ -4265,8 +4352,8 @@ export const MAPS = {
       'IIIIII__IIIIIII',
     ],
     warps: [
-      { x: 6, y: 12, to: 'pyke', tx: 7, ty: 15, dir: 'down' },
-      { x: 7, y: 12, to: 'pyke', tx: 7, ty: 15, dir: 'down' },
+      { x: 6, y: 12, to: 'pyke', tx: 12, ty: 23, dir: 'down' },
+      { x: 7, y: 12, to: 'pyke', tx: 12, ty: 23, dir: 'down' },
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'ironborn', name: 'Asha', script: 'courtship',
@@ -4304,7 +4391,7 @@ export const MAPS = {
       { roamer: 'ironbornReaver', min: 24, max: 29, weight: 30 },
     ],
     warps: [
-      { x: 11, y: 2, to: 'pyke', tx: 11, ty: 25, dir: 'up' },
+      { x: 11, y: 2, to: 'pyke', tx: 12, ty: 25, dir: 'up' },
     ],
     signs: [
       { x: 6, y: 4, text: 'LORDSPORT\nThe fleet is out. It is always out.\nAsk the captain what a berth costs.' },

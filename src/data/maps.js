@@ -78,6 +78,24 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
   const row = (...parts) => parts.join('');
   const fill = (n) => g.repeat(n);
 
+  /* How far west the maester's hall sits, which is the whole of what made
+     every town's west half the same picture. Chosen from the town's own name
+     so it is stable across builds and different between neighbours. */
+  const shift = [0, 1, 2][[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 3];
+  const lead = 2 - shift;               // ground west of the hall
+  const trail = 2 + shift;              // and east of it, before the road
+  const hallRow = (r) => {
+    if (r === 2) {
+      return row(W, fill(2), 'u', fill(Math.max(0, lead - 1)), 'n',
+        fill(8 - lead - Math.max(0, lead - 1)), '-', g, g, 'n', fill(8), W);
+    }
+    const west = [t.repeat(6), R.repeat(6),
+      row(P, 'w', P, 'w', P, 'w'), row(P, 'e', P, 'D', P, 'w')][r - 3];
+    const east = [f.repeat(6), F.repeat(6),
+      row(A, 'w', A, 'w', A, A), row(A, 'k', A, 'D', A, A)][r - 3];
+    return row(W, fill(lead), west, fill(trail), '-', fill(2), east, fill(3), W);
+  };
+
   // Three buildings, three trades, three silhouettes. The region decides what
   // the Maester's Hall is roofed and walled with, and that is what makes a town
   // in the Reach look nothing like one on the Wall. The other two are the same
@@ -97,12 +115,11 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
   const tiles = [
     W.repeat(11) + '-' + W.repeat(12),
     row(W, fill(10), '-', fill(11), W),
-    row(W, fill(2), 'u', fill(1), 'n', fill(5), '-', g, g, 'n', fill(8), W),
-    row(W, fill(2), t.repeat(6), fill(2), '-', fill(2), f.repeat(6), fill(3), W),
-    row(W, fill(2), R.repeat(6), fill(2), '-', fill(2), F.repeat(6), fill(3), W),
-    // The upper storey: shuttered above, trading below.
-    row(W, fill(2), P, 'w', P, 'w', P, 'w', fill(2), '-', fill(2), A, 'w', A, 'w', A, A, fill(3), W),
-    row(W, fill(2), P, 'e', P, 'D', P, 'w', fill(2), '-', fill(2), A, 'k', A, 'D', A, A, fill(3), W),
+    /* Where the hall stands. Three towns in this world are laid out the same
+       because one plan drew all eleven of them; the hall sits a little west,
+       square on, or hard against the road depending on the town, and its door
+       goes with it — a warp names its door now, so it can. */
+    hallRow(2), hallRow(3), hallRow(4), hallRow(5), hallRow(6),
     row(W, fill(5), '-', fill(4), '-', fill(5), '-', fill(5), W),
     row(W, fill(2), '-'.repeat(18), fill(2), W),
     // The seat itself: two towers standing a course above a curtain wall, with
@@ -214,7 +231,7 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
   /* A door with nothing behind it is worse than a wall: the player walks up to
      it, presses A, and the game says nothing at all. Towns that have no room to
      spare behind a given building get a shuttered window there instead. */
-  const SHUT = { hall: [6, 6], forge: [17, 6], keep: [7, 14],
+  const SHUT = { hall: [lead + 4, 6], forge: [17, 6], keep: [7, 14],
                  inn: [5, 21], house: [16, 21], cellar: [17, 11] };
   for (const which of shut) {
     const at = SHUT[which];
@@ -318,7 +335,7 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
      eleven places. A warp can name the door instead, and then the plan is free
      to put that door wherever it likes. */
   const DOORS = {
-    maester: [6, 6], forge: [17, 6], keep: [7, 14],
+    maester: [lead + 4, 6], forge: [17, 6], keep: [7, 14],
     cellar: [17, 11], inn: [5, 21], house: [16, 21],
     northGate: [11, 0], southGate: [11, 26],
   };

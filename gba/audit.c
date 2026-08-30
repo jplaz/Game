@@ -476,6 +476,18 @@ int main(void) {
         if (!seen[to]) { seen[to] = 1; q[tail++] = to; }
       }
     }
+    /* Nor is every way in a door or a berth. A room you have bought is reached
+       through the person who sold it to you, which is a way in that no warp
+       records - so without this the five of them read as five rooms nobody in
+       the world can get to. */
+    for (i = 0; i < cur->npcCount; i++) {
+      int d = cur->npcs[i].deed;
+      if (!d || d > DEED_COUNT) continue;
+      {
+        int to = deeds[d - 1].map;
+        if (to >= 0 && to < MAP_COUNT && !seen[to]) { seen[to] = 1; q[tail++] = to; }
+      }
+    }
   }
   for (i = 0; i < MAP_COUNT; i++) {
     if (seen[i]) reached++;

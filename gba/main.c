@@ -2686,6 +2686,15 @@ static int duelMenu, duelPhase, duelOver;
    swords, a rider from your own hall and a sigil changing hands, all on the
    same win. It used to be 288 and the end of that sentence went nowhere. */
 static char scratch[640];
+/* Every line an item has to say is built here rather than in `scratch`.
+ *
+ * The duel repaints its plates between an item acting and the line about it
+ * being read - and the plates build "Lv 12" in `scratch` to caption them. So
+ * every message any item composed was overwritten before it reached the screen:
+ * a net that held, a purse that was taken, a flask that healed forty back, all
+ * of them reported as a level number. From the other side of the screen that is
+ * an item that did nothing. */
+static char itemSaid[320];
 
 static void copyString(char *dst, const char *src, int room) {
   int i = 0;
@@ -2948,8 +2957,9 @@ static void paintDuelPack(void) {
   for (i = 0; i < PARTY_MAX; i++) {
     const Kept *k = &you.party[i];
     int x = 22 + (i & 1) * 110;
-    int y = DUEL_WINDOW_TOP + 5 + (i >> 1) * 11;
-    u16 tint;
+    int y = DUEL_WINDOW_TOP + 3 + (i >> 1) * 13;
+    int full, now, filled;
+    u16 tint, bar;
     if (i == packPick) drawCursor(x - 10, y + 1, C_GOLD);
     if (k->kind == 255) { drawText(x, y, "-", C_DIM); continue; }
     /* Down, out in front, or waiting: three states and three colours, because
@@ -2958,10 +2968,39 @@ static void paintDuelPack(void) {
     tint = k->hp <= 0 ? C_HURT
          : (beastOut && i == you.lead) ? C_WELL
          : i == packPick ? C_GOLD : C_INK;
+    /* And how much of it is left, which is the whole question this list is
+       being opened to answer and the one thing it did not say. A name, a level
+       and a colour tell you that something is hurt somewhere; they do not tell
+       you whether it can take another blow, so choosing who to send out was
+       guesswork with six animals' lives on it. */
+    full = beastVigour(k->kind, k->level);
+    now = k->hp < 0 ? 0 : (k->hp > full ? full : k->hp);
     copyString(scratch, beasts[k->kind].name, sizeof scratch);
-    appendString(scratch, "  ", sizeof scratch);
-    appendNumber(scratch, k->level, sizeof scratch);
+    /* Six of these across two columns: trim the name rather than let it run
+       under the numbers. */
+    while (textWidth(scratch) > 56) {
+      int n = 0;
+      while (scratch[n]) n++;
+      if (!n) break;
+      scratch[n - 1] = 0;
+    }
     drawText(x, y, scratch, tint);
+    copyString(scratch, "", sizeof scratch);
+    appendNumber(scratch, k->level, sizeof scratch);
+    drawText(x + 60, y, scratch, tint);
+    copyString(scratch, "", sizeof scratch);
+    appendNumber(scratch, now, sizeof scratch);
+    appendString(scratch, "/", sizeof scratch);
+    appendNumber(scratch, full, sizeof scratch);
+    drawText(x + 76, y, scratch, k->hp <= 0 ? C_HURT : C_DIM);
+    /* A slim rail under each, so the whole pack reads at a glance. Two rows
+       deep rather than the four the duel plates use: six of these have to fit
+       in the same short window the rest of the fight is played in. */
+    if (full < 1) full = 1;
+    filled = (int)udiv((u32)(now * 100), (u32)full);
+    bar = now * 4 <= full ? C_DYING : (now * 2 <= full ? C_HURT : C_WELL);
+    fillRect(x, y + 9, 100, 2, C_BACK);
+    if (filled) fillRect(x, y + 9, filled, 2, bar);
   }
 }
 
@@ -4467,6 +4506,9 @@ static void takeUpRecord(void) {
    them. Both are the same shape: a title, six rows, a pointer, and a footer. */
 
 static int menuPick, bagPick, shopPick, shopStall, bagInDuel;
+/* 0 while reading the shelf, otherwise how many of the thing under the
+   cursor are about to be bought. */
+static int shopMany;
 /* Which counter you are standing at, as against which section of it you are
    reading. A smith opens on the arms and an apothecary on the remedies, and
    L and R walk you round the rest of the shop without walking you out of it -
@@ -5059,12 +5101,34 @@ static int swearIn(int kind, int level) {
 
 /* Why the last thing you reached for did nothing, if it did nothing. */
 static const char *wareBalked;
+/* And what it did, when it did something. Everything used to report the same
+   sentence about feeling better, including putting on a helm. */
+static const char *wareDid;
 
 static int useWare(int at) {
   int max = vigourFor(you.level), heal;
   wareBalked = 0;
+  wareDid = 0;
   if (!you.bag[at]) return 0;
-  if (wares[at].kind != WARE_POTION) return wearWare(at);
+  if (wares[at].kind != WARE_POTION) {
+    if (wearWare(at)) {
+      copyString(itemSaid, "You put on the ", sizeof itemSaid);
+      appendString(itemSaid, wares[at].name, sizeof itemSaid);
+      appendString(itemSaid, ".", sizeof itemSaid);
+      wareDid = itemSaid;
+      return 1;
+    }
+    /* And say why not. Pressing A on a thing and having the game do nothing at
+       all, with no line and no sound, is indistinguishable from a broken
+       game - which is exactly what it was reported as. */
+    wareBalked = worn(at)
+      ? "You have that on already."
+      : (wares[at].kind == WARE_SNARE) ? "A net is for throwing over something. Save it for a fight."
+      : (wares[at].kind == WARE_OATH) ? "A purse like that is offered to somebody who has already lost."
+      : (wares[at].kind == WARE_RELIC) ? "Whatever that is for, it is not for standing in a road."
+      : "That is not a thing to put on or drink. Somebody will want it, though.";
+    return 0;
+  }
   heal = wares[at].heal >= 9999 ? max : wares[at].heal;
   /* A remedy is worth drinking when you are opened up even if you are otherwise
      whole. Five of the ten things on this shelf are cures rather than draughts
@@ -5855,7 +5919,17 @@ static void paintShop(void) {
     drawText(14, TXT_H - 30, scratch, C_DIM);
     /* Nobody would ever have found any of this by pressing buttons at a
        counter, so the counter says it outright. */
-    drawText(14, TXT_H - 18, "A: buy   left/right: shelf   START: sell", C_GOLD);
+    if (shopMany && shelf) {
+      int at = shelfWare(stall, shopPick);
+      copyString(scratch, "How many?  ", sizeof scratch);
+      appendNumber(scratch, shopMany, sizeof scratch);
+      appendString(scratch, "   for ", sizeof scratch);
+      appendNumber(scratch, shopMany * askingPrice(at), sizeof scratch);
+      drawText(14, TXT_H - 18, scratch, C_GOLD);
+      drawText(TXT_W - 130, TXT_H - 18, "up/down: how many   A: buy   B: back", C_DIM);
+    } else {
+      drawText(14, TXT_H - 18, "A: buy   left/right: shelf   START: sell", C_GOLD);
+    }
     copyString(scratch, keeperMends() ? "SELECT: forge" : "SELECT: brew",
       sizeof scratch);
     drawText(TXT_W - 14 - textWidth(scratch), TXT_H - 18, scratch, C_GOLD);
@@ -5883,21 +5957,21 @@ static int snaredIt;
 static int useInDuel(int at) {
   if (wares[at].kind == WARE_SNARE) {
     if (foeBeast < 0) {
-      snareSaid = "A net is no way to settle a matter between people.";
-      return 1;
+      wareBalked = "A net is no way to settle a matter between people.";
+      return 0;
     }
     if (!beasts[foeBeast].tame) {
-      snareSaid = "Nothing you could throw would hold that, and it knows it.";
-      return 1;
+      wareBalked = "Nothing you could throw would hold that, and it knows it.";
+      return 0;
     }
     if (!you.bag[at]) return 0;
     you.bag[at]--;
     if ((int)roll(100) < snareOdds(at)) {
       int room = keepBeast(foeBeast, theirs.level);
-      copyString(scratch, "The net holds. The ", sizeof scratch);
-      appendString(scratch, beasts[foeBeast].name, sizeof scratch);
-      appendString(scratch, " stops fighting it, and then stops fighting you.",
-        sizeof scratch);
+      copyString(itemSaid, "The net holds. The ", sizeof itemSaid);
+      appendString(itemSaid, beasts[foeBeast].name, sizeof itemSaid);
+      appendString(itemSaid, " stops fighting it, and then stops fighting you.",
+        sizeof itemSaid);
       if (!room) {
         /* Six is the whole party, and a net thrown well should never end with
            an animal quietly not appearing anywhere. It used to be cut loose on
@@ -5910,24 +5984,24 @@ static int useInDuel(int at) {
           you.holdfast[spare].exp = (u16)beastExpFor(theirs.level);
           you.holdfast[spare].hp = beastVigour(foeBeast, theirs.level);
           you.tamed++;
-          appendString(scratch, "  Six already walk with you, so it goes to the "
-            "kennels. Any maester's hall will hand it back.", sizeof scratch);
+          appendString(itemSaid, "  Six already walk with you, so it goes to the "
+            "kennels. Any maester's hall will hand it back.", sizeof itemSaid);
         } else {
-          appendString(scratch, "  Six walk with you and the kennels are full. "
-            "You cut it loose.", sizeof scratch);
+          appendString(itemSaid, "  Six walk with you and the kennels are full. "
+            "You cut it loose.", sizeof itemSaid);
         }
       } else {
-        appendString(scratch, "  That is ", sizeof scratch);
-        appendNumber(scratch, partyCount(), sizeof scratch);
-        appendString(scratch, " at your heel.", sizeof scratch);
+        appendString(itemSaid, "  That is ", sizeof itemSaid);
+        appendNumber(itemSaid, partyCount(), sizeof itemSaid);
+        appendString(itemSaid, " at your heel.", sizeof itemSaid);
       }
-      snareSaid = scratch;
+      snareSaid = itemSaid;
       theirs.hp = 0;                 /* the fight is over, and nothing died */
       snaredIt = 1;
     } else {
-      copyString(scratch, "It tears out of the net and comes back angrier.",
-        sizeof scratch);
-      snareSaid = scratch;
+      copyString(itemSaid, "It tears out of the net and comes back angrier.",
+        sizeof itemSaid);
+      snareSaid = itemSaid;
     }
     return 1;
   }
@@ -5937,41 +6011,41 @@ static int useInDuel(int at) {
      they walk behind you afterwards and swing when you swing. */
   if (wares[at].kind == WARE_OATH) {
     if (foeBeast >= 0) {
-      snareSaid = "An animal cannot swear anything, and would not keep it.";
-      return 1;
+      wareBalked = "An animal cannot swear anything, and would not keep it.";
+      return 0;
     }
     if (!foeDef || foeDef->sworn >= SWORN_KINDS) {
-      copyString(scratch, theirs.name, sizeof scratch);
-      appendString(scratch, " is not for sale, at that price or any other.",
-        sizeof scratch);
-      snareSaid = scratch;
-      return 1;
+      copyString(itemSaid, theirs.name, sizeof itemSaid);
+      appendString(itemSaid, " is not for sale, at that price or any other.",
+        sizeof itemSaid);
+      wareBalked = itemSaid;
+      return 0;
     }
     if (theirs.dead) {
-      snareSaid = "It has nothing left to swear with.";
-      return 1;
+      wareBalked = "It has nothing left to swear with.";
+      return 0;
     }
     if (hostRoom() < 0) {
-      snareSaid = "Six swords already follow you, and six is what you can pay.";
-      return 1;
+      wareBalked = "Six swords already follow you, and six is what you can pay.";
+      return 0;
     }
     if (!you.bag[at]) return 0;
     you.bag[at]--;
     if ((int)roll(100) < oathOdds(at)) {
       swearIn(foeDef->sworn, theirs.level);
-      copyString(scratch, theirs.name, sizeof scratch);
-      appendString(scratch, " looks at what is on offer, looks at the ground, "
-        "and takes it. That is ", sizeof scratch);
-      appendNumber(scratch, hostCount(), sizeof scratch);
-      appendString(scratch, hostCount() == 1 ? " sword behind you."
-                                             : " swords behind you.", sizeof scratch);
-      snareSaid = scratch;
+      copyString(itemSaid, theirs.name, sizeof itemSaid);
+      appendString(itemSaid, " looks at what is on offer, looks at the ground, "
+        "and takes it. That is ", sizeof itemSaid);
+      appendNumber(itemSaid, hostCount(), sizeof itemSaid);
+      appendString(itemSaid, hostCount() == 1 ? " sword behind you."
+                                             : " swords behind you.", sizeof itemSaid);
+      snareSaid = itemSaid;
       theirs.hp = 0;                 /* it is settled, and nobody died of it */
       snaredIt = 1;
     } else {
-      copyString(scratch, theirs.name, sizeof scratch);
-      appendString(scratch, " spits, and gets back up.", sizeof scratch);
-      snareSaid = scratch;
+      copyString(itemSaid, theirs.name, sizeof itemSaid);
+      appendString(itemSaid, " spits, and gets back up.", sizeof itemSaid);
+      snareSaid = itemSaid;
     }
     return 1;
   }
@@ -5983,14 +6057,14 @@ static int useInDuel(int at) {
     switch (wares[at].relic) {
       case 1:                                   /* Hunter's Draught */
         snareEdge = 25;
-        copyString(scratch, "You douse the net. Whatever you throw it over is "
-          "going to mind a good deal less.", sizeof scratch);
+        copyString(itemSaid, "You douse the net. Whatever you throw it over is "
+          "going to mind a good deal less.", sizeof itemSaid);
         break;
       case 2:                                   /* Ironwood Warhorn */
         theirs.defending = 0;
         theyBalk = 1;
-        copyString(scratch, "One long note off the ironwood. They spend the next "
-          "moment deciding whether to run, and lose it.", sizeof scratch);
+        copyString(itemSaid, "One long note off the ironwood. They spend the next "
+          "moment deciding whether to run, and lose it.", sizeof itemSaid);
         break;
       case 3:                                   /* Maester's Salts */
         if (MY_BEAST.kind == 255) {
@@ -5999,66 +6073,78 @@ static int useInDuel(int at) {
         }
         MY_BEAST.hp = beastVigour(MY_BEAST.kind, MY_BEAST.level);
         if (beastOut) { yours.hp = MY_BEAST.hp; shownMine = yours.hp; }
-        copyString(scratch, "Under its nose, and it gets up. All of it gets up.",
-          sizeof scratch);
+        copyString(itemSaid, "Under its nose, and it gets up. All of it gets up.",
+          sizeof itemSaid);
         break;
       case 4:                                   /* Shade of the Evening */
         mySureShots = 2;
-        copyString(scratch, "Thick, blue, and it tastes of ink. You can see the "
-          "next two blows before they are thrown.", sizeof scratch);
+        copyString(itemSaid, "Thick, blue, and it tastes of ink. You can see the "
+          "next two blows before they are thrown.", sizeof itemSaid);
         break;
       case 5: {                                 /* Wildfire */
         int burn = 60 + you.level * 4;
         theirs.hp -= burn;
         if (theirs.hp < 0) theirs.hp = 0;
-        copyString(scratch, "The jar goes over and the green takes hold. ", sizeof scratch);
-        appendNumber(scratch, burn, sizeof scratch);
-        appendString(scratch, " damage, and it is still burning.", sizeof scratch);
+        copyString(itemSaid, "The jar goes over and the green takes hold. ", sizeof itemSaid);
+        appendNumber(itemSaid, burn, sizeof itemSaid);
+        appendString(itemSaid, " damage, and it is still burning.", sizeof itemSaid);
         break;
       }
       case 6:                                   /* Weirwood Paste */
         you.hp = vigourFor(you.level);
         mine.hp = you.hp;
-        copyString(scratch, "You see a great deal at once and remember almost "
-          "none of it. Everything that hurt has stopped.", sizeof scratch);
+        copyString(itemSaid, "You see a great deal at once and remember almost "
+          "none of it. Everything that hurt has stopped.", sizeof itemSaid);
         break;
       default:                                  /* Dragonbinder */
         mySureShots = 3;
-        copyString(scratch, "Six feet of Valyrian horn, and the note costs you "
-          "something you will not miss until later.", sizeof scratch);
+        copyString(itemSaid, "Six feet of Valyrian horn, and the note costs you "
+          "something you will not miss until later.", sizeof itemSaid);
         break;
     }
-    snareSaid = scratch;
+    snareSaid = itemSaid;
     mine.hp = you.hp;
     paintDuelPlates();
     return 1;
   }
-  /* A remedy goes to whoever is standing the fight. Tipping a flask down your
-     own throat while your animal is the one bleeding - and watching the bar on
-     the screen not move, because the bar is showing the animal - is the sort of
-     thing that makes a player think the game is broken. */
-  if (beastOut && wares[at].kind == WARE_POTION && you.bag[at]) {
+  /* A remedy goes to whoever needs it. It used to go to whatever was standing
+     in front - which was right as far as it went, and wrong in the two places
+     that matter. With an animal out and whole, a flask was refused and the turn
+     was handed over anyway; and with an animal out and you the one bleeding,
+     there was no way to drink at all. A man behind his own dog could not treat
+     himself, which is most of "my potions do not work". */
+  if (beastOut && wares[at].kind == WARE_POTION && you.bag[at]
+      && yours.hp < beastVigour(MY_BEAST.kind, MY_BEAST.level)) {
     int full = beastVigour(MY_BEAST.kind, MY_BEAST.level);
     int heal = wares[at].heal >= 9999 ? full : wares[at].heal;
     int before = yours.hp;
-    if (yours.hp >= full) {
-      snareSaid = "It is not hurt enough to want that.";
-      return 1;
-    }
     you.bag[at]--;
     yours.hp += heal;
     if (yours.hp > full) yours.hp = full;
     MY_BEAST.hp = yours.hp;
-    copyString(scratch, "Down its throat, and it steadies. ", sizeof scratch);
-    appendNumber(scratch, yours.hp - before, sizeof scratch);
-    appendString(scratch, " back.", sizeof scratch);
-    snareSaid = scratch;
+    copyString(itemSaid, "Down its throat, and it steadies. ", sizeof itemSaid);
+    appendNumber(itemSaid, yours.hp - before, sizeof itemSaid);
+    appendString(itemSaid, " back.", sizeof itemSaid);
+    snareSaid = itemSaid;
     paintDuelPlates();
     return 1;
   }
   if (!useWare(at)) return 0;
-  snareSaid = 0;
   mine.hp = you.hp;
+  /* Say what actually happened, with the numbers. With an animal out in front
+     the plate on the screen is the animal's, so a man drinking behind his own
+     dog sees no bar move and has to be told in words. */
+  if (wares[at].kind == WARE_POTION) {
+    copyString(itemSaid, beastOut ? "You drink it yourself, behind it. You are "
+                                 : "You drink it down. You are ", sizeof itemSaid);
+    appendNumber(itemSaid, you.hp, sizeof itemSaid);
+    appendString(itemSaid, " of ", sizeof itemSaid);
+    appendNumber(itemSaid, vigourFor(you.level), sizeof itemSaid);
+    appendString(itemSaid, ".", sizeof itemSaid);
+    snareSaid = itemSaid;
+  } else {
+    snareSaid = wareDid;
+  }
   paintDuelPlates();
   return 1;
 }
@@ -6146,6 +6232,52 @@ static const char *buyWare(int at) {
      out of curiosity does not replace a good sword. */
   return how == TOOK_WORN ? "You put it on there and then."
                           : "Wrapped and handed over. Yours is still the better.";
+}
+
+/* How many of a thing a counter can be asked for at once.
+ *
+ * Everything on these shelves was sold one press of A at a time, which is fine
+ * for a sword - you buy one sword - and absurd for the shelf a player actually
+ * empties: stocking remedies before a ranging north meant forty presses of A,
+ * forty windows, and forty dismissals of the same sentence. Gear is still one
+ * apiece, because a second helm is no use to anybody; anything spent by using
+ * it can be bought by the handful. */
+static int stackable(int at) {
+  const Ware *w = &wares[at];
+  return w->kind == WARE_POTION || w->kind == WARE_SNARE || w->kind == WARE_OATH
+      || w->kind == WARE_RELIC || w->kind == WARE_STUFF;
+}
+
+/* The most of this the purse and the pouch will carry. */
+static int mostAfford(int at) {
+  int cost = askingPrice(at), most;
+  if (!stackable(at) || cost < 1) return 1;
+  most = (int)udiv((u32)you.gold, (u32)cost);
+  if (most > 99) most = 99;
+  /* And no more than the pouch will hold on top of what is in it. */
+  if (most > 99 - (int)you.bag[at]) most = 99 - (int)you.bag[at];
+  return most < 1 ? 1 : most;
+}
+
+static const char *buyMany(int at, int many) {
+  const char *said = 0;
+  int got = 0;
+  /* A sword is bought one at a time whatever the player asks for, and whatever
+     the counter says about it is the counter's own answer. */
+  if (!stackable(at)) return buyWare(at);
+  if (many < 1) many = 1;
+  while (got < many && you.gold >= askingPrice(at) && (int)you.bag[at] < 99) {
+    said = buyWare(at);
+    got++;
+  }
+  /* Nothing changed hands, so let the counter say why in its own words rather
+     than guessing at the reason here. */
+  if (!got) return buyWare(at);
+  if (got == 1) return said;
+  copyString(scratch, "", sizeof scratch);
+  appendNumber(scratch, got, sizeof scratch);
+  appendString(scratch, " of them, wrapped and handed over.", sizeof scratch);
+  return scratch;
 }
 
 static const char *sellWare(int at) {
@@ -8093,6 +8225,25 @@ static int beastFell(void) {
   copyString(scratch, yours.name, sizeof scratch);
   appendString(scratch, " will not get up. It drags itself back behind you.",
     sizeof scratch);
+  /* And say what is left standing. One of yours going down has never ended the
+     fight, but nothing on the screen said so - so from the other side of it,
+     an animal falling looked like the end of having a pack at all. */
+  {
+    int k, up = 0;
+    for (k = 0; k < PARTY_MAX; k++) {
+      if (you.party[k].kind != 255 && you.party[k].hp > 0) up++;
+    }
+    if (up) {
+      appendString(scratch, up == 1 ? "  One more is on its feet."
+                                    : "  ", sizeof scratch);
+      if (up > 1) {
+        appendNumber(scratch, up, sizeof scratch);
+        appendString(scratch, " more are on their feet.", sizeof scratch);
+      }
+    } else {
+      appendString(scratch, "  You are on your own now.", sizeof scratch);
+    }
+  }
   duelSay(0, scratch);
   paintDuelPlates();
   return 1;
@@ -10140,7 +10291,7 @@ int main(void) {
           clearPage();
           scene = SCENE_WORLD;
           layoutTextRows(TEXT_PLAY);
-          openWindow(0, "Better. Not good, but better.");
+          openWindow(0, wareDid ? wareDid : "Better. Not good, but better.");
         } else if (wareBalked) {
           /* It did nothing, and used to do nothing silently - which from the
              other side of the screen is indistinguishable from a remedy that
@@ -10166,6 +10317,7 @@ int main(void) {
       } else if (hit(KEY_SELECT)) {
         scene = SCENE_SHOP;
         shopPick = 0;
+        shopMany = 0;
         sfxPick();
         paintShop();
       } else if (hit(KEY_A)) {
@@ -10351,6 +10503,30 @@ int main(void) {
         openWindowAt(0, said, DUEL_WINDOW_TOP, DUEL_WINDOW_ROWS);
         continue;
       }
+      /* Setting a count takes over the arrows and both face buttons, so
+         nothing else on the counter can be reached by accident while it is up.
+         Everything a player empties a shelf of - remedies, nets, purses,
+         makings - was sold one press of A at a time, one window at a time. */
+      if (shopMany) {
+        int at = shelfWare(stall, shopPick), most = mostAfford(at), was2 = shopMany;
+        if (hit(KEY_UP)) shopMany = shopMany >= most ? 1 : shopMany + 1;
+        if (hit(KEY_DOWN)) shopMany = shopMany <= 1 ? most : shopMany - 1;
+        if (hit(KEY_RIGHT)) { shopMany += 10; if (shopMany > most) shopMany = most; }
+        if (hit(KEY_LEFT)) { shopMany -= 10; if (shopMany < 1) shopMany = 1; }
+        if (shopMany != was2) { sfxPick(); paintShop(); }
+        if (hit(KEY_B)) { shopMany = 0; sfxPick(); paintShop(); continue; }
+        if (hit(KEY_A)) {
+          const char *said = buyMany(at, shopMany);
+          shopMany = 0;
+          paintShop();
+          scene = SCENE_WORLD;
+          clearPage();
+          layoutTextRows(TEXT_PLAY);
+          openWindow(0, said);
+          afterWindow = shopStall + 1;
+        }
+        continue;
+      }
       if (hit(KEY_UP) && shopPick > 0) shopPick--;
       if (hit(KEY_DOWN) && shopPick < shelfCount(stall) - 1) shopPick++;
       /* Along the counter rather than down it. Four shelves at one counter is
@@ -10359,6 +10535,7 @@ int main(void) {
         shopStall = hit(KEY_LEFT) ? (shopStall ? shopStall - 1 : STALL_COUNT - 1)
                                   : (shopStall + 1 >= STALL_COUNT ? 0 : shopStall + 1);
         shopPick = 0;
+        shopMany = 0;
         sfxPick();
         paintShop();
         continue;
@@ -10377,7 +10554,17 @@ int main(void) {
         clearPage();
         layoutTextRows(TEXT_PLAY);
       } else if (hit(KEY_A) && shelfCount(stall)) {
-        const char *said = buyWare(shelfWare(stall, shopPick));
+        int at = shelfWare(stall, shopPick);
+        const char *said;
+        /* Anything you can hold more than one of asks how many first, as long
+           as the purse would stretch to a second. */
+        if (stackable(at) && mostAfford(at) > 1) {
+          shopMany = 1;
+          sfxPick();
+          paintShop();
+          continue;
+        }
+        said = buyWare(at);
         paintShop();
         scene = SCENE_WORLD;
         clearPage();
@@ -10572,6 +10759,7 @@ int main(void) {
               shopStall = afterWindow - 1;
               afterWindow = 0;
               shopPick = 0;
+              shopMany = 0;
               scene = SCENE_SHOP;
               clearPage();
               layoutTextRows(TEXT_TOP);

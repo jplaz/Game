@@ -2278,6 +2278,73 @@ function dreadfortCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
   };
 }
 
+/* Riverrun: a triangle, because two of its three sides are rivers. The
+   Tumblestone comes down the north, the Red Fork up the south, and they meet
+   off the east point — so the castle narrows as it runs out towards the water
+   and there is no way in on either flank at all. The third side is a ditch the
+   Tullys can flood from the rivers whenever they feel like it, which turns
+   the whole place into an island and is the entire reason it has never
+   fallen. */
+function riverrunPlan() {
+  const W = 32, H = 27;
+  const g = [];
+  for (let yy = 0; yy < H; yy++) g.push(new Array(W).fill('~'));
+  const put = (x, yy, c) => { if (g[yy] && g[yy][x] !== undefined) g[yy][x] = c; };
+  const row = (x, yy, s) => [...s].forEach((c, i) => put(x + i, yy, c));
+  const span = (x, yy, w, h, c) => {
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, yy + j, c);
+  };
+
+  // the landward bank, and the road along it. The river bends round the
+  // outside of it, so the bank does not run off the edge of the world.
+  span(1, 1, 4, 25, '.');
+  span(2, 1, 1, 25, '-');
+  put(2, 0, '-'); put(2, 26, '-');
+
+  // the ditch, and the one bridge over it
+  span(5, 2, 2, 23, ':');
+  put(5, 13, '+'); put(6, 13, '+');
+
+  /* The triangle. Every second column the north wall drops a course and the
+     south wall climbs one, until at the point they are the same wall. */
+  const edge = (x) => Math.floor((x - 7) / 2);
+  for (let x = 7; x <= 29; x++) {
+    const top = 2 + edge(x), bot = 24 - edge(x);
+    for (let yy = top; yy <= bot; yy++) put(x, yy, '.');
+    put(x, top, 'M'); put(x, bot, 'M');
+  }
+  for (let yy = 2; yy <= 24; yy++) put(7, yy, 'M');       // and the wall it faces
+  put(7, 13, '.');                                        // with the gate in it
+
+  // the great keep, square on the gate so you see it as you come over
+  row(9, 10, 'MMMMMM');
+  row(9, 11, 'AwAAwA');
+  row(9, 12, 'AAVVAA');
+  row(9, 13, 'AwAAwA');
+  row(9, 14, 'AADAAA');                                   // its door at 11,14
+
+  /* The maester over the yard and the forge under it, four wide rather than
+     five, and nothing at all standing in the columns they leave. The castle
+     narrows to nine rows here, so the only ways east are the three lanes these
+     two buildings do not cover — a chimney in any of them takes a third of
+     Riverrun off the map. */
+  row(16, 10, 'yyyy'); row(16, 11, 'YYYY'); row(16, 12, 'pwDp');
+  row(16, 14, 'zzzz'); row(16, 15, 'ZZZZ'); row(16, 16, 'AwDA');
+
+  // the inn, up under the north wall
+  row(9, 6, 'yyyyy'); row(9, 7, 'YYYYY'); row(9, 8, 'HwDwH'); put(11, 5, 'n');
+
+  /* The water gate, out at the point, where everything Riverrun eats arrives
+     by boat because there is no road on this side of it. */
+  put(26, 13, 't'); put(27, 13, 't'); put(28, 13, 't');
+  /* And the cressets off the neck. The point is three tiles wide where it
+     joins the ward, and two braziers and a boatwright across those three tiles
+     cut thirty-seven tiles of castle off from the rest of it. */
+  put(23, 11, 'F'); put(23, 15, 'F');
+
+  return g.map((r) => r.join(''));
+}
+
 // The Eyrie: four terraces cut into the Giant's Lance, each one cut back from
 // the one below it, with Alyssa's Tears falling the whole height of the map
 // down the west face and the drop widening on your right the whole climb.
@@ -3817,8 +3884,8 @@ export const MAPS = {
       'IIIII__IIIII',
     ],
     warps: [
-      { x: 5, y: 7, to: 'riverrun', tx: 18, ty: 14, dir: 'down' },
-      { x: 6, y: 7, to: 'riverrun', tx: 18, ty: 14, dir: 'down' },
+      { x: 5, y: 7, to: 'riverrun', tx: 18, ty: 17, dir: 'down' },
+      { x: 6, y: 7, to: 'riverrun', tx: 18, ty: 17, dir: 'down' },
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'merchant', name: 'Armourer Ryn', script: 'smith',
@@ -3889,7 +3956,7 @@ export const MAPS = {
     ],
     warps: [
       { x: 10, y: 0, to: 'moatCailin', tx: 11, ty: 18, dir: 'up' },
-      { x: 10, y: 24, to: 'riverrun', tx: 12, ty: 1, dir: 'down' },
+      { x: 10, y: 24, to: 'riverrun', tx: 2, ty: 1, dir: 'down' },
       { x: 19, y: 12, to: 'bloodyGate', tx: 11, ty: 28, dir: 'right' },
       { x: 18, y: 20, to: 'theGreenFork', tx: 11, ty: 28, dir: 'right' },
       { x: 0, y: 12, to: 'ironCoast', tx: 11, ty: 1, dir: 'left' },
@@ -3919,28 +3986,7 @@ export const MAPS = {
     name: 'Riverrun',
     music: 'town',
     ground: 'grass',
-    tiles: [
-      '~~~~~~~~~~~~-~~~~~~~~~~~',
-      '~..........s-s.........~',
-      '~..........--.........~~',
-      '~..yyyyyy..-..yyyy....~~',
-      '~..YYYYYY..-..YYYY....~~',
-      '~..YYYYYY..-..HDHw....~~',
-      '~..pepDpw..-..........~~',
-      '~.....-....-..........~~',
-      '~.....------------....~~',
-      '~..........-.....n!...~~',
-      '~..*.......-....zzzzzz~~',
-      '~..........-....ZZZZZZ~~',
-      '~...MMMMMMMMMMM.ZZZZZZ~~',
-      '~...AAAAAAAAAAA.AkDAAA~~',
-      '~...AAAAVAVAAAA.......~~',
-      '~...AAAAAAAAAAA.......~~',
-      '~...AAAAAADAAAA.......~~',
-      '~..........-..........~~',
-      '~..........-.......,,.~~',
-      '~~~~~~~~~~~-~~~~~~~~~~~~',
-    ],
+    get tiles() { return riverrunPlan(); },
     encounters: [
       { roamer: 'manAtArms', min: 12, max: 15, weight: 40 },
       { roamer: 'sellsword', min: 12, max: 15, weight: 30 },
@@ -3949,27 +3995,29 @@ export const MAPS = {
       { beast: 'riverfry', min: 11, max: 14, weight: 14 },
     ],
     warps: [
-      { x: 12, y: 0, to: 'riverlands', tx: 10, ty: 23, dir: 'up' },
-      { x: 6, y: 6, to: 'maesterHallRiverrun', tx: 5, ty: 7, dir: 'up' },
-      { x: 18, y: 13, to: 'riverrunForge', tx: 5, ty: 6, dir: 'up' },
-      { x: 15, y: 5, to: 'riverrunInn', tx: 5, ty: 6, dir: 'up' },
-      { x: 10, y: 16, to: 'riverrunKeep', tx: 8, ty: 14, dir: 'up' },
-      { x: 11, y: 19, to: 'goldRoad', tx: 10, ty: 1, dir: 'down' },
+      { x: 2, y: 0, to: 'riverlands', tx: 10, ty: 23, dir: 'up' },
+      { x: 18, y: 12, to: 'maesterHallRiverrun', tx: 5, ty: 7, dir: 'up' },
+      { x: 18, y: 16, to: 'riverrunForge', tx: 5, ty: 6, dir: 'up' },
+      { x: 11, y: 8, to: 'riverrunInn', tx: 5, ty: 6, dir: 'up' },
+      { x: 11, y: 14, to: 'riverrunKeep', tx: 8, ty: 14, dir: 'up' },
+      { x: 2, y: 26, to: 'goldRoad', tx: 10, ty: 1, dir: 'down' },
     ],
     signs: [
-      { x: 18, y: 9, text: 'RIVERRUN\nSeat of House Tully.\nSigil-holder: LADY CATELYN.' },
+      { x: 10, y: 14, text: 'RIVERRUN\nSeat of House Tully.\nSigil-holder: LADY CATELYN.' },
+      { x: 29, y: 13, text: 'THE WATER GATE\nEverything this castle eats comes in on a boat.\nThere is no road on this side and there never has been.' },
+      { x: 7, y: 12, text: 'THE DITCH\nOpen the sluices and the two rivers meet across it.\nRiverrun becomes an island in about an hour.' },
     ],
     npcs: [
-      { x: 12, y: 6, dir: 'down', name: 'Smallfolk Woman', sprite: 'goodwife',
+      { x: 9, y: 16, dir: 'down', name: 'Smallfolk Woman', sprite: 'goodwife',
         script: 'quest', data: { quest: 'hangingTree' } },
-      { x: 8, y: 10, dir: 'down', sprite: 'child', name: 'Squire', script: 'riverrunSquire' },
-      { x: 17, y: 15, dir: 'left', sprite: 'oldman', name: 'Boatwright', script: 'riverrunHint' },
-      { x: 4, y: 17, dir: 'right', sprite: 'goodwife', name: 'Fishwife', script: 'riverrunFishwife' },
+      { x: 13, y: 16, dir: 'down', sprite: 'child', name: 'Squire', script: 'riverrunSquire' },
+      { x: 25, y: 14, dir: 'left', sprite: 'oldman', name: 'Boatwright', script: 'riverrunHint' },
+      { x: 2, y: 8, dir: 'right', sprite: 'goodwife', name: 'Fishwife', script: 'riverrunFishwife' },
     ],
   },
 
   maesterHallRiverrun: maesterHall({
-    exitTo: 'riverrun', exitX: 6, exitY: 7,
+    exitTo: 'riverrun', exitX: 18, exitY: 13,
     stock: ['sigilBanner', 'warBanner', 'maesterKit', 'poppyMilk', 'antidote', 'kissOfFire'],
     healerLine: 'Rivers run, and so do errands. Rest here first.',
     merchantLine: 'Trident goods, honestly priced.',
@@ -3990,8 +4038,8 @@ export const MAPS = {
       'IIIII__IIIII',
     ],
     warps: [
-      { x: 5, y: 7, to: 'riverrun', tx: 15, ty: 6, dir: 'down' },
-      { x: 6, y: 7, to: 'riverrun', tx: 15, ty: 6, dir: 'down' },
+      { x: 5, y: 7, to: 'riverrun', tx: 11, ty: 9, dir: 'down' },
+      { x: 6, y: 7, to: 'riverrun', tx: 11, ty: 9, dir: 'down' },
     ],
     npcs: [
       { x: 7, y: 1, dir: 'down', sprite: 'merchant', name: 'Innkeep', script: 'innkeep' },
@@ -4025,7 +4073,7 @@ export const MAPS = {
       'IIIIIIII_IIIIIIII',
     ],
     warps: [
-      { x: 8, y: 15, to: 'riverrun', tx: 10, ty: 17, dir: 'down' },
+      { x: 8, y: 15, to: 'riverrun', tx: 11, ty: 15, dir: 'down' },
     ],
     npcs: [
       { x: 3, y: 2, dir: 'down', sprite: 'tully', name: 'Jeyne', script: 'courtship',
@@ -4082,7 +4130,7 @@ export const MAPS = {
       { beast: 'boartusk', min: 15, max: 19, weight: 14 },
     ],
     warps: [
-      { x: 10, y: 0, to: 'riverrun', tx: 11, ty: 18, dir: 'up' },
+      { x: 10, y: 0, to: 'riverrun', tx: 2, ty: 25, dir: 'up' },
       { x: 10, y: 23, to: 'lannisport', tx: 11, ty: 1, dir: 'down' },
       { x: 5, y: 19, to: 'barrowCave', tx: 8, ty: 14, dir: 'up' },
     ],

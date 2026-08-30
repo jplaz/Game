@@ -2266,6 +2266,7 @@ static int worldId;
 static int camX, camY;
 
 static const Warp *warpAt(int x, int y);
+static int ownShip(void);
 
 /* Water: solid on foot, and the only road there is under sail. */
 static int waterAt(int x, int y) {
@@ -2275,10 +2276,19 @@ static int waterAt(int x, int y) {
 
 static int solidAt(int x, int y) {
   if (x < 0 || y < 0 || x >= world->w || y >= world->h) return 1;
-  /* Under sail the rules are the other way up: the water carries you and the
-     land is what stops you. A quay is the one tile where both are true, and it
-     stays steppable either way, because it is how anybody gets off. */
-  if (you.aboard) return !waterAt(x, y) && !warpAt(x, y);
+  /* A sea is walked on two footings, and somebody with a hull tied up has both
+     of them: the beaches on foot, and the water on her. So it is the union,
+     not the inversion. Inverting it stranded a man who had walked out of a
+     town's jetty onto a headland - every tile of sand under him was suddenly a
+     wall - and it also meant nothing could ever pick a way across the water,
+     because to any route-finder using these rules the sea was solid. */
+  /* `aboard` as well as owning one, because there is a moment between a hull
+     going down under you and the sea screen putting you back on stone where
+     you own no ship and are still standing on open water. For those few frames
+     every tile around you was a wall, which is exactly what it looked like. */
+  if (world->sea && (you.aboard || (ownShip() && you.shipHull > 0))) {
+    return world->solid[y * world->w + x] && !waterAt(x, y) && !warpAt(x, y);
+  }
   return world->solid[y * world->w + x];
 }
 
@@ -2375,8 +2385,6 @@ static void loadActors(void) {
    loadActors runs again and puts that room back to whatever stands there. */
 #define BOAT_TILE (NPC_TILE_BASE + 11 * NPC_TILE_STRIDE)
 #define BOAT_BANK 12
-
-static int ownShip(void);
 
 static void loadHullArt(void) {
   volatile u32 *dst = VRAM_OBJ + BOAT_TILE * 8;
@@ -2490,9 +2498,15 @@ static void enterMap(int id, int tx, int ty, int dir) {
   /* Aboard is not a thing you carry about with you: it is where you are. You
      are on your own deck if and only if you are on open water, which makes it
      impossible to be walking down a street with a ship under you. */
-  you.aboard = (u8)(world->sea && ownShip());
   hero.px = (s16)(tx * 16);
   hero.py = (s16)(ty * 16);
+  /* Aboard is a tile, not a map. Every sea has beaches on it and a town's own
+     jetty walks you out onto one of them; setting this from `sea && ownShip`
+     alone put a man who had walked round a headland on his own deck, standing
+     on sand, which the collision rules read as standing inside a wall. You are
+     aboard where a hull can float: open water, or a quay. */
+  you.aboard = (u8)(world->sea && ownShip() && you.shipHull > 0
+                    && (waterAt(tx, ty) || warpAt(tx, ty) != 0));
   hero.dir = (u8)dir;
   hero.walk = 0;
 
@@ -10288,6 +10302,18 @@ int main(void) {
         if (!hero.walk) hopping = 0;
         if (!hero.walk) {
           const Warp *warp = warpAt(hero.px >> 4, hero.py >> 4);
+          /* Off the sand into the water is getting aboard, and running her up
+             a beach is stepping off. Nobody presses a button for it: on a sea
+             the ground under your feet is the whole of the question. */
+          if (world->sea && ownShip()) {
+            int wet = waterAt(hero.px >> 4, hero.py >> 4) || warp != 0;
+            int now = wet && you.shipHull > 0;
+            if (now != (int)you.aboard) {
+              you.aboard = (u8)now;
+              if (now) loadHullArt();
+              sfxDoor();
+            }
+          }
           /* The Red Keep is shut. It was a room you could walk into at level
              eight and lose in, which made the end of the game a door rather
              than an end: the Kingsguard hold the stair until nine seats have

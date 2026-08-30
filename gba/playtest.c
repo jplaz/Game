@@ -69,6 +69,8 @@ static unsigned char anyRoad[MAP_COUNT];
 /* The most seats this run ever held while stood at a berth. */
 static int seatsAtBerth;
 static int portsSeen, sailed, talesSeen, crownRun;
+static int yardsSeen, hullsBought, yardHeld;   /* the shipwright's */
+static int seaFights, seaHeld, putToSeaCount;  /* and what is out on it */
 static int partiesSeen, partyLooks, swaps;
 static int npcTalked[MAP_COUNT][MAX_CROWD];
 static int signRead[MAP_COUNT][8];
@@ -101,7 +103,7 @@ static void checkFrame(void) {
     finding("a window ran off the end of its lines and lost text");
     wrapLost = 0;
   }
-  if (scene < 0 || scene > SCENE_RIDE) finding("scene is %d, which is not a scene", scene);
+  if (scene < 0 || scene > SCENE_SEA) finding("scene is %d, which is not a scene", scene);
   /* Nothing is standing anywhere yet on the screens that come before the
      world, and there is no map to be standing on. */
   if (scene == SCENE_TITLE || scene == SCENE_HOUSE || scene == SCENE_NAME) return;
@@ -1096,6 +1098,36 @@ void hostFrame(void) {
     /* The last act reads itself. Nothing to decide, so hold A and let it. */
     talesSeen++;
     keys = tap(KEY_A);
+  } else if (scene == SCENE_YARD) {
+    /* Four hulls on the stocks. Buy the best one the purse will carry and get
+       off the quay: a run that only ever looks at the list has not tested that
+       the money comes off, the hull goes on, or that the man lets go of you
+       afterwards. Nothing here moves the player, so it is safe to buy. */
+    int want = -1, i;
+    yardsSeen++;
+    for (i = 0; i < HULL_COUNT; i++) {
+      if (i == you.shipKind) continue;
+      if ((int)hulls[i].price - tradeIn() <= you.gold) want = i;
+    }
+    if (++yardHeld > 900) {
+      finding("a shipwright that %d frames of pressing B would not leave", yardHeld);
+      yardHeld = 0;
+      want = -1;
+    }
+    if (want < 0 || yardHeld > 500) keys = tap(KEY_B);
+    else if (yardPick != want) keys = tap(yardPick < want ? KEY_DOWN : KEY_UP);
+    else { keys = tap(KEY_A); if (keys) { hullsBought++; yardHeld = 0; } }
+  } else if (scene == SCENE_SEA) {
+    /* Somebody has come over the horizon. Go in bow-first every time and read
+       whatever comes of it: what is being tested is that the fight ends and
+       hands the player back, not that the tester picks well. */
+    if (wasScene != SCENE_SEA) { seaFights++; seaHeld = 0; }
+    if (++seaHeld > 1200) {
+      finding("a fight at sea that %d frames of pressing A would not finish", seaHeld);
+      seaHeld = 0;
+    }
+    if (seaPick != 0) keys = tap(KEY_UP);
+    else keys = tap(KEY_A);
   } else if (scene == SCENE_PORT) {
     /* A harbourmaster has just offered a berth. Take one to somewhere the run
        has not been - it is the only road to the Free Cities and there is no
@@ -1140,7 +1172,15 @@ void hostFrame(void) {
         want = i;
       }
     }
-    if (want < 0) keys = tap(KEY_B);
+    /* Your own keel, when there is one and there is water off this quay. It
+       sits above the paid berths at -1. Nothing else in the tester ever puts
+       out, so without this the five open seas are ground the cartridge holds
+       and no run has ever stood on. */
+    if (canPutToSea() && want < 0) {
+      if (portPick != -1) keys = tap(KEY_UP);
+      else { keys = tap(KEY_A); if (keys) { putToSeaCount++; goalKind = GOAL_NONE; } }
+    }
+    else if (want < 0) keys = tap(KEY_B);
     else if (portPick != want) keys = tap(portPick < want ? KEY_DOWN : KEY_UP);
     else { keys = tap(KEY_A); if (keys) { sailed++; goalKind = GOAL_NONE; } }
   } else if (scene == SCENE_DUEL) {
@@ -1494,7 +1534,7 @@ void hostFrame(void) {
   if (frameNo > frameCap) {
     finding("the playthrough ran out of frames in %s: scene %d, goal %d/%d, "
             "stage %d, %d frames on it, window %d, phase %d, at %d,%d",
-            world->name, scene, goalKind, goalIndex, goalStage, goalFrames,
+            world ? world->name : "nowhere", scene, goalKind, goalIndex, goalStage, goalFrames,
             windowOpen, duelPhase, hero.px >> 4, hero.py >> 4);
     hostFramesLeft = 0;
   }
@@ -1750,6 +1790,8 @@ int main(int argc, char **argv) {
   }
   printf("  status card    opened %d times\n", statusChecks);
   printf("  passage list   opened %d times, sailed %d\n", portsSeen, sailed);
+  printf("  the stocks     %d visits, %d hulls bought, put to sea %d, %d fought at sea\n",
+    yardsSeen, hullsBought, putToSeaCount, seaFights);
   printf("  the last act   %d pages read, story at %d\n", talesSeen, you.story);
   printf("  the party card %d visits, %d sent out in front\n", partiesSeen, swaps);
   if (crownRun && you.story < 3) {

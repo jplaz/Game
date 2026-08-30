@@ -1076,8 +1076,11 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
   const shoulder = (x, yy) => walkable(x, yy) && g[yy][x] !== 'd' && g[yy][x] !== 't';
 
   // People stand at the side of the road, never in the middle of it: a person
-  // on the centre line of a three-wide corridor is a toll gate.
+  // on the centre line of a three-wide corridor is a toll gate. A warden is a
+  // toll gate on purpose — that is the entire job — so they keep the tile they
+  // were given and everybody else gets moved to the shoulder.
   const placedNpcs = npcs.map((p) => {
+    if (p.warden) return p;
     const at = nearest(p.x, p.y, shoulder) ?? nearest(p.x, p.y, walkable);
     return at ? { ...p, x: at[0], y: at[1] } : p;
   });
@@ -2187,6 +2190,18 @@ export const MAPS = {
       { x: 8, y: 21, text: 'THE BLOODY GATE\n"You may not pass."\nSomeone has scratched: "unless"' },
     ],
     npcs: [
+      { x: 11, y: 27, dir: 'down', sprite: 'arryn', name: "Knight of the Gate", warden: 3,
+        script: 'warden',
+        data: { line: "Knight of the Gate: You may pass the Bloody Gate when the Vale has a reason to let you.",
+                hint: "Knight of the Gate: Three seats. The Rock is the one you are short of, and it is west of here." } },
+      { x: 10, y: 27, dir: 'down', sprite: 'arryn', name: "Knight of the Gate", warden: 3,
+        script: 'warden',
+        data: { line: "Knight of the Gate: You may pass the Bloody Gate when the Vale has a reason to let you.",
+                hint: "Knight of the Gate: Three seats. The Rock is the one you are short of, and it is west of here." } },
+      { x: 12, y: 27, dir: 'down', sprite: 'arryn', name: "Knight of the Gate", warden: 3,
+        script: 'warden',
+        data: { line: "Knight of the Gate: You may pass the Bloody Gate when the Vale has a reason to let you.",
+                hint: "Knight of the Gate: Three seats. The Rock is the one you are short of, and it is west of here." } },
       { x: 11, y: 10, dir: 'right', sprite: 'arryn', name: 'Ser Vardis', script: 'trainer',
         data: { trainer: 'valeKnight' } },
       { x: 13, y: 19, dir: 'left', sprite: 'brienne', name: 'Brienne of Tarth', script: 'duel',
@@ -2313,6 +2328,18 @@ export const MAPS = {
       { x: 8, y: 2, text: 'THE ROSEROAD\nSouth to Highgarden, and on to Dorne.\nGrowing strong.' },
     ],
     npcs: [
+      { x: 11, y: 2, dir: 'down', sprite: 'tyrell', name: "Warden of the Roseroad", warden: 4,
+        script: 'warden',
+        data: { line: "Warden of the Roseroad: The Reach is not a shortcut. It is somewhere people are invited to.",
+                hint: "Warden of the Roseroad: Four seats. The Vale holds one, and the Vale is behind you." } },
+      { x: 10, y: 2, dir: 'down', sprite: 'tyrell', name: "Warden of the Roseroad", warden: 4,
+        script: 'warden',
+        data: { line: "Warden of the Roseroad: The Reach is not a shortcut. It is somewhere people are invited to.",
+                hint: "Warden of the Roseroad: Four seats. The Vale holds one, and the Vale is behind you." } },
+      { x: 12, y: 2, dir: 'down', sprite: 'tyrell', name: "Warden of the Roseroad", warden: 4,
+        script: 'warden',
+        data: { line: "Warden of the Roseroad: The Reach is not a shortcut. It is somewhere people are invited to.",
+                hint: "Warden of the Roseroad: Four seats. The Vale holds one, and the Vale is behind you." } },
       { x: 8, y: 16, dir: 'down', name: 'Maester Wyllis', sprite: 'maester',
         script: 'quest', data: { quest: 'maestersDebt' } },
       { x: 6, y: 9, dir: 'right', sprite: 'tyrell', name: 'Ser Loras', script: 'trainer',
@@ -2438,6 +2465,18 @@ export const MAPS = {
       { x: 8, y: 2, text: "THE PRINCE'S PASS\nThe only easy road into Dorne.\nIt is not easy." },
     ],
     npcs: [
+      { x: 11, y: 2, dir: 'down', sprite: 'martell', name: "Watcher of the Pass", warden: 5,
+        script: 'warden',
+        data: { line: "Watcher of the Pass: Dorne was never conquered, and it is not casually visited either.",
+                hint: "Watcher of the Pass: Five. Highgarden is the one you want next, and it is at your back." } },
+      { x: 10, y: 2, dir: 'down', sprite: 'martell', name: "Watcher of the Pass", warden: 5,
+        script: 'warden',
+        data: { line: "Watcher of the Pass: Dorne was never conquered, and it is not casually visited either.",
+                hint: "Watcher of the Pass: Five. Highgarden is the one you want next, and it is at your back." } },
+      { x: 12, y: 2, dir: 'down', sprite: 'martell', name: "Watcher of the Pass", warden: 5,
+        script: 'warden',
+        data: { line: "Watcher of the Pass: Dorne was never conquered, and it is not casually visited either.",
+                hint: "Watcher of the Pass: Five. Highgarden is the one you want next, and it is at your back." } },
       { x: 6, y: 10, dir: 'right', sprite: 'martell', name: 'Sand Steed Rider', script: 'trainer',
         data: { trainer: 'dorneRider' } },
     ],
@@ -2564,6 +2603,18 @@ export const MAPS = {
       { x: 8, y: 2, text: 'THE STORMLANDS\nSouth to Storm\u2019s End.\nThe weather here has opinions.' },
     ],
     npcs: [
+      { x: 11, y: 2, dir: 'down', sprite: 'baratheon', name: "Storm Lord's Outrider", warden: 7,
+        script: 'warden',
+        data: { line: "Storm Lord's Outrider: Storm's End answers to nobody with less than seven seats behind them.",
+                hint: "Storm Lord's Outrider: Seven. Dorne and the Iron Islands are both still ahead of you." } },
+      { x: 10, y: 2, dir: 'down', sprite: 'baratheon', name: "Storm Lord's Outrider", warden: 7,
+        script: 'warden',
+        data: { line: "Storm Lord's Outrider: Storm's End answers to nobody with less than seven seats behind them.",
+                hint: "Storm Lord's Outrider: Seven. Dorne and the Iron Islands are both still ahead of you." } },
+      { x: 12, y: 2, dir: 'down', sprite: 'baratheon', name: "Storm Lord's Outrider", warden: 7,
+        script: 'warden',
+        data: { line: "Storm Lord's Outrider: Storm's End answers to nobody with less than seven seats behind them.",
+                hint: "Storm Lord's Outrider: Seven. Dorne and the Iron Islands are both still ahead of you." } },
       { x: 8, y: 8, dir: 'down', name: 'Brienne of Tarth', sprite: 'brienne',
         script: 'recruit', data: { companion: 'brienne' } },
       { x: 6, y: 11, dir: 'right', sprite: 'brotherhood', name: 'Beric Dondarrion', script: 'duel',

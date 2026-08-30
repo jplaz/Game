@@ -1068,6 +1068,11 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
            town one and gave the keeper a script the cartridge never read, so
            the loudest room in every town was furniture. */
         evening: /houseKeeper/i.test(n.script ?? '') ? 1 : 0,
+        /* Somebody standing in the road who is gone the moment you hold this
+           many of the great seats. Without this the browser's wardens would be
+           permanent walls on the cartridge and the roads behind them would
+           never open at all. */
+        gate: n.warden ?? 0,
       };
     });
 
@@ -2276,7 +2281,7 @@ L.push('typedef struct { u16 duellist; u8 bank; } Ambush;');
 L.push('typedef struct { u8 beast, level; } Wild;');
 L.push('typedef struct { u8 x, y, ware; u16 gold; } Chest;');
 L.push('typedef struct {');
-L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sails, holds, weds, ranges, evening;');
+L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sails, holds, weds, ranges, evening, gate;');
 L.push('  u16 duellist;');
 L.push('  const char *name, *line;');
 L.push('} Npc;');
@@ -2366,7 +2371,7 @@ harvest.maps.forEach((map, i) => {
       name = n.name.startsWith(spoken[1]) ? n.name : spoken[1];
       line = spoken[2];
     }
-    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.ranges}, ${n.evening}, ${n.duellist},`);
+    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.ranges}, ${n.evening}, ${n.gate}, ${n.duellist},`);
     L.push(`    ${cstr(name)}, ${cstr(line.trim())} },`);
   }
   if (!map.npcs.length) L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');

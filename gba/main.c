@@ -2429,7 +2429,13 @@ static void enterMap(int id, int tx, int ty, int dir) {
     crowd[i].walk = 0;
     crowd[i].stride = 0;
     crowdTimer[i] = (u16)(20 + roll(140));
-    crowdAlive[i] = (u8)!slain[id][i];
+    /* A warden stands in the road until you hold the seats they are waiting
+       on, and then they are simply not there any more. The ten seats are a
+       ladder and the world is open in every direction, so without somebody
+       turning you back there is nothing at all telling a new player which way
+       is next. */
+    crowdAlive[i] = (u8)(!slain[id][i]
+      && !(world->npcs[i].gate && countSigils() >= world->npcs[i].gate));
   }
 
   /* A door can put you down where somebody is already standing — their own

@@ -364,6 +364,28 @@ export const SCRIPTS = {
     if (saveGame && saveGame()) await say('(Your progress is written down.)');
   },
 
+  /**
+   * Somebody standing in the road who will not let you past yet.
+   *
+   * The ten seats are a ladder and the world is wide open, so a new player is
+   * dropped into a map of Westeros with no idea which way is next and every
+   * way available. A warden on the road is the oldest fix in the genre: they
+   * stand on the one tile you have to cross, they tell you exactly what you
+   * are missing, and they are gone the moment you have it.
+   *
+   * `npc.warden` is the number of seats that must have bent to you. The
+   * overworld hides them the instant you have enough, so this script only ever
+   * runs while they are still in your way.
+   */
+  async warden({ say, npc }) {
+    const have = sigilCount();
+    const want = npc.warden;
+    await say(npc.data?.line ?? `${npc.name}: This road is closed to you.`);
+    await say(`${npc.name}: ${have} of the great seats have bent to you. `
+            + `This road wants ${want}.`);
+    if (npc.data?.hint) await say(npc.data.hint);
+  },
+
   /** Any counter merchant. */
   async shop({ say, npc, openShop }) {
     const stock = npc.data?.stock ?? [];

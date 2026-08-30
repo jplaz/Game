@@ -23,6 +23,7 @@ import { drawPanel } from '../ui/panel.js';
 import { drawText, measure } from '../engine/font.js';
 import {
   game, flag, setFlag, standingWord, setLocalRegion, isDead, recordChoice,
+  sigilCount,
 } from '../game/state.js';
 import { SCRIPTS } from '../data/scripts.js';
 import { TRAINERS } from '../data/trainers.js';
@@ -966,6 +967,11 @@ export class Overworld {
     for (const npc of this.npcs) {
       /* Whether somebody who keeps particular hours is about at all. */
       if (npc.abroad) npc.hidden = npc.hiddenBase || !aboutNow(npc.abroad);
+      /* And whether the road they are standing in is still closed to you. A
+         warden steps aside the moment you have the seats they are waiting on,
+         which has to be checked as you play rather than only on arrival — you
+         can win a seat and walk straight back to the man who turned you away. */
+      if (npc.warden) npc.hidden = npc.hiddenBase || sigilCount() >= npc.warden;
 
       /* And the idle drift. Nobody moves while you are talking to them, or
          while a scene is running, or in the dark. */

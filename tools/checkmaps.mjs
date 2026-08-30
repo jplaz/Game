@@ -58,8 +58,11 @@ for (const [id, map] of Object.entries(MAPS)) {
      them out can be cut in half with the other one in — which is exactly what
      happened the first time anybody was given a reason to stand in Flea Bottom
      after dark. Check the worst of both. */
+  /* A warden is standing in the road on purpose and is gone the moment you
+     have the seats they are waiting on, so they are a gate rather than a wall
+     and the road behind them is not walled off — it is not open yet. */
   const castAt = (phase) => new Set((map.npcs ?? [])
-    .filter((p) => !p.roams && (!p.abroad || p.abroad === phase))
+    .filter((p) => !p.roams && !p.warden && (!p.abroad || p.abroad === phase))
     .map((p) => `${p.x},${p.y}`));
   const dayCast = castAt('day');
   const nightCast = castAt('night');

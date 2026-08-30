@@ -374,7 +374,7 @@ export const DUELLISTS = {
     name: 'Daenerys Targaryen', sprite: 'targaryen', level: 42,
     house: 'targaryen',
     vigour: 280, might: 52, guard: 32, swiftness: 36, wind: 34,
-    techniques: ['quickCut', 'riposte', 'charge'],
+    techniques: ['quickCut', 'riposte', 'valyrianArc'],
     beast: { species: 'blackdread', level: 50 },
     reward: 4000, exp: 1400, canYield: false, boss: true,
     intro: 'Daenerys Targaryen: I am the blood of the dragon. Drogon does not warn. '

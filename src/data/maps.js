@@ -986,10 +986,12 @@ const HOLD_PLANS = {
     span(1, 1, 22, 20, 's');
     span(2, 2, 20, 1, 'Q'); span(2, 2, 1, 18, 'Q'); span(21, 2, 1, 18, 'Q');
     box(3, 3, 7, 7, 'Q', ','); box(14, 3, 7, 7, 'Q', ',');
-    /* Two gates each. One gate is what a walled garden has, and it is also
-       twenty-two tiles that one man standing in a gateway can close. */
-    put(6, 9, ','); put(17, 9, ',');
-    put(9, 6, ','); put(14, 6, ',');
+    /* Open the whole ward side of each garden. These sit in the corners of the
+       compound, so the ward is the only side of them facing open ground, and
+       any gate at all is a tile the garden hangs on: one gate loses
+       twenty-two tiles to a man standing in it, and two gates lose them to a
+       man and a chest. A Pentoshi garden gives on the court anyway. */
+    span(4, 9, 5, 1, ','); span(15, 9, 5, 1, ',');
     span(4, 12, 4, 3, '~'); span(16, 12, 4, 3, '~');
     box(8, 2, 8, 4, 'Q', 's'); put(11, 5, 'D'); put(12, 5, 'D');
     put(4, 17, 'F'); put(19, 17, 'F');
@@ -1075,8 +1077,15 @@ function makeHold({ name, town, townGate, hall, ground = 'grass', wall = '#',
     const c = tiles[y]?.[x];
     return c === undefined || !WALKABLE.includes(c) || c === 'D';
   };
+  /* Two sets, and they are not the same set. `taken` is where nothing may be
+     put - the gate mouth and the apron in front of the keep doors, which are
+     kept clear precisely because they are the main road. `standing` is what is
+     actually solid once it is there: a person, or a chest. Measuring the yard
+     against `taken` walls off the road it exists to keep clear, and the Bolton
+     kennels then read as a map severed at its own front door. */
   const taken = new Set([`11,${H - 1}`, `12,${H - 1}`,
     `${doors[0][0]},${doors[0][1] + 1}`, `${doors[1][0]},${doors[1][1] + 1}`]);
+  const standing = new Set();
   /* Would standing here shut the yard? A person who roams and lands in a
      one-tile gap is a wall that walks: Harrenhal's Bloody Mummer stood in the
      neck of the burnt hall and closed seventy-two tiles behind him. */
@@ -1095,34 +1104,16 @@ function makeHold({ name, town, townGate, hall, ground = 'grass', wall = '#',
      are never in it, and measuring against the whole map therefore called
      every tile in the world a blockage and left nobody anywhere to stand. */
   const wouldShut = (x, y) => {
-    const was = walkFrom(taken);
-    const blocked = new Set(taken); blocked.add(`${x},${y}`);
+    const was = walkFrom(standing);
+    const blocked = new Set(standing); blocked.add(`${x},${y}`);
     return walkFrom(blocked) < was - 1;
   };
-  /* And the plan itself has to be a ring, not a tree. A yard where one tile
-     carries sixty others is a yard one man standing still can close, and the
-     placement rule above only keeps people off the tiles it knows about at the
-     time - somebody who roams walks to the rest of them. Cheaper to refuse the
-     plan than to police the people on it. */
-  {
-    const base = walkFrom(new Set());
-    for (let y = 1; y < H - 1; y++) {
-      for (let x = 1; x < W - 1; x++) {
-        /* Except the gateway itself, which is a corridor by construction: a
-           castle with a gate you cannot stand in the middle of is not a
-           castle. Nobody is ever placed there anyway. */
-        if (shut(x, y) || ((x === 11 || x === 12) && y >= H - 3)) continue;
-        /* A dozen, not a handful: a pig pen with one gate loses six tiles
-           behind somebody standing in the gate and that is what a pen is. A
-           wing of the castle is a different thing. */
-        const lost = base - walkFrom(new Set([`${x},${y}`])) - 1;
-        if (lost > 12) {
-          throw new Error(`${name}: standing at ${x},${y} shuts ${lost} tiles off`);
-        }
-      }
-    }
-  }
-  const settle = (things, what) => things.map((p) => {
+  /* Nothing goes down on a tile that carries anything but itself. This used to
+     ask only of the people who roam, on the reasoning that a man who stands
+     still stands where he was put - but a chest is a wall that never moves at
+     all, and Harrenhal's poppy milk went down in the one-tile passage along
+     the south wall. */
+  const settle = (things, what, solid) => things.map((p) => {
     let best = null;
     for (let r = 0; r < 12 && !best; r++) {
       for (let dy = -r; dy <= r && !best; dy++) {
@@ -1130,15 +1121,48 @@ function makeHold({ name, town, townGate, hall, ground = 'grass', wall = '#',
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           const x = p.x + dx, y = p.y + dy;
           if (shut(x, y) || taken.has(`${x},${y}`)) continue;
-          if (p.roams && wouldShut(x, y)) continue;
+          if (solid && wouldShut(x, y)) continue;
           best = [x, y];
         }
       }
     }
     if (!best) throw new Error(`${name}: nowhere to put the ${what} from ${p.x},${p.y}`);
     taken.add(`${best[0]},${best[1]}`);
+    if (solid) standing.add(`${best[0]},${best[1]}`);
     return { ...p, x: best[0], y: best[1] };
   });
+  const people = settle(npcs, 'people', true);
+  const loot = settle(items, 'loot', true);
+  /* A sign is not solid - you read it by facing it - so it neither blocks a
+     road nor needs asking about one. */
+  const posts = settle(signs, 'signs', false);
+
+  /* And the yard has to be a ring with all of that standing in it, not a ring
+     on paper. Measured on the bare plan, every tile of Harrenhal was cheap:
+     the west wing had two ways round, so neither the passage at 4,17 nor the
+     yard at 8,11 cost a thing on its own. Put a chest in the passage and the
+     second way is gone, and then one man standing still in the yard shut
+     seventy-three tiles behind him. One tile at a time is the wrong question
+     once the furniture is in. */
+  {
+    const base = walkFrom(standing);
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        /* Except the gateway itself, which is a corridor by construction: a
+           castle with a gate you cannot stand in the middle of is not a
+           castle. Nobody is ever placed there anyway. */
+        if (shut(x, y) || standing.has(`${x},${y}`)) continue;
+        if ((x === 11 || x === 12) && y >= H - 3) continue;
+        /* A dozen, not a handful: a pig pen with one gate loses six tiles
+           behind somebody standing in the gate and that is what a pen is. A
+           wing of the castle is a different thing. */
+        const lost = base - walkFrom(new Set([...standing, `${x},${y}`])) - 1;
+        if (lost > 12) {
+          throw new Error(`${name}: standing at ${x},${y} shuts ${lost} tiles off`);
+        }
+      }
+    }
+  }
 
   return {
     name, music: 'wild', ground, wall, encounters, tiles,
@@ -1148,8 +1172,7 @@ function makeHold({ name, town, townGate, hall, ground = 'grass', wall = '#',
       { x: 11, y: H - 1, to: town, tx: townGate[0], ty: townGate[1], dir: townGate[2] },
       { x: 12, y: H - 1, to: town, tx: townGate[0], ty: townGate[1], dir: townGate[2] },
     ],
-    npcs: settle(npcs, 'people'), signs: settle(signs, 'signs'),
-    items: settle(items, 'loot'),
+    npcs: people, signs: posts, items: loot,
   };
 }
 
@@ -3124,8 +3147,8 @@ export const MAPS = {
       { x: 12, y: 7, text: 'THE KINGS OF WINTER\nEach with an iron sword across his knees, to keep the vengeful spirits in.\nSomebody has been taking the swords.' },
     ],
     items: [
-      { x: 8, y: 3, item: 'valyrianShard' },
-      { x: 3, y: 11, item: 'ironScrap' },
+      { x: 8, y: 3, item: 'valyrianShard', count: 1, flag: 'item_wfcrypt_shard' },
+      { x: 3, y: 11, item: 'ironScrap', count: 2, flag: 'item_wfcrypt_scrap' },
     ],
     npcs: [
       { x: 4, y: 10, dir: 'down', sprite: 'oldman', name: 'The Lamplighter', script: 'townTalk',
@@ -3557,7 +3580,7 @@ export const MAPS = {
       { type: 'grass', x: 12, y: 16, w: 6, h: 4 },
     ],
     encounters: [
-      { roamer: 'wyverner', min: 32, max: 40, weight: 18 },
+      { roamer: 'deserter', min: 32, max: 40, weight: 18 },
       { roamer: 'wildlingRaider', min: 26, max: 34, weight: 32 },
       { roamer: 'spearwife', min: 27, max: 35, weight: 28 },
       { roamer: 'gravedigger', min: 30, max: 39, weight: 22 },
@@ -3665,8 +3688,8 @@ export const MAPS = {
       { x: 3, y: 13, text: "ALYSSA'S TEARS\nShe wept for her murdered children and never stopped.\nThe fall is so long the water is gone to mist before it lands." },
     ],
     npcs: [
-      { x: 7, y: 6, dir: 'down', sprite: 'arryn', name: 'Bronze Yohn Royce',
-        script: 'trainer', data: { trainer: 'gymArryn' } },
+      { x: 7, y: 6, dir: 'down', sprite: 'arryn', name: 'Ser Vardis Egen',
+        script: 'duel', data: { duel: 'manAtArms' } },
       { x: 15, y: 13, dir: 'down', sprite: 'oldman', name: 'Mountain Steward', script: 'deedBroker',
         data: { property: 'valeWatchtower' } },
       { x: 5, y: 20, dir: 'right', sprite: 'guard', name: 'Sky Road Warden', script: 'townTalk',
@@ -4333,7 +4356,7 @@ export const MAPS = {
       '@@@@@@@@%@@@@@@@@',
     ],
     encounters: [
-      { roamer: 'dragonmaster', min: 38, max: 45, weight: 28 },
+      { roamer: 'manAtArms', min: 38, max: 45, weight: 28 },
       { roamer: 'dragonrider', min: 36, max: 44, weight: 20 },
       { roamer: 'redPriestess', min: 34, max: 42, weight: 28 },
       { roamer: 'ironbornReaver', min: 35, max: 44, weight: 24 },
@@ -5426,7 +5449,7 @@ export const MAPS = {
         data: { duel: 'bronn' } },
       { x: 10, y: 8, dir: 'left', sprite: 'merchant', name: 'Factor', script: 'shop',
         data: { line: 'Factor: Anything from anywhere, at a Pentoshi price.',
-          stock: ['maesterKit', 'poppyMilk', 'weirwoodSap', 'kingsRansom', 'netTrap'] } },
+          stock: ['maesterKit', 'poppyMilk', 'weirwoodSap', 'kingsRansom', 'antidote'] } },
     ],
     items: [
       { x: 2, y: 1, item: 'valyrianShard', count: 1, flag: 'item_illyrio_shard' },
@@ -5435,7 +5458,7 @@ export const MAPS = {
 
   templeOfRhllor: {
     name: 'The Temple of R\'hllor',
-    indoor: true, music: 'hall', ground: 'stone',
+    indoor: true, music: 'town', ground: 'stone',
     tiles: [
       'IIIIIIIIIIIIIII',
       'I=============I',
@@ -5467,7 +5490,7 @@ export const MAPS = {
 
   greatPyramid: {
     name: 'The Great Pyramid',
-    indoor: true, music: 'hall', ground: 'stone',
+    indoor: true, music: 'town', ground: 'stone',
     tiles: [
       'IIIIIIIIIIIIIII',
       'I=============I',
@@ -5496,7 +5519,7 @@ export const MAPS = {
         script: 'duel', data: { duel: 'daario' } },
       { x: 10, y: 10, dir: 'left', sprite: 'merchant', name: 'Ghiscari Trader', script: 'shop',
         data: { line: 'Trader: The Queen has views about what may be sold. This is the rest.',
-          stock: ['maesterKit', 'poppyMilk', 'kingsRansom', 'greatNet', 'kingsguardBanner'] } },
+          stock: ['maesterKit', 'poppyMilk', 'kingsRansom', 'burnSalve', 'kingsguardBanner'] } },
     ],
     items: [
       { x: 2, y: 1, item: 'dragonEgg', count: 1, flag: 'item_pyramid_egg' },
@@ -5952,7 +5975,7 @@ export const MAPS = {
 
   maesterHallPyke: maesterHall({
     exitTo: 'pyke', exitX: 5, exitY: 13,
-    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap', 'snare', 'netTrap', 'sigilBanner'],
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap', 'stillwater', 'antidote', 'sigilBanner'],
     healerLine: 'Maester Wendamyr: Salt in everything, including the wounds. '
       + 'Sit down and let me get at it.',
     merchantLine: 'Steward: What we have, we took. What we sell, we took twice.',
@@ -5995,7 +6018,7 @@ export const MAPS = {
 
   pykeKeep: {
     name: 'The Seastone Chair',
-    indoor: true, music: 'hall', ground: 'stone',
+    indoor: true, music: 'town', ground: 'stone',
     tiles: [
       'IIIIIIIIIIIIIII',
       'I=============I',
@@ -6025,7 +6048,7 @@ export const MAPS = {
         data: { line: 'Maester: The Seastone Chair is not comfortable. It was never meant to be.' } },
       { x: 10, y: 10, dir: 'left', sprite: 'merchant', name: 'Ship\'s Factor', script: 'shop',
         data: { line: 'Factor: Rope, tar, salt beef, and things nobody will admit to.',
-          stock: ['maesterKit', 'poppyMilk', 'snare', 'netTrap', 'greatNet', 'warBanner'] } },
+          stock: ['maesterKit', 'poppyMilk', 'stillwater', 'antidote', 'frostTonic', 'warBanner'] } },
     ],
   },
 
@@ -6077,7 +6100,7 @@ export const MAPS = {
           + 'Name a port.' } },
       { x: 18, y: 7, dir: 'down', sprite: 'merchant', name: 'Chandler', script: 'shop',
         data: { line: 'Chandler: Everything a ship needs and nothing a house does.',
-          stock: ['maesterKit', 'poppyMilk', 'snare', 'netTrap', 'greatNet'] } },
+          stock: ['maesterKit', 'poppyMilk', 'stillwater', 'antidote', 'burnSalve'] } },
       { x: 9, y: 6, dir: 'down', sprite: 'smallfolk', name: 'Netmender', script: 'pykeLocal',
         data: { line: 'Netmender: Mend a net, catch a fish. Mend a hundred, catch a hundred. '
           + 'It is not complicated work.' } },
@@ -6167,7 +6190,7 @@ export const MAPS = {
 
   maesterHallDreadfort: maesterHall({
     exitTo: 'dreadfort', exitX: 4, exitY: 11,
-    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap', 'kingsRansom', 'snare', 'warBanner'],
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap', 'kingsRansom', 'frostTonic', 'warBanner'],
     healerLine: 'Maester Uthor: I mend what the household breaks. I am busy.',
     merchantLine: 'Steward: Take it and go. Lord Roose does not like people lingering.',
   }),
@@ -6209,7 +6232,7 @@ export const MAPS = {
 
   dreadfortKeep: {
     name: 'The Dreadfort Hall',
-    indoor: true, music: 'hall', ground: 'stone',
+    indoor: true, music: 'town', ground: 'stone',
     tiles: [
       'IIIIIIIIIIIIIII',
       'I=============I',
@@ -7458,7 +7481,7 @@ export const MAPS = {
 
   maesterHallTwins: maesterHall({
     exitTo: 'theTwins', exitX: 18, exitY: 7,
-    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap', 'antidote', 'silverPurse'],
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap', 'antidote', 'wakingDraught'],
     healerLine: 'Sit. Nobody crosses that bridge without something aching.',
     merchantLine: 'Citadel goods, at the price the Freys let me charge for them.',
   }),
@@ -7511,7 +7534,7 @@ export const MAPS = {
     keeper: 'Masha', keeperLine: 'Masha: Beds upstairs, board down here, and whatever you have heard on the road stays on it.',
     drinkerLine: 'Drinker: Four armies have drunk in this room. Not one of them paid.',
     fighter: 'Sellsword', fighterLine: 'bronn',
-    stock: ['maesterKit', 'poppyMilk', 'stillwater', 'silverPurse'],
+    stock: ['maesterKit', 'poppyMilk', 'stillwater', 'wakingDraught'],
   }),
 
   /* Harrenhal. Built to be the largest castle ever raised and melted the day
@@ -8898,6 +8921,116 @@ export const UPPER_FLOORS = [];
     prepare(MAPS[id]);
   }
 }
+
+/*
+ * A sign is read by facing it. One standing on ground you can walk over is
+ * text you step past forever, because walking towards it is walking onto it -
+ * and ninety of the game's hundred and ninety-two signs stood on open ground.
+ * Nearly half of everything the world had to say about itself was unreadable,
+ * including the sign at every crossroads and the one on every keep door.
+ *
+ * So: a sign hangs on whatever is beside it if there is anything, and stands
+ * on a post of its own if there is not. Neither is allowed to take a tile
+ * somebody arrives on, or one that carries a road behind it.
+ */
+function readableSigns() {
+  const NEAR = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+  /* Every tile some other map's door puts you down on: a post planted there
+     is a traveller arriving inside a wall. */
+  const landings = new Map();
+  for (const map of Object.values(MAPS)) {
+    for (const w of map.warps ?? []) {
+      if (!landings.has(w.to)) landings.set(w.to, new Set());
+      landings.get(w.to).add(`${w.tx},${w.ty}`);
+    }
+  }
+
+  for (const map of Object.values(MAPS)) {
+    if (!map.signs?.length) continue;
+    const rows = map.grid.map((row) => row.split(''));
+    const at = (x, y) => (
+      x < 0 || y < 0 || y >= map.height || x >= map.width ? '#' : rows[y][x]
+    );
+    const open = (x, y) => WALKABLE.includes(at(x, y));
+    const arrivals = landings.get(map.id) ?? new Set();
+    /* Somebody else's tile: a door, a person, a chest, another sign, or the
+       spot a traveller from elsewhere lands on. */
+    const spokenFor = (x, y, mine) => arrivals.has(`${x},${y}`)
+      || (map.warps ?? []).some((w) => w.x === x && w.y === y)
+      || (map.npcs ?? []).some((n) => n.x === x && n.y === y)
+      || (map.items ?? []).some((i) => i.x === x && i.y === y)
+      || map.signs.some((s) => s !== mine && s.x === x && s.y === y);
+
+    const walkFrom = (sx, sy) => {
+      const seen = new Set([`${sx},${sy}`]);
+      const queue = [[sx, sy]];
+      while (queue.length) {
+        const [x, y] = queue.pop();
+        for (const [dx, dy] of NEAR) {
+          const nx = x + dx, ny = y + dy;
+          if (!open(nx, ny) || seen.has(`${nx},${ny}`)) continue;
+          seen.add(`${nx},${ny}`);
+          queue.push([nx, ny]);
+        }
+      }
+      return seen.size;
+    };
+    /* Somewhere to stand and read it from - and a doorway is not somewhere to
+       stand. Pyke's harbour sign came to rest above the quay stair, where the
+       only tile facing it warps you off the map before you can read a word. */
+    const readable = (x, y) => NEAR.some(([dx, dy]) => open(x + dx, y + dy)
+      && !(map.warps ?? []).some((w) => w.x === x + dx && w.y === y + dy));
+
+    for (const sign of map.signs) {
+      if (!open(sign.x, sign.y)) continue;
+      /* Hang it on whatever it is already next to - a wall, a tree, the gable
+         end of a house. */
+      const wall = NEAR
+        .map(([dx, dy]) => [sign.x + dx, sign.y + dy])
+        .find(([x, y]) => x >= 0 && y >= 0 && x < map.width && y < map.height
+          && !open(x, y) && !spokenFor(x, y, sign) && readable(x, y));
+      if (wall) { [sign.x, sign.y] = wall; continue; }
+
+      /* Nothing beside it, so it stands on a post - as long as the ground it
+         is taking is not the only way past. */
+      const seed = NEAR.map(([dx, dy]) => [sign.x + dx, sign.y + dy])
+        .find(([x, y]) => open(x, y));
+      if (seed && !spokenFor(sign.x, sign.y, sign)) {
+        const before = walkFrom(seed[0], seed[1]);
+        rows[sign.y][sign.x] = '!';
+        if (walkFrom(seed[0], seed[1]) === before - 1) continue;
+        rows[sign.y][sign.x] = map.grid[sign.y][sign.x];
+      }
+
+      /* A post there would shut a road, or the tile is somebody else's. Walk
+         outwards for the nearest thing it can hang on instead. */
+      let moved = null;
+      for (let r = 1; r <= 3 && !moved; r++) {
+        for (let dy = -r; dy <= r && !moved; dy++) {
+          for (let dx = -r; dx <= r && !moved; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const x = sign.x + dx, y = sign.y + dy;
+            if (x < 0 || y < 0 || x >= map.width || y >= map.height) continue;
+            if (open(x, y) || spokenFor(x, y, sign) || !readable(x, y)) continue;
+            moved = [x, y];
+          }
+        }
+      }
+      if (!moved) {
+        throw new Error(`${map.id}: the sign at ${sign.x},${sign.y} can neither `
+          + 'hang on anything nor stand on its own');
+      }
+      [sign.x, sign.y] = moved;
+    }
+    /* `grid` is what everything downstream reads. `tiles` is what it was made
+       from, and on the generated maps that is a getter, so keep the two in
+       step only where there is something to write to. */
+    map.grid = rows.map((row) => row.join(''));
+    if (Object.getOwnPropertyDescriptor(map, 'tiles')?.writable) map.tiles = map.grid;
+  }
+}
+
+readableSigns();
 
 /** The region a map belongs to, or an empty string if it has none. */
 export function regionOf(key) {

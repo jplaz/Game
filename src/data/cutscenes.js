@@ -72,6 +72,7 @@ export const CUTSCENES = {
       ['wait', 0.8],
       ['say', 'There are bones set into the cliff on both sides, at intervals, '
             + 'for as far up the road as you can see. Not buried. Set.'],
+      ['spawn', 'watcher', { x: 10, y: 6, dir: 'down', sprite: 'martell', name: 'A Watcher on the Wall of Bones' }],
       ['say', 'Every army that has come this way is still here, and Dorne has '
             + 'never once had to win a battle to arrange it.'],
       ['flag', 'sawTheBoneway'],
@@ -88,6 +89,7 @@ export const CUTSCENES = {
       ['shake', 1.1],
       ['say', 'The rain arrives sideways and all at once, and somewhere behind '
             + 'it the sea is making a sound you can feel in your teeth.'],
+      ['spawn', 'rider', { x: 8, y: 16, dir: 'right', sprite: 'baratheon', name: 'A Storm Rider' }],
       ['say', 'They build the walls round here forty feet thick and curved, so '
             + 'the weather has nothing flat to push against. Now you know why.'],
       ['flag', 'sawTheStorm'],
@@ -141,6 +143,7 @@ export const CUTSCENES = {
       ['shake', 0.7],
       ['say', 'It is warm. Twenty feet down, in winter, on an island in the '
             + 'sea, and it is warm enough to want your cloak off.'],
+      ['spawn', 'keeper', { x: 8, y: 12, dir: 'up', sprite: 'targaryen', name: 'A Dragonkeeper' }],
       ['say', 'Something lived down here long enough to shape the rock around '
             + 'itself, and the Targaryens built a castle on the lid of it and '
             + 'called that a conquest.'],
@@ -176,11 +179,13 @@ export const CUTSCENES = {
 
   /** Somebody has started asking after you, and the asking has reached you. */
   aWhisperInTheDark: {
-    map: 'riverrun', x: 12, y: 10, flag: 'cs_whisper', name: 'Somebody Is Asking',
+    map: 'riverrun', x: 12, y: 9, flag: 'cs_whisper', name: 'Somebody Is Asking',
     sigils: 1,
     beats: [
       ['say', 'A child you have not noticed is suddenly walking beside you at '
             + 'exactly your pace, looking straight ahead.'],
+      ['spawn', 'bird', { x: 14, y: 8, dir: 'down', sprite: 'child', name: 'Little Bird' }],
+      ['walk', 'bird', 'left', 2],
       ['say', 'Little Bird: A man came through asking what you look like. '
             + 'He paid in silver and he did not write anything down.'],
       ['say', 'Little Bird: He asked which way you went. I told him. '
@@ -283,6 +288,8 @@ export const CUTSCENES = {
             + 'rather than the ice.'],
       ['say', 'A maester comes down off the wall to meet you, which maesters do '
             + 'not do, and he is looking at your hands rather than your face.'],
+      ['spawn', 'harmune', { x: 11, y: 17, dir: 'down', sprite: 'maester', name: 'Maester Harmune' }],
+      ['walk', 'harmune', 'down', 2],
       ['say', 'Maester Harmune: You have come up the Gift in winter. Nobody does '
             + 'that for trade. So you read it, and you believed enough of it to walk.'],
       ['choose', 'He is waiting.',
@@ -306,6 +313,7 @@ export const CUTSCENES = {
       ['wait', 0.9],
       ['say', 'Six thousand people lived here. The houses are standing. '
             + 'The cookfires are laid and never lit. Nothing has been looted.'],
+      ['spawn', 'shewas', { x: 11, y: 16, dir: 'down', sprite: 'wildlingWoman', name: 'What Was a Woman' }],
       ['shake', 1.0],
       ['say', 'And then, further up the beach, something that was a woman turns '
             + 'its head towards you with the whole slow patience of a thing that '
@@ -320,6 +328,8 @@ export const CUTSCENES = {
     beats: [
       ['say', 'A maester comes across the yard too fast for a man his age, '
             + 'with a scrap of paper held out in front of him like it is hot.'],
+      ['spawn', 'luwin', { x: 12, y: 13, dir: 'down', sprite: 'maester', name: 'Maester Luwin' }],
+      ['walk', 'luwin', 'down', 2],
       ['say', 'Maester: From the Wall. Not the usual count of stores and cold. '
             + 'It is signed by a man I buried a rumour about last winter.'],
       ['say', 'Maester: Three words. THEY ARE COMING. No number, no name, '
@@ -367,7 +377,7 @@ export const CUTSCENES = {
 
   /** The sellsword's paymaster, once you have asked who he was. */
   whoPaidHim: {
-    map: 'kingsroad', x: 10, y: 24, flag: 'cs_whoPaid', name: 'Who Paid Him',
+    map: 'kingsroad', x: 10, y: 21, flag: 'cs_whoPaid', name: 'Who Paid Him',
     needs: 'theFollower_1', sigils: 3,
     beats: [
       ['say', 'The name he gave you has been sitting behind your teeth for a '
@@ -401,6 +411,7 @@ export const CUTSCENES = {
       ['flash', 0.5, '#8fb6e8'],
       ['say', 'A shape under sailcloth, chained at the wrists to a ring in the '
             + 'floor. It has been chained there since before the last thaw.'],
+      ['spawn', 'mormont', { x: 9, y: 8, dir: 'down', sprite: 'nightswatch', name: 'Lord Commander' }],
       ['say', 'Lord Commander: It does not rot. It does not sleep. It stops '
             + 'moving when we bring a torch near and starts again when we take '
             + 'it away. Steel does nothing. We have tried steel.'],
@@ -423,6 +434,8 @@ export const CUTSCENES = {
       ['say', 'It is from Eastwatch, and it is not words. It is a list of names '
             + 'with a line drawn through every one of them, and then the line '
             + 'stops in the middle of a name.'],
+      ['spawn', 'council', { x: 16, y: 21, dir: 'down', sprite: 'noble', name: 'Lord of the Small Council' }],
+      ['walk', 'council', 'down', 2],
       ['shake', 0.9],
       ['say', 'Nothing has come south of the Neck for eleven days. Not a rider, '
             + 'not a trader, not a raven. Eleven days ago there were four a day.'],
@@ -436,7 +449,7 @@ export const CUTSCENES = {
 
   /** Leaving Winterfell for the first time. Somebody has an opinion about it. */
   ridingSouth: {
-    map: 'kingsroadNorth', x: 10, y: 21, flag: 'cs_ridingSouth',
+    map: 'kingsroadNorth', x: 10, y: 20, flag: 'cs_ridingSouth',
     beats: [
       ['say', 'A rider comes up the road at a canter, and reins in hard when he sees you.'],
       ['spawn', 'rider', { x: 10, y: 17, dir: 'down', sprite: 'stark', name: 'Outrider' }],
@@ -463,6 +476,7 @@ export const CUTSCENES = {
       ['wait', 1.2],
       ['say', 'Something enormous goes over, high up and heading east, and the horses '
             + 'in the field below scream until it is gone.'],
+      ['spawn', 'freerider', { x: 10, y: 7, dir: 'up', sprite: 'guard', name: 'A Freerider' }],
       ['say', 'Nobody in Westeros has seen one in a hundred and fifty years. '
             + 'You have now.'],
       ['flag', 'sawADragon'],
@@ -477,6 +491,7 @@ export const CUTSCENES = {
       ['wait', 0.8],
       ['flash', 0.6, '#dfeaf8'],
       ['say', 'Seven hundred feet of ice, running east and west until the weather takes it.'],
+      ['spawn', 'brother', { x: 9, y: 14, dir: 'down', sprite: 'nightswatch', name: 'A Sworn Brother' }],
       ['say', 'Men built this. That is the part nobody manages to explain.'],
       ['flag', 'sawTheWall'],
     ],
@@ -505,6 +520,7 @@ export const CUTSCENES = {
       ['say', 'The smell reaches you before the turn in the road does.'],
       ['wait', 0.7],
       ['say', 'Eleven houses. Nine of them still standing, in the sense that walls are standing.'],
+      ['spawn', 'left', { x: 10, y: 11, dir: 'up', sprite: 'goodwife', name: 'Somebody Left Behind' }],
       ['say', 'Whoever did it went through in a morning and was somewhere else by evening. '
             + 'They took the grain and left the people.'],
       ['flag', 'sawTheBurning'],

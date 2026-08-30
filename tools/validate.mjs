@@ -346,6 +346,37 @@ for (const [id, def] of Object.entries(CUTSCENES)) {
   }
   if (!def.beats?.length) fail(`cutscene ${id}: no beats`);
 
+  /* Somebody has to be in it.
+   *
+   * Twelve of twenty-three scenes had nobody on the map at all, and four of
+   * those had a named speaker: a child called Little Bird talked to an empty
+   * street for three screens, and the player quite reasonably reported that
+   * most of the cutscenes have no one in them. A scene is a camera pointed at
+   * something. */
+  {
+    const spawns = (def.beats ?? []).filter((b) => b[0] === 'spawn');
+    const speaks = (def.beats ?? []).some(
+      (b) => b[0] === 'say' && /^[A-Z][A-Za-z' -]{1,24}:/.test(b[1] ?? ''));
+    if (!spawns.length) {
+      fail(`cutscene ${id}: nobody is in it`
+        + (speaks ? ', and somebody speaks by name' : ''));
+    }
+    for (const [, who, at] of spawns) {
+      if (!at) continue;
+      /* On the ground, and on the screen. The GBA shows fifteen tiles across
+         and ten down with the player in the middle of them, so anybody more
+         than seven across or five down is being acted out off-camera. */
+      if (!walkable(map, at.x, at.y)) {
+        fail(`cutscene ${id}: ${who} is spawned at ${at.x},${at.y}, `
+          + `which is "${tileAt(map, at.x, at.y)}"`);
+      }
+      if (Math.abs(at.x - def.x) > 7 || Math.abs(at.y - def.y) > 5) {
+        fail(`cutscene ${id}: ${who} is spawned off the edge of the screen `
+          + `(${Math.abs(at.x - def.x)} across, ${Math.abs(at.y - def.y)} down)`);
+      }
+    }
+  }
+
   const spawned = new Set(['player']);
   for (const beat of def.beats ?? []) {
     const [kind, ...args] = beat;

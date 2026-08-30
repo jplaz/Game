@@ -7,7 +7,7 @@
 // drop looked fine here and was a wall in your hands. Somebody standing still
 // is a wall too - roamers step aside, but a stationary body in a one-tile
 // corridor closes the road for good.
-import { MAPS } from '/home/user/Game/src/data/maps.js';
+import { MAPS, WALKABLE } from '/home/user/Game/src/data/maps.js';
 import { TILE_DEFS } from '/home/user/Game/src/art/tiles.js';
 import { PORTS, PORT_MAPS } from '/home/user/Game/src/data/ports.js';
 import { ROAMERS } from '/home/user/Game/src/data/duellists.js';
@@ -402,6 +402,29 @@ for (const [id, map] of Object.entries(MAPS)) {
   for (const s of spawnsOn(id)) faces.add(s);
   if (faces.size > ACTOR_LIMIT) {
     say(`${id} needs ${faces.size} appearances resident and there is room for ${ACTOR_LIMIT}`);
+  }
+}
+
+/* The two lists of what a person can stand on, held side by side.
+ *
+ * src/data/maps.js has to know which tile characters are walkable while it is
+ * laying a town out, and it cannot ask the art: tiles.js drags in a canvas and
+ * the exporter, these checkers and the cartridge packer all load the maps
+ * without one. So it keeps its own copy - and the copy drifted. The stone
+ * stair, the drawbridge and the door were never added to it, which meant the
+ * Dragonstone great stair read as a wall to the town builder, which meant that
+ * from the gateway there was no ground out on the Smoking Strand at all, which
+ * meant nobody could be placed on it. Nothing looked broken anywhere: three
+ * people simply did not exist. */
+{
+  const walkable = (d) => !['solid', 'water', 'ledge'].includes(d.kind);
+  for (const [c, d] of Object.entries(TILE_DEFS)) {
+    if (walkable(d) && !WALKABLE.includes(c)) {
+      say(`maps.js does not know that '${c}' (${d.kind}) can be stood on`);
+    }
+    if (!walkable(d) && WALKABLE.includes(c)) {
+      say(`maps.js thinks '${c}' (${d.kind}) can be stood on, and it cannot`);
+    }
   }
 }
 

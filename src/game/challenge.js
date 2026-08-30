@@ -55,6 +55,14 @@ const BYSTANDER_ROLE = {
 /** Nobody expects a child or a maester to draw on you, and they will not. */
 const WILL_NOT_FIGHT = new Set(['child', 'girl', 'septa', 'maester', 'whitewalker']);
 
+/* Nor anybody whose trade is the water. A harbourmaster you can draw on is a
+   harbour with no way out of it: kill the one man at Eastwatch who sells a
+   passage and Hardhome is a place that exists and cannot be reached, and the
+   same holds for every port east of the Narrow Sea. Matched exactly rather
+   than by prefix - deriving a capability from the spelling of a script name
+   is a trap every time. */
+const WATER_TRADE = /^(ship|harbour|harbourmaster|ferry|shipwright)$/i;
+
 /**
  * What happens if you call this person out. Returns null when they simply will
  * not fight, or { duellist, house, alreadyBeaten } when they will.
@@ -62,6 +70,7 @@ const WILL_NOT_FIGHT = new Set(['child', 'girl', 'septa', 'maester', 'whitewalke
 export function challengeFor(npc) {
   const sprite = npc.sprite;
   if (WILL_NOT_FIGHT.has(sprite)) return null;
+  if (WATER_TRADE.test(npc.script ?? '')) return null;
 
   // Somebody already written as a fight.
   const trainerId = npc.data?.trainer;

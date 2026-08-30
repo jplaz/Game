@@ -1171,7 +1171,14 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
            Walker was on this list, which meant the Night King and every risen
            man on the Fist could be walked up to, spoken to and not fought - the
            whole reason for going north was a conversation. */
-        fights: ['child', 'girl', 'septa', 'maester'].includes(sprite) ? 0 : 1,
+        /* And nobody whose trade is the water. A harbourmaster you can draw
+           on is a harbour with no way out of it: kill the only man at
+           Eastwatch who sells a passage and Hardhome is a map that exists and
+           cannot be reached, and the same goes for every port east of the
+           Narrow Sea. They will not draw on you and you cannot draw on them.
+           Matched exactly, not by prefix, for the same reason `sails` is. */
+        fights: ['child', 'girl', 'septa', 'maester'].includes(sprite)
+             || /^(ship|harbour|harbourmaster|ferry|shipwright)$/i.test(n.script ?? '') ? 0 : 1,
         // Somebody whose whole purpose is to fight you draws when you speak to
         // them. Challenging was bound to SELECT, which is not a button anybody
         // presses at a lord standing in his own hall: a house leader would say

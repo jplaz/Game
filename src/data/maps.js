@@ -66,6 +66,19 @@ function maesterHall({ exitTo, exitX, exitY, stock, healerLine, merchantLine, ex
  * Doors: hall (6,6) forge (17,6) keep (7,14)
  * Exits: north (11,0) south (11,19)
  */
+/* Every tile character a person can stand on.
+ *
+ * Written out rather than read from TILE_DEFS because the art module drags in
+ * a canvas, and the exporter, the map checkers and the cartridge packer all
+ * load this file without one. tools/checkmaps.mjs holds the two side by side
+ * on every build so the copy cannot drift from the original again - which it
+ * had: the stone stair, the drawbridge and the door were all missing, so this
+ * function believed the Dragonstone great stair was a wall. Nothing that walks
+ * used it, so nothing broke visibly; what it did was quietly refuse to place
+ * anybody out on the Smoking Strand, because from the gateway there was no
+ * ground out there to stand on. */
+export const WALKABLE = '.,S;-dso*i_=cb<%tmD/+';
+
 function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = '.',
                     roof = 'R', ridge = 'r', house = 'H', banner = 'V', dressing = [],
                     shut = [], quarter = 0, outskirts = null, gate = 13, outsiders = [],
@@ -260,58 +273,30 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
      shopkeeper inside a wall is a shopkeeper nobody ever meets. */
   const solidHere = (x, y) => {
     const c = grid[y] && grid[y][x];
-    return c === undefined || !'.,S;-dso*i_=cb<%tm'.includes(c);
+    return c === undefined || !WALKABLE.includes(c);
   };
+  /* A door is a tile you can stand on - that is how you go through one - and
+     it is the one walkable tile nobody may be left on. Somebody standing in a
+     doorway is a door that never opens, and behind it is usually a room. */
+  const onDoor = (x, y) => (grid[y] && grid[y][x]) === 'D';
   const nearestOpen = (x, y) => {
     for (let r = 1; r < 8; r++) {
       for (let dy = -r; dy <= r; dy++) {
         for (let dx = -r; dx <= r; dx++) {
           const nx = x + dx, ny = y + dy;
           if (!grid[ny] || grid[ny][nx] === undefined) continue;
-          if (!solidHere(nx, ny)) return [nx, ny];
+          if (!solidHere(nx, ny) && !onDoor(nx, ny)) return [nx, ny];
         }
       }
     }
     return [x, y];
   };
   const movedNpcs = npcs.map((p) => {
-    if (!solidHere(p.x, p.y)) return p;
+    if (!solidHere(p.x, p.y) && !onDoor(p.x, p.y)) return p;
     const at = nearestOpen(p.x, p.y);
     return { ...p, x: at[0], y: at[1] };
   });
 
-  /* And whoever lives out past the east gate. Written without coordinates and
-     put down here, on ground this function has just finished drawing: hand-
-     placed people in the outskirts spent three rounds of this landing on market
-     stalls, in canals and, twice, in the gateway itself with the whole district
-     walled off behind them. Nothing that is placed by construction can do
-     that. */
-  if (outskirts && outsiders.length) {
-    const spots = [], junctions = [];
-    for (let y = 2; y < 25; y++) {
-      for (let x = 25; x < 31; x++) {
-        if (y === gate) continue;                     /* never in the gateway */
-        if (solidHere(x, y)) continue;
-        /* Somewhere with room to be spoken to from, and room to get past. */
-        let open = 0;
-        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-          if (!solidHere(x + dx, y + dy)) open++;
-        }
-        if (open >= 2) spots.push([x, y]);
-        /* A junction, by preference. A tile with exactly two ways off it is a
-           corridor, and a person standing in a corridor is a wall across it —
-           which in a maze walls off everything beyond them. Highgarden's
-           gardener corked eighteen tiles of his own hedge maze that way. */
-        if (open >= 3) junctions.push([x, y]);
-      }
-    }
-    const where = junctions.length >= outsiders.length ? junctions : spots;
-    outsiders.forEach((who, i) => {
-      if (!where.length) return;
-      const at = where[Math.floor(((i + 1) * where.length) / (outsiders.length + 1))];
-      movedNpcs.push({ ...who, x: at[0], y: at[1] });
-    });
-  }
 
   /* ---------------------------------------------------------- the outskirts --
    * Every town in this game was the same twenty-four by twenty-seven box with a
@@ -342,6 +327,106 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
        own quarter's fish pond: the road has to run back far enough to meet
        ground the town itself can walk on. */
     for (let x = 18; x <= 24; x++) grid[gate][x] = g;
+  }
+
+  /* And whoever lives out past the east gate. Written without coordinates and
+     put down here, on ground this function has just finished drawing: hand-
+     placed people in the outskirts spent three rounds of this landing on market
+     stalls, in canals and, twice, in the gateway itself with the whole district
+     walled off behind them. Nothing that is placed by construction can do that.
+     It said all of the above while sitting ABOVE the loop that draws the
+     outskirts, so it read a band of undrawn map, found no ground anybody could
+     stand on, and quietly dropped every one of them: twenty-one people written
+     into ten towns and not one of them ever stood anywhere. Order matters, and
+     a comment is not a guarantee. */
+  if (outskirts && outsiders.length) {
+    /* What out here can actually be walked to, from the gateway the town's own
+       road comes through. Open ground is not the same as reachable ground: a
+       courtyard sealed behind a wall has four ways off every tile in it and no
+       way into any of them, and somebody put down there is a person the game
+       will tell you about and never let you meet. */
+    const walkable = new Set();
+    {
+      const seen = new Set(), queue = [[24, gate]];
+      while (queue.length) {
+        const [x, y] = queue.pop();
+        const key = `${x},${y}`;
+        if (seen.has(key)) continue;
+        if (x < 24 || x > 31 || y < 0 || y >= grid.length) continue;
+        if (solidHere(x, y)) continue;
+        seen.add(key);
+        if (x >= 25 && x <= 30) walkable.add(key);
+        queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+      }
+    }
+    /* And never on a doorstep. A warp puts you down on its own tile, so
+       somebody standing there is somebody you arrive inside of. */
+    const doorstep = new Set();
+    for (const w of warps) {
+      if (w.x === undefined) continue;
+      for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        doorstep.add(`${w.x + dx},${w.y + dy}`);
+      }
+    }
+    const spots = [], junctions = [];
+    for (let y = 2; y < 25; y++) {
+      for (let x = 25; x < 31; x++) {
+        if (y === gate) continue;                     /* never in the gateway */
+        if (!walkable.has(`${x},${y}`)) continue;
+        if (doorstep.has(`${x},${y}`) || onDoor(x, y)) continue;
+        /* Somewhere with room to be spoken to from, and room to get past. */
+        let open = 0;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          if (walkable.has(`${x + dx},${y + dy}`)) open++;
+        }
+        if (open >= 2) spots.push([x, y]);
+        /* A junction, by preference. A tile with exactly two ways off it is a
+           corridor, and a person standing in a corridor is a wall across it —
+           which in a maze walls off everything beyond them. Highgarden's
+           gardener corked eighteen tiles of his own hedge maze that way. */
+        if (open >= 3) junctions.push([x, y]);
+      }
+    }
+    /* Would standing here shut the district? Counting a tile's open sides is
+       not enough: Highgarden's rose maze has one way in off the road, and the
+       tile it goes through has three open sides. A bannerman put down on it
+       had every neighbour walkable and sealed eighteen tiles and the gardener
+       standing in them behind him. So walk it again with this person in place
+       and insist everything that was reachable still is. */
+    const shutsTheWay = (taken, x, y) => {
+      const blocked = new Set(taken);
+      blocked.add(`${x},${y}`);
+      const seen = new Set(), queue = [[24, gate]];
+      while (queue.length) {
+        const [cx, cy] = queue.pop();
+        const key = `${cx},${cy}`;
+        if (seen.has(key) || blocked.has(key)) continue;
+        if (cx < 24 || cx > 31 || cy < 0 || cy >= grid.length) continue;
+        if (solidHere(cx, cy)) continue;
+        seen.add(key);
+        queue.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+      }
+      for (const key of walkable) if (!blocked.has(key) && !seen.has(key)) return true;
+      return false;
+    };
+    const where = junctions.length >= outsiders.length ? junctions : spots;
+    const taken = new Set();
+    outsiders.forEach((who, i) => {
+      if (!where.length) return;
+      /* Spread through the list, then walk on until a tile that is free and
+         does not close the road: two people on one flagstone is one person you
+         can never speak to. */
+      const k = Math.floor(((i + 1) * where.length) / (outsiders.length + 1));
+      for (let n = 0; n < where.length; n++) {
+        const at = where[(k + n) % where.length];
+        const key = `${at[0]},${at[1]}`;
+        if (taken.has(key)) continue;
+        if (shutsTheWay(taken, at[0], at[1])) continue;
+        taken.add(key);
+        movedNpcs.push({ ...who, x: at[0], y: at[1] });
+        return;
+      }
+    });
   }
 
   const laid = grid.map((r) => r.join(''));
@@ -3713,6 +3798,15 @@ export const MAPS = {
   // =========================================================================
   dragonstone: makeTown({
     outsiders: [
+      /* Somebody to sell a passage. Six of the nine berths in the world had
+         nobody standing at them at all: a ship would carry you to Braavos and
+         then there was not one man on that map who would carry you back, so
+         every port east of the Narrow Sea was a place you sailed to once.
+         An outsider rather than one of the town's own, because Dragonstone's
+         berth is out on the Smoking Strand and the core's coordinates do not
+         reach it - written into `npcs` he ended up halfway up the castle. */
+      { dir: 'down', sprite: 'ironborn', name: 'The Harbourmaster', script: 'ship',
+        data: { line: 'The Harbourmaster: The Strand, and the whole world off the end of it. Say a name and a price and I will find you a hull going that way.' } },
       { dir: 'down', sprite: 'targaryen', name: 'A Stone Cutter', script: 'townTalk',
         data: { line: 'A Stone Cutter: Nobody cut this castle. It was raised out of the rock while it was still soft, and nobody will say by what.' } },
       { dir: 'down', sprite: 'smallfolk', name: 'A Sulphur Gatherer', script: 'townTalk',
@@ -4771,6 +4865,9 @@ export const MAPS = {
     // about Braavos and makes it read as somewhere else at a glance.
     name: 'Braavos', music: 'town', ground: 'stone', wall: '~', floor: 'o',
     npcs: [
+      { x: 12, y: 18, dir: 'left', sprite: 'braavosi', name: 'The Harbourmaster',
+        script: 'ship',
+        data: { line: 'The Harbourmaster: The Purple Harbour takes Braavosi keels and the Ragman\'s takes everyone else. Either will carry you. Only one tells you the true price first.' } },
       { x: 18, y: 6, dir: 'down', sprite: 'braavosi', name: 'Factor of the Iron Bank', script: 'deedBroker',
         data: { property: 'braavosCounting' } },
       { x: 3, y: 6, dir: 'down', name: 'Jaqen H\'ghar', sprite: 'braavosi',
@@ -4837,7 +4934,7 @@ export const MAPS = {
 
   pentos: makeTown({
     outsiders: [
-      { dir: 'down', sprite: 'merchant', name: 'A Spice Factor', script: 'shopHint',
+      { dir: 'down', sprite: 'merchant', name: 'A Spice Factor', script: 'townTalk',
         data: { line: 'A Spice Factor: Pepper, saffron, cloves and things I will not name in front of a stranger. All of it came further than you did.' } },
       { dir: 'down', sprite: 'noble', name: 'A Magister\'s Man', script: 'townTalk',
         data: { line: 'A Magister\'s Man: Pentos has a prince. Every year they ask him to bless the fields, and every so often they cut his throat for a bad harvest.' } },
@@ -4848,6 +4945,9 @@ export const MAPS = {
     dressing: [[9, 16, 'F'], [14, 16, 'F'], [8, 24, 'U'], [15, 24, 'U'], [11, 7, 'F']],
     name: 'Pentos', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
+      { x: 12, y: 18, dir: 'left', name: 'A Pentoshi Captain', sprite: 'merchant',
+        script: 'ship',
+        data: { line: 'A Pentoshi Captain: Pentos has no army, so Pentos has ships instead. It has worked for four hundred years. Where are you going?' } },
       { x: 7, y: 9, dir: 'down', name: 'Illyrio Mopatis', sprite: 'merchant',
         script: 'freeCityLocal', data: { line: 'Illyrio Mopatis: I am a merchant of cheese and spice. '
           + 'Also of kings, occasionally, when the market is right.' } },
@@ -4886,6 +4986,9 @@ export const MAPS = {
     dressing: [[6, 8, 'F'], [17, 8, 'F'], [7, 22, 'F'], [16, 22, 'F'], [3, 20, 'U'], [21, 20, 'U']],
     name: 'Volantis', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
+      { x: 15, y: 8, dir: 'right', name: 'A Volantene Captain', sprite: 'braavosi',
+        script: 'ship',
+        data: { line: 'A Volantene Captain: Down the Rhoyne and out. I do not ask what you did to want leaving this badly, and you do not ask what is under my deck.' } },
       { x: 13, y: 7, dir: 'down', name: 'Red Priestess', sprite: 'redPriest',
         script: 'freeCityLocal', data: { line: 'Red Priestess: The night is dark and full of terrors. '
           + 'Volantis burns a fire against it every hour of every day.' } },
@@ -4928,6 +5031,9 @@ export const MAPS = {
     npcs: [
       { x: 11, y: 6, dir: 'down', name: 'Daenerys Targaryen', sprite: 'targaryen',
         script: 'duel', data: { duel: 'daenerys' } },
+      { x: 12, y: 18, dir: 'left', name: 'A Ghiscari Captain', sprite: 'braavosi',
+        script: 'ship',
+        data: { line: 'A Ghiscari Captain: Eight thousand miles between here and Westeros, and I have sailed every one of them twice. Name the port.' } },
       { x: 7, y: 9, dir: 'down', name: 'Missandei', sprite: 'targaryen',
         script: 'freeCityLocal', data: { line: 'Missandei: I speak nineteen languages. '
           + 'In all of them, this city is complicated.' } },
@@ -7065,10 +7171,13 @@ export const MAPS = {
         script: 'hideoutLocal',
         data: { line: 'Steward: We sent nine ravens south this year. Nine. '
           + 'Not one of them has been answered by anybody who could send men.' } },
+      /* Eastwatch already had the only man on the coast with a keel; he was
+         simply given a script that let him say so and nothing else, which is
+         how the one berth north of the Wall came to sell no passage at all. */
       { x: 5, y: 17, dir: 'right', sprite: 'braavosi', name: 'Braavosi Captain',
-        script: 'hideoutLocal',
-        data: { line: 'Captain: I take cargo, not passengers, and not north. '
-          + 'Whatever is up that coast has stopped buying and started taking.' } },
+        script: 'ship',
+        data: { line: 'Captain: Passengers, then. There is no cargo worth lifting off this coast any more. '
+          + 'Whatever is up there has stopped buying and started taking, and I will still take you to it.' } },
     ],
   }),
 

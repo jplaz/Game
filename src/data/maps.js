@@ -109,13 +109,20 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
     // the house's banners hung either side of the gate. Every town used to have
     // a shed with a door in it here, which is not what a seat of a great house
     // looks like from the road.
-    row(W, fill(2), M, fill(6), M, '-', fill(11), W),
-    row(W, fill(2), A, M.repeat(6), A, '-', g, '!', fill(9), W),
-    row(W, fill(2), A.repeat(8), '-', fill(11), W),
-    row(W, fill(2), A, A, V, A, A, V, A, A, '-', fill(11), W),
-    row(W, fill(2), A.repeat(8), '-', fill(11), W),
-    row(W, fill(2), A, A, A, A, 'D', A, A, A, '-', fill(11), W),
-    row(W, fill(6), '-', fill(3), '-', fill(11), W),
+    /* Ten across rather than eight, crowned the whole way, with towers standing
+       proud at the corners, the house's banners on the face, arrow slits down
+       the flanks — and a moat with a single causeway to the gate. The seat of a
+       great house was an eight-by-six slab of ashlar with two banners and a
+       door in it, which is a warehouse somebody has been sentimental about. The
+       gate stays exactly where it was: every door in this plan is load-bearing
+       for a warp somewhere. */
+    row(W, M.repeat(10), '-', fill(11), W),
+    row(W, M, A.repeat(8), M, '-', g, '!', fill(9), W),
+    row(W, A.repeat(10), '-', fill(11), W),
+    row(W, A, A, V, A, A, A, A, V, A, A, '-', fill(11), W),
+    row(W, A, 'w', A, A, A, A, A, A, 'w', A, '-', fill(11), W),
+    row(W, A.repeat(6), 'D', A.repeat(3), '-', fill(11), W),
+    row(W, ':'.repeat(6), '-', ':'.repeat(3), '-', fill(11), W),
     row(W, fill(2), '-'.repeat(18), fill(2), W),
     row(W, fill(4), 'n', fill(5), '-', fill(4), 'n', fill(6), W),
     /* Below the keep, the part of a town people actually live in.

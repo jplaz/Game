@@ -46,16 +46,13 @@ const MAP_IDS = [
   'kingsroad', 'kingsLanding', 'maesterHallKL', 'klArmoury',
   // The capital, and the four places in it you have to go and find.
   'greatSept', 'dragonpit', 'fleaBottom', 'mudGate',
-  /* The five deeds anybody can buy are browser-only for now: the cartridge has
-     no deedBroker, so shipping their interiors puts five maps on the ROM with
-     no way into any of them, which the audit rightly calls out.
-     
-     This is a real hole and it reads as one from the outside -- "I do not know
-     how to buy castles and lands" is the correct reading of a game where, on
-     the cartridge, you cannot. Putting the maps back is one line; what is
-     actually wanted is a deed a C shop can sell and a door that stays shut
-     until it is sold, and until that exists shipping the rooms alone is worse
-     than not shipping them. */
+  /* The five deeds anybody can buy. These were browser-only for as long as the
+     cartridge had no broker to sell them, which made "I do not know how to buy
+     castles and lands" the plain truth of the console game rather than a
+     misreading of it. There is a broker now, so the rooms come with it: the
+     way into each is the deed, and the way out is a door like any other. */
+  'propFleaRoom', 'propRiverCottage', 'propBraavosCounting',
+  'propValeWatchtower', 'propDorneOrchard',
   'dragonstone', 'maesterHallDragonstone', 'dragonstoneArmoury', 'dragonmont',
   'paintedTable',
   'redKeep', 'barrowCave',
@@ -169,6 +166,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     await import('/src/data/craft.js');
   const { SPECIES } = await import('/src/data/species.js');
   const { SHIPS, FLEETS, SEA_LANES } = await import('/src/data/ships.js');
+  const { PROPERTIES, PROPERTY_IDS } = await import('/src/data/properties.js');
   const shipArt = await import('/src/art/ship.js');
   const { CUTSCENES, CUTSCENE_IDS } = await import('/src/data/cutscenes.js');
   const { QUESTS } = await import('/src/data/quests.js');
@@ -843,9 +841,29 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     intro: DUELLISTS.throneChampion.intro, defeat: DUELLISTS.throneChampion.defeat,
   });
 
+  /* Five things anybody can buy. None of them asks what your house is; the
+     only question is whether the gold is on the table, which makes this the
+     one ladder in the game a player can start climbing on the first morning.
+     The map index is filled in later, once the map table has been built and
+     there is something for it to point at. */
+  const deeds = PROPERTY_IDS.map((id) => {
+    const def = PROPERTIES[id];
+    const dir = ['down', 'up', 'left', 'right'].indexOf(def.at.dir ?? 'down');
+    /* The seller's own name is on the front of every line they say, and the
+       window already puts it in the title bar - so it would be said twice. */
+    const said = (line) => line.replace(/^[A-Z][A-Za-z'\- ]{1,22}:\s+/, '');
+    return {
+      id, name: def.name, where: def.where, summary: def.summary,
+      broker: said(def.broker), deed: said(def.deed), poor: said(def.poor),
+      owned: said(def.owned), rest: def.rest,
+      price: def.price, rent: def.rent,
+      map: def.map, x: def.at.x, y: def.at.y, dir: dir < 0 ? 0 : dir,
+    };
+  });
+
   const out = { maps: [], houses, techniques, learned, duellists, wares, forSale,
                 recipes, spoils, forage, beasts, eggs, tales, throneChampion,
-                swornKinds, hulls, fleets,
+                swornKinds, hulls, fleets, deeds,
                 leaders: [], actors: null };
 
   /* The spine of the game, in the order it is meant to be walked. Nine seats,
@@ -1146,6 +1164,12 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
            permanent walls on the cartridge and the roads behind them would
            never open at all. */
         gate: n.warden ?? 0,
+        /* Who sells a deed, and who keeps the bed behind one. These are the
+           two halves of owning somewhere: a man in a town who will take your
+           gold for a door, and whatever is waiting on the other side of it.
+           Both name the property, so neither has to be placed by hand. */
+        deed: n.script === 'deedBroker' ? PROPERTY_IDS.indexOf(n.data?.property) + 1 : 0,
+        bed: n.script === 'ownBed' ? PROPERTY_IDS.indexOf(n.data?.property) + 1 : 0,
       };
     });
 
@@ -2396,6 +2420,33 @@ L.push(`#define MAP_COUNT ${harvest.maps.length}`);
     L.push('};');
   }
   L.push('');
+  /* --------------------------------------------------------------- deeds ---
+     Five places for sale, and the only question any of the five sellers asks
+     is whether the gold is on the table. A room over a pot-shop in Flea Bottom
+     is nine hundred; the orchard outside Sunspear is twenty-two thousand. It
+     is the one ladder in the game that a player can start climbing on the
+     first morning, and the only one that pays you back for standing on it. */
+  {
+    L.push(`#define DEED_COUNT ${harvest.deeds.length}`);
+    L.push('typedef struct {');
+    L.push('  const char *name, *where, *summary;');
+    L.push('  const char *broker, *paper, *poor, *owned, *rest;');
+    L.push('  u16 price;         /* what the deed costs */');
+    L.push('  u16 rent;          /* gold a thousand paces, drawn when you sleep there */');
+    L.push('  u8 map, x, y, dir; /* the room, and where you come to in it */');
+    L.push('} Deed;');
+    L.push('static const Deed deeds[DEED_COUNT] = {');
+    for (const d of harvest.deeds) {
+      const at = MAP_IDS.indexOf(d.map);
+      if (at < 0) throw new Error(`the deed for ${d.name} names ${d.map}, which is not on the cartridge`);
+      L.push(`  { ${cstr(d.name)}, ${cstr(d.where)}, ${cstr(d.summary)},`);
+      L.push(`    ${cstr(d.broker)}, ${cstr(d.deed)}, ${cstr(d.poor)},`);
+      L.push(`    ${cstr(d.owned)}, ${cstr(d.rest)},`);
+      L.push(`    ${d.price}, ${d.rent}, ${at}, ${d.x}, ${d.y}, ${d.dir} },  /* ${d.id} */`);
+    }
+    L.push('};');
+    L.push('');
+  }
   L.push('/* How hard the ground is on every map, measured from each house seat in');
   L.push('   turn: level three at your own gate and level forty-four at the far end');
   L.push('   of the world, however many doors that happens to be. */');
@@ -2413,6 +2464,9 @@ L.push('typedef struct { u8 beast, level; } Wild;');
 L.push('typedef struct { u8 x, y, ware; u16 gold; } Chest;');
 L.push('typedef struct {');
 L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sails, holds, weds, ranges, evening, gate, builds;');
+/* Which deed this one sells, and whose bed this one keeps: the property
+   index plus one, and nobody is 0. */
+L.push('  u8 deed, bed;');
 L.push('  u16 duellist;');
 L.push('  const char *name, *line;');
 L.push('} Npc;');
@@ -2517,14 +2571,14 @@ harvest.maps.forEach((map, i) => {
       name = n.name.startsWith(spoken[1]) ? n.name : spoken[1];
       line = spoken[2];
     }
-    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.ranges}, ${n.evening}, ${n.gate}, ${n.builds}, ${n.duellist},`);
+    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.ranges}, ${n.evening}, ${n.gate}, ${n.builds}, ${n.deed}, ${n.bed}, ${n.duellist},`);
     L.push(`    ${cstr(name)}, ${cstr(line.trim())} },`);
   }
   /* One row of nothing, so an empty table is still a legal array. Every number
      the struct declares, spelt out: it used to carry twelve for eighteen
      fields, which quietly slid the two strings onto `weds` and `ranges`. */
   if (!map.npcs.length) {
-    L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');
+    L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');
   }
   L.push('};');
   L.push('');

@@ -1509,6 +1509,20 @@ typedef struct {
   u8 bastTaken[3];                    /* sworn to you and gone from the house */
   u16 eveAt;                          /* fights until word comes, 0 none coming */
   u8 eveMap;                          /* where the evening was spent */
+  /* Deeds. Everything you could own in this game was a consequence of somebody
+     granting you a title: you took a hall off whoever was holding it, or you
+     were given a seat for winning. Nothing was for sale to a man with nothing
+     but money, which meant the first several hours of the game had gold in
+     them and nothing at all to do with it.
+
+     These five are for sale, and none of the five sellers asks what your house
+     is. A room over a pot-shop in Flea Bottom is nine hundred - about an hour
+     in - and the orchard outside Sunspear is twenty-two thousand. A deed buys
+     three things: somewhere the world cannot follow you, a bed that becomes
+     where you wake when you go down, and rent. */
+  u8 deeds;                           /* one bit each, in the deed table's order */
+  u32 paces;                          /* steps walked, which is the rent's clock */
+  u32 rentMark[DEED_COUNT];           /* the pace each was last drawn at */
 } You;
 
 #define HEIR_MAX 4
@@ -4194,6 +4208,9 @@ typedef struct {
   u16 swoopAt;
   u8 bastards, bastMap[3], bastTaken[3], eveMap;
   u16 bastBorn[3], eveAt;
+  /* What you have bought, and what it has earned since you last drew on it. */
+  u8 deeds;
+  u32 paces, rentMark[DEED_COUNT];
   u8 pad2, pad3b, pad4b;
   u16 sigils, pad3;
   u8 eggWins, tamed, lead, pad4;
@@ -4271,6 +4288,9 @@ static void keepRecord(void) {
   record.bastards = you.bastards;
   record.eveMap = you.eveMap;
   record.eveAt = you.eveAt;
+  record.deeds = you.deeds;
+  record.paces = you.paces;
+  { int d; for (d = 0; d < DEED_COUNT; d++) record.rentMark[d] = you.rentMark[d]; }
   { int k; for (k = 0; k < 3; k++) {
       record.bastMap[k] = you.bastMap[k];
       record.bastTaken[k] = you.bastTaken[k];
@@ -4377,6 +4397,9 @@ static void takeUpRecord(void) {
   you.bastards = record.bastards;
   you.eveMap = record.eveMap;
   you.eveAt = record.eveAt;
+  you.deeds = record.deeds;
+  you.paces = record.paces;
+  { int d; for (d = 0; d < DEED_COUNT; d++) you.rentMark[d] = record.rentMark[d]; }
   { int k; for (k = 0; k < 3; k++) {
       you.bastMap[k] = record.bastMap[k];
       you.bastTaken[k] = record.bastTaken[k];
@@ -4455,6 +4478,9 @@ static int afterWindow;
    list opens once they have finished talking, the same way a counter does. */
 static int afterPort;
 static int afterYard;
+/* Set when the person who just spoke sells a deed, so what is for sale opens
+   as their line closes. */
+static int afterLand;
 /* Set when a kennelmaster has finished saying what they say, so the cages open
    as the window closes rather than needing a second press on the same person. */
 static int afterHold;
@@ -5014,6 +5040,10 @@ void newGameState(void) {
   you.eveAt = 0;
   you.eveMap = 0;
   { int k; for (k = 0; k < 3; k++) { you.bastMap[k] = 0; you.bastTaken[k] = 0; you.bastBorn[k] = 0; } }
+  /* And nobody starts owning anything. */
+  you.deeds = 0;
+  you.paces = 0;
+  { int k; for (k = 0; k < DEED_COUNT; k++) you.rentMark[k] = 0; }
 }
 
 /* Takes somebody's oath. Returns 0 when there is nobody left to take it. */
@@ -5303,6 +5333,151 @@ static void paintPort(void) {
  */
 
 static int yardPick;
+
+/* ------------------------------------------------------------- the deeds ---
+ *
+ * Five places for sale, and five people standing in five towns who will sell
+ * one each. Nothing else in this game can be bought outright: a hall is taken
+ * off whoever is holding it, a seat is granted for winning, and until now the
+ * gold you made in the first several hours had nothing to do but sit there.
+ *
+ * The seller you are talking to sells one of these. The panel shows all five
+ * anyway, with what each costs and what town it is in, because a player who
+ * does not know the ladder exists cannot climb it - and "I do not know how to
+ * buy castles and lands" is what happens when they cannot see it.
+ */
+
+static int landPick;         /* which row the cursor is on */
+static int landSeller = -1;  /* the property this broker sells, -1 for none */
+static int landGo = -1;      /* a property to be put down in once the panel closes */
+
+static int ownsLand(int i) { return i >= 0 && i < DEED_COUNT && (you.deeds >> i) & 1; }
+
+/* What a place has earned since you last drew on it. Rent is quoted a thousand
+   paces, so this is only ever a few coins at a time early on and a reason to
+   walk back to Dorne later. */
+static int rentDue(int i) {
+  u32 since;
+  if (!ownsLand(i) || !deeds[i].rent) return 0;
+  since = you.paces - you.rentMark[i];
+  return (int)((since / 1000u) * deeds[i].rent);
+}
+
+static void drawLandRow(int i, int y) {
+  int mine = ownsLand(i);
+  int able = !mine && you.gold >= (int)deeds[i].price;
+  if (i == landPick) drawCursor(14, y + 1, C_GOLD);
+  drawText(24, y, deeds[i].name,
+    mine ? C_INK : (!able ? C_DIM : (i == landPick ? C_GOLD : C_INK)));
+  if (mine) {
+    drawText(TXT_W - 52, y, "yours", C_GOLD);
+  } else {
+    copyString(scratch, "", sizeof scratch);
+    appendNumber(scratch, (int)deeds[i].price, sizeof scratch);
+    drawText(TXT_W - 24 - textWidth(scratch), y, scratch, able ? C_GOLD : C_DYING);
+  }
+}
+
+static void paintLand(void) {
+  int i;
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
+  drawText(14, 6, "WHAT IS FOR SALE", C_GOLD);
+  showGold(6);
+  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+  for (i = 0; i < DEED_COUNT; i++) drawLandRow(i, 22 + i * 11);
+  fillRect(14, TXT_H - 42, TXT_W - 28, 1, C_EDGE);
+  /* Underneath, whichever one the cursor is on: where it is, and either what
+     it is or what it has made you. */
+  {
+    int k, owed = rentDue(landPick);
+    copyString(scratch, deeds[landPick].where, sizeof scratch);
+    if (ownsLand(landPick)) {
+      if (deeds[landPick].rent) {
+        appendString(scratch, "  -  ", sizeof scratch);
+        appendNumber(scratch, owed, sizeof scratch);
+        appendString(scratch, " waiting on you there", sizeof scratch);
+      }
+    } else if (landPick != landSeller) {
+      appendString(scratch, "  -  ask for it there", sizeof scratch);
+    }
+    drawText(14, TXT_H - 36, scratch, C_DIM);
+    wrapText(deeds[landPick].summary, TXT_W - 28);
+    for (k = 0; k <= lineCount && k < 2; k++) {
+      drawText(14, TXT_H - 26 + k * 10, lines[k], C_DIM);
+    }
+  }
+  drawText(14, TXT_H - 14,
+    ownsLand(landPick) ? "A: go there    B: another day"
+                       : "A: buy it      B: another day", C_DIM);
+}
+
+/* Buys one, or goes to one you own. Returns what the seller says about it,
+   or 0 when the answer is a journey rather than a sentence. */
+static const char *landTake(int which) {
+  if (ownsLand(which)) { landGo = which; return 0; }
+  /* Everybody sells one thing. Sending you to the right town is more use than
+     refusing, and it is the only way the far end of the ladder is ever
+     mentioned to somebody standing at the near end of it. */
+  if (which != landSeller) {
+    copyString(scratch, "That one is not mine to sell. You want ", sizeof scratch);
+    appendString(scratch, deeds[which].where, sizeof scratch);
+    appendString(scratch, ", and somebody there who will look you in the eye.",
+      sizeof scratch);
+    return scratch;
+  }
+  if (you.gold < (int)deeds[which].price) { sfxLost(); return deeds[which].poor; }
+  you.gold -= (int)deeds[which].price;
+  you.deeds |= (u8)(1 << which);
+  /* Rent starts running from the moment the deed changes hands, not from the
+     first step you ever took. */
+  you.rentMark[which] = you.paces;
+  sfxRank();
+  return deeds[which].paper;
+}
+
+/* Your own bed. Sleeping in a place you paid for does three things a bed in
+   somebody else's inn does not: it puts everybody who travels with you back
+   together, it draws whatever the place has earned while you were away, and it
+   moves where you wake up when somebody puts you down. That last one is worth
+   more than the other two - a room in Flea Bottom for nine hundred gold means
+   losing a fight in the capital costs you a walk across a street. */
+static void restAtOwn(int which, const char *who) {
+  int i, owed;
+  if (!ownsLand(which)) {
+    openWindow(who, "Somebody else's bed, in somebody else's room. They will "
+                    "want it back before dark.");
+    return;
+  }
+  owed = rentDue(which);
+  you.gold += owed;
+  you.rentMark[which] = you.paces;
+  you.hp = vigourFor(you.level);
+  mine.hp = you.hp;
+  mine.bleeding = 0;
+  mine.burning = 0;
+  for (i = 0; i < PARTY_MAX; i++) {
+    if (you.party[i].kind != 255) {
+      you.party[i].hp = beastVigour(you.party[i].kind, you.party[i].level);
+    }
+  }
+  for (i = 0; i < HOST_MAX; i++) {
+    if (you.host[i].kind != 255) {
+      you.host[i].hp = swornVigour(you.host[i].kind, you.host[i].level);
+    }
+  }
+  you.haven = worldId;
+  you.havenX = (u8)(hero.px >> 4);
+  you.havenY = (u8)(hero.py >> 4);
+  copyString(scratch, deeds[which].rest, sizeof scratch);
+  if (owed > 0) {
+    appendString(scratch, "\n\n", sizeof scratch);
+    appendNumber(scratch, owed, sizeof scratch);
+    appendString(scratch, " gold had come in while you were gone.", sizeof scratch);
+  }
+  sfxYes();
+  openWindow(who, scratch);
+}
 
 /* Half of what he charged you, and nothing for a hull that is half sunk. */
 static int tradeIn(void) {
@@ -7119,6 +7294,7 @@ static void paintTitle(void) {
 #define SCENE_RIDE 18     /* where a maester will find you a horse to */
 #define SCENE_YARD 19     /* four hulls on the stocks, and a man to mend one */
 #define SCENE_SEA  20     /* somebody has come over the horizon at you */
+#define SCENE_LAND 21     /* what is for sale, and who is selling it */
 
 static int scene;
 
@@ -8975,6 +9151,19 @@ static void tryTalk(void) {
         return;
       }
     }
+    /* Somebody with a deed to sell says what they are selling, and says it in
+       their own words - a widow going to her sister in Maidenpool does not
+       talk like the Iron Bank. Once it is yours they say so instead, and
+       either way what is for sale opens behind the line. */
+    if (npc->deed) {
+      int which = npc->deed - 1;
+      landSeller = which;
+      afterLand = 1;
+      openWindow(npc->name, ownsLand(which) ? deeds[which].owned : deeds[which].broker);
+      return;
+    }
+    /* And whoever keeps the bed behind one. */
+    if (npc->bed) { restAtOwn(npc->bed - 1, npc->name); return; }
     /* Everybody has something for somebody who stops to speak to them, once.
        The road was full of people who said a line and gave nothing, so there
        was no reason to talk to any of them twice, or often once. What they give
@@ -9973,6 +10162,36 @@ int main(void) {
           openWindow("Shipwright", said);
         }
       }
+    } else if (scene == SCENE_LAND) {
+      int was = landPick;
+      if (hit(KEY_UP) && landPick > 0) landPick--;
+      if (hit(KEY_DOWN) && landPick < DEED_COUNT - 1) landPick++;
+      if (landPick != was) { sfxPick(); paintLand(); }
+      if (hit(KEY_B)) {
+        scene = SCENE_WORLD;
+        clearPage();
+        layoutTextRows(TEXT_PLAY);
+      } else if (hit(KEY_A)) {
+        /* Either the seller says something about it, or you are already on
+           your way. The two are never both true. */
+        const char *said = landTake(landPick);
+        if (said) {
+          int titled = landPick;
+          scene = SCENE_WORLD;
+          clearPage();
+          layoutTextRows(TEXT_PLAY);
+          openWindow(deeds[titled].name, said);
+        } else if (landGo >= 0) {
+          int go = landGo;
+          landGo = -1;
+          scene = SCENE_WORLD;
+          clearPage();
+          layoutTextRows(TEXT_PLAY);
+          enterMap(deeds[go].map, deeds[go].x, deeds[go].y, deeds[go].dir);
+        } else {
+          paintLand();
+        }
+      }
     } else if (scene == SCENE_SEA) {
       int was = seaPick;
       if (!seaOver) {
@@ -10267,6 +10486,16 @@ int main(void) {
               clearPage();
               layoutTextRows(TEXT_TOP);
               paintYard();
+            } else if (afterLand) {
+              /* The cursor opens on the one this seller actually has, so the
+                 first press of A is on the thing in front of you rather than
+                 on a room in another kingdom. */
+              afterLand = 0;
+              landPick = landSeller >= 0 ? landSeller : 0;
+              scene = SCENE_LAND;
+              clearPage();
+              layoutTextRows(TEXT_TOP);
+              paintLand();
             } else if (afterPort) {
               int mine = portHere();
               afterPort = 0;
@@ -10308,6 +10537,10 @@ int main(void) {
         if (!hero.walk) hopping = 0;
         if (!hero.walk) {
           const Warp *warp = warpAt(hero.px >> 4, hero.py >> 4);
+          /* One more step walked. Nothing in the game turned on how far you
+             had gone before; rent does, which is the point of it - a place you
+             own earns while you are off being somewhere else. */
+          you.paces++;
           /* Off the sand into the water is getting aboard, and running her up
              a beach is stepping off. Nobody presses a button for it: on a sea
              the ground under your feet is the whole of the question. */

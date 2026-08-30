@@ -70,6 +70,7 @@ static unsigned char anyRoad[MAP_COUNT];
 static int seatsAtBerth;
 static int portsSeen, sailed, talesSeen, crownRun;
 static int yardsSeen, hullsBought, yardHeld;   /* the shipwright's */
+static int landsSeen, deedsBought, roomsSeen, landHeld;  /* what is for sale */
 static int seaFights, seaHeld, putToSeaCount;  /* and what is out on it */
 static int partiesSeen, partyLooks, swaps;
 static int npcTalked[MAP_COUNT][MAX_CROWD];
@@ -103,7 +104,7 @@ static void checkFrame(void) {
     finding("a window ran off the end of its lines and lost text");
     wrapLost = 0;
   }
-  if (scene < 0 || scene > SCENE_SEA) finding("scene is %d, which is not a scene", scene);
+  if (scene < 0 || scene > SCENE_LAND) finding("scene is %d, which is not a scene", scene);
   /* Nothing is standing anywhere yet on the screens that come before the
      world, and there is no map to be standing on. */
   if (scene == SCENE_TITLE || scene == SCENE_HOUSE || scene == SCENE_NAME) return;
@@ -1117,6 +1118,31 @@ void hostFrame(void) {
     if (want < 0 || yardHeld > 500) keys = tap(KEY_B);
     else if (yardPick != want) keys = tap(yardPick < want ? KEY_DOWN : KEY_UP);
     else { keys = tap(KEY_A); if (keys) { hullsBought++; yardHeld = 0; } }
+  } else if (scene == SCENE_LAND) {
+    /* What is for sale. Buy the one this seller actually has if the purse will
+       carry it, then walk out. A run that only ever reads the list has not
+       tested that the gold comes off, the deed goes on, or that the room on the
+       other side is somewhere you can stand and somewhere you can leave. */
+    int want = -1, i;
+    landsSeen++;
+    for (i = 0; i < DEED_COUNT; i++) {
+      if (!ownsLand(i) && i == landSeller && you.gold >= (int)deeds[i].price) want = i;
+    }
+    /* And once one is bought, go and stand in it. */
+    if (want < 0) {
+      for (i = 0; i < DEED_COUNT; i++) if (ownsLand(i) && i == landSeller) want = i;
+    }
+    if (++landHeld > 900) {
+      finding("a deed-seller that %d frames of pressing B would not leave", landHeld);
+      landHeld = 0;
+      want = -1;
+    }
+    if (want < 0 || landHeld > 500) keys = tap(KEY_B);
+    else if (landPick != want) keys = tap(landPick < want ? KEY_DOWN : KEY_UP);
+    else {
+      keys = tap(KEY_A);
+      if (keys) { if (!ownsLand(want)) deedsBought++; else roomsSeen++; landHeld = 0; }
+    }
   } else if (scene == SCENE_SEA) {
     /* Somebody has come over the horizon. Go in bow-first every time and read
        whatever comes of it: what is being tested is that the fight ends and
@@ -1792,6 +1818,8 @@ int main(int argc, char **argv) {
   printf("  passage list   opened %d times, sailed %d\n", portsSeen, sailed);
   printf("  the stocks     %d visits, %d hulls bought, put to sea %d, %d fought at sea\n",
     yardsSeen, hullsBought, putToSeaCount, seaFights);
+  printf("  what is for sale  %d visits, %d deeds bought, %d walked into\n",
+    landsSeen, deedsBought, roomsSeen);
   printf("  the last act   %d pages read, story at %d\n", talesSeen, you.story);
   printf("  the party card %d visits, %d sent out in front\n", partiesSeen, swaps);
   if (crownRun && you.story < 3) {

@@ -189,6 +189,17 @@ static int firstWayIn(const Map *mp, int m) {
       return ports[i].y * mp->w + ports[i].x;
     }
   }
+  /* A room you own has no door into it either, for the same reason a strongbox
+     has no handle on the inside: the way in is the deed. Five sellers stand in
+     five towns, and buying from one puts you down in the room - so the tile the
+     deed names is this map's front door, and everything else about it (that you
+     can walk out, that the bed can be stood next to) follows from there. */
+  for (i = 0; i < DEED_COUNT; i++) {
+    if (deeds[i].map == m) {
+      flood(mp, deeds[i].x, deeds[i].y);
+      return deeds[i].y * mp->w + deeds[i].x;
+    }
+  }
   /* A sea has no door into it at all. You put out from a quay in a hull you
      bought, which is not a warp anybody can follow backwards, so the way in is
      the sea's own side of the first thing on its shore. */
@@ -976,6 +987,60 @@ int main(void) {
         bad("%s can be left by ship only, and only by somebody who can still "
             "pay the fare", maps[m].name);
       }
+    }
+  }
+
+  /* --- the five things anybody can buy ------------------------------------ */
+  /* A deed is the only way into the room it names, so everything about it has
+     to hold at once: somebody must be selling it, the room must exist, the tile
+     it puts you down on must be one you can stand on, and there has to be a way
+     back out. Any one of those missing is a player who paid and got nothing, or
+     worse, paid and got shut in. */
+  {
+    int d;
+    for (d = 0; d < DEED_COUNT; d++) {
+      const Map *room = &maps[deeds[d].map];
+      int sellers = 0, beds = 0, k2, mm;
+      for (mm = 0; mm < MAP_COUNT; mm++) {
+        for (k2 = 0; k2 < maps[mm].npcCount; k2++) {
+          if (maps[mm].npcs[k2].deed == d + 1) sellers++;
+          if (maps[mm].npcs[k2].bed == d + 1) beds++;
+        }
+      }
+      if (sellers != 1) {
+        bad("%s has %d people selling it; it wants exactly one",
+            deeds[d].name, sellers);
+      }
+      if (beds != 1) {
+        bad("%s has %d beds in it; it wants exactly one", deeds[d].name, beds);
+      }
+      if (deeds[d].x >= room->w || deeds[d].y >= room->h
+          || solidOn(room, deeds[d].x, deeds[d].y)) {
+        bad("%s puts you down at %d,%d, which is inside a wall",
+            deeds[d].name, deeds[d].x, deeds[d].y);
+      }
+      if (!room->warpCount) {
+        bad("%s has no way out of it: buying it is a trap", deeds[d].name);
+      }
+      /* And it has to be worth having. A place that costs more than the game
+         ever hands you is a shop window. */
+      if (deeds[d].price > 30000) {
+        bad("%s costs %d, which is more gold than the game has in it",
+            deeds[d].name, (int)deeds[d].price);
+      }
+    }
+    /* The ladder should start somewhere a player can reach early. Everything
+       for sale costing four figures is the same as nothing being for sale. */
+    {
+      int cheapest = 0x7FFF;
+      for (d = 0; d < DEED_COUNT; d++) {
+        if ((int)deeds[d].price < cheapest) cheapest = (int)deeds[d].price;
+      }
+      if (cheapest > 2000) {
+        bad("the cheapest thing for sale is %d gold, which is not a ladder "
+            "anybody can start climbing", cheapest);
+      }
+      note("%d things for sale, from %d gold up", DEED_COUNT, cheapest);
     }
   }
 

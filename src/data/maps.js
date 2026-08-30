@@ -7374,7 +7374,7 @@ export const MAPS = {
       { x: 21, y: 5, item: 'valyrianShard', count: 1, flag: 'item_hh_shard' },
       { x: 2, y: 15, item: 'maestersSalts', count: 2, flag: 'item_hh_salts' },
       { x: 21, y: 15, item: 'dragonchain', count: 1, flag: 'item_hh_chain' },
-      { x: 11, y: 20, item: 'weirwoodPaste', count: 1, flag: 'item_hh_paste' },
+      { x: 11, y: 17, item: 'weirwoodPaste', count: 1, flag: 'item_hh_paste' },
     ],
   },
 

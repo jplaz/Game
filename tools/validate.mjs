@@ -35,6 +35,10 @@ const tileAt = (map, x, y) => (
 const kindAt = (map, x, y) => TILE_DEFS[tileAt(map, x, y)]?.kind ?? 'solid';
 const walkable = (map, x, y) => {
   const kind = kindAt(map, x, y);
+  /* On the open sea the water is the road. A map marked `sea` is one you cross
+     in a ship, so a warp standing on water there is a crossing rather than a
+     mistake -- see the same rule in tools/checkmaps.mjs. */
+  if (map?.sea && kind === 'water') return true;
   return kind === 'floor' || kind === 'encounter' || kind === 'ledge';
 };
 

@@ -4881,6 +4881,7 @@ export const MAPS = {
       isle(19, 21, 3, 2);
       put(11, 22, 'C');
       crossing('s', 6, 16, 'theGullet');
+      crossing('n', 10, 20, 'shiveringSea');
     },
   }),
 

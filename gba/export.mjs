@@ -1073,7 +1073,13 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
           && !/hint/i.test(n.script ?? '') ? 1 : 0,
         /* A harbourmaster is not a shopkeeper: speaking to one opens the
            passage list rather than a counter. */
-        sails: /^(ship|harbour)/i.test(n.script ?? '') ? 1 : 0,
+        /* Exact names, not prefixes. This decides who sells passage across the
+           Narrow Sea, and it read as a prefix -- so the moment a shipwright and
+           a harbourmaster existed, both of them silently became ferry captains
+           on the cartridge and neither of them said anything about it here.
+           Deriving a capability from the spelling of a script name is a trap
+           every time; at least make it an exact one. */
+        sails: /^(ship|harbour)$/i.test(n.script ?? '') ? 1 : 0,
         /* A kennelmaster boards what you cannot carry. Speaking to one opens
            the holdfast rather than a counter or a conversation. */
         holds: /^kennel/i.test(n.script ?? '') ? 1 : 0,

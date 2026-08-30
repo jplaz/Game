@@ -243,3 +243,6 @@ for (const [id, map] of Object.entries(MAPS)) {
 }
 
 console.log(problems ? `\n${problems} problems` : `\n${Object.keys(MAPS).length} maps, nothing wrong`);
+/* And say so in the exit code, so the cartridge build can refuse to spend
+   twenty-five minutes packing a world you cannot walk across. */
+process.exit(problems ? 1 : 0);

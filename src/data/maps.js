@@ -1769,12 +1769,15 @@ function pykePlan() {
   /* Walkways down both flanks, because the bridge lands on the north face and
      the gate is on the south one — without them the two halves of the stack are
      walled apart and the keep is a door you can see and never reach. */
+  /* Five wide, not seven. Seven left a one-tile walkway down each flank, and a
+     walkway one tile wide is a walkway one person closes: two Ironborn standing
+     about cut the keep door off from both sides at once. At five the stack is a
+     ring, and a ring survives somebody standing in it. */
   span(8, 17, 9, 7, 'o');
-  row(9, 18, 'MMMMMMM');
-  row(9, 19, 'MAAAAAM');
-  row(9, 20, 'AAvAvAA');
-  row(9, 21, 'AwAAAwA');
-  row(9, 22, 'AAADAAA');                     // door at 12,22
+  row(10, 18, 'MMMMM');
+  row(10, 19, 'MAvAM');
+  row(10, 20, 'AwAwA');
+  row(10, 21, 'AADAA');                      // door at 12,21
   bridgeV(12, 15, 16);
   bridgeV(12, 24, 25);
   bridgeV(12, 26, 26);
@@ -1870,15 +1873,19 @@ function stormsEndCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
 
   // and the rest of it against the south wall: an inn, a house, a cellar
   put(7, 17, 'n'); put(16, 17, 'n');
-  row(5, 18, y.repeat(5)); row(5, 19, Y.repeat(5)); row(5, 20, H + 'wDw' + H);
-  row(14, 18, y.repeat(5)); row(14, 19, Y.repeat(5)); row(14, 20, H + 'wDw' + H);
+  /* Four wide, not five. Drawn at five the inn, the cellar and the house met
+     edge to edge and walled the yard clean across -- a third of this castle sat
+     behind a building nobody could walk round, and because there were doors on
+     both sides of the wall every check in the place was satisfied. */
+  row(5, 18, y.repeat(4)); row(5, 19, Y.repeat(4)); row(5, 20, H + 'wD' + H);
+  row(15, 18, y.repeat(4)); row(15, 19, Y.repeat(4)); row(15, 20, H + 'Dw' + H);
   row(10, 19, z.repeat(4)); row(10, 20, A + 'D' + A + A);
 
   return {
     tiles: done(),
     doors: {
       maester: [7, 5], forge: [16, 5], keep: [11, 15],
-      cellar: [11, 20], inn: [7, 20], house: [16, 20],
+      cellar: [11, 20], inn: [7, 20], house: [16, 20],   // gaps at x=9 and x=14
       northGate: [11, 0], southGate: [11, 26],
     },
   };
@@ -2450,10 +2457,12 @@ function eyriePlan() {
   row(18, 10, 'ZZZZZ');
   row(18, 11, 'AwDwA');                // armoury door at 20,11
   span(4, 12, 20, 2, 'o');
-  /* Braziers two columns clear of where anybody stands. A brazier on one row of
-     a two-row walkway and a man on the other is a wall with a gap you can see
-     through and not walk through. */
-  put(12, 12, 'F'); put(18, 12, 'F');
+  /* Braziers at the two ends of the walkway and nowhere else. A brazier on one
+     row of a two-row walkway and somebody on the other is a wall with a gap you
+     can see through and cannot walk through -- and the steward here WANDERS, so
+     "nobody stands there" is not a thing this map gets to assume. At the ends
+     the worst either of them can do is strand the one tile behind it. */
+  put(4, 12, 'F'); put(23, 12, 'F');
 
   span(17, 14, 3, 5, '/');
 
@@ -4964,7 +4973,7 @@ export const MAPS = {
       { x: 12, y: 0, to: 'pykeBridge', tx: 6, ty: 18, dir: 'up' },
       { x: 5, y: 12, to: 'maesterHallPyke', tx: 5, ty: 7, dir: 'up' },
       { x: 21, y: 12, to: 'pykeForge', tx: 5, ty: 6, dir: 'up' },
-      { x: 12, y: 22, to: 'pykeKeep', tx: 7, ty: 12, dir: 'up' },
+      { x: 12, y: 21, to: 'pykeKeep', tx: 7, ty: 12, dir: 'up' },
       { x: 12, y: 26, to: 'lordsportDocks', tx: 11, ty: 2, dir: 'down' },
     ],
     signs: [

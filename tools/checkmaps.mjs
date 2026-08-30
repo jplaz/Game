@@ -171,11 +171,23 @@ for (const [id, map] of Object.entries(MAPS)) {
   /* The trap. Coming in by one door, you have to be able to leave by some
      door - a drop you cannot climb back up, with no way on, is a dead end you
      have to reset the cartridge to get out of. */
+  /* Every door has to reach EVERY other door, not merely some other door.
+     Asking only for one was the hole Storm's End went through: an inn, a
+     cellar and a house drawn side by side walled the yard clean across, and
+     because there were doors on both sides of the wall every one of them
+     could still reach a door, so this said nothing at all while a third of
+     the castle sat behind a building nobody could walk round. */
   for (const w of ways) {
     if (!stand(w.x, w.y)) continue;
     const out = flood([[w.x, w.y]], false);
-    if (!ways.some((v) => v !== w && out.has(`${v.x},${v.y}`))
-        && !ways.some((v) => v === w && out.has(`${v.x},${v.y}`) && ways.length === 1)) {
+    const cut = ways.filter((v) => v !== w && stand(v.x, v.y) && !out.has(`${v.x},${v.y}`));
+    if (cut.length) {
+      say(`${id}: coming in at ${w.x},${w.y} from ${w.to}, you cannot reach `
+        + `${cut.length === 1 ? 'the way' : `${cut.length} of the ways`} out `
+        + `(${cut.slice(0, 3).map((v) => `${v.x},${v.y}`).join(' ')})`);
+      break;   /* one report a map: they all say the same thing */
+    }
+    if (!ways.some((v) => out.has(`${v.x},${v.y}`))) {
       say(`${id}: coming in at ${w.x},${w.y} from ${w.to}, there is no way back out`);
     }
   }

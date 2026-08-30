@@ -18,6 +18,19 @@ HOSTFLAGS="-DHOST_TEST -O1 -Wall -Wno-unused-function"
 # everybody's time, and there was no way to tell them apart at all until now.
 printf '#define BUILD_STAMP "%s"\n' "$(date -u +%Y-%m-%d\ %H:%M)" > build.h
 
+# The two checks that cost a second here and half an hour at the far end, run
+# BEFORE the export rather than after it -- they were below it, which is a
+# perfectly good place to be told the world is broken twenty-five minutes after
+# you could have been told.
+#
+# The audit at the end of this script finds both of these too, but wearing a
+# disguise: it floods each map from the tile the house that lives there starts
+# on, so three houses starting inside a wall came out as four unreachable
+# chests, a seat with nothing on it, and a walkable tile with nothing to find --
+# six problems, none of which mentioned a start position, all of them one bug.
+node ../tools/checkmaps.mjs || exit 1
+node ../tools/checkstarts.mjs || exit 1
+
 # data.h is generated from the browser game's own painters and tables by
 # export.mjs, which is not cheap and so is not run every time. Building without
 # it when the sources have moved on silently tests the last world rather than
@@ -40,16 +53,6 @@ for f in ../src/data/*.js ../src/art/*.js; do
   node --check "$f" || exit 1
 done
 
-# And the two checks that cost a second here and half an hour at the far end.
-#
-# The audit at the end of this script finds both of these, but only after the
-# export and the compile. Worse, it finds them wearing a disguise: the audit
-# floods each map from the tile the house that lives there starts on, so three
-# houses starting inside a wall came out as four unreachable chests, a map with
-# nothing on it at all, and a walkable tile with nothing to find - six problems,
-# none of which mentioned a start position, all of them one bug.
-node ../tools/checkmaps.mjs || exit 1
-node ../tools/checkstarts.mjs || exit 1
 
 # The font is indexed by byte, so a curly quote or an em dash in a line the game
 # draws comes out as three wrong glyphs. Catch it before it is ever seen.

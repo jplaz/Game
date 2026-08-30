@@ -964,12 +964,23 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
          door with the chest in place, and if a single tile stops being
          reachable, or a neighbour is left with one way out, it does not go
          there. Generated placement has to be checked, not trusted. */
-      const blocked = new Set();
+      /* And the walk has to know what is already standing on the map. This
+         asked the tile grid alone, so it strolled through the chests the map
+         places by hand and through the people standing on it - and a nook that
+         severs nothing on an empty floor severs plenty once the furniture is
+         counted. Harrenhal's west wing had two ways round; the poppy milk sat
+         in one of them, this dropped a purse in the other, and the whole wing
+         then hung on a single tile in the yard. */
+      const blocked = new Set([...chestAt, ...people]);
+      const seeded = blocked.size;
       const reach = () => {
-        const start = (map.warps ?? []).find((w) => walkable(w.x, w.y))
+        const start = (map.warps ?? []).find((w) => walkable(w.x, w.y)
+            && !blocked.has(`${w.x},${w.y}`))
           ?? (() => {
             for (let y = 0; y < height; y++) {
-              for (let x = 0; x < width; x++) if (walkable(x, y)) return { x, y };
+              for (let x = 0; x < width; x++) {
+                if (walkable(x, y) && !blocked.has(`${x},${y}`)) return { x, y };
+              }
             }
             return null;
           })();
@@ -1042,8 +1053,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         if (took.length >= want) break;
         if (took.some((t) => Math.abs(t.x - spot.x) + Math.abs(t.y - spot.y) < 6)) continue;
         blocked.add(`${spot.x},${spot.y}`);
-        /* Nothing behind it, and nothing beside it left with one way out. */
-        const severs = reach() !== whole - blocked.size;
+        /* Nothing behind it, and nothing beside it left with one way out.
+           `whole` was already measured with the furniture standing, so only
+           the nooks laid since then come off the count. */
+        const severs = reach() !== whole - (blocked.size - seeded);
         const pinches = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([ox, oy]) => {
           const nx = spot.x + ox, ny = spot.y + oy;
           return walkable(nx, ny) && !blocked.has(`${nx},${ny}`) && openAt(nx, ny) < 2;

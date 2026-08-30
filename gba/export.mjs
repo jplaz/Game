@@ -1206,10 +1206,15 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const flagAt = (name) => {
     let at = sceneFlags.indexOf(name);
     if (at < 0) { at = sceneFlags.length; sceneFlags.push(name); }
-    /* Three words of them. One was not enough the moment the scenes became a
+    /* Four words of them. One was not enough the moment the scenes became a
        story: ten scenes with three answers apiece is thirty flags before a
-       single quest is counted. */
-    if (at >= 96) throw new Error('more story flags than three words hold');
+       single quest is counted. Three was not enough either — the count stood
+       at ninety-five of ninety-six with four side quests written, so the fifth
+       quest anybody added was always going to be the one that broke the
+       build. Widening the record invalidates saves written by an older
+       cartridge, which fail the checksum and are treated as no save rather
+       than as a corrupt one. */
+    if (at >= 128) throw new Error('more story flags than four words hold');
     return at;
   };
   const scenes = [];
@@ -2036,7 +2041,7 @@ L.push(`#define CUT_COUNT ${harvest.scenes.length}`);
 L.push(`#define BEAT_COUNT ${harvest.beats.length}`);
 L.push(`#define CHOICE_COUNT ${Math.max(1, harvest.choices.length)}`);
 L.push(`#define STORY_FLAGS ${harvest.sceneFlags.length}`);
-L.push('#define STORY_WORDS 3   /* ninety-six of them, in three words */');
+L.push('#define STORY_WORDS 4   /* a hundred and twenty-eight, in four words */');
 L.push('#define BEAT_SAY     0');
 L.push('#define BEAT_WAIT    1');
 L.push('#define BEAT_SHAKE   2');

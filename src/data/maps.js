@@ -916,11 +916,21 @@ const HOLD_PLANS = {
     /* The lower east tower sat flush against the map's east edge and sealed
        that column, which left the whole north-east hanging off one tile at
        15,10 - sixty-four tiles behind one man standing still. Pulled in one,
-       so the ward is a ring and no single tile carries it. */
-    for (const [x, y] of [[2, 2], [9, 1], [17, 2], [3, 12], [17, 12]]) box(x, y, 5, 5, 'A', 'U');
+       so the ward is a ring and no single tile carries it.
+
+       And the great keep ran from the top wall down to row ten, which made the
+       row below it the one and only way between the west ward and the east.
+       One roamer standing on it and one chest anywhere on the long way round
+       and half of Harrenhal was gone. Dropped a row, so there is a walk along
+       the north wall as well: two ways between the wards, as a castle has. */
+    for (const [x, y] of [[2, 2], [9, 2], [17, 2], [3, 12], [17, 12]]) box(x, y, 5, 5, 'A', 'U');
     span(9, 6, 6, 5, 'A'); span(10, 7, 4, 3, 'U');
     put(11, 10, 'D'); put(12, 10, 'D');
-    span(7, 15, 10, 1, 'U'); span(2, 18, 5, 1, 'U'); span(17, 18, 5, 1, 'U');
+    /* The two banks of rubble on the lower ward used to run out to x=2 and
+       x=21, which squeezed each outer walk down to a single tile at row 18 -
+       and a single tile is a thing one chest closes. Pulled in, so the walk
+       round the outside is a walk. */
+    span(7, 15, 10, 1, 'U'); span(3, 18, 4, 1, 'U'); span(17, 18, 4, 1, 'U');
     put(5, 9, 'F'); put(18, 9, 'F');
     span(11, 11, 2, 10, 'd');
   },

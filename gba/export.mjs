@@ -1004,6 +1004,30 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       const openAt = (x, y) => [[1, 0], [-1, 0], [0, 1], [0, -1]]
         .filter(([ox, oy]) => walkable(x + ox, y + oy)
           && !blocked.has(`${x + ox},${y + oy}`)).length;
+      /* The most any one person standing still could shut behind them, as the
+         map stands. Doorways and tiles nobody can reach are somebody else's
+         problem - this is the same question the audit asks. */
+      const worstCut = () => {
+        let worst = 0;
+        for (let y = 1; y < height - 1; y++) {
+          for (let x = 1; x < width - 1; x++) {
+            const key = `${x},${y}`;
+            if (!walkable(x, y) || blocked.has(key)) continue;
+            if (![...people].some((who) => {
+              const [px, py] = who.split(',').map(Number);
+              return Math.abs(px - x) <= 3 && Math.abs(py - y) <= 3;
+            })) continue;
+            if (doors.some(([dx, dy]) => Math.abs(dx - x) + Math.abs(dy - y) <= 1)) continue;
+            blocked.add(key);
+            const left = reach();
+            blocked.delete(key);
+            const lost = whole - (blocked.size - seeded) - 1 - left;
+            if (lost > worst) worst = lost;
+          }
+        }
+        return worst;
+      };
+      const baseWorst = worstCut();
 
       const spots = [];
       for (let y = 1; y < height - 1; y++) {
@@ -1061,7 +1085,16 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
           const nx = spot.x + ox, ny = spot.y + oy;
           return walkable(nx, ny) && !blocked.has(`${nx},${ny}`) && openAt(nx, ny) < 2;
         });
-        if (severs || pinches) { blocked.delete(`${spot.x},${spot.y}`); continue; }
+        /* And nothing that leaves somebody else able to shut the map. Asking
+           only whether this chest severs anything is the same one-at-a-time
+           question that has now been wrong three times: at Harrenhal no single
+           thing cut the castle, and a roamer in the yard plus a purse on each
+           of the two outer walks cut it in half. So the map is measured the way
+           the audit measures it - with this chest down, is there any tile a
+           person could stand on and shut more than a handful behind them - and
+           the chest only stays if the answer is no worse than it already was. */
+        const opens = severs || pinches ? true : worstCut() > Math.max(8, baseWorst);
+        if (severs || pinches || opens) { blocked.delete(`${spot.x},${spot.y}`); continue; }
         /* What is in it. Under half are a purse somebody hid and did not come
            back for, three in ten are makings so that walking into corners
            feeds the forge, and a quarter are something you can actually put

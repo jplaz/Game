@@ -311,7 +311,26 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
 
   const laid = grid.map((r) => r.join(''));
 
-  return { name, music, ground, tiles: laid, encounters, warps,
+  /* Where each door in this plan ended up. Every town's warps used to name the
+     coordinates outright — six doors and two gates, at identical numbers in all
+     eleven towns — which is precisely what made the west half of every
+     settlement unchangeable: move a building and you break eight warps in
+     eleven places. A warp can name the door instead, and then the plan is free
+     to put that door wherever it likes. */
+  const DOORS = {
+    maester: [6, 6], forge: [17, 6], keep: [7, 14],
+    cellar: [17, 11], inn: [5, 21], house: [16, 21],
+    northGate: [11, 0], southGate: [11, 26],
+  };
+  const placedWarps = warps.map((w) => {
+    if (w.door === undefined) return w;
+    const at = DOORS[w.door];
+    if (!at) throw new Error(`${name}: no door called "${w.door}" in this plan`);
+    const { door, ...rest } = w;
+    return { ...rest, x: at[0], y: at[1] };
+  });
+
+  return { name, music, ground, tiles: laid, encounters, warps: placedWarps,
            npcs: movedNpcs, signs, items };
 }
 
@@ -2238,14 +2257,14 @@ export const MAPS = {
     roof: 'G', ridge: 'g',
     name: 'The Eyrie', ground: 'stone', wall: 'C', floor: 'o', music: 'town',
     warps: [
-      { x: 17, y: 11, to: 'theEyrieCellar', tx: 6, ty: 8, dir: 'up' },
-      { x: 5, y: 21, to: 'theEyrieInn', tx: 6, ty: 10, dir: 'up' },
-      { x: 16, y: 21, to: 'theEyrieHouse', tx: 6, ty: 10, dir: 'up' },
-      { x: 11, y: 26, to: 'bloodyGate', tx: 11, ty: 1, dir: 'down' },
-      { x: 11, y: 0, to: 'stoneCrowHold', tx: 11, ty: 20, dir: 'up' },
-      { x: 6, y: 6, to: 'maesterHallEyrie', tx: 5, ty: 7, dir: 'up' },
-      { x: 17, y: 6, to: 'eyrieArmoury', tx: 5, ty: 6, dir: 'up' },
-      { x: 7, y: 14, to: 'eyrieKeep', tx: 7, ty: 8, dir: 'up' },
+      { door: 'cellar', to: 'theEyrieCellar', tx: 6, ty: 8, dir: 'up' },
+      { door: 'inn', to: 'theEyrieInn', tx: 6, ty: 10, dir: 'up' },
+      { door: 'house', to: 'theEyrieHouse', tx: 6, ty: 10, dir: 'up' },
+      { door: 'southGate', to: 'bloodyGate', tx: 11, ty: 1, dir: 'down' },
+      { door: 'northGate', to: 'stoneCrowHold', tx: 11, ty: 20, dir: 'up' },
+      { door: 'maester', to: 'maesterHallEyrie', tx: 5, ty: 7, dir: 'up' },
+      { door: 'forge', to: 'eyrieArmoury', tx: 5, ty: 6, dir: 'up' },
+      { door: 'keep', to: 'eyrieKeep', tx: 7, ty: 8, dir: 'up' },
     ],
     signs: [
       { x: 24, y: 12, text: 'THE SKY ROAD\nThe only way up, and it is a mule track.\nAn army has never taken the Eyrie. An army has never got up here.' },
@@ -2379,14 +2398,14 @@ export const MAPS = {
     roof: 'Y', ridge: 'y',
     name: 'Highgarden', ground: 'grass', music: 'town',
     warps: [
-      { x: 17, y: 11, to: 'highgardenCellar', tx: 6, ty: 8, dir: 'up' },
-      { x: 5, y: 21, to: 'highgardenInn', tx: 6, ty: 10, dir: 'up' },
-      { x: 16, y: 21, to: 'highgardenHouse', tx: 6, ty: 10, dir: 'up' },
-      { x: 7, y: 14, to: 'highgardenKeep', tx: 7, ty: 8, dir: 'up' },
-      { x: 11, y: 0, to: 'roseroad', tx: 11, ty: 28, dir: 'up' },
-      { x: 11, y: 26, to: 'princesPass', tx: 11, ty: 1, dir: 'down' },
-      { x: 6, y: 6, to: 'maesterHallHighgarden', tx: 5, ty: 7, dir: 'up' },
-      { x: 17, y: 6, to: 'highgardenArmoury', tx: 5, ty: 6, dir: 'up' },
+      { door: 'cellar', to: 'highgardenCellar', tx: 6, ty: 8, dir: 'up' },
+      { door: 'inn', to: 'highgardenInn', tx: 6, ty: 10, dir: 'up' },
+      { door: 'house', to: 'highgardenHouse', tx: 6, ty: 10, dir: 'up' },
+      { door: 'keep', to: 'highgardenKeep', tx: 7, ty: 8, dir: 'up' },
+      { door: 'northGate', to: 'roseroad', tx: 11, ty: 28, dir: 'up' },
+      { door: 'southGate', to: 'princesPass', tx: 11, ty: 1, dir: 'down' },
+      { door: 'maester', to: 'maesterHallHighgarden', tx: 5, ty: 7, dir: 'up' },
+      { door: 'forge', to: 'highgardenArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
       { x: 22, y: 12, text: 'THE BRIAR MAZE\nPlanted three hundred years ago as a joke and never cut down.\nThe fountain is in the middle. So are several people.' },
@@ -2512,14 +2531,14 @@ export const MAPS = {
     roof: 'Q', ridge: 'q',
     name: 'Sunspear', ground: 'sand', wall: 'C', floor: 's', music: 'town',
     warps: [
-      { x: 17, y: 11, to: 'sunspearCellar', tx: 6, ty: 8, dir: 'up' },
-      { x: 5, y: 21, to: 'sunspearInn', tx: 6, ty: 10, dir: 'up' },
-      { x: 16, y: 21, to: 'sunspearHouse', tx: 6, ty: 10, dir: 'up' },
-      { x: 7, y: 14, to: 'sunspearKeep', tx: 7, ty: 8, dir: 'up' },
-      { x: 11, y: 0, to: 'princesPass', tx: 11, ty: 28, dir: 'up' },
-      { x: 11, y: 26, to: 'waterGardens', tx: 11, ty: 20, dir: 'up' },
-      { x: 6, y: 6, to: 'maesterHallSunspear', tx: 5, ty: 7, dir: 'up' },
-      { x: 17, y: 6, to: 'sunspearArmoury', tx: 5, ty: 6, dir: 'up' },
+      { door: 'cellar', to: 'sunspearCellar', tx: 6, ty: 8, dir: 'up' },
+      { door: 'inn', to: 'sunspearInn', tx: 6, ty: 10, dir: 'up' },
+      { door: 'house', to: 'sunspearHouse', tx: 6, ty: 10, dir: 'up' },
+      { door: 'keep', to: 'sunspearKeep', tx: 7, ty: 8, dir: 'up' },
+      { door: 'northGate', to: 'princesPass', tx: 11, ty: 28, dir: 'up' },
+      { door: 'southGate', to: 'waterGardens', tx: 11, ty: 20, dir: 'up' },
+      { door: 'maester', to: 'maesterHallSunspear', tx: 5, ty: 7, dir: 'up' },
+      { door: 'forge', to: 'sunspearArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
       { x: 22, y: 12, text: 'THE SHADOW CITY\nTen thousand people living against the outside of the wall.\nNobody planned any of it and nobody ever will.' },
@@ -2654,14 +2673,14 @@ export const MAPS = {
     roof: 'G', ridge: 'g',
     name: "Storm's End", ground: 'grass', wall: 'C', music: 'town',
     warps: [
-      { x: 17, y: 11, to: 'stormsEndCellar', tx: 6, ty: 8, dir: 'up' },
-      { x: 5, y: 21, to: 'stormsEndInn', tx: 6, ty: 10, dir: 'up' },
-      { x: 16, y: 21, to: 'stormsEndHouse', tx: 6, ty: 10, dir: 'up' },
-      { x: 7, y: 14, to: 'stormsEndKeep', tx: 7, ty: 8, dir: 'up' },
-      { x: 11, y: 0, to: 'stormlands', tx: 11, ty: 28, dir: 'up' },
-      { x: 11, y: 26, to: 'wreckersHold', tx: 11, ty: 20, dir: 'up' },
-      { x: 6, y: 6, to: 'maesterHallStormsEnd', tx: 5, ty: 7, dir: 'up' },
-      { x: 17, y: 6, to: 'stormsEndArmoury', tx: 5, ty: 6, dir: 'up' },
+      { door: 'cellar', to: 'stormsEndCellar', tx: 6, ty: 8, dir: 'up' },
+      { door: 'inn', to: 'stormsEndInn', tx: 6, ty: 10, dir: 'up' },
+      { door: 'house', to: 'stormsEndHouse', tx: 6, ty: 10, dir: 'up' },
+      { door: 'keep', to: 'stormsEndKeep', tx: 7, ty: 8, dir: 'up' },
+      { door: 'northGate', to: 'stormlands', tx: 11, ty: 28, dir: 'up' },
+      { door: 'southGate', to: 'wreckersHold', tx: 11, ty: 20, dir: 'up' },
+      { door: 'maester', to: 'maesterHallStormsEnd', tx: 5, ty: 7, dir: 'up' },
+      { door: 'forge', to: 'stormsEndArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
       { x: 22, y: 12, text: 'SHIPBREAKER BAY\nThe wall on this side is forty feet thick.\nIt has to be.' },
@@ -2733,14 +2752,14 @@ export const MAPS = {
     roof: 'Z', ridge: 'z',
     name: 'Dragonstone', ground: 'stone', wall: 'C', floor: 'o', music: 'battleBoss',
     warps: [
-      { x: 17, y: 11, to: 'dragonstoneCellar', tx: 6, ty: 8, dir: 'up' },
-      { x: 5, y: 21, to: 'dragonstoneInn', tx: 6, ty: 10, dir: 'up' },
-      { x: 16, y: 21, to: 'dragonstoneHouse', tx: 6, ty: 10, dir: 'up' },
-      { x: 11, y: 26, to: 'mudGate', tx: 9, ty: 7, dir: 'down' },
-      { x: 11, y: 0, to: 'seaDragonHold', tx: 11, ty: 20, dir: 'up' },
-      { x: 6, y: 6, to: 'maesterHallDragonstone', tx: 5, ty: 7, dir: 'up' },
-      { x: 7, y: 14, to: 'dragonmont', tx: 8, ty: 14, dir: 'up' },
-      { x: 17, y: 6, to: 'dragonstoneArmoury', tx: 5, ty: 6, dir: 'up' },
+      { door: 'cellar', to: 'dragonstoneCellar', tx: 6, ty: 8, dir: 'up' },
+      { door: 'inn', to: 'dragonstoneInn', tx: 6, ty: 10, dir: 'up' },
+      { door: 'house', to: 'dragonstoneHouse', tx: 6, ty: 10, dir: 'up' },
+      { door: 'southGate', to: 'mudGate', tx: 9, ty: 7, dir: 'down' },
+      { door: 'northGate', to: 'seaDragonHold', tx: 11, ty: 20, dir: 'up' },
+      { door: 'maester', to: 'maesterHallDragonstone', tx: 5, ty: 7, dir: 'up' },
+      { door: 'keep', to: 'dragonmont', tx: 8, ty: 14, dir: 'up' },
+      { door: 'forge', to: 'dragonstoneArmoury', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
       { x: 22, y: 12, text: 'THE SMOKING STRAND\nBlack sand, and steam coming out of it.\nNothing has grown on this beach in living memory.' },
@@ -3686,12 +3705,12 @@ export const MAPS = {
     signs: [
       { x: 22, y: 12, text: 'THE CANALS\nA hundred islands and no ground between them.\nEverything here goes by water or it does not go.' },{ x: 13, y: 10, text: 'THE TITAN OF BRAAVOS STANDS BEHIND YOU. IT IS THE ONLY THING THAT DOES.' }],
     warps: [
-      { x: 17, y: 11, to: 'braavosCellar', tx: 6, ty: 8, dir: 'up' },
-      { x: 5, y: 21, to: 'braavosInn', tx: 6, ty: 10, dir: 'up' },
-      { x: 16, y: 21, to: 'braavosHouse', tx: 6, ty: 10, dir: 'up' },
-      { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
-      { x: 11, y: 0, to: 'sealordHold', tx: 11, ty: 20, dir: 'up' },
-      { x: 6, y: 6, to: 'houseOfBlackAndWhite', tx: 7, ty: 10, dir: 'up' },
+      { door: 'cellar', to: 'braavosCellar', tx: 6, ty: 8, dir: 'up' },
+      { door: 'inn', to: 'braavosInn', tx: 6, ty: 10, dir: 'up' },
+      { door: 'house', to: 'braavosHouse', tx: 6, ty: 10, dir: 'up' },
+      { door: 'southGate', to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { door: 'northGate', to: 'sealordHold', tx: 11, ty: 20, dir: 'up' },
+      { door: 'maester', to: 'houseOfBlackAndWhite', tx: 7, ty: 10, dir: 'up' },
     ],
   }),
 
@@ -3749,12 +3768,12 @@ export const MAPS = {
     signs: [
       { x: 22, y: 12, text: 'THE SPICE MARKET\nPentos sells what everyone else grows.\nThat is the whole of the city, and it has made it very rich.' },{ x: 13, y: 10, text: 'PENTOS. NO WALLS WORTH THE NAME, AND NO NEED OF THEM YET.' }],
     warps: [
-      { x: 17, y: 11, to: 'pentosCellar', tx: 6, ty: 8, dir: 'up' },
-      { x: 5, y: 21, to: 'pentosInn', tx: 6, ty: 10, dir: 'up' },
-      { x: 16, y: 21, to: 'pentosHouse', tx: 6, ty: 10, dir: 'up' },
-      { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
-      { x: 11, y: 0, to: 'cheesemongerHold', tx: 11, ty: 20, dir: 'up' },
-      { x: 7, y: 14, to: 'illyriosManse', tx: 7, ty: 10, dir: 'up' },
+      { door: 'cellar', to: 'pentosCellar', tx: 6, ty: 8, dir: 'up' },
+      { door: 'inn', to: 'pentosInn', tx: 6, ty: 10, dir: 'up' },
+      { door: 'house', to: 'pentosHouse', tx: 6, ty: 10, dir: 'up' },
+      { door: 'southGate', to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { door: 'northGate', to: 'cheesemongerHold', tx: 11, ty: 20, dir: 'up' },
+      { door: 'keep', to: 'illyriosManse', tx: 7, ty: 10, dir: 'up' },
     ],
   }),
 
@@ -3787,12 +3806,12 @@ export const MAPS = {
     signs: [
       { x: 22, y: 12, text: 'THE BLACK WALL\nTwo hundred feet high and fused from dragonstone.\nIt was old when Valyria fell.' },{ x: 13, y: 10, text: 'THE LONG BRIDGE. BUILT BY VALYRIA. NOBODY LEFT KNOWS HOW.' }],
     warps: [
-      { x: 17, y: 11, to: 'volantisCellar', tx: 6, ty: 8, dir: 'up' },
-      { x: 5, y: 21, to: 'volantisInn', tx: 6, ty: 10, dir: 'up' },
-      { x: 16, y: 21, to: 'volantisHouse', tx: 6, ty: 10, dir: 'up' },
-      { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
-      { x: 11, y: 0, to: 'blackWallHold', tx: 11, ty: 20, dir: 'up' },
-      { x: 7, y: 14, to: 'templeOfRhllor', tx: 7, ty: 10, dir: 'up' },
+      { door: 'cellar', to: 'volantisCellar', tx: 6, ty: 8, dir: 'up' },
+      { door: 'inn', to: 'volantisInn', tx: 6, ty: 10, dir: 'up' },
+      { door: 'house', to: 'volantisHouse', tx: 6, ty: 10, dir: 'up' },
+      { door: 'southGate', to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { door: 'northGate', to: 'blackWallHold', tx: 11, ty: 20, dir: 'up' },
+      { door: 'keep', to: 'templeOfRhllor', tx: 7, ty: 10, dir: 'up' },
     ],
   }),
 
@@ -3825,12 +3844,12 @@ export const MAPS = {
     signs: [
       { x: 22, y: 12, text: 'THE GREAT PYRAMIDS\nEight hundred feet, and a family in every one.\nThe bricks are held together with blood, they say, and they may be right.' },{ x: 13, y: 10, text: 'THE GREAT PYRAMID OF MEEREEN. A DRAGON QUEEN SITS AT THE TOP OF IT.' }],
     warps: [
-      { x: 17, y: 11, to: 'meereenCellar', tx: 6, ty: 8, dir: 'up' },
-      { x: 5, y: 21, to: 'meereenInn', tx: 6, ty: 10, dir: 'up' },
-      { x: 16, y: 21, to: 'meereenHouse', tx: 6, ty: 10, dir: 'up' },
-      { x: 11, y: 26, to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
-      { x: 11, y: 0, to: 'fightingPits', tx: 11, ty: 20, dir: 'up' },
-      { x: 7, y: 14, to: 'greatPyramid', tx: 7, ty: 12, dir: 'up' },
+      { door: 'cellar', to: 'meereenCellar', tx: 6, ty: 8, dir: 'up' },
+      { door: 'inn', to: 'meereenInn', tx: 6, ty: 10, dir: 'up' },
+      { door: 'house', to: 'meereenHouse', tx: 6, ty: 10, dir: 'up' },
+      { door: 'southGate', to: 'narrowSea', tx: 11, ty: 5, dir: 'down' },
+      { door: 'northGate', to: 'fightingPits', tx: 11, ty: 20, dir: 'up' },
+      { door: 'keep', to: 'greatPyramid', tx: 7, ty: 12, dir: 'up' },
     ],
   }),
 
@@ -4156,14 +4175,14 @@ export const MAPS = {
       { x: 11, y: 10, text: 'PYKE\nSeat of House Greyjoy.\nWe Do Not Sow.' },
     ],
     warps: [
-      { x: 17, y: 11, to: 'pykeCellar', tx: 6, ty: 8, dir: 'up' },
-      { x: 5, y: 21, to: 'pykeInn', tx: 6, ty: 10, dir: 'up' },
-      { x: 16, y: 21, to: 'pykeHouse', tx: 6, ty: 10, dir: 'up' },
-      { x: 11, y: 0, to: 'pykeBridge', tx: 6, ty: 18, dir: 'up' },
-      { x: 6, y: 6, to: 'maesterHallPyke', tx: 5, ty: 7, dir: 'up' },
-      { x: 17, y: 6, to: 'pykeForge', tx: 5, ty: 6, dir: 'up' },
-      { x: 7, y: 14, to: 'pykeKeep', tx: 7, ty: 12, dir: 'up' },
-      { x: 11, y: 26, to: 'lordsportDocks', tx: 11, ty: 2, dir: 'down' },
+      { door: 'cellar', to: 'pykeCellar', tx: 6, ty: 8, dir: 'up' },
+      { door: 'inn', to: 'pykeInn', tx: 6, ty: 10, dir: 'up' },
+      { door: 'house', to: 'pykeHouse', tx: 6, ty: 10, dir: 'up' },
+      { door: 'northGate', to: 'pykeBridge', tx: 6, ty: 18, dir: 'up' },
+      { door: 'maester', to: 'maesterHallPyke', tx: 5, ty: 7, dir: 'up' },
+      { door: 'forge', to: 'pykeForge', tx: 5, ty: 6, dir: 'up' },
+      { door: 'keep', to: 'pykeKeep', tx: 7, ty: 12, dir: 'up' },
+      { door: 'southGate', to: 'lordsportDocks', tx: 11, ty: 2, dir: 'down' },
     ],
   }),
 
@@ -4356,14 +4375,14 @@ export const MAPS = {
       { x: 11, y: 10, text: 'THE DREADFORT\nSeat of House Bolton.\nOur Blades are Sharp.' },
     ],
     warps: [
-      { x: 17, y: 11, to: 'dreadfortCellar', tx: 6, ty: 8, dir: 'up' },
-      { x: 5, y: 21, to: 'dreadfortInn', tx: 6, ty: 10, dir: 'up' },
-      { x: 16, y: 21, to: 'dreadfortHouse', tx: 6, ty: 10, dir: 'up' },
-      { x: 11, y: 26, to: 'weepingWater', tx: 11, ty: 1, dir: 'down' },
-      { x: 11, y: 0, to: 'kennelHold', tx: 11, ty: 20, dir: 'up' },
-      { x: 6, y: 6, to: 'maesterHallDreadfort', tx: 5, ty: 7, dir: 'up' },
-      { x: 17, y: 6, to: 'dreadfortForge', tx: 5, ty: 6, dir: 'up' },
-      { x: 7, y: 14, to: 'dreadfortKeep', tx: 7, ty: 12, dir: 'up' },
+      { door: 'cellar', to: 'dreadfortCellar', tx: 6, ty: 8, dir: 'up' },
+      { door: 'inn', to: 'dreadfortInn', tx: 6, ty: 10, dir: 'up' },
+      { door: 'house', to: 'dreadfortHouse', tx: 6, ty: 10, dir: 'up' },
+      { door: 'southGate', to: 'weepingWater', tx: 11, ty: 1, dir: 'down' },
+      { door: 'northGate', to: 'kennelHold', tx: 11, ty: 20, dir: 'up' },
+      { door: 'maester', to: 'maesterHallDreadfort', tx: 5, ty: 7, dir: 'up' },
+      { door: 'forge', to: 'dreadfortForge', tx: 5, ty: 6, dir: 'up' },
+      { door: 'keep', to: 'dreadfortKeep', tx: 7, ty: 12, dir: 'up' },
     ],
   }),
 
@@ -5818,14 +5837,14 @@ export const MAPS = {
       [2, 9, 'U'], [21, 12, 'U'], [19, 24, 'U'],
     ],
     warps: [
-      { x: 17, y: 11, to: 'eastwatchCellar', tx: 6, ty: 8, dir: 'up' },
-      { x: 5, y: 21, to: 'eastwatchInn', tx: 6, ty: 10, dir: 'up' },
-      { x: 16, y: 21, to: 'eastwatchHouse', tx: 6, ty: 10, dir: 'up' },
-      { x: 11, y: 26, to: 'theGift', tx: 11, ty: 1, dir: 'down' },
-      { x: 11, y: 0, to: 'frostfangs', tx: 11, ty: 26, dir: 'up' },
-      { x: 6, y: 6, to: 'maesterHallEastwatch', tx: 5, ty: 7, dir: 'up' },
-      { x: 17, y: 6, to: 'eastwatchArmoury', tx: 5, ty: 6, dir: 'up' },
-      { x: 7, y: 14, to: 'eastwatchKeep', tx: 7, ty: 8, dir: 'up' },
+      { door: 'cellar', to: 'eastwatchCellar', tx: 6, ty: 8, dir: 'up' },
+      { door: 'inn', to: 'eastwatchInn', tx: 6, ty: 10, dir: 'up' },
+      { door: 'house', to: 'eastwatchHouse', tx: 6, ty: 10, dir: 'up' },
+      { door: 'southGate', to: 'theGift', tx: 11, ty: 1, dir: 'down' },
+      { door: 'northGate', to: 'frostfangs', tx: 11, ty: 26, dir: 'up' },
+      { door: 'maester', to: 'maesterHallEastwatch', tx: 5, ty: 7, dir: 'up' },
+      { door: 'forge', to: 'eastwatchArmoury', tx: 5, ty: 6, dir: 'up' },
+      { door: 'keep', to: 'eastwatchKeep', tx: 7, ty: 8, dir: 'up' },
     ],
     signs: [
       { x: 22, y: 12, text: 'THE ICE SHORE\nThe sea freezes here from the shore outward.\nWhat is on it in winter is not always ice.' },

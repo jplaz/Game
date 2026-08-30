@@ -302,6 +302,13 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     const at = id ? SWEARABLE.indexOf(id) : -1;
     return at < 0 ? 255 : at;
   };
+  /* The same thing for a house named outright. makeRoamer hands back a house
+     as a string, and a string carried into the Duellist table comes out the
+     other end as a bare identifier in the generated C. */
+  const houseIndexOf = (id) => {
+    const at = id ? SWEARABLE.indexOf(id) : -1;
+    return at < 0 ? 255 : at;
+  };
 
   // Where a sworn sword of each house walks out of their own gate. Every one of
   // these is a tile some door already lands you on, so it is walkable ground
@@ -388,6 +395,19 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     record.defeat = unprefix(record.defeat, record.name);
     record.fixed = record.fixed ? 1 : 0;
     if (record.house === undefined) record.house = 255;
+    /* Every one of these is written into a u8 slot. A string that reaches one
+       becomes a bare identifier in the generated C and the failure surfaces
+       seventy thousand lines into data.h as "use of undeclared identifier
+       tyrell", which says nothing at all about where it came from. Fail here,
+       where the record still has a name on it. */
+    for (const slot of ['house', 'sworn', 'host', 'level', 'vigour', 'might',
+                        'guard', 'swiftness', 'reward', 'exp']) {
+      const v = record[slot];
+      if (v !== undefined && typeof v !== 'number') {
+        throw new Error(`duellist "${record.name}" has ${slot}=${JSON.stringify(v)}, `
+          + 'which is not a number and cannot go into the table');
+      }
+    }
     const key = record.name + '|' + record.level;
     if (duellistIndex.has(key)) return duellistIndex.get(key);
     const at = duellists.length;
@@ -1400,8 +1420,12 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
                                   ? groundBy[0][mapIds.indexOf(place.map)]
                                   : (o.roamer.level ?? groundBy[0][mapIds.indexOf(place.map)]),
                                 (l) => l[0]);
+        /* makeRoamer names the house as a string; the struct wants the index
+           SWEARABLE puts it at, and Object.assign was carrying the string
+           straight through into the generated C as a bare identifier. */
         return pushDuellist(Object.assign(made, {
           techs: techSlots(made.techniques),
+          house: houseIndexOf(made.house),
           mortal: 1, fixed: 0, sworn: 255, host: 0, dead: 0,
         }));
       }),

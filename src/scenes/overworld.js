@@ -1215,6 +1215,16 @@ export class Overworld {
     });
   }
 
+  /** Naming a ship, on the same keyboard you named yourself with. */
+  nameShip() {
+    return new Promise((resolve) => {
+      this.manager.transition(async () => {
+        const { ShipName } = await import('./shipname.js');
+        this.manager.push(new ShipName({ onEnd: resolve }));
+      });
+    });
+  }
+
   /** Carries you across the Narrow Sea and puts you ashore where you paid to go. */
   sailTo(port) {
     this.manager.transition(() => {

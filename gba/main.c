@@ -8543,6 +8543,16 @@ static void paintParty(void) {
     if (i == you.lead) drawText(TXT_W - 78, y, "out in front", C_WELL);
     /* An empty bar is easy to miss and the reason you cannot send it out. */
     else if (k->hp <= 0) drawText(TXT_W - 78, y, "down", C_HURT);
+    else {
+      /* And the figures, not only the length of a bar. Deciding whether an
+         animal will survive another fight is a question about numbers. */
+      int now = k->hp < 0 ? 0 : (k->hp > full ? full : k->hp);
+      copyString(scratch, "", sizeof scratch);
+      appendNumber(scratch, now, sizeof scratch);
+      appendString(scratch, "/", sizeof scratch);
+      appendNumber(scratch, full, sizeof scratch);
+      drawText(TXT_W - 78, y, scratch, C_DIM);
+    }
     shown++;
   }
   if (!shown) {

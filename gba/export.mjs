@@ -21,7 +21,7 @@ const { PORTS } = await import('../src/data/ports.js');
    taproom, a cellar under it, an upstairs over every common house. Forty-one
    maps that are not written anywhere by hand, so they cannot be listed by hand
    either without the list going stale the first time a town is added. */
-const { UPPER_FLOORS } = await import('../src/data/maps.js');
+const { UPPER_FLOORS, CAVE_IDS } = await import('../src/data/maps.js');
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
@@ -111,6 +111,10 @@ const MAP_IDS = [
   /* And a cave under every one of them, which is most of the reason to cross
      one: you run the keel up a beach under a cliff and walk in. */
   'smugglersCave', 'wreckersCave', 'drownedCave', 'pirateCave', 'iceCave',
+  /* And one off every road you can walk, cut into an outcrop that is cut into
+     the road for the purpose. Named by the map file, not here, because the map
+     file is what decides how many there are. */
+  ...CAVE_IDS,
   ...UPPER_FLOORS,
 ];
 

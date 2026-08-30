@@ -5423,7 +5423,7 @@ export const MAPS = {
       /* Driftmark, and the cave the smugglers out of Hull have always used. */
       isle(17, 8, 8, 6);
       put(19, 8, 's'); put(20, 8, 's');
-      mouth(20, 7, 'smugglersCave', 2, 16, 'up');
+      mouth(20, 7, 'smugglersCave', 2, 15, 'up');
       put(23, 9, 'n');
       wreck(16, 13, 'antidote', 'sea_bay_antidote');
       /* Claw Isle under Dragonstone, and Sharp Point to the south-east. */
@@ -5444,7 +5444,7 @@ export const MAPS = {
     draw: ({ put, isle, crossing, wreck, mouth }) => {
       isle(6, 3, 4, 3);
       put(7, 4, 's'); put(8, 4, 's');
-      mouth(8, 3, 'wreckersCave', 2, 16, 'up');
+      mouth(8, 3, 'wreckersCave', 2, 15, 'up');
       isle(9, 17, 5, 3);
       isle(20, 7, 3, 6);
       isle(25, 20, 3, 3);
@@ -5464,7 +5464,7 @@ export const MAPS = {
       quay(25, 13, 'lannisport', 22, 18, 'left');
       isle(3, 4, 4, 4);
       put(4, 8, 's'); put(3, 8, 's');
-      mouth(4, 7, 'drownedCave', 2, 16, 'up');
+      mouth(4, 7, 'drownedCave', 2, 15, 'up');
       quay(7, 6, 'lordsportDocks', 20, 10, 'right');
       isle(2, 18, 3, 3);
       isle(14, 9, 2, 2);
@@ -5482,7 +5482,7 @@ export const MAPS = {
     draw: ({ put, isle, crossing, quay, wreck, mouth }) => {
       isle(3, 3, 3, 3);
       put(4, 2, 's');
-      mouth(4, 3, 'pirateCave', 2, 17, 'down');
+      mouth(4, 3, 'pirateCave', 2, 16, 'down');
       isle(9, 7, 4, 3);
       isle(17, 4, 3, 4);
       isle(24, 9, 3, 3);
@@ -5507,7 +5507,7 @@ export const MAPS = {
       quay(27, 5, 'hardhome', 11, 21, 'left');
       isle(11, 10, 3, 2);
       put(12, 10, 's');
-      mouth(12, 9, 'iceCave', 2, 17, 'up');
+      mouth(12, 9, 'iceCave', 2, 16, 'up');
       isle(19, 16, 3, 2);
       put(7, 8, 'i'); put(22, 7, 'i'); put(14, 21, 'i');
       wreck(14, 11, 'kissOfFire', 'sea_shiver_fire');
@@ -8391,6 +8391,163 @@ for (const town of Object.keys(REGIONS)) {
     REGIONS[`${town}Inn`] = REGIONS[town];
     REGIONS[`${town}House`] = REGIONS[town];
   }
+}
+
+/* --------------------------------------------------------- a way under it --
+ *
+ * A cave off fourteen roads, one for every part of the map you can walk.
+ *
+ * The mouth is cut rather than found. Looking for rock that was already there,
+ * ten of the fourteen roads had none - they are woods and river meadows - and
+ * of the four that did, three put the door in the middle of a river and one
+ * put it in a pine tree. So a small outcrop is cut into open ground away from
+ * every door, sign, chest and person, the mouth goes in the face of it, and
+ * the map is flooded again afterwards to prove nothing was shut off by it.
+ */
+export const CAVE_IDS = [];
+{
+  /* maps.js cannot ask the art what is solid - tiles.js drags in a canvas and
+     this file is loaded without one - so it uses its own list, the same one
+     makeTown lays towns out with and the one checkmaps holds against the art
+     on every build. */
+  const isSolid = (map, x, y) => {
+    const c = map.grid[y]?.[x];
+    return c === undefined || !WALKABLE.includes(c);
+  };
+  const hangMouth = (map, seed) => {
+    const busy = new Set();
+    const near = (x, y, r) => {
+      for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) busy.add(`${x + i},${y + j}`);
+    };
+    for (const w of map.warps ?? []) near(w.x, w.y, 3);
+    for (const g of map.signs ?? []) near(g.x, g.y, 2);
+    for (const t of map.items ?? []) near(t.x, t.y, 2);
+    for (const p of map.npcs ?? []) near(p.x, p.y, 2);
+
+    const open = (x, y) => !isSolid(map, x, y) && !busy.has(`${x},${y}`);
+    const spots = [];
+    for (let y = 3; y < map.height - 3; y++) {
+      for (let x = 2; x < map.width - 2; x++) {
+        if (![-1, 0, 1].every((i) => open(x + i, y))) continue;
+        if (![-1, 0, 1].every((i) => open(x + i, y + 1))) continue;
+        if (![-1, 0, 1].every((i) => open(x + i, y + 2))) continue;
+        spots.push([x, y]);
+      }
+    }
+    if (!spots.length) return null;
+    let n = 0;
+    for (const ch of seed) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
+
+    const flood = (rows, sx, sy) => {
+      const seen = new Set([`${sx},${sy}`]);
+      const q = [[sx, sy]];
+      while (q.length) {
+        const [cx, cy] = q.pop();
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = cx + dx, ny = cy + dy, key = `${nx},${ny}`;
+          if (nx < 0 || ny < 0 || nx >= map.width || ny >= map.height || seen.has(key)) continue;
+          const c = rows[ny][nx];
+          if (!WALKABLE.includes(c) && c !== 'D') continue;
+          seen.add(key); q.push([nx, ny]);
+        }
+      }
+      return seen.size;
+    };
+    for (let k = 0; k < spots.length; k++) {
+      const [x, y] = spots[(n + k * 7919) % spots.length];
+      const rows = map.grid.map((r) => r.split(''));
+      for (const i of [-1, 0, 1]) rows[y][x + i] = 'C';
+      rows[y][x] = 'D';
+      if (flood(rows, x, y + 1) >= flood(map.grid.map((r) => r.split('')), x, y + 1) - 3) {
+        return { x, y, rows };
+      }
+    }
+    return null;
+  };
+
+  const hang = (on, cave) => {
+    const map = MAPS[on];
+    const at = hangMouth(map, cave.id);
+    if (!at) throw new Error(`nowhere on ${on} to put the mouth of ${cave.id}`);
+    map.tiles = at.rows.map((r) => r.join(''));
+    prepare(map);
+    map.warps = [...(map.warps ?? []),
+      { x: at.x, y: at.y, to: cave.id, tx: 2, ty: cave.h - 2, dir: 'up' }];
+    MAPS[cave.id] = makeCave({ ...cave, back: on, backX: at.x, backY: at.y + 1 });
+    MAPS[cave.id].id = cave.id;
+    prepare(MAPS[cave.id]);
+    REGIONS[cave.id] = REGIONS[on] ?? '';
+    CAVE_IDS.push(cave.id);
+  };
+
+  const den = (id, name, beasts, roamer, lvl, loot, line, who, sprite, cold = 0, h = 17) => ({
+    id, name, h, cold,
+    encounters: [
+      { beast: beasts[0], min: lvl - 2, max: lvl + 2, weight: 30 },
+      { beast: beasts[1], min: lvl - 1, max: lvl + 3, weight: 24 },
+      { roamer, min: lvl, max: lvl + 4, weight: 36 },
+    ],
+    npcs: who ? [{ room: 1, dir: 'down', sprite, name: who, script: 'townTalk', data: { line } }] : [],
+    items: loot.map((item, i) => ({ room: i === 0 ? 0 : 2, item, count: 1, flag: `item_${id}_${i}` })),
+    signs: [],
+  });
+
+  hang('wolfswood', den('wolfsDen', "A Wolf's Den", ['snowpup', 'direwolf'], 'poacher', 8,
+    ['antidote', 'sigilBanner'],
+    'A Poacher: There was a she-wolf in here with six of them. I took nothing and I left quickly, and I would advise the same.',
+    'A Poacher', 'smallfolk', 4));
+  hang('weepingWater', den('weepingBarrow', 'A Barrow on the Weeping Water', ['wightling', 'barrowlord'], 'gravedigger', 16,
+    ['dragonglass', 'frostTonic'],
+    'A Gravedigger: First Men laid their kings under this hill and put a stone door on it. Somebody has taken the door off.',
+    'A Gravedigger', 'oldman', 4));
+  hang('kingsroadNorth', den('giantsBones', 'The Bones of a Giant', ['boartusk', 'snowpup'], 'bandit', 10,
+    ['burnSalve', 'maesterKit'],
+    'A Carter: That is a ribcage, not a cave. Whatever it was walked down out of the north and lay down here, and nobody has moved it since.',
+    'A Carter', 'smallfolk', 4));
+  hang('moatCailin', den('bogHollow', 'A Crannog Hollow', ['riverfry', 'ravenling'], 'poacher', 13,
+    ['maesterKit', 'antidote'],
+    'A Crannogman: Walk where I walk. The Neck has swallowed three armies and it was not in a hurry about any of them.',
+    'A Crannogman', 'smallfolk', 3));
+  hang('riverlands', den('whisperingCave', 'The Whispering Cave', ['ravenling', 'silverfin'], 'brotherhoodBowman', 15,
+    ['warBanner', 'poppyMilk'],
+    'A Brotherhood Bowman: We hang men in here where the rain cannot wash them. It is not a nice room and we are not nice men, but we are the only law left on this road.',
+    'A Bowman of the Brotherhood', 'brotherhood', 3));
+  hang('goldRoad', den('goldMine', 'A Lannister Goldmine', ['cubmane', 'goldmane'], 'goldCloak', 18,
+    ['kingsRansom', 'maesterKit'],
+    'A Mine Overseer: Three miles of it under the Rock, and every foot of it Lannister. The last seam ran dry forty years ago. We have not told anybody.',
+    'A Mine Overseer', 'lannister', 2));
+  hang('kingsroad', den('roadsideCave', "A Robbers' Hole", ['ravenling', 'boartusk'], 'bandit', 12,
+    ['poppyMilk', 'burnSalve'],
+    'A Roadside Thief: Everything in here came off somebody on that road. Take what you like. I am past caring and so are they.',
+    'A Roadside Thief', 'smallfolk', 2));
+  hang('bloodyGate', den('clansmenCave', "A Clansmen's Cave", ['falconet', 'skytalon'], 'clansman', 17,
+    ['warBanner', 'frostTonic'],
+    'A Man of the Burned Men: The Vale is ours. The knights say otherwise and the knights stay behind their gate, so on the whole the argument is going our way.',
+    'A Man of the Burned Men', 'wildling', 3));
+  hang('roseroad', den('honeycombCave', 'The Honeycomb Caves', ['sapling', 'heartwarden'], 'hedgeKnight', 20,
+    ['poppyMilk', 'maesterKit'],
+    'A Beekeeper: Six hundred years of hives and the whole hill is hollow with them. Mind the third chamber. They have not been told about you.',
+    'A Beekeeper', 'goodwife', 2));
+  hang('princesPass', den('dornishCistern', 'A Dornish Cistern', ['sandviper', 'dornspine'], 'dornishOutrider', 23,
+    ['weirwoodSap', 'antidote'],
+    'A Water-Keeper: Dorne is not short of water. Dorne is short of people who know where it is kept, and I am one of four.',
+    'A Water-Keeper', 'martell', 1));
+  hang('stormlands', den('stormCave', 'A Cave under Shipbreaker Bay', ['crabcrag', 'krakenling'], 'sellsword', 21,
+    ['kingsguardBanner', 'burnSalve'],
+    'A Wrecker: The bay does the work. We only carry it up the beach, and we have been carrying it up the beach since before there was a castle on that headland.',
+    'A Wrecker', 'sellsword', 2));
+  hang('theGift', den('molesTown', "Mole's Town, Below", ['ravenling', 'wightling'], 'deserter', 19,
+    ['frostTonic', 'poppyMilk'],
+    'A Moles Town Girl: Everything worth having in the Gift is underground, including most of the people. The Watch pretends not to know and we pretend to believe them.',
+    'A Girl of Mole\'s Town', 'goodwife', 5));
+  hang('hauntedForest', den('childrensCave', 'A Cave of the Children', ['sapling', 'heartwarden'], 'wildlingRaider', 28,
+    ['weirwoodSap', 'dragonglass'],
+    'A Child of the Forest: We were here when the First Men came with their bronze, and we are here now, and there are two hundred of us left in the world. Do not tell them where.',
+    'A Child of the Forest', 'child', 6, 18));
+  hang('frostfangs', den('frostfangCave', 'A Frostfang Deep', ['palewalker', 'barrowlord'], 'wildlingRaider', 32,
+    ['kissOfFire', 'kingsRansom'],
+    'A Frozen Ranger: Do not light anything. The cold in here is not weather and it notices fire.',
+    'A Frozen Ranger', 'nightswatch', 6, 18));
 }
 
 /* ------------------------------------------------------ upstairs and down --

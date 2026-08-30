@@ -1467,34 +1467,82 @@ function cityGrid() {
  * the smallfolk say in them is where the regional colour of this game actually
  * lives.
  */
+/* The taproom. The beds have gone upstairs, where beds are: they were drawn on
+   this floor because a cartridge map used to have one storey, and every inn in
+   the game has three now - a stair by the counter and a hatch by the fire. */
 const INN_TILES = [
   'IIIIIIIIIIIIII',
   'Ih=========N=I',
   'I==KKKKKK====I',
+  'I===========<I',
+  'I=T=T=T==T=T=I',
+  'I=T=T=T==T=T=I',
   'I============I',
-  'I=T=T=T==b=b=I',
-  'I=T=T=T======I',
-  'I============I',
-  'I=T=T=T==b=b=I',
-  'I=T=T=T======I',
-  'I=====F=F====I',
+  'I=T=T=T==T=T=I',
+  'I=T=T=T==T=T=I',
+  'I<====F=F====I',
   'I============I',
   'IIIIII__IIIIII',
+];
+
+/* Six rooms off a landing. Bed and table in each, and the middle of every room
+   left clear, because the one column that opens onto the landing is the middle
+   one and a table across it is a room nobody can get into. */
+const INN_ROOMS = [
+  'IIIIIIIIIIIIII',
+  'Ib_TIb_TIb_TII',
+  'I___I___I___II',
+  'II_III_III_III',
+  'I___________<I',
+  'I____________I',
+  'II_III_III_III',
+  'I___I___I___II',
+  'Ib_TIb_TIb_TII',
+  'IIIIIIIIIIIIII',
+];
+
+/* And what is under the floor: a cool room, racks, and a wall between the two
+   halves so it is a cellar rather than a box. */
+const INN_CELLAR = [
+  'IIIIIIIIIIII',
+  'I<===F====BI',
+  'I=========BI',
+  'I=TT=I=TT==I',
+  'I====I=====I',
+  'Il===I====lI',
+  'I====I=====I',
+  'I=TT=I=TT==I',
+  'I=========BI',
+  'IIIIIIIIIIII',
 ];
 
 const HOUSE_TILES = [
   'IIIIIIIIIIIIII',
   'Ic==========cI',
   'I=cccccccccc=I',
-  'I=cBc=F=cBc==I',
+  'I=cBc=F=cBc=<I',
   'I=cccccccccc=I',
-  'I==KKK===b=b=I',
+  'I==KKK=======I',
   'I============I',
-  'I=b=b====b=b=I',
+  'I=T=T====T=T=I',
   'I============I',
   'I=F=======F==I',
   'I============I',
   'IIIIII__IIIIII',
+];
+
+/* Upstairs in the common house: the same six rooms, carpeted. */
+const HOUSE_ROOMS = [
+  'IIIIIIIIIIIIII',
+  'I=b=I=b=I=b=II',
+  'I=c=I=c=I=c=II',
+  'II=III=III=III',
+  'I=cccccccc==<I',
+  'I============I',
+  'II=III=III=III',
+  'I=c=I=c=I=c=II',
+  'I=b=I=b=I=b=II',
+  'IIIIIIIIIIIIII',
 ];
 
 /**
@@ -1502,13 +1550,15 @@ const HOUSE_TILES = [
  * same floor because a cartridge map has one storey.
  */
 function makeInn({ town, name, region, keeper, keeperLine, drinkerLine,
-                   fighter, fighterLine, stock }) {
+                   fighter, fighterLine, stock, id = `${town}Inn` }) {
   return {
     name, indoor: true, music: 'town', ground: 'stone',
     tiles: INN_TILES,
     warps: [
       { x: 6, y: 11, to: town, dir: 'down', back: true },
       { x: 7, y: 11, to: town, dir: 'down', back: true },
+      { x: 12, y: 3, to: `${id}Rooms`, tx: 11, ty: 4, dir: 'down' },
+      { x: 1, y: 9, to: `${id}Cellar`, tx: 2, ty: 1, dir: 'down' },
     ],
     npcs: [
       { x: 4, y: 1, dir: 'down', sprite: 'goodwife', name: keeper, script: 'innkeep',
@@ -1528,13 +1578,15 @@ function makeInn({ town, name, region, keeper, keeperLine, drinkerLine,
  * And the common house across the road: warmer, louder, and where anyone who
  * knows anything about this town is sitting.
  */
-function makeCommonHouse({ town, name, region, madam, madamLine, voices }) {
+function makeCommonHouse({ town, name, region, madam, madamLine, voices,
+                          id = `${town}House` }) {
   return {
     name, indoor: true, music: 'town', ground: 'stone',
     tiles: HOUSE_TILES,
     warps: [
       { x: 6, y: 11, to: town, dir: 'down', back: true },
       { x: 7, y: 11, to: town, dir: 'down', back: true },
+      { x: 12, y: 3, to: `${id}Rooms`, tx: 11, ty: 4, dir: 'down' },
     ],
     npcs: [
       { x: 2, y: 5, dir: 'right', sprite: 'goodwife', name: madam, script: 'houseKeeper',
@@ -2677,6 +2729,63 @@ function eyriePlan() {
   return g.map((r) => r.join(''));
 }
 
+/* A cave.
+ *
+ * Black rock, a passage that wanders rather than a room with a bend in it, and
+ * side chambers off it worth the walk. Grown from the cave's own name rather
+ * than drawn by hand, because a hand-drawn cave is a corridor and the fourth
+ * one looks exactly like the first - and because a name is stable, so a cave
+ * is the same cave in every build and in everybody's save.
+ *
+ * The mouth is one tile of the south wall. Whatever holds the cave puts a door
+ * against it from the other side.
+ */
+function makeCave({ id, name, music = 'wild', w = 22, h = 17, chambers = 3,
+                    back, backX, backY, npcs = [], items = [], signs = [],
+                    encounters = [], cold = 0 }) {
+  let n = 0;
+  for (const ch of id) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
+  const rnd = () => { n = (n * 1103515245 + 12345) >>> 0; return (n >>> 16) / 65536; };
+  const g = Array.from({ length: h }, () => new Array(w).fill('@'));
+  const dig = (x, y, rw, rh) => {
+    for (let j = 0; j < rh; j++) for (let i = 0; i < rw; i++) {
+      if (y + j > 0 && y + j < h - 1 && x + i > 0 && x + i < w - 1) g[y + j][x + i] = '%';
+    }
+  };
+  let cx = 2, cy = h - 2;
+  const spine = [[cx, cy]];
+  dig(cx, cy, 2, 1);
+  while (cx < w - 4 || cy > 3) {
+    if (cx < w - 4 && (cy <= 3 || rnd() < 0.55)) cx += 1 + (rnd() < 0.4 ? 1 : 0);
+    else cy -= 1 + (rnd() < 0.4 ? 1 : 0);
+    if (cx > w - 3) cx = w - 3;
+    if (cy < 2) cy = 2;
+    dig(cx, cy, 2, 2);
+    spine.push([cx, cy]);
+  }
+  const rooms = [];
+  for (let k = 0; k < chambers; k++) {
+    const at = spine[Math.floor(((k + 1) * spine.length) / (chambers + 1))];
+    const rw = 4 + Math.floor(rnd() * 3), rh = 3 + Math.floor(rnd() * 2);
+    const rx = Math.max(1, Math.min(w - rw - 1, at[0] - Math.floor(rw / 2)));
+    const ry = Math.max(1, Math.min(h - rh - 1, at[1] - Math.floor(rh / 2)));
+    dig(rx, ry, rw, rh);
+    rooms.push([rx + (rw >> 1), ry + (rh >> 1)]);
+  }
+  g[h - 1][2] = 'D';
+  /* Everything placed by chamber rather than by coordinate, because the
+     coordinates are not known until the cave has been grown. */
+  const at = (k) => rooms[Math.min(k, rooms.length - 1)];
+  return {
+    name, music, indoor: true, ground: 'cave', cold,
+    tiles: g.map((r) => r.join('')),
+    warps: [{ x: 2, y: h - 1, to: back, tx: backX, ty: backY, dir: 'down' }],
+    npcs: npcs.map((p, i) => ({ ...p, x: at(p.room ?? i)[0], y: at(p.room ?? i)[1] })),
+    items: items.map((p, i) => ({ ...p, x: at(p.room ?? i)[0], y: at(p.room ?? i)[1] - 1 })),
+    signs, encounters,
+  };
+}
+
 /* The open water.
  *
  * A sea map is every other map in this file turned inside out: the water is
@@ -2731,8 +2840,15 @@ function makeSea({ name, music = 'route', draw }) {
     put(x, y, 's');
     items.push({ x, y, item, count: 1, flag });
   };
+  /* A hole in a cliff that goes somewhere. You run the keel up the beach under
+     it and walk in, which is the only reason an island is worth crossing open
+     water to reach. */
+  const mouth = (x, y, dest, tx, ty, dir = 'up') => {
+    put(x, y, 'D');
+    warps.push({ x, y, to: dest, tx, ty, dir });
+  };
 
-  draw({ put, span, isle, crossing, quay, wreck });
+  draw({ put, span, isle, crossing, quay, wreck, mouth });
   return {
     name, music, ground: 'stone', sea: true,
     tiles: G.map((r) => r.join('')), warps, items,
@@ -5174,32 +5290,166 @@ export const MAPS = {
   // ==========================================================================
   //  THE OPEN SEA -- five waters you cross in a ship of your own
   // ==========================================================================
+  /* The bay was three islets and a lot of blue. It is the water the capital
+     sits on and the one every player crosses first, so it is drawn as a place
+     now: the shore under the city, the spur that closes it to the south-west,
+     Driftmark in the middle of it with a hole in the cliff, Claw Isle under
+     Dragonstone, and the fleet that burned on the Blackwater still standing
+     out of the shallows off the river mouth. */
+  // ==========================================================================
+  //  FIVE CAVES, one under every water -- a reason to cross it
+  // ==========================================================================
+  /* You beach the keel under a cliff and walk in. Each is grown from its own
+     name, so no two are the same shape, and what is at the back of one is
+     worth more the further from the capital it lies. */
+  smugglersCave: makeCave({
+    id: 'smugglersCave', name: "The Smugglers' Cave",
+    back: 'blackwaterBay', backX: 20, backY: 8,
+    encounters: [
+      { beast: 'crabcrag', min: 8, max: 12, weight: 34 },
+      { beast: 'ravenling', min: 8, max: 12, weight: 26 },
+      { roamer: 'bandit', min: 9, max: 13, weight: 40 },
+    ],
+    npcs: [
+      { room: 1, dir: 'down', sprite: 'smallfolk', name: 'A Hull Smuggler', script: 'townTalk',
+        data: { line: 'A Hull Smuggler: Half of what King\'s Landing drinks comes through this hole in the rock, and the crown has been taxing the other half for three hundred years.' } },
+    ],
+    items: [
+      { room: 0, item: 'maesterKit', count: 1, flag: 'item_smug_kit' },
+      { room: 2, item: 'poppyMilk', count: 1, flag: 'item_smug_poppy' },
+    ],
+    signs: [],
+  }),
+
+  wreckersCave: makeCave({
+    id: 'wreckersCave', name: "The Wreckers' Cave",
+    back: 'theGullet', backX: 8, backY: 4,
+    encounters: [
+      { beast: 'krakenling', min: 14, max: 18, weight: 30 },
+      { beast: 'crabcrag', min: 13, max: 17, weight: 24 },
+      { roamer: 'sellsword', min: 15, max: 19, weight: 38 },
+    ],
+    npcs: [
+      { room: 1, dir: 'down', sprite: 'sellsword', name: 'A Wrecker', script: 'duel',
+        data: { duel: 'sellsword' } },
+    ],
+    items: [
+      { room: 0, item: 'warBanner', count: 1, flag: 'item_wreck_banner' },
+      { room: 2, item: 'weirwoodSap', count: 1, flag: 'item_wreck_sap' },
+    ],
+    signs: [],
+  }),
+
+  drownedCave: makeCave({
+    id: 'drownedCave', name: 'The Drowned Cave',
+    back: 'sunsetSea', backX: 4, backY: 8,
+    encounters: [
+      { beast: 'deepmaw', min: 20, max: 24, weight: 28 },
+      { beast: 'krakenling', min: 18, max: 22, weight: 26 },
+      { roamer: 'ironbornReaver', min: 20, max: 25, weight: 40 },
+    ],
+    npcs: [
+      { room: 1, dir: 'down', sprite: 'ironborn', name: 'A Drowned Man', script: 'townTalk',
+        data: { line: 'A Drowned Man: What is dead may never die. He rises harder and stronger, and he rises in here, out of the water, in the dark, every tide.' } },
+    ],
+    items: [
+      { room: 0, item: 'frostTonic', count: 2, flag: 'item_drowned_tonic' },
+      { room: 2, item: 'kingsguardBanner', count: 1, flag: 'item_drowned_cloak' },
+    ],
+    signs: [],
+  }),
+
+  pirateCave: makeCave({
+    id: 'pirateCave', name: 'A Pirate Hold', w: 24, h: 18, chambers: 4,
+    back: 'stepstones', backX: 4, backY: 3,
+    encounters: [
+      { beast: 'sandviper', min: 24, max: 28, weight: 28 },
+      { beast: 'dornspine', min: 24, max: 28, weight: 24 },
+      { roamer: 'sellsword', min: 25, max: 30, weight: 44 },
+    ],
+    npcs: [
+      { room: 1, dir: 'down', sprite: 'sellsword', name: 'A Stepstones Captain', script: 'duel',
+        data: { duel: 'sellsword' } },
+      { room: 3, dir: 'down', sprite: 'merchant', name: 'A Chained Factor', script: 'townTalk',
+        data: { line: 'A Chained Factor: Volantis bought me, the Stepstones took me, and neither of them has decided yet whose I am. Cut this and I will remember it.' } },
+    ],
+    items: [
+      { room: 0, item: 'kissOfFire', count: 1, flag: 'item_pirate_fire' },
+      { room: 2, item: 'kingsRansom', count: 1, flag: 'item_pirate_ransom' },
+    ],
+    signs: [],
+  }),
+
+  iceCave: makeCave({
+    id: 'iceCave', name: 'The Ice Caves', w: 24, h: 18, chambers: 4, cold: 5,
+    back: 'shiveringSea', backX: 12, backY: 10,
+    encounters: [
+      { beast: 'wightling', min: 30, max: 35, weight: 30 },
+      { beast: 'barrowlord', min: 32, max: 36, weight: 22 },
+      { roamer: 'wildlingRaider', min: 30, max: 35, weight: 34 },
+    ],
+    npcs: [
+      { room: 2, dir: 'down', sprite: 'wildling', name: 'A Frozen Watchman', script: 'townTalk',
+        data: { line: 'A Frozen Watchman: Do not go deeper than the third chamber. Whatever is down there was walking before the Wall was raised and it has not stopped since.' } },
+    ],
+    items: [
+      { room: 0, item: 'weirwoodSap', count: 1, flag: 'item_ice_sap' },
+      { room: 1, item: 'dragonglass', count: 3, flag: 'item_ice_glass' },
+      { room: 3, item: 'kingsRansom', count: 1, flag: 'item_ice_ransom' },
+    ],
+    signs: [],
+  }),
+
   blackwaterBay: makeSea({
     name: 'Blackwater Bay',
-    draw: ({ put, span, isle, crossing, quay, wreck }) => {
-      span(1, 6, 3, 15, 's'); span(1, 7, 2, 13, 'C');
-      quay(3, 13, 'kingsLanding', 21, 28, 'right');
-      isle(26, 2, 4, 4);
+    draw: ({ put, span, isle, crossing, quay, wreck, mouth }) => {
+      /* The west shore, and the mouth of the Rush coming down out of the city. */
+      span(1, 4, 4, 18, 's'); span(1, 5, 3, 16, 'C');
+      quay(4, 12, 'kingsLanding', 21, 28, 'right');
+      /* Massey's Hook, closing the bay off to the south-west. */
+      span(2, 22, 12, 3, 's'); span(2, 23, 10, 2, 'C');
+      put(6, 22, 'n');
+      /* The sunken fleet. Every hull that burned on the Blackwater went down
+         in the same three hundred yards of water and is still there: a shoal
+         of ribs and mastheads off the river mouth that a keel has to go round.
+         Drawn as one shallows rather than as eight separate dots of sand -
+         eight dots is a scatter of islets, and there is nothing about a scatter
+         of islets that says a fleet burned here. */
+      span(6, 4, 7, 3, 's'); span(5, 6, 5, 4, 's'); span(9, 7, 6, 3, 's');
+      span(7, 10, 4, 2, 's');
+      for (const [x, y] of [[7, 4], [10, 5], [6, 7], [8, 8], [12, 8], [9, 10],
+                            [11, 7], [7, 11], [6, 5], [13, 9]]) put(x, y, 'U');
+      wreck(8, 6, 'maesterKit', 'sea_bay_kit');
+      /* Driftmark, and the cave the smugglers out of Hull have always used. */
+      isle(17, 8, 8, 6);
+      put(19, 8, 's'); put(20, 8, 's');
+      mouth(20, 7, 'smugglersCave', 2, 16, 'up');
+      put(23, 9, 'n');
+      wreck(16, 13, 'antidote', 'sea_bay_antidote');
+      /* Claw Isle under Dragonstone, and Sharp Point to the south-east. */
+      isle(26, 3, 4, 3);
       put(25, 4, 's'); quay(25, 4, 'dragonstone', 28, 25, 'down');
-      put(28, 3, 'n');
-      isle(12, 5, 2, 2);
-      isle(17, 19, 3, 2);
-      put(8, 22, 'C'); put(21, 9, 'C');
-      wreck(12, 4, 'maesterKit', 'sea_bay_kit');
-      wreck(16, 20, 'antidote', 'sea_bay_antidote');
-      crossing('e', 9, 19, 'theGullet');
+      span(24, 21, 7, 4, 's'); span(25, 22, 6, 3, 'C');
+      put(27, 21, 'n');
+      wreck(23, 22, 'burnSalve', 'sea_bay_salve');
+      /* Two reefs to break the crossing up. */
+      isle(13, 18, 2, 2);
+      isle(20, 17, 3, 2);
+      crossing('e', 9, 15, 'theGullet');
     },
   }),
 
   theGullet: makeSea({
     name: 'The Gullet',
-    draw: ({ put, isle, crossing, wreck }) => {
+    draw: ({ put, isle, crossing, wreck, mouth }) => {
       isle(6, 3, 4, 3);
+      put(7, 4, 's'); put(8, 4, 's');
+      mouth(8, 3, 'wreckersCave', 2, 16, 'up');
       isle(9, 17, 5, 3);
       isle(20, 7, 3, 6);
       isle(25, 20, 3, 3);
       put(16, 12, 'C'); put(29, 4, 'C');
-      crossing('w', 9, 19, 'blackwaterBay');
+      crossing('w', 9, 15, 'blackwaterBay');
       crossing('s', 8, 20, 'stepstones');
       wreck(7, 2, 'warBanner', 'sea_gullet_banner');
       wreck(26, 19, 'burnSalve', 'sea_gullet_salve');
@@ -5209,10 +5459,12 @@ export const MAPS = {
 
   sunsetSea: makeSea({
     name: 'The Sunset Sea',
-    draw: ({ put, isle, crossing, quay, wreck }) => {
+    draw: ({ put, isle, crossing, quay, wreck, mouth }) => {
       isle(26, 10, 4, 6);
       quay(25, 13, 'lannisport', 22, 18, 'left');
       isle(3, 4, 4, 4);
+      put(4, 8, 's'); put(3, 8, 's');
+      mouth(4, 7, 'drownedCave', 2, 16, 'up');
       quay(7, 6, 'lordsportDocks', 20, 10, 'right');
       isle(2, 18, 3, 3);
       isle(14, 9, 2, 2);
@@ -5227,8 +5479,10 @@ export const MAPS = {
 
   stepstones: makeSea({
     name: 'The Stepstones',
-    draw: ({ put, isle, crossing, quay, wreck }) => {
+    draw: ({ put, isle, crossing, quay, wreck, mouth }) => {
       isle(3, 3, 3, 3);
+      put(4, 2, 's');
+      mouth(4, 3, 'pirateCave', 2, 17, 'down');
       isle(9, 7, 4, 3);
       isle(17, 4, 3, 4);
       isle(24, 9, 3, 3);
@@ -5245,16 +5499,18 @@ export const MAPS = {
 
   shiveringSea: makeSea({
     name: 'The Shivering Sea',
-    draw: ({ put, span, isle, crossing, quay, wreck }) => {
+    draw: ({ put, span, isle, crossing, quay, wreck, mouth }) => {
       span(1, 1, 30, 1, 'i');
       span(1, 21, 3, 5, 's'); span(1, 22, 2, 4, 'C');
       quay(3, 23, 'eastwatch', 11, 19, 'right');
       span(27, 3, 4, 4, 's'); span(28, 3, 3, 3, 'C');
       quay(27, 5, 'hardhome', 11, 21, 'left');
       isle(11, 10, 3, 2);
+      put(12, 10, 's');
+      mouth(12, 9, 'iceCave', 2, 17, 'up');
       isle(19, 16, 3, 2);
       put(7, 8, 'i'); put(22, 7, 'i'); put(14, 21, 'i');
-      wreck(12, 9, 'kissOfFire', 'sea_shiver_fire');
+      wreck(14, 11, 'kissOfFire', 'sea_shiver_fire');
       wreck(18, 16, 'kingsRansom', 'sea_shiver_ransom');
       crossing('s', 10, 20, 'sunsetSea');
     },
@@ -5977,7 +6233,7 @@ export const MAPS = {
       { beast: 'corvarch', min: 30, max: 38, weight: 40 },
     ],
     warps: [
-      { x: 21, y: 28, to: 'blackwaterBay', tx: 3, ty: 12, dir: 'down' },
+      { x: 21, y: 28, to: 'blackwaterBay', tx: 4, ty: 11, dir: 'down' },
       { x: 14, y: 31, to: 'kingsroad', tx: 10, ty: 21, dir: 'up' },
       { x: 15, y: 31, to: 'kingsroad', tx: 10, ty: 21, dir: 'up' },
       { x: 16, y: 31, to: 'kingsroad', tx: 10, ty: 21, dir: 'up' },
@@ -7032,6 +7288,9 @@ export const MAPS = {
   }),
 
   crossroadsInn: makeInn({
+    /* The one inn in the game whose key is not its town's name with "Inn" on
+       the end, so it has to say which map it is or its own stairs go nowhere. */
+    id: 'crossroadsInn',
     town: 'theCrossroads', name: 'The Inn at the Crossroads', region: 'The Riverlands',
     keeper: 'Masha', keeperLine: 'Masha: Beds upstairs, board down here, and whatever you have heard on the road stays on it.',
     drinkerLine: 'Drinker: Four armies have drunk in this room. Not one of them paid.',
@@ -8131,6 +8390,105 @@ for (const town of Object.keys(REGIONS)) {
   if (REGIONS[`${town}Inn`] === undefined && MAPS[`${town}Inn`]) {
     REGIONS[`${town}Inn`] = REGIONS[town];
     REGIONS[`${town}House`] = REGIONS[town];
+  }
+}
+
+/* ------------------------------------------------------ upstairs and down --
+ *
+ * Every inn in the world grows a floor of rooms over the taproom and a cellar
+ * under it, and every common house grows a floor of rooms. Written here rather
+ * than beside each town because there is nothing town-specific about a stair:
+ * forty-four maps that would otherwise be forty-four copies of each other with
+ * a different word in the sign.
+ *
+ * The people are the town's own - a lodger who has been somewhere, a maid, a
+ * cellarman - so the floors are somewhere to go rather than empty rooms with
+ * furniture in them.
+ */
+export const UPPER_FLOORS = [];
+{
+  const upstairsLine = [
+    'has been on the road since the spring and has not got where they are going',
+    'came in off a ship and has not stopped shaking yet',
+    'is sleeping off whatever was in the cup downstairs',
+    'is writing a letter they will not send',
+    'is counting a purse that is smaller than it was this morning',
+  ];
+  const cellarLine = [
+    'The good barrels are the ones with no mark on them. That is not an accident.',
+    'Everything down here is older than everything up there, including me.',
+    'Mind the third step. It has had three people off it this year.',
+  ];
+  const pick = (list, seed) => {
+    let n = 0;
+    for (const c of seed) n = (n * 31 + c.charCodeAt(0)) >>> 0;
+    return list[n % list.length];
+  };
+
+  for (const key of Object.keys(MAPS)) {
+    /* By the plan they were built from, not by the spelling of their key. The
+       Crossroads Inn is `crossroadsInn` and there is no map called
+       `crossroads`, so deriving the town by chopping the end off the name
+       silently skipped three of them - and makeInn had already written a stair
+       up to a floor that was then never built. */
+    const isInn = MAPS[key].tiles === INN_TILES;
+    const isHouse = MAPS[key].tiles === HOUSE_TILES;
+    if (!isInn && !isHouse) continue;
+    const town = key.endsWith('Inn') ? key.slice(0, -3) : key.slice(0, -5);
+    const region = REGIONS[key] ?? REGIONS[town] ?? '';
+    const place = MAPS[key].name;
+
+    if (isInn) {
+      MAPS[`${key}Rooms`] = {
+        name: `${place}, Upstairs`, indoor: true, music: 'town', ground: 'wood',
+        tiles: INN_ROOMS,
+        warps: [{ x: 12, y: 4, to: key, tx: 11, ty: 3, dir: 'down' }],
+        npcs: [
+          { x: 2, y: 2, dir: 'down', sprite: 'smallfolk', name: 'A Lodger', script: 'townTalk',
+            data: { line: `A Lodger: I have the corner room. The one at the end ${pick(upstairsLine, key)}.` } },
+          { x: 10, y: 7, dir: 'up', sprite: 'goodwife', name: 'A Chambermaid', script: 'townTalk',
+            data: { line: 'A Chambermaid: Six rooms, and I turn every one of them out before noon. You would not believe what people leave behind.' } },
+        ],
+        signs: [],
+        items: [{ x: 10, y: 1, item: 'stillwater', count: 1, flag: `item_${key}_rooms` }],
+      };
+      MAPS[`${key}Cellar`] = {
+        name: `${place}, the Cellar`, indoor: true, music: 'town', ground: 'stone',
+        tiles: INN_CELLAR,
+        warps: [{ x: 1, y: 1, to: key, tx: 2, ty: 9, dir: 'up' }],
+        npcs: [
+          { x: 5, y: 8, dir: 'up', sprite: 'oldman', name: 'A Cellarman', script: 'townTalk',
+            data: { line: `A Cellarman: ${pick(cellarLine, key + 'c')}` } },
+        ],
+        signs: [{ x: 10, y: 2, text: `THE CELLAR\nWhat ${region || 'this town'} drinks, and one barrel nobody is\nallowed to open.` }],
+        items: [{ x: 2, y: 2, item: 'poppyMilk', count: 1, flag: `item_${key}_cellar` }],
+      };
+      UPPER_FLOORS.push(`${key}Rooms`, `${key}Cellar`);
+    } else {
+      MAPS[`${key}Rooms`] = {
+        name: `${place}, Upstairs`, indoor: true, music: 'town', ground: 'stone',
+        tiles: HOUSE_ROOMS,
+        warps: [{ x: 12, y: 4, to: key, tx: 11, ty: 3, dir: 'down' }],
+        npcs: [
+          { x: 2, y: 2, dir: 'down', sprite: 'goodwife', name: 'A Girl of the House', script: 'houseTalk',
+            data: { line: 'A Girl of the House: People say more up here than they do downstairs, and they pay for the privilege of it. Half of what I know I was told by somebody falling asleep.' } },
+          { x: 10, y: 7, dir: 'up', sprite: 'noble', name: 'A Quiet Guest', script: 'houseTalk',
+            data: { line: 'A Quiet Guest: You have not seen me. I have not seen you. That is the arrangement in a place like this, and it holds.' } },
+        ],
+        signs: [],
+        items: [{ x: 11, y: 1, item: 'wakingDraught', count: 1, flag: `item_${key}_rooms` }],
+      };
+      UPPER_FLOORS.push(`${key}Rooms`);
+    }
+    for (const id of [`${key}Rooms`, `${key}Cellar`]) {
+      if (MAPS[id] && REGIONS[id] === undefined) REGIONS[id] = region;
+    }
+  }
+  /* Rectangled and measured like everything else. The pass that does that runs
+     over MAPS the moment it is written, and these are written after it. */
+  for (const id of UPPER_FLOORS) {
+    MAPS[id].id = id;
+    prepare(MAPS[id]);
   }
 }
 

@@ -17,6 +17,11 @@ import { createRequire } from 'node:module';
 // The berth list is plain data with nothing browser-shaped in it, so it is read
 // here rather than harvested out of the page.
 const { PORTS } = await import('../src/data/ports.js');
+/* And the list of floors the map file grows for itself - an upstairs over every
+   taproom, a cellar under it, an upstairs over every common house. Forty-one
+   maps that are not written anywhere by hand, so they cannot be listed by hand
+   either without the list going stale the first time a town is added. */
+const { UPPER_FLOORS } = await import('../src/data/maps.js');
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
@@ -103,6 +108,10 @@ const MAP_IDS = [
      were put down at the far end of, which is a warp with a coat of paint on
      it. These are ground you steer across. */
   'blackwaterBay', 'theGullet', 'sunsetSea', 'stepstones', 'shiveringSea',
+  /* And a cave under every one of them, which is most of the reason to cross
+     one: you run the keel up a beach under a cliff and walk in. */
+  'smugglersCave', 'wreckersCave', 'drownedCave', 'pirateCave', 'iceCave',
+  ...UPPER_FLOORS,
 ];
 
 // What the cartridge's hardware will hold.

@@ -17,6 +17,10 @@ import { creatureSpecies, displayName, wildCreature } from '../game/creature.js'
 import { walkEggs, hatch, deepenBond, willCarry } from '../game/eggs.js';
 import { activeCompanion, hasFallen, kill as killCompanion } from '../game/company.js';
 import { ownsHoldfast, gather, INGREDIENTS } from '../game/holdfast.js';
+import {
+  ownsShip, aboard, board, goAshore, berthedAt, shipName, conditionWord,
+  lane as seaLane, rollFleet,
+} from '../game/ship.js';
 import { creatureSprite, SPRITE_SIZE } from '../art/creatures.js';
 import { dialog } from '../ui/textbox.js';
 import { drawPanel } from '../ui/panel.js';
@@ -73,6 +77,7 @@ export class Overworld {
     this.script = null;
     this.turnDelay = 0;
     this.bumpCooldown = 0;
+    this.awayCooldown = 0;   // so "she is not here" is said once, not every step
     this.pendingEncounter = null;
     this.mount = null;      // { creature, kind } while you are riding
     this.pendingHatch = null;
@@ -101,6 +106,7 @@ export class Overworld {
   /** Swaps to a map and places the player. */
   loadMap(mapId, { x, y, dir }) {
     this.map = getMap(mapId);
+    this.mapId = mapId;
     this.region = regionOf(mapId);
     setLocalRegion(this.region);
     // You leave the beast outside; it does not follow you through a doorway.
@@ -179,10 +185,18 @@ export class Overworld {
     // foot; nothing carries you through a wall.
     const overWater = this.mount && (this.mount.kind === 'swim' || this.mount.kind === 'fly');
     if (def.kind === 'solid') return true;
-    if (def.kind === 'water' && !overWater) return true;
+    /* Under sail the whole map turns inside out: open water is the only ground
+       there is, and a shore is a place you may put in rather than a place you
+       may walk. Nothing sails through a wall either. */
+    if (def.kind === 'water') { if (!overWater && !this.sailing) return true; }
     if (this.npcAt(x, y)) return true;
     if (this.itemAt(x, y)) return true;
     return false;
+  }
+
+  /** True while you are on your own deck rather than on your own two feet. */
+  get sailing() {
+    return aboard();
   }
 
   static delta(dir) {
@@ -263,6 +277,41 @@ export class Overworld {
       this.startMove(nx, ny + 1, true);
       audio.sfx('bump');
       return;
+    }
+
+    /* Getting on and off her.
+     *
+     * No menu and no gangplank prompt: walk off the quay into the water and you
+     * are aboard, put her nose on a beach and you are ashore. The one thing
+     * this insists on is that she is actually here. A ship you left tied up at
+     * Lordsport is not waiting for you at Braavos, and saying so is the whole
+     * difference between owning a ship and owning a fast-travel button. */
+    if (ownsShip() && !this.map.indoor && !this.mount) {
+      const kind = tileDef(targetTile).kind;
+      if (!this.sailing && kind === 'water') {
+        if (berthedAt(this.mapId)) {
+          board(this.mapId, this.player.x, this.player.y);
+          audio.sfx('confirm');
+          dialog.say(`You cast off. ${shipName()} answers her tiller — ${conditionWord()}.`);
+          this.startMove(nx, ny, false);
+          return;
+        }
+        /* Said once and then left alone, rather than every time you face the
+           sea from a town that happens to have a harbour in it. */
+        if (!this.awayCooldown) {
+          this.awayCooldown = 6;
+          audio.sfx('bump');
+          dialog.say(`${shipName()} is not here. You left her tied up somewhere else.`);
+          return;
+        }
+      }
+      if (this.sailing && kind !== 'water' && kind !== 'solid') {
+        goAshore(this.mapId, nx, ny);
+        audio.sfx('cancel');
+        dialog.say(`You put her in and step ashore. ${shipName()} lies where you left her.`);
+        this.startMove(nx, ny, false);
+        return;
+      }
     }
 
     if (this.blocked(nx, ny)) {
@@ -431,6 +480,7 @@ export class Overworld {
       }
     }
     if (this.bumpCooldown > 0) this.bumpCooldown = Math.max(0, this.bumpCooldown - dt);
+    if (this.awayCooldown > 0) this.awayCooldown = Math.max(0, this.awayCooldown - dt);
     if (this.turnDelay > 0) this.turnDelay = Math.max(0, this.turnDelay - dt);
 
     const move = this.player.moving;
@@ -639,6 +689,17 @@ export class Overworld {
    */
   checkEncounter() {
     const def = tileDef(tileAt(this.map, this.player.x, this.player.y));
+    /* At sea it is open water that is dangerous, not cover, and what finds you
+       is a hull rather than a man in a bush. A sea lane replaces the map's own
+       encounter table outright while you are on it: nothing that lives in the
+       long grass of the Reach is going to come over the side of your ship. */
+    if (this.sailing && def.kind === 'water' && seaLane(this.mapId)) {
+      if (game.state.player.wounded) return;
+      if (!rng.chance(ENCOUNTER_CHANCE * 0.55)) return;
+      const fleet = rollFleet(this.mapId, Math.random());
+      if (fleet) this.runScript('seaFight', null, { fleet });
+      return;
+    }
     if (def.kind !== 'encounter') return;
     if (!(this.map.encounters?.length)) return;
     if (game.state.player.wounded) return;
@@ -1070,19 +1131,23 @@ export class Overworld {
     }
   }
 
-  runScript(name, subject) {
+  /* `extra` is for scripts nobody walks up to. A sea fight has no NPC to carry
+     its data on, so what it needs -- which hull just came out of the sun --
+     arrives here instead. */
+  runScript(name, subject, extra = null) {
     const fn = SCRIPTS[name] ?? SCRIPTS.generic;
-    const api = this.makeScriptApi(subject);
+    const api = this.makeScriptApi(subject, extra);
     this.script = Promise.resolve()
       .then(() => fn(api))
       .catch((err) => console.error(`Script "${name}" failed:`, err))
       .then(() => { this.script = null; });
   }
 
-  makeScriptApi(subject) {
+  makeScriptApi(subject, extra = null) {
     return {
       subject,
       npc: subject,
+      data: extra ?? subject?.data ?? null,
       overworld: this,
       say: (text, opts) => dialog.say(text, opts),
       choose: (text, options, opts) => dialog.choose(text, options, opts),

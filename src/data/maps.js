@@ -2119,6 +2119,165 @@ function braavosCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
   };
 }
 
+/* Meereen: the Great Pyramid, and the city is what fits round it. Eight hundred
+   feet of stepped brick, drawn as rings inside rings because that is what a
+   stepped pyramid is from above, and nothing else on this map is allowed to be
+   more than three tiles tall. */
+function meereenCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
+  const { put, row, span, done } = coreGrid(W);
+  span(2, 1, 20, 25, g);
+  put(11, 0, g); put(11, 26, g);
+
+  // each step smaller than the one under it, and each one a course higher
+  [[5, 5, 14, 12, A], [6, 6, 12, 10, R], [7, 7, 10, 8, t],
+   [8, 8, 8, 6, A], [9, 9, 6, 4, R], [10, 10, 4, 2, M]]
+    .forEach(([x, yy, w, h, c]) => span(x, yy, w, h, c));
+  put(11, 10, V); put(12, 10, V);
+  put(11, 16, 'D');                         // and one way in, at the bottom of it
+
+  row(3, 20, t.repeat(5)); row(3, 21, R.repeat(5)); row(3, 22, H + 'wDw' + H);
+  row(16, 20, t.repeat(5)); row(16, 21, R.repeat(5)); row(16, 22, H + 'wDw' + H);
+  row(10, 21, z.repeat(4)); row(10, 22, A + A + 'D' + A);
+
+  return {
+    tiles: done(),
+    doors: {
+      keep: [11, 16], cellar: [12, 22], inn: [5, 22], house: [18, 22],
+      northGate: [11, 0], southGate: [11, 26],
+    },
+  };
+}
+
+/* Volantis: a city on both banks of the Rhoyne, and the Long Bridge, which is
+   the only way across and has shops built along both sides of it so that
+   crossing the river is walking down a street. South of the water, the Black
+   Wall — fused dragonstone, two hundred feet, older than the Doom, and Old
+   Volantis still living inside it. */
+function volantisCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
+  const { put, row, span, done } = coreGrid(W);
+  span(2, 1, 20, 25, g);
+  put(11, 0, g); put(11, 26, g);
+
+  span(0, 9, 24, 5, '~');                   // the Rhoyne, all the way across
+  span(9, 9, 6, 5, 't');                    // and the one thing laid over it
+  span(9, 10, 2, 3, A); span(13, 10, 2, 3, A);   // the shops along its sides
+  put(9, 10, Z); put(10, 10, Z); put(13, 10, Z); put(14, 10, Z);
+
+  // north bank: the temple of R'hllor, where the night is dark and full of it
+  [
+    M.repeat(8),
+    A + 'w' + A + V + V + A + 'w' + A,
+    A.repeat(8),
+    A + 'w' + A.repeat(4) + 'w' + A,
+    A.repeat(3) + 'D' + A.repeat(4),
+  ].forEach((line, j) => row(8, 2 + j, line));
+
+  // south bank: the Black Wall, and Old Volantis inside it
+  span(4, 15, 16, 1, A); span(4, 24, 16, 1, A);
+  for (let yy = 16; yy <= 23; yy++) { put(4, yy, A); put(19, yy, A); }
+  put(11, 15, g);
+  /* Two houses inside the wall and four clear columns between them. Drawn as
+     three, the middle one closed the only way from the gate to the yard and
+     walled off twenty-one tiles of Old Volantis. */
+  row(5, 18, t.repeat(5)); row(5, 19, R.repeat(5)); row(5, 20, H + 'wDw' + H);
+  row(14, 18, t.repeat(5)); row(14, 19, R.repeat(5)); row(14, 20, H + 'wDw' + H);
+
+  /* The vaults are on the far bank, tucked up against the top so the whole
+     quay below them stays open — a river quay one row deep is a river quay two
+     people can close. */
+  row(3, 2, z.repeat(4)); row(3, 3, Z.repeat(4)); row(3, 4, A + 'D' + A + A);
+
+  return {
+    tiles: done(),
+    doors: {
+      keep: [11, 6], cellar: [4, 4], inn: [7, 20], house: [16, 20],
+      northGate: [11, 0], southGate: [11, 26],
+    },
+  };
+}
+
+/* Pentos: square brick towers and no wall worth the name. The city never had to
+   be defensible, so it was never laid out to be — the towers stand where their
+   magisters could afford ground, the streets are whatever was left between
+   them, and the whole place smells of pepper. */
+function pentosCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
+  const { put, row, span, done } = coreGrid(W);
+  span(2, 1, 20, 25, g);
+  put(11, 0, g); put(11, 26, g);
+
+  /* A square brick tower: brick to the top, a flat clay roof, no battlements,
+     because nobody in Pentos has ever expected to be shot at from below. */
+  const tower = (x, yy, w, h, door) => {
+    span(x, yy, w, h, A);
+    row(x, yy, t.repeat(w));
+    row(x, yy + 1, R.repeat(w));
+    for (let i = 1; i < w - 1; i += 2) put(x + i, yy + 2, 'w');
+    if (door !== undefined) put(x + door, yy + h - 1, 'D');
+  };
+  tower(3, 2, 5, 5);            tower(15, 2, 5, 5);
+  tower(8, 8, 8, 7, 3);         // Illyrio's manse, which is the largest of them
+  put(9, 9, V); put(14, 9, V);
+  tower(2, 10, 5, 5);           tower(18, 10, 4, 5);
+  tower(3, 19, 5, 4, 2);        tower(15, 19, 5, 4, 2);
+  row(10, 20, t.repeat(4)); row(10, 21, A.repeat(4)); put(12, 21, 'D');
+
+  return {
+    tiles: done(),
+    doors: {
+      keep: [11, 14], cellar: [12, 21], inn: [5, 22], house: [17, 22],
+      northGate: [11, 0], southGate: [11, 26],
+    },
+  };
+}
+
+/* The Dreadfort: an outer ward you cross under the walls of the inner one, with
+   the kennels in it, and nothing planted anywhere. Two gates on the same line,
+   so that anybody who takes the first one is standing in a yard the whole
+   castle is shooting into. */
+function dreadfortCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
+  const { put, row, span, done } = coreGrid(W);
+  span(2, 1, 20, 25, g);
+  put(11, 0, g); put(11, 26, g);
+
+  span(2, 1, 20, 1, M); put(11, 1, g);          // the outer wall
+  // the kennels. There are more dogs here than men and they are better fed.
+  row(3, 3, 'ffffff'); put(3, 4, 'f'); put(8, 4, 'f');
+  row(15, 3, 'ffffff'); put(15, 4, 'f'); put(20, 4, 'f');
+  put(11, 4, 'F');
+
+  span(2, 6, 20, 1, M); put(11, 6, g);          // the inner wall
+
+  // the maester and the forge, built into the inner ward's flanks
+  row(2, 8, t.repeat(5)); row(2, 9, R.repeat(5)); row(2, 10, P + 'wDw' + P);
+  row(17, 8, z.repeat(5)); row(17, 9, Z.repeat(5)); row(17, 10, A + 'wDw' + A);
+
+  // the Great Keep
+  row(8, 9, M.repeat(6));
+  [
+    M + A.repeat(6) + M,
+    A + 'w' + A + V + V + A + 'w' + A,
+    A.repeat(8),
+    A + 'w' + A.repeat(4) + 'w' + A,
+    A.repeat(4) + 'D' + A.repeat(3),
+  ].forEach((line, j) => row(7, 10 + j, line));
+
+  row(3, 18, z.repeat(5)); row(3, 19, Z.repeat(5)); row(3, 20, A + 'wDw' + A);
+  row(16, 18, z.repeat(5)); row(16, 19, Z.repeat(5)); row(16, 20, A + 'wDw' + A);
+  row(10, 19, z.repeat(4)); row(10, 20, A + A + 'D' + A);
+  put(5, 17, 'n'); put(18, 17, 'n');
+
+  span(2, 25, 20, 1, M); put(11, 25, g);        // and the south wall
+
+  return {
+    tiles: done(),
+    doors: {
+      maester: [4, 10], forge: [19, 10], keep: [11, 14],
+      cellar: [12, 20], inn: [5, 20], house: [18, 20],
+      northGate: [11, 0], southGate: [11, 26],
+    },
+  };
+}
+
 // The Eyrie: four terraces cut into the Giant's Lance, each one cut back from
 // the one below it, with Alyssa's Tears falling the whole height of the map
 // down the west face and the drop widening on your right the whole climb.
@@ -4299,9 +4458,10 @@ export const MAPS = {
       { dir: 'down', sprite: 'noble', name: 'A Magister\'s Man', script: 'townTalk',
         data: { line: 'A Magister\'s Man: Pentos has a prince. Every year they ask him to bless the fields, and every so often they cut his throat for a bad harvest.' } },
     ],
-    outskirts: OUTSKIRTS.spiceMarket, gate: 13,
-    quarter: 0,
-    roof: 'Q', ridge: 'q', shut: ['hall', 'forge'],
+    outskirts: OUTSKIRTS.spiceMarket, gate: 16,
+    core: pentosCore,
+    roof: 'Q', ridge: 'q',
+    dressing: [[9, 16, 'F'], [14, 16, 'F'], [8, 24, 'U'], [15, 24, 'U'], [11, 7, 'F']],
     name: 'Pentos', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
       { x: 7, y: 9, dir: 'down', name: 'Illyrio Mopatis', sprite: 'merchant',
@@ -4318,7 +4478,7 @@ export const MAPS = {
           + 'You walk everywhere. It is very strange.' } },
     ],
     signs: [
-      { x: 22, y: 12, text: 'THE SPICE MARKET\nPentos sells what everyone else grows.\nThat is the whole of the city, and it has made it very rich.' },{ x: 13, y: 10, text: 'PENTOS. NO WALLS WORTH THE NAME, AND NO NEED OF THEM YET.' }],
+      { x: 22, y: 16, text: 'THE SPICE MARKET\nPentos sells what everyone else grows.\nThat is the whole of the city, and it has made it very rich.' },{ x: 11, y: 13, text: 'PENTOS. NO WALLS WORTH THE NAME, AND NO NEED OF THEM YET.' }],
     warps: [
       { door: 'cellar', to: 'pentosCellar', tx: 6, ty: 8, dir: 'up' },
       { door: 'inn', to: 'pentosInn', tx: 6, ty: 10, dir: 'up' },
@@ -4336,27 +4496,28 @@ export const MAPS = {
       { dir: 'down', sprite: 'smallfolk', name: 'A Marked Woman', script: 'townTalk',
         data: { line: 'A Marked Woman: Five slaves to every free man. You can read what a person does off their cheek here, which saves a good deal of conversation.' } },
     ],
-    outskirts: OUTSKIRTS.blackWall, gate: 13,
-    quarter: 1,
-    roof: 'Q', ridge: 'q', shut: ['hall', 'forge'],
+    outskirts: OUTSKIRTS.blackWall, gate: 14,
+    core: volantisCore,
+    roof: 'Q', ridge: 'q',
+    dressing: [[6, 8, 'F'], [17, 8, 'F'], [7, 22, 'F'], [16, 22, 'F'], [3, 20, 'U'], [21, 20, 'U']],
     name: 'Volantis', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
-      { x: 7, y: 9, dir: 'down', name: 'Red Priestess', sprite: 'redPriest',
+      { x: 13, y: 7, dir: 'down', name: 'Red Priestess', sprite: 'redPriest',
         script: 'freeCityLocal', data: { line: 'Red Priestess: The night is dark and full of terrors. '
           + 'Volantis burns a fire against it every hour of every day.' } },
-      { x: 15, y: 9, dir: 'down', name: 'Triarch', sprite: 'noble',
+      { x: 17, y: 8, dir: 'down', name: 'Triarch', sprite: 'noble',
         script: 'freeCityLocal', data: { line: 'Triarch: Old Volantis was first. Everything since '
           + 'has been a copy, and a poor one.' } },
-      { x: 11, y: 16, dir: 'down', name: 'Slaver', sprite: 'merchant',
+      { x: 12, y: 22, dir: 'down', name: 'Slaver', sprite: 'merchant',
         script: 'shop', data: { line: 'Slaver: I deal in cargo. You would not like my usual stock, '
           + 'so here is the other kind.',
           stock: ['maesterKit', 'poppyMilk', 'warBanner', 'kingsguardBanner'] } },
-      { x: 4, y: 9, dir: 'right', name: 'Bridge Guard', sprite: 'unsullied',
+      { x: 13, y: 14, dir: 'right', name: 'Bridge Guard', sprite: 'unsullied',
         script: 'freeCityLocal', data: { line: 'Bridge Guard: The Long Bridge has stood a thousand '
           + 'years. Walk on the left.' } },
     ],
     signs: [
-      { x: 22, y: 12, text: 'THE BLACK WALL\nTwo hundred feet high and fused from dragonstone.\nIt was old when Valyria fell.' },{ x: 13, y: 10, text: 'THE LONG BRIDGE. BUILT BY VALYRIA. NOBODY LEFT KNOWS HOW.' }],
+      { x: 22, y: 14, text: 'THE BLACK WALL\nTwo hundred feet high and fused from dragonstone.\nIt was old when Valyria fell.' },{ x: 10, y: 11, text: 'THE LONG BRIDGE. BUILT BY VALYRIA. NOBODY LEFT KNOWS HOW.' }],
     warps: [
       { door: 'cellar', to: 'volantisCellar', tx: 6, ty: 8, dir: 'up' },
       { door: 'inn', to: 'volantisInn', tx: 6, ty: 10, dir: 'up' },
@@ -4374,9 +4535,10 @@ export const MAPS = {
       { dir: 'down', sprite: 'noble', name: 'A Son of the Harpy', script: 'duel',
         data: { duel: 'sellsword' } },
     ],
-    outskirts: OUTSKIRTS.pyramids, gate: 13,
-    quarter: 2,
-    roof: 'Q', ridge: 'q', shut: ['hall', 'forge'],
+    outskirts: OUTSKIRTS.pyramids, gate: 18,
+    core: meereenCore,
+    roof: 'Q', ridge: 'q',
+    dressing: [[4, 18, 'F'], [19, 18, 'F'], [8, 24, 'U'], [15, 24, 'U'], [3, 3, 'U'], [20, 3, 'U']],
     name: 'Meereen', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
       { x: 11, y: 6, dir: 'down', name: 'Daenerys Targaryen', sprite: 'targaryen',
@@ -4394,7 +4556,7 @@ export const MAPS = {
         script: 'duel', data: { duel: 'daario' } },
     ],
     signs: [
-      { x: 22, y: 12, text: 'THE GREAT PYRAMIDS\nEight hundred feet, and a family in every one.\nThe bricks are held together with blood, they say, and they may be right.' },{ x: 13, y: 10, text: 'THE GREAT PYRAMID OF MEEREEN. A DRAGON QUEEN SITS AT THE TOP OF IT.' }],
+      { x: 22, y: 12, text: 'THE GREAT PYRAMIDS\nEight hundred feet, and a family in every one.\nThe bricks are held together with blood, they say, and they may be right.' },{ x: 10, y: 16, text: 'THE GREAT PYRAMID OF MEEREEN. A DRAGON QUEEN SITS AT THE TOP OF IT.' }],
     warps: [
       { door: 'cellar', to: 'meereenCellar', tx: 6, ty: 8, dir: 'up' },
       { door: 'inn', to: 'meereenInn', tx: 6, ty: 10, dir: 'up' },
@@ -4455,7 +4617,7 @@ export const MAPS = {
       'I=============I',
       'IIIIIII_IIIIIII',
     ],
-    warps: [{ x: 7, y: 10, to: 'volantis', tx: 7, ty: 15, dir: 'down' }],
+    warps: [{ x: 7, y: 10, to: 'volantis', tx: 11, ty: 7, dir: 'down' }],
     npcs: [
       { x: 7, y: 6, dir: 'down', sprite: 'redPriest', name: 'Kinvara', script: 'duel',
         data: { duel: 'redPriestess' } },
@@ -4490,8 +4652,8 @@ export const MAPS = {
       'IIIIII__IIIIIII',
     ],
     warps: [
-      { x: 6, y: 12, to: 'meereen', tx: 7, ty: 15, dir: 'down' },
-      { x: 7, y: 12, to: 'meereen', tx: 7, ty: 15, dir: 'down' },
+      { x: 6, y: 12, to: 'meereen', tx: 11, ty: 17, dir: 'down' },
+      { x: 7, y: 12, to: 'meereen', tx: 11, ty: 17, dir: 'down' },
     ],
     npcs: [
       { x: 7, y: 3, dir: 'down', sprite: 'targaryen', name: 'Daenerys Targaryen',
@@ -4894,8 +5056,8 @@ export const MAPS = {
       { dir: 'down', sprite: 'smallfolk', name: 'A Crow Counter', script: 'townTalk',
         data: { line: 'A Crow Counter: Nine on the posts this morning. There is no work to do here but count them, and I would rather not.' } },
     ],
-    outskirts: OUTSKIRTS.flayedYard, gate: 13,
-    quarter: 2,
+    outskirts: OUTSKIRTS.flayedYard, gate: 16,
+    core: dreadfortCore,
     roof: 'Z', ridge: 'z', house: 'A', banner: 'v',
     name: 'The Dreadfort', music: 'town', ground: 'snow', wall: 'P', floor: 'S',
     dressing: [
@@ -4914,7 +5076,7 @@ export const MAPS = {
     ],
     signs: [
       { x: 22, y: 12, text: 'THE FLAYED YARD\nA very great many posts and nothing growing between them.\nThe crows here are fat and unafraid.' },
-      { x: 11, y: 10, text: 'THE DREADFORT\nSeat of House Bolton.\nOur Blades are Sharp.' },
+      { x: 10, y: 14, text: 'THE DREADFORT\nSeat of House Bolton.\nOur Blades are Sharp.' },
     ],
     warps: [
       { door: 'cellar', to: 'dreadfortCellar', tx: 6, ty: 8, dir: 'up' },

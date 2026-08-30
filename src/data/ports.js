@@ -9,7 +9,7 @@ export const PORTS = [
   { map: 'dragonstone', name: 'Dragonstone', x: 11, y: 18, dir: 'up', fare: 600 },
   { map: 'braavos', name: 'Braavos', x: 11, y: 18, dir: 'up', fare: 500 },
   { map: 'pentos', name: 'Pentos', x: 11, y: 18, dir: 'up', fare: 450 },
-  { map: 'volantis', name: 'Volantis', x: 11, y: 18, dir: 'up', fare: 900 },
+  { map: 'volantis', name: 'Volantis', x: 16, y: 8, dir: 'up', fare: 900 },
   { map: 'meereen', name: 'Meereen', x: 11, y: 18, dir: 'up', fare: 1400 },
   /* North along the coast rather than east across the sea. Eastwatch is the
      only berth on the Wall, and Hardhome is the only place anybody sails to

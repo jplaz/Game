@@ -833,6 +833,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         && !solidGrid[y * width + x];
       const doors = (map.warps ?? []).map((w) => [w.x, w.y]);
       const people = new Set((map.npcs ?? []).map((n) => `${n.x},${n.y}`));
+      const signs = new Set((map.signs ?? []).map((n) => `${n.x},${n.y}`));
       const away = (x, y) => doors.reduce((best, [dx, dy]) =>
         Math.min(best, Math.abs(dx - x) + Math.abs(dy - y)), 99);
       /* A chest is furniture: solid, and standing where it stands. Drop one
@@ -878,6 +879,13 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
           if (!walkable(x, y)) continue;
           if (chestAt.has(`${x},${y}`) || people.has(`${x},${y}`)) continue;
           if ((map.grid[y][x] ?? '.') === 'D') continue;
+          /* And never beside a sign. A sign is read from the tile next to it,
+             so a chest set down there is a sign nobody can read -- exactly the
+             same failure as a chest in a doorway, which this already knew
+             about. Alyssa's Tears at the Eyrie had one tile it could be read
+             from and a purse ended up on it. */
+          if ([[1, 0], [-1, 0], [0, 1], [0, -1]]
+              .some(([ox, oy]) => signs.has(`${x + ox},${y + oy}`))) continue;
           /* Never against another chest. A chest is solid, so one set down
              beside a chest that was written into the map by hand can be the
              only tile anybody could have stood on to open it - which is how

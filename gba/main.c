@@ -4782,12 +4782,17 @@ static void refitYou(void) {
   mine.obsidian = you.WORN_WEAPON && wares[you.WORN_WEAPON - 1].obsidian;
 }
 
-/* The best thing of that kind still in the pouch, or -1 for nothing. */
+/* The best thing of that kind still in the pouch, or -1 for nothing. Judged
+   on what it is worth in a fight rather than on what it cost, because the
+   things worth most here are the ones nobody sells. */
 static int spareFor(int kind) {
   int i, best = -1;
   for (i = 0; i < WARE_COUNT; i++) {
     if (!you.bag[i] || wares[i].kind != (u8)kind) continue;
-    if (best < 0 || wares[i].price > wares[best].price) best = i;
+    if (best < 0
+        || wares[i].might + wares[i].guard > wares[best].might + wares[best].guard) {
+      best = i;
+    }
   }
   return best;
 }
@@ -4887,7 +4892,23 @@ static int takeWare(int at) {
   you.bag[at]++;
   {
     int had = w->kind < WARE_KINDS ? you.worn[w->kind] : 0;
-    if (!had || wares[had - 1].price < w->price) { wearWare(at); return TOOK_WORN; }
+    /* Better means better to wear, not dearer to buy.
+     *
+     * Four things in this game are made at a bench and never sold - the
+     * dragonglass dagger, Valyrian steel, Valyrian mesh, the ancestral blade
+     * out of a bench rather than a stall - so a counter's price for them is
+     * nought. A rule that read the price therefore walked straight past every
+     * one of them: you could spend five Valyrian shards on the best sword in
+     * the world and it would sit in your pouch, because the game valued it at
+     * less than a hunting knife. Read what it is worth in a fight, and keep
+     * the price only to break a tie. */
+    int mineNow = had ? wares[had - 1].might + wares[had - 1].guard : -1;
+    int theirs2 = w->might + w->guard;
+    if (!had || mineNow < theirs2
+        || (mineNow == theirs2 && wares[had - 1].price < w->price)) {
+      wearWare(at);
+      return TOOK_WORN;
+    }
   }
   return TOOK_KEPT;
 }

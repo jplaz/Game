@@ -252,6 +252,8 @@ static int interacting, duelTries, blocked;
 static int wantHouse, runAway, statusChecks, sinceStatus, wantTech, techUsed[4];
 static int menusSeen, bagsSeen, shopsSeen, bought, records, menuWant = -1;
 static int mustersSeen, kennelsSeen, holdLooks, boarded, fetched, oathsOffered;
+/* How many times the run swapped steel for glass because the dead were out. */
+static int glassDrawn;
 static int oathWanted = -1;
 static int deedsSeen, cutsPlayed, cutsChosen, courtsHeld, courtsAnswered;
 /* The house card and the arms builder: how many times the run opened each, how
@@ -389,6 +391,34 @@ static int ladderWants = -1;
 static int wantShop;
 /* Whether this rung has already been sent back for a weapon. */
 static int rearmed;
+
+/* Whether this ware is something an obsidian edge is made out of, and you are
+   still short of what the recipe asks for. The dagger that marks the dead is
+   three dragonglass shards and an ash haft; the shards are three hundred and
+   twenty apiece on the oddments shelf, and a run that never bought the third
+   one carried two of them all the way to the ninth rung and fought the Long
+   Night with a greatsword. */
+static int glassMaking(int at) {
+  int i, k;
+  for (i = 0; i < RECIPE_COUNT; i++) {
+    const Recipe *r = &recipes[i];
+    if (wares[r->makes].kind != WARE_WEAPON || !wares[r->makes].obsidian) continue;
+    for (k = 0; k < RECIPE_MAX_NEEDS; k++) {
+      if (!r->many[k] || r->mat[k] != (u8)at) continue;
+      if (you.bag[at] < r->many[k]) return 1;
+    }
+  }
+  return 0;
+}
+
+/* Whether there is an obsidian edge anywhere on you, worn or packed. */
+static int haveGlass(void) {
+  int i;
+  for (i = 0; i < WARE_COUNT; i++) {
+    if (you.bag[i] && wares[i].kind == WARE_WEAPON && wares[i].obsidian) return 1;
+  }
+  return you.WORN_WEAPON && wares[you.WORN_WEAPON - 1].obsidian;
+}
 /* What the counter is being asked for, what was in the purse when the asking
    started, and how many times. A sale always takes gold. */
 static int askedFor = -1, askedGold, askedTimes;
@@ -399,6 +429,28 @@ static u16 lostHere[MAP_COUNT];
 static u8 badGround[MAP_COUNT];
 /* Frames spent walking grass since the last fight actually started. */
 static int grindQuiet;
+
+/* An edge in the pouch that will mark the dead, when what is in your hand
+   will not.
+ *
+ * Steel does two fifths of its damage to something already dead and obsidian
+ * does two and a half times - a six-fold swing - and the game will never put
+ * the glass on for you, because a dragonglass dagger is worth eighteen and
+ * the greatsword it would replace is worth thirty. That is the right call
+ * everywhere except in front of a wight, which by the last act is four
+ * fights in five on every road north of the Neck. A player reads "steel
+ * barely marks it", opens the pouch and changes weapons. Nothing in here
+ * ever did, so the ninth rung cost seven and a half million frames and six
+ * thousand four hundred losses. */
+static int obsidianToDraw(void) {
+  int i;
+  if (winterStage() < 5) return -1;
+  if (you.WORN_WEAPON && wares[you.WORN_WEAPON - 1].obsidian) return -1;
+  for (i = 0; i < WARE_COUNT; i++) {
+    if (you.bag[i] && wares[i].kind == WARE_WEAPON && wares[i].obsidian) return i;
+  }
+  return -1;
+}
 
 static int leaderNpcOn(int m, int lead) {
   int i;
@@ -605,6 +657,15 @@ static void pickLadderGoal(void) {
      Once per rung: if the purse will not stretch to a weapon, asking again
      every frame turns the forge door into the revolving one all over again. */
   if (!you.WORN_WEAPON && !rearmed && you.gold >= 200) {
+    rearmed = 1;
+    wantShop = 1;
+    shopTries = 0;
+  }
+  /* And a forge is also where the bench is. Once the dead are past the Neck
+     and there is no glass anywhere on you, the errand is worth making again
+     for its own sake: the shard has been in the pouch since Dragonstone and
+     the thing that turns it into an edge is behind the smith. */
+  if (!rearmed && winterStage() >= 5 && !haveGlass()) {
     rearmed = 1;
     wantShop = 1;
     shopTries = 0;
@@ -1054,7 +1115,10 @@ void hostFrame(void) {
     menusSeen++;
     /* Look in the pouch about half the time, write the record now and then,
        and otherwise leave. */
-    if (menuWant < 0) menuWant = (int)roll(MENU_ENTRIES);
+    /* The pouch, deliberately, when there is glass in it and steel in your
+       hand and the dead on the road outside. */
+    if (obsidianToDraw() >= 0) menuWant = 3;
+    else if (menuWant < 0) menuWant = (int)roll(MENU_ENTRIES);
     /* Leaving has to clear what it wanted too. Without this the first roll of
        "leave" sticks, and every menu after it is opened and shut again without
        the tester ever looking in the pouch. */
@@ -1133,7 +1197,20 @@ void hostFrame(void) {
         if (wares[nthInPocket(bagPocket, i)].kind == WARE_OATH) { oathWanted = i; break; }
       }
     }
-    if (oathWanted >= 0) {
+    /* Out of the snow and into your hand: the pouch was opened to change
+       weapons, so walk to the right pocket, find the glass and put it on. */
+    if (!bagInDuel && obsidianToDraw() >= 0) {
+      int at = obsidianToDraw(), pocket = pocketOf(wares[at].kind);
+      if (bagPocket != pocket) keys = tap(KEY_RIGHT);
+      else {
+        int have = pocketCount(bagPocket), want = -1, i;
+        for (i = 0; i < have; i++) if (nthInPocket(bagPocket, i) == at) { want = i; break; }
+        if (want < 0) keys = tap(KEY_B);
+        else if (bagPick != want) keys = tap(bagPick < want ? KEY_DOWN : KEY_UP);
+        else { keys = tap(KEY_A); if (keys) glassDrawn++; }
+      }
+    }
+    else if (oathWanted >= 0) {
       if (bagPick != oathWanted) keys = tap(bagPick < oathWanted ? KEY_DOWN : KEY_UP);
       else { keys = tap(KEY_A); if (keys) oathsOffered++; }
     }
@@ -1247,6 +1324,9 @@ void hostFrame(void) {
            thousand - so the run threw no nets, took nothing alive, and the half
            of this game that is about animals went untested. */
         if (wares[at].kind == WARE_SNARE && !you.bag[at]) { best = i; break; }
+        /* And the makings of an obsidian edge before anything else, once the
+           dead are past the Neck and there is none on you. */
+        if (winterStage() >= 5 && !haveGlass() && glassMaking(at)) { best = i; break; }
         if (best < 0 || wares[shelfWare(stall, best)].price < wares[at].price) best = i;
       }
       /* Asking the same counter for the same thing over and over is not
@@ -2115,6 +2195,9 @@ int main(int argc, char **argv) {
   printf("  the long night deepest %s, %d of the dead met (%d of them south "
     "of the Wall), %d ravens\n",
     seasonWord(), deadMet, deadSouth, ravensRead);
+  printf("  the glass      drawn out of the pouch %d times, %s in your hand\n",
+    glassDrawn,
+    you.WORN_WEAPON && wares[you.WORN_WEAPON - 1].obsidian ? "obsidian" : "steel");
   printf("  the watch      %d rangings finished, %d still out (%d of %d down)\n",
     rangingsDone, you.rangeWant ? 1 : 0, you.rangeGot, you.rangeWant);
   printf("  the dragons    %d met on the road, %d towns saved, %d burned%s\n",

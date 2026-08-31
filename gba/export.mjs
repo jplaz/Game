@@ -167,6 +167,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const { SPECIES } = await import('/src/data/species.js');
   const { SHIPS, FLEETS, SEA_LANES } = await import('/src/data/ships.js');
   const { PROPERTIES, PROPERTY_IDS } = await import('/src/data/properties.js');
+  const { COMPANIES, COMPANY_IDS } = await import('/src/data/companies.js');
   const shipArt = await import('/src/art/ship.js');
   const { CUTSCENES, CUTSCENE_IDS } = await import('/src/data/cutscenes.js');
   const { QUESTS } = await import('/src/data/quests.js');
@@ -861,9 +862,24 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     };
   });
 
+  /* And the four companies, which are what the Free Cities are for. The kind
+     is a roamer, because a sworn sword in this game always turns out to have
+     been one; the level is what he is worth on the day he takes your coin. */
+  const companies = COMPANY_IDS.map((id) => {
+    const def = COMPANIES[id];
+    const kind = SWORN_IDS.indexOf(def.kind);
+    if (kind < 0) throw new Error(`${id} hires a ${def.kind}, which is nobody`);
+    const said = (line) => line.replace(/^[A-Z][A-Za-z'\- ]{1,22}:\s+/, '');
+    return {
+      id, name: def.name, where: def.where, kind, level: def.level, price: def.price,
+      pitch: said(def.pitch), taken: said(def.taken),
+      poor: said(def.poor), full: said(def.full),
+    };
+  });
+
   const out = { maps: [], houses, techniques, learned, duellists, wares, forSale,
                 recipes, spoils, forage, beasts, eggs, tales, throneChampion,
-                swornKinds, hulls, fleets, deeds,
+                swornKinds, hulls, fleets, deeds, companies,
                 leaders: [], actors: null };
 
   /* The spine of the game, in the order it is meant to be walked. Nine seats,
@@ -1170,6 +1186,8 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
            Both name the property, so neither has to be placed by hand. */
         deed: n.script === 'deedBroker' ? PROPERTY_IDS.indexOf(n.data?.property) + 1 : 0,
         bed: n.script === 'ownBed' ? PROPERTY_IDS.indexOf(n.data?.property) + 1 : 0,
+        /* Who has a company standing behind them. */
+        hires: n.script === 'sellswords' ? COMPANY_IDS.indexOf(n.data?.company) + 1 : 0,
       };
     });
 
@@ -2480,6 +2498,25 @@ L.push(`#define MAP_COUNT ${harvest.maps.length}`);
     L.push('};');
     L.push('');
   }
+  /* ----------------------------------------------------------- companies ---
+     What a purse buys east of the Narrow Sea, which is the one thing it could
+     never buy west of it: a sword who has not been beaten first. */
+  {
+    L.push(`#define COMPANY_COUNT ${harvest.companies.length}`);
+    L.push('typedef struct {');
+    L.push('  const char *name, *where, *pitch, *taken, *poor, *full;');
+    L.push('  u16 price;');
+    L.push('  u8 kind, level;');
+    L.push('} Company;');
+    L.push('static const Company companies[COMPANY_COUNT] = {');
+    for (const c of harvest.companies) {
+      L.push(`  { ${cstr(c.name)}, ${cstr(c.where)}, ${cstr(c.pitch)},`);
+      L.push(`    ${cstr(c.taken)}, ${cstr(c.poor)}, ${cstr(c.full)},`);
+      L.push(`    ${c.price}, ${c.kind}, ${c.level} },  /* ${c.id} */`);
+    }
+    L.push('};');
+    L.push('');
+  }
   L.push('/* How hard the ground is on every map, measured from each house seat in');
   L.push('   turn: level three at your own gate and level forty-four at the far end');
   L.push('   of the world, however many doors that happens to be. */');
@@ -2500,6 +2537,8 @@ L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sa
 /* Which deed this one sells, and whose bed this one keeps: the property
    index plus one, and nobody is 0. */
 L.push('  u8 deed, bed;');
+/* And which company this one speaks for: the index plus one, nobody is 0. */
+L.push('  u8 hires;');
 L.push('  u16 duellist;');
 L.push('  const char *name, *line;');
 L.push('} Npc;');
@@ -2604,14 +2643,14 @@ harvest.maps.forEach((map, i) => {
       name = n.name.startsWith(spoken[1]) ? n.name : spoken[1];
       line = spoken[2];
     }
-    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.ranges}, ${n.evening}, ${n.gate}, ${n.builds}, ${n.deed}, ${n.bed}, ${n.duellist},`);
+    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.ranges}, ${n.evening}, ${n.gate}, ${n.builds}, ${n.deed}, ${n.bed}, ${n.hires}, ${n.duellist},`);
     L.push(`    ${cstr(name)}, ${cstr(line.trim())} },`);
   }
   /* One row of nothing, so an empty table is still a legal array. Every number
      the struct declares, spelt out: it used to carry twelve for eighteen
      fields, which quietly slid the two strings onto `weds` and `ranges`. */
   if (!map.npcs.length) {
-    L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');
+    L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');
   }
   L.push('};');
   L.push('');

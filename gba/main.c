@@ -4525,6 +4525,8 @@ static int afterYard;
 /* Set when the person who just spoke sells a deed, so what is for sale opens
    as their line closes. */
 static int afterLand;
+/* And when the person who just spoke has a company behind them. */
+static int afterHire;
 /* Set when a kennelmaster has finished saying what they say, so the cages open
    as the window closes rather than needing a second press on the same person. */
 static int afterHold;
@@ -5496,6 +5498,79 @@ static void paintLand(void) {
   drawText(14, TXT_H - 14,
     ownsLand(landPick) ? "A: go there    B: another day"
                        : "A: buy it      B: another day", C_DIM);
+}
+
+/* ---------------------------------------------------------- the companies ---
+ *
+ * Four companies across the Narrow Sea, one to a city.
+ *
+ * In Westeros a sword follows you because you knocked him down and put a purse
+ * in front of him afterwards, which means a company is raised one beaten man at
+ * a time and gold buys you nothing until somebody is already on their knees.
+ * Essos has never worked that way, and that is the whole reason to sail: over
+ * there a man with money buys an army and nobody asks him what his father was
+ * called. It is also what the Free Cities were missing - four beautiful places
+ * with nothing in them you could not get at home.
+ *
+ * The panel lists all four wherever it is opened, the same as the deeds do, so
+ * a player standing on the Braavosi quay can see what Meereen is asking and
+ * what it is asking it for.
+ */
+
+static int hirePick;         /* which row the cursor is on */
+static int hireSeller = -1;  /* the company this one speaks for, -1 for none */
+
+static void drawHireRow(int i, int y) {
+  int able = you.gold >= (int)companies[i].price && hostRoom() >= 0;
+  if (i == hirePick) drawCursor(14, y + 1, C_GOLD);
+  drawText(24, y, companies[i].name, !able ? C_DIM : (i == hirePick ? C_GOLD : C_INK));
+  copyString(scratch, "", sizeof scratch);
+  appendNumber(scratch, (int)companies[i].price, sizeof scratch);
+  drawText(TXT_W - 24 - textWidth(scratch), y, scratch, able ? C_GOLD : C_DYING);
+}
+
+static void paintHire(void) {
+  int i;
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
+  drawText(14, 6, "SWORDS FOR HIRE", C_GOLD);
+  showGold(6);
+  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+  for (i = 0; i < COMPANY_COUNT; i++) drawHireRow(i, 22 + i * 11);
+  fillRect(14, TXT_H - 42, TXT_W - 28, 1, C_EDGE);
+  {
+    copyString(scratch, companies[hirePick].where, sizeof scratch);
+    appendString(scratch, "  -  ", sizeof scratch);
+    appendString(scratch, swornKinds[companies[hirePick].kind].name, sizeof scratch);
+    appendString(scratch, ", level ", sizeof scratch);
+    appendNumber(scratch, companies[hirePick].level, sizeof scratch);
+    drawText(14, TXT_H - 36, scratch, C_DIM);
+    copyString(scratch, "", sizeof scratch);
+    appendNumber(scratch, hostCount(), sizeof scratch);
+    appendString(scratch, " of ", sizeof scratch);
+    appendNumber(scratch, HOST_MAX, sizeof scratch);
+    appendString(scratch, " swords behind you", sizeof scratch);
+    drawText(14, TXT_H - 24, scratch, C_DIM);
+  }
+  drawText(14, TXT_H - 14, "A: take him on   B: another day", C_DIM);
+}
+
+/* Takes one on. Returns what the captain says about it. */
+static const char *hireTake(int which) {
+  if (which != hireSeller) {
+    copyString(scratch, "Those are not mine to sell. They are in ", sizeof scratch);
+    appendString(scratch, companies[which].where, sizeof scratch);
+    appendString(scratch, ", and they will want talking to there.", sizeof scratch);
+    return scratch;
+  }
+  if (hostRoom() < 0) { sfxLost(); return companies[which].full; }
+  if (you.gold < (int)companies[which].price) { sfxLost(); return companies[which].poor; }
+  if (!swearIn(companies[which].kind, companies[which].level)) {
+    return companies[which].full;
+  }
+  you.gold -= (int)companies[which].price;
+  sfxRank();
+  return companies[which].taken;
 }
 
 /* Buys one, or goes to one you own. Returns what the seller says about it,
@@ -7510,6 +7585,7 @@ static void paintTitle(void) {
 #define SCENE_YARD 19     /* four hulls on the stocks, and a man to mend one */
 #define SCENE_SEA  20     /* somebody has come over the horizon at you */
 #define SCENE_LAND 21     /* what is for sale, and who is selling it */
+#define SCENE_HIRE 22     /* swords for gold, which is what Essos is for */
 
 static int scene;
 
@@ -9440,6 +9516,15 @@ static void tryTalk(void) {
        their own words - a widow going to her sister in Maidenpool does not
        talk like the Iron Bank. Once it is yours they say so instead, and
        either way what is for sale opens behind the line. */
+    /* Somebody with a company to sell. Essos is the only place in the world
+       where a sword can be had for money rather than for a beating. */
+    if (npc->hires) {
+      int which = npc->hires - 1;
+      hireSeller = which;
+      afterHire = 1;
+      openWindow(npc->name, companies[which].pitch);
+      return;
+    }
     if (npc->deed) {
       int which = npc->deed - 1;
       landSeller = which;
@@ -10448,6 +10533,23 @@ int main(void) {
           openWindow("Shipwright", said);
         }
       }
+    } else if (scene == SCENE_HIRE) {
+      int was = hirePick;
+      if (hit(KEY_UP) && hirePick > 0) hirePick--;
+      if (hit(KEY_DOWN) && hirePick < COMPANY_COUNT - 1) hirePick++;
+      if (hirePick != was) { sfxPick(); paintHire(); }
+      if (hit(KEY_B)) {
+        scene = SCENE_WORLD;
+        clearPage();
+        layoutTextRows(TEXT_PLAY);
+      } else if (hit(KEY_A)) {
+        const char *said = hireTake(hirePick);
+        int titled = hirePick;
+        scene = SCENE_WORLD;
+        clearPage();
+        layoutTextRows(TEXT_PLAY);
+        openWindow(companies[titled].name, said);
+      }
     } else if (scene == SCENE_LAND) {
       int was = landPick;
       if (hit(KEY_UP) && landPick > 0) landPick--;
@@ -10807,6 +10909,13 @@ int main(void) {
               clearPage();
               layoutTextRows(TEXT_TOP);
               paintYard();
+            } else if (afterHire) {
+              afterHire = 0;
+              hirePick = hireSeller >= 0 ? hireSeller : 0;
+              scene = SCENE_HIRE;
+              clearPage();
+              layoutTextRows(TEXT_TOP);
+              paintHire();
             } else if (afterLand) {
               /* The cursor opens on the one this seller actually has, so the
                  first press of A is on the thing in front of you rather than

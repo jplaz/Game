@@ -122,6 +122,14 @@ static void checkFrame(void) {
       finding("%s: the player is off the map at %d,%d", world->name, hx, hy);
     } else if (!hero.walk && solidAt(hx, hy)) {
       finding("%s: the player is standing inside a wall at %d,%d", world->name, hx, hy);
+      if (getenv("WHYWALL")) {
+        static int said = 0;
+        if (said++ < 3) {
+          printf("      [wall] f%d on %s at %d,%d scene %d haven %d berth %d "
+                 "story %d house %d\n", frameNo, world->name, hx, hy,
+            scene, you.haven, (int)you.berthMap, you.story, you.house);
+        }
+      }
     }
   }
   if (crowdCount > MAX_CROWD) finding("%s: %d in the crowd", world->name, crowdCount);
@@ -2606,6 +2614,7 @@ int main(int argc, char **argv) {
     /* A zeroed record owns hull zero with no timber in her, which is a wreck
        nobody sold you. A new game says 255 and so does this. */
     r.shipKind = 255;
+    r.berthMap = NO_MAP;                 /* nought is Winterfell, not "none" */
     r.exp = (unsigned)expForLevel(44);
     /* POOR=1 crowns a king with nothing in the treasury.
      *
@@ -2665,6 +2674,7 @@ int main(int argc, char **argv) {
     { int q; for (q = 0; q < PARTY_MAX; q++) r.partyKind[q] = 255; }
     r.haven = NO_MAP;
     r.shipKind = 255;
+    r.berthMap = NO_MAP;
     r.exp = (unsigned)expForLevel(14) + 40;
     r.gold = 1180; r.hp = 140; r.kills = 9;
     r.sum = tally(&r);

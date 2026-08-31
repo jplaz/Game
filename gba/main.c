@@ -10687,7 +10687,18 @@ int main(void) {
           /* She went down under you, so you are not at sea any more. Whoever
              pulled you out put you back where you last stood on stone. */
           if (sank) {
-            if (you.berthMap < MAP_COUNT) {
+            /* A berth is only a berth if somebody could stand on it.
+             *
+             * The sentinel for "no berth" is NO_MAP, and a record whose berth
+             * field was never written holds nought instead - which is a real
+             * map id, so it passed this test and put a drowned man down on
+             * tile nought, nought of Winterfell, inside the wall. Anything
+             * that only reads the sentinel will keep missing that, so read
+             * the tile: a berth you cannot stand on is not one. */
+            int bx = you.berthX, by = you.berthY, bm = you.berthMap;
+            int fine = bm < MAP_COUNT && bx < maps[bm].w && by < maps[bm].h
+                       && !maps[bm].solid[by * maps[bm].w + bx];
+            if (fine) {
               enterMap(you.berthMap, you.berthX, you.berthY, 0);
             } else {
               /* Only if something has lost the berth - a record written before

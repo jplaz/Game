@@ -3618,6 +3618,12 @@ static int swing(Fighter *actor, Fighter *target, int techId, int isYou) {
         0, 0,
       };
       if (GONE[brokeThis]) appendString(scratch, GONE[brokeThis], sizeof scratch);
+      /* And what you reached for after it went, if there was anything. */
+      if (you.worn[brokeThis]) {
+        appendString(scratch, "  You take ", sizeof scratch);
+        appendString(scratch, wares[you.worn[brokeThis] - 1].name, sizeof scratch);
+        appendString(scratch, " out of your pack.", sizeof scratch);
+      }
     }
     /* And the one thing that matters north of the Wall. */
     if (target->dead) {
@@ -4772,9 +4778,19 @@ static void refitYou(void) {
   mine.obsidian = you.WORN_WEAPON && wares[you.WORN_WEAPON - 1].obsidian;
 }
 
+/* The best thing of that kind still in the pouch, or -1 for nothing. */
+static int spareFor(int kind) {
+  int i, best = -1;
+  for (i = 0; i < WARE_COUNT; i++) {
+    if (!you.bag[i] || wares[i].kind != (u8)kind) continue;
+    if (best < 0 || wares[i].price > wares[best].price) best = i;
+  }
+  return best;
+}
+
 /* Take some life out of what is in that slot. Returns 1 if it just went. */
 static int wearOn(int kind, int by) {
-  int at = you.worn[kind];
+  int at = you.worn[kind], spare;
   if (!at || by <= 0) return 0;
   at--;
   if (you.wear[kind] > (u16)by) { you.wear[kind] = (u16)(you.wear[kind] - by); return 0; }
@@ -4786,6 +4802,22 @@ static int wearOn(int kind, int by) {
   if (kind == WARE_WEAPON) reckonTechniques();
   else if (kind == WARE_ARMOUR) loadPlayerBody();
   refitYou();
+  /* And if there is another one in the pouch, draw it.
+   *
+   * Carrying a spare is allowed and always was; nothing ever reached for it.
+   * A directed run took its seventh seat with nothing in either hand and a
+   * good bow rolled up in its pack, because the sword had snapped mid-fight
+   * and the only thing that would have put the bow on was a walk to a menu
+   * three screens deep, in the middle of a duel. Nobody draws a spare by
+   * opening a bag. They draw it because the first one broke. */
+  spare = spareFor(kind);
+  if (spare >= 0) {
+    if (kind == WARE_WEAPON) { you.WORN_WEAPON = (u8)(spare + 1); reckonTechniques(); }
+    else if (kind == WARE_ARMOUR) { you.WORN_ARMOUR = (u8)(spare + 1); loadPlayerBody(); }
+    else you.worn[kind] = (u8)(spare + 1);
+    you.wear[kind] = (u16)gearLife(spare);
+    refitYou();
+  }
   return 1;
 }
 

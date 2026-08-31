@@ -378,6 +378,9 @@ static int ladderWants = -1;
 static int wantShop;
 /* Whether this rung has already been sent back for a weapon. */
 static int rearmed;
+/* What the counter is being asked for, what was in the purse when the asking
+   started, and how many times. A sale always takes gold. */
+static int askedFor = -1, askedGold, askedTimes;
 
 static int leaderNpcOn(int m, int lead) {
   int i;
@@ -1203,6 +1206,16 @@ void hostFrame(void) {
       for (i = 0; i < shelf; i++) {
         int at = shelfWare(stall, i);
         int had = wares[at].kind < WARE_KINDS ? you.worn[wares[at].kind] : 0;
+        /* A counter will not sell you a second of anything that is not spent
+           by using it, and a spare sword sits in the pouch unworn. So a run
+           whose blade had snapped stood at the Storm's End counter choosing
+           the bow it was already carrying and pressing A on it three hundred
+           and forty thousand times: every refusal opens a window, and coming
+           back through the window reset the tester's own patience. Ask for
+           what the counter can actually sell. */
+        if (wares[at].kind != WARE_POTION && wares[at].kind != WARE_SNARE
+            && wares[at].kind != WARE_OATH && wares[at].kind != WARE_RELIC
+            && wares[at].kind != WARE_STUFF && you.bag[at]) continue;
         if (wares[at].kind == WARE_POTION) { if (you.bag[at] >= 4) continue; }
         else if (wares[at].kind == WARE_SNARE) { if (you.bag[at] >= 3) continue; }
         else if (wares[at].kind == WARE_OATH) { if (you.bag[at] >= 2) continue; }
@@ -1216,6 +1229,24 @@ void hostFrame(void) {
            of this game that is about animals went untested. */
         if (wares[at].kind == WARE_SNARE && !you.bag[at]) { best = i; break; }
         if (best < 0 || wares[shelfWare(stall, best)].price < wares[at].price) best = i;
+      }
+      /* Asking the same counter for the same thing over and over is not
+         shopping, and until now the run only ever said so in the report it
+         printed after the frames had run out - by which point it had pressed
+         A on one bow three hundred and forty thousand times. A sale always
+         takes gold, so gold that has not moved is a counter that has not
+         sold. Say so while there are still frames left, and walk out. */
+      if (best >= 0) {
+        int at = shelfWare(stall, best);
+        if (at != askedFor || you.gold != askedGold) {
+          askedFor = at; askedGold = you.gold; askedTimes = 0;
+        }
+        if (++askedTimes > 40) {
+          finding("a counter asked %d times for %s and never sold one",
+            askedTimes, wares[at].name);
+          askedFor = -1;
+          best = -1;
+        }
       }
       if (best < 0) keys = tap(KEY_B);
       else if (shopPick != best) keys = tap(shopPick < best ? KEY_DOWN : KEY_UP);

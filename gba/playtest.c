@@ -337,7 +337,17 @@ static int mapDone(int m) {
  * because a sea is ground you steer across and there was no hull. That is why
  * no run had ever taken the fifth rung: Pyke is perfectly walkable, and nothing
  * ever walked to it. */
-static int crossable(int m) { return !maps[m].sea || ownShip(); }
+/* Whether a sea is a road for you. Owning a hull is not enough: a hull at
+   nought is a wreck, and the game will not let you stand on water in one -
+   `solidAt` asks for both, and this asked for half. The crown save starts
+   from a zeroed record, which makes hull zero (the skiff) with no timber left
+   in her, so the router believed it could sail and the walk knew it could
+   not: a run with all ten seats taken stepped onto the Sunset Sea and spent
+   the rest of the game bouncing off Lordsport, four hundred doors without a
+   sigil, one room from the chair. */
+static int crossable(int m) {
+  return !maps[m].sea || (ownShip() && you.shipHull > 0);
+}
 
 static int walkableTo(int want) {
   int from[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, i;
@@ -525,6 +535,19 @@ static int warpTowardTrade(void) {
 }
 
 /* The door out of here that gets nearest to a given map. */
+static int hopsBetween(int from, int want);
+
+/* Doors that have proved they cannot be walked to from where they are. */
+#define MAX_WARP_MARK 32
+static unsigned char warpStuck[MAP_COUNT][MAX_WARP_MARK];
+
+/* Whether the hero could put a foot on that tile from where they stand. */
+static int canWalkTo(int gx, int gy) {
+  int hx = hero.px >> 4, hy = hero.py >> 4;
+  if (hx == gx && hy == gy) return 1;
+  return stepToward(gx, gy) >= 0;
+}
+
 static int warpTowardMap(int want) {
   int from[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, i, at = want;
   if (want == worldId) return -1;
@@ -542,7 +565,47 @@ static int warpTowardMap(int want) {
   }
   if (from[want] == -2) return -1;
   while (from[at] != worldId) { at = from[at]; if (at < 0) return -1; }
-  for (i = 0; i < world->warpCount; i++) if (world->warps[i].to == at) return i;
+  /* Of the doors that go that way, one you can actually walk to.
+   *
+   * There are eight places in this world where a shipless player is put down
+   * on open water with a single dry tile under them - the door they came in
+   * by. The router would pick the far door on the shortest road, the walk
+   * would find no route to it because the route is water, and the run would
+   * report that it could not reach a tile while standing thirty yards from
+   * it across the sea. A crown run stepped onto the Sunset Sea with all ten
+   * seats taken and spent nine hundred thousand frames on that. */
+  {
+    int firstAny = -1;
+    for (i = 0; i < world->warpCount; i++) {
+      if (world->warps[i].to != at) continue;
+      if (firstAny < 0) firstAny = i;
+      if (i < MAX_WARP_MARK && warpStuck[worldId][i]) continue;
+      return i;
+    }
+    /* Every door on the shortest road has already refused to be walked to.
+     *
+     * That is not a bad guess about one frame - a roamer standing in a gateway
+     * makes any door look unreachable for a moment, and choosing a different
+     * one on that basis is how a run ends up crossing the same two maps four
+     * hundred times. It is the give-up flag: nine hundred frames of trying and
+     * failing to reach that tile. When all of them carry it, the shortest road
+     * is not a road, and any door you can actually reach that still gets there
+     * is better than the one you have proved you cannot. */
+    {
+      int best = -1, bestHops = 1 << 30;
+      for (i = 0; i < world->warpCount; i++) {
+        int to = world->warps[i].to, near;
+        if (!crossable(to)) continue;
+        if (i < MAX_WARP_MARK && warpStuck[worldId][i]) continue;
+        if (!canWalkTo(world->warps[i].x, world->warps[i].y)) continue;
+        near = to == want ? 0 : hopsBetween(to, want);
+        if (near < 0 || near >= bestHops) continue;
+        bestHops = near; best = i;
+      }
+      if (best >= 0) return best;
+    }
+    if (firstAny >= 0) return firstAny;
+  }
   return -1;
 }
 
@@ -2079,6 +2142,7 @@ void hostFrame(void) {
         } else {
           finding("%s: could not reach the door at %d,%d", world->name, gx, gy);
           mapSeen[world->warps[goalIndex].to]++;   /* stop trying for this one */
+          if (goalIndex < MAX_WARP_MARK) warpStuck[worldId][goalIndex] = 1;
         }
         goalKind = GOAL_NONE;
         return;
@@ -2117,10 +2181,22 @@ void hostFrame(void) {
             keys = tap(KEY_A);
             if (keys) interacting = 1;
           }
-        } else if (hx == gx && hy == gy && goalKind != GOAL_WARP) {
+        } else if (hx == gx && hy == gy) {
           /* A door can put you down on the very thing it sent you to: the
              stair into the Iron Vault lands you standing on its sign. There
-             is no tile to face it from until you step off it, so step off. */
+             is no tile to face it from until you step off it, so step off.
+           *
+           * And a door can put you down on ITSELF, which is the same problem
+           * wearing a hat. A warp fires when you step onto its tile, so
+           * arriving through one leaves you standing on the way back without
+           * it firing - and the router, told to take that door, found it was
+           * already there, had nothing to walk, and reported that it could
+           * not reach a tile it was standing on. Eight places in this world
+           * put a shipless player down on open water with exactly one door
+           * they can walk to, the one under their feet: the crown run stepped
+           * onto the Sunset Sea with the realm won and spent nine hundred
+           * thousand frames failing to walk to where it stood. Step off, and
+           * the path back onto it opens the door. */
           for (i = 0; i < 4; i++) {
             int nx = hx + DIR_X[i], ny = hy + DIR_Y[i];
             if (nx < 0 || ny < 0 || nx >= world->w || ny >= world->h) continue;
@@ -2296,6 +2372,9 @@ int main(int argc, char **argv) {
     r.sigils = (u16)((1u << (LEADER_COUNT - 1)) - 1u);   /* nine of ten */
     { int q; for (q = 0; q < PARTY_MAX; q++) r.partyKind[q] = 255; }
     r.haven = NO_MAP;
+    /* A zeroed record owns hull zero with no timber in her, which is a wreck
+       nobody sold you. A new game says 255 and so does this. */
+    r.shipKind = 255;
     r.exp = (unsigned)expForLevel(44);
     r.gold = 40000; r.hp = 9999; r.kills = 200;
     /* Dressed for it: the best of everything the road can hand over - and
@@ -2345,6 +2424,7 @@ int main(int argc, char **argv) {
     r.worn[WARE_HELM] = 4; r.worn[WARE_GLOVES] = 5;
     { int q; for (q = 0; q < PARTY_MAX; q++) r.partyKind[q] = 255; }
     r.haven = NO_MAP;
+    r.shipKind = 255;
     r.exp = (unsigned)expForLevel(14) + 40;
     r.gold = 1180; r.hp = 140; r.kills = 9;
     r.sum = tally(&r);

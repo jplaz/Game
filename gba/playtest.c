@@ -2472,6 +2472,16 @@ void hostFrame(void) {
       doorsThisRung = 0;
     }
   }
+  /* POOR=1 keeps the purse empty, not merely starts it empty.
+   *
+   * One of the eighteen petitions is only put to a crown carrying less than
+   * two thousand gold, and a king walking to his own throne room picks up
+   * purses on the way, so the treasury was over the line before the first
+   * sitting and that petition had never been asked in the life of this game:
+   * seventeen of eighteen, every run. This is a fixture and says so - it
+   * holds the crown poor so the writing for a poor crown gets read. */
+  if (getenv("POOR")) you.gold = 0;
+
   /* Two things that happen inside a menu the tester only ever presses at, so
      the only honest way to count them is to watch the state change. */
   {
@@ -2553,7 +2563,16 @@ int main(int argc, char **argv) {
        nobody sold you. A new game says 255 and so does this. */
     r.shipKind = 255;
     r.exp = (unsigned)expForLevel(44);
-    r.gold = 40000; r.hp = 9999; r.kills = 200;
+    /* POOR=1 crowns a king with nothing in the treasury.
+     *
+     * One of the eighteen petitions is only ever put to a crown that has run
+     * out of money, and the crown run starts with forty thousand gold and
+     * earns more, so that one had never been asked, answered or read by
+     * anything: seventeen of eighteen, every run, for the life of the
+     * postgame. A king with empty hands is a different king, and the writing
+     * knows it. */
+    r.gold = getenv("POOR") ? 0 : 40000;
+    r.hp = 9999; r.kills = 200;
     /* Dressed for it: the best of everything the road can hand over - and
        actually wearing it, whole. The record used to carry one of everything
        and wear none of it, so the champion fight at the top of the game was

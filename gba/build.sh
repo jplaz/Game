@@ -211,6 +211,19 @@ for h in 0 8; do
   CROWN=1 FRAMES=900000 SEED=7 ./playtest $h | sed -n '/the last act/p;/the court /p;/nothing went wrong/p;/thing to look at/,$p'
 done
 
+# And the same ending with an empty treasury. One of the eighteen petitions is
+# only ever put to a crown carrying less than two thousand gold, and a king
+# walking to his own throne room picks up purses on the way - so that one had
+# never been asked, answered or read by anything in the life of this game. The
+# fixture holds the purse at nought; the line below is what proves it worked.
+POOR=1 CROWN=1 FRAMES=900000 SEED=7 ./playtest 4 \
+  | sed -n '/the court /p;/nothing went wrong/p;/thing to look at/,$p'
+POOR=1 CROWN=1 FRAMES=900000 SEED=7 ./playtest 4 \
+  | grep -q '18 of 18 petitions heard' || {
+  echo "the poor crown was not asked all eighteen petitions" >&2
+  exit 1
+}
+
 # hosttest still walks one fixed route, as a second opinion.
 clang $HOSTFLAGS -o hosttest hosttest.c
 ./hosttest /tmp > /dev/null

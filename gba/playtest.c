@@ -276,6 +276,8 @@ static int oathTrips;
    was, so a two-map circle can be broken where it is made. */
 static int doorsSinceWork, wasTalked, wasSigns, lastDoorMap = -1, lastDoorIndex = -1;
 static int circlesBroken;
+/* How many times every nailed door has been forgiven. */
+static int forgiven;
 static const char *goalWhy = "-";
 /* Set while a purse is being bought, so the shelf is not walked twice for one;
    cleared when the counter is left. */
@@ -404,45 +406,44 @@ static int walkableTo(int want) {
 static unsigned char warpStuck[MAP_COUNT][MAX_WARP_MARK];
 
 static int warpTowardWork(void) {
-  int from[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, i, target = -1;
+  int from[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, i;
   for (i = 0; i < MAP_COUNT; i++) from[i] = -2;
   from[worldId] = -1;
   q[tail++] = worldId;
   while (head < tail) {
     int m = q[head++];
-    if (!mapDone(m)) { target = m; break; }
+    /* Not this map. The errands above have already had their go at whatever
+       is on the floor you are standing on; if something here is still owed it
+       is something the walk could not get to, and stopping the search on it
+       meant the run announced there was nothing left to do in Westeros while
+       standing next to one person it could not reach. */
+    if (m != worldId && !mapDone(m)) {
+      /* And if the first door on the way to this one is one the run has
+         already proved it cannot walk to, this is not the errand - the next
+         one is.
+       *
+       * Returning "no road" on the first such target ended playthroughs: a
+       * sweep of Highgarden stopped on Dragonstone after thirty-three maps
+       * because the door to the Glass Vault could not be reached, and the
+       * search never went on to ask about any of the other hundred and forty
+       * maps it had not walked. Keep looking. */
+      int at = m, door = -1, k;
+      while (from[at] != worldId) { at = from[at]; if (at < 0) break; }
+      if (at >= 0) {
+        for (k = 0; k < world->warpCount; k++) {
+          if (world->warps[k].to != at) continue;
+          if (k < MAX_WARP_MARK && warpStuck[worldId][k] >= WARP_GIVE_UP) continue;
+          door = k;
+          break;
+        }
+      }
+      if (door >= 0) return door;
+    }
     for (i = 0; i < maps[m].warpCount; i++) {
       int to = maps[m].warps[i].to;
       if (from[to] != -2 || !crossable(to)) continue;
       from[to] = m;
       q[tail++] = to;
-    }
-  }
-  if (target < 0 || target == worldId) return -1;
-  if (getenv("WHYDOORS")) {
-    static int said = 0;
-    if (said++ > 2000 && said < 2016) {
-      printf("      [work] on %-22s wants %-22s\n", world->name, maps[target].name);
-    }
-  }
-  while (from[target] != worldId) target = from[target];
-  /* And not a door this run has already proved it cannot walk to. That mark
-     was being read by the router that goes somewhere named and ignored by the
-     one that goes looking for work - so a sweep of Highgarden stood on
-     Dragonstone for two and a half million frames wanting the Glass Vault,
-     took eighty-one doors in a whole playthrough, and walked thirty-three
-     maps. A door you cannot reach is not a road, whoever is asking. */
-  {
-    int firstAny = -1;
-    for (i = 0; i < world->warpCount; i++) {
-      if (world->warps[i].to != target) continue;
-      if (firstAny < 0) firstAny = i;
-      if (i < MAX_WARP_MARK && warpStuck[worldId][i] >= WARP_GIVE_UP) continue;
-      return i;
-    }
-    if (firstAny >= 0 && !(firstAny < MAX_WARP_MARK
-        && warpStuck[worldId][firstAny] >= WARP_GIVE_UP)) {
-      return firstAny;
     }
   }
   return -1;
@@ -2289,10 +2290,31 @@ void hostFrame(void) {
         return;
       }
       if (goalKind == GOAL_NONE) pickGoal();
+      /* Before giving up on the world, forgive the doors.
+       *
+       * A door is nailed shut to break a circle, and the nail is meant to be
+       * cheap - but four nails in the wrong gateway can cut a run off from
+       * everything beyond it. A sweep of Highgarden stopped after thirty-three
+       * maps and eighty-one doors with a hundred and sixty-two maps still
+       * listed as reachable from ground it had walked on. Ending the run is
+       * the worst outcome available, so it is never the first answer: pull
+       * the nails and ask again. Three times, so a genuine dead end still
+       * ends. */
+      if (goalKind == GOAL_NONE && forgiven < 3) {
+        int m2, w2;
+        forgiven++;
+        for (m2 = 0; m2 < MAP_COUNT; m2++) {
+          for (w2 = 0; w2 < MAX_WARP_MARK; w2++) warpStuck[m2][w2] = 0;
+        }
+        pickGoal();
+      }
       if (goalKind == GOAL_NONE) {
         if (getenv("WHY")) {
           int m, k;
-          printf("nothing left to do, standing in %s\n", world->name);
+          printf("nothing left to do, standing in %s: portOwes %d sailorHere %d "
+                 "gold %d sigils %d warpWork %d walkableToKL %d\n",
+            world->name, portOwesWork(), sailorHere(), you.gold, countSigils(),
+            warpTowardWork(), walkableTo(35));
           for (m = 0; m < MAP_COUNT; m++) {
             printf("  %-24s seen %d done %d  npcs:", maps[m].name, mapSeen[m], mapDone(m));
             for (k = 0; k < maps[m].npcCount && k < MAX_CROWD; k++) {

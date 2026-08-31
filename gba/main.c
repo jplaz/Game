@@ -8094,6 +8094,13 @@ static void tookAlive(const char *said) {
    experience to be had. Zero on every fight before that. */
 static int winsPaid;
 
+/* Whether the person just put down is the one who sells passage off this
+   shore. Every port has exactly one, and four of them are on islands. */
+static int sellsPassage(void) {
+  if (foeSlot < 0 || foeSlot >= crowdCount) return 0;
+  return world->npcs[foeSlot].sails != 0;
+}
+
 static void theyFell(void) {
   int won = expFrom(foeLevel, you.level);
   sfxWon();
@@ -8144,7 +8151,16 @@ static void theyFell(void) {
   dragonAfterWin();
   bastardAfterWin();
   if (foeSlot >= 0) beaten[worldId][foeSlot] = 1;
-  if (!foeDef || foeDef->mortal) {
+  /* The one man who can get you off this rock does not die.
+   *
+   * Every port in the world has exactly one person who sells passage, and
+   * every one of them was mortal. Four of those ports are on islands. So a
+   * player who drew on the harbourmaster at Dragonstone, or Lordsport, or
+   * Braavos, or Hardhome, and won, was on that island for the rest of the
+   * game - no door, no boat, and nothing in any menu to say why. He yields
+   * and stays yielded, like the sigil-holders do, because a road out of a
+   * place is not the sort of thing that should be losable in a fight. */
+  if (!sellsPassage() && (!foeDef || foeDef->mortal)) {
     if (foeSlot >= 0) { slain[worldId][foeSlot] = 1; crowdAlive[foeSlot] = 0; }
     you.kills++;
     /* And the season turns a little on every sixth grave. A player who never

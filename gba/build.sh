@@ -155,6 +155,7 @@ const want = [
   ["purses taken",         sum(/swords sworn +(\d+) took the purse/g)],
   ["companies taken on",   sum(/sellsword halls walked into, (\d+) companies/g)],
   ["campaigns sent",       sum(/, (\d+) campaigns sent/g)],
+  ["children sworn",       sum(/children born, (\d+) grown and sworn/g)],
 ];
 let bad = 0;
 for (const [what, n] of want) {

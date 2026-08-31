@@ -267,6 +267,7 @@ static int oathTrips;
 /* Doors taken since the run last did a thing worth doing, and which door it
    was, so a two-map circle can be broken where it is made. */
 static int doorsSinceWork, wasTalked, wasSigns, lastDoorMap = -1, lastDoorIndex = -1;
+static int circlesBroken;
 static const char *goalWhy = "-";
 /* Set while a purse is being bought, so the shelf is not walked twice for one;
    cleared when the counter is left. */
@@ -993,6 +994,42 @@ static void pickGoal(void) {
   for (i = 0; i < world->signCount && i < 8; i++) {
     if (signRead[worldId][i]) continue;
     goalWhy = "sign"; goalKind = GOAL_SIGN; goalIndex = i; return;
+  }
+
+  /* Back to the house with the red lamp, when the child is grown.
+   *
+   * The evening is one conversation and taking them into your service is
+   * another, years of fights later, with the same keeper. The sweep speaks to
+   * everybody exactly once, so nine playthroughs spent eighteen evenings,
+   * fathered a dozen children, and not one of them was ever grown and sworn:
+   * the whole back half of that feature had never happened. */
+  {
+    int kid = bastardHere(worldId);
+    if (kid >= 0 && bastardGrown(kid)) {
+      for (i = 0; i < crowdCount; i++) {
+        if (!crowdAlive[i] || npcStuck[worldId][i]) continue;
+        if (!world->npcs[i].evening) continue;
+        goalWhy = "the child"; goalKind = GOAL_NPC; goalIndex = i;
+        goalStage = 2;                     /* SELECT is the whole of it */
+        return;
+      }
+    }
+    /* And the road back to the town they were born in. Fifty fights is a long
+       way from wherever the evening was spent, and a sweep never once
+       happened to be standing in the right doorway on the right day. */
+    if (kid < 0) {
+      int b, want = -1;
+      for (b = 0; b < 3 && b < (int)you.bastards; b++) {
+        if (you.bastTaken[b] || !bastardGrown(b)) continue;
+        if (you.bastMap[b] >= MAP_COUNT || !mapSeen[you.bastMap[b]]) continue;
+        want = you.bastMap[b];
+        break;
+      }
+      if (want >= 0 && want != worldId) {
+        i = warpTowardMap(want);
+        if (i >= 0) { goalWhy = "the child, far"; goalKind = GOAL_WARP; goalIndex = i; return; }
+      }
+    }
   }
 
   /* Back to a brother in black with the count.
@@ -2093,10 +2130,17 @@ void hostFrame(void) {
           for (k2 = 0; k2 < maps[m2].npcCount && k2 < MAX_CROWD; k2++) {
             if (!npcTalked[m2][k2] && !npcStuck[m2][k2]) { owed = k2; break; }
           }
-          finding("%s and %s: two hundred doors between them, and %s still owes "
-                  "%s", lastDoorMap >= 0 ? maps[lastDoorMap].name : "nowhere",
+          /* Once is the detector doing its job and the run carrying on;
+             say it and move on. Three times in one playthrough is the run
+             spending its life in circles, and that is worth stopping for. */
+          printf("      %s and %s: two hundred doors between them, and %s still "
+                 "owes %s\n",
+            lastDoorMap >= 0 ? maps[lastDoorMap].name : "nowhere",
             world->name, maps[m2].name,
             owed >= 0 ? maps[m2].npcs[owed].name : "a sign nobody can read");
+          if (++circlesBroken >= 3) {
+            finding("%d two-map circles in one playthrough", circlesBroken);
+          }
         }
         giveUpOnMap(worldId);
         if (lastDoorMap >= 0 && lastDoorMap < MAP_COUNT) giveUpOnMap(lastDoorMap);

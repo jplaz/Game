@@ -616,7 +616,11 @@ static void pickLadderGoal(void) {
     /* Every sigil taken. For an ordinary climb that is the end of the errand -
        but the last act begins after the last sigil, not with it, so a crown run
        keeps going until the chair has actually been sat in. */
-    if (crownRun && you.story < 3) {
+    /* Ten sigils is not the end of this game; the chair is. A directed climb
+       that stopped at the tenth sigil left the last fight in the game - the
+       thing standing behind the throne - to a run that was handed nine seats
+       in its save file and never earned one. */
+    if ((crownRun || ladderMode) && you.story < 3) {
       /* Beaten by the thing behind the throne. Walk back up and try it again,
          which is what the game now lets a player do. */
       int back = worldId == THRONE_MAP ? -1 : warpTowardMap(THRONE_MAP);
@@ -1328,7 +1332,11 @@ void hostFrame(void) {
         else if (wares[at].kind == WARE_SNARE) { if (you.bag[at] >= 3) continue; }
         else if (wares[at].kind == WARE_OATH) { if (you.bag[at] >= 2) continue; }
         else if (had && wares[had - 1].price >= wares[at].price) continue;
-        if (wares[at].price > you.gold) continue;
+        /* What this counter is charging, not what the table says. A house
+           that dislikes you marks everything up, so a run that checked the
+           list price kept choosing a mace it could not quite afford and
+           pressing A on it forty times against a shopkeeper saying no. */
+        if (askingPrice(at) > you.gold) continue;
         /* A net before anything else when there is none in the pouch. Buying
            the dearest thing on the counter is a reasonable way to shop and it
            meant a net was never once bought in a whole playthrough - the
@@ -1705,12 +1713,22 @@ void hostFrame(void) {
           goalKind = GOAL_NONE;
           return;
         }
-        /* Walk the grass and fight whatever comes out of it. */
+        /* Walk the grass and fight whatever comes out of it - or, if there is
+           no grass here and nothing in it, go and find some.
+         *
+         * This used to end the run outright, and eight of the nine houses
+         * begin in a walled seat with no encounter rows at all: the Eyrie,
+         * Highgarden, Lannisport, Sunspear, Dragonstone, Pyke. So eight of
+         * nine playthroughs stopped dead at level five inside their own front
+         * gate, and the only house whose whole game had ever been played was
+         * the one that happens to start at Winterfell. A player walks out to
+         * the road. Write the map off and carry on towards the rung; the
+         * grind picks up again on the first road that has anything on it. */
         if (!(world->ambushCount || world->wildCount)
             || !findCover(&grindX, &grindY)) {
-          printf("      stopped: nothing to fight in %s and still short of the "
-                 "next rung (level %d)\n", world->name, you.level);
-          hostFramesLeft = 0;
+          badGround[worldId] = 1;
+          grindMode = 0;
+          goalKind = GOAL_NONE;
           return;
         }
         goalKind = GOAL_SIGN;          /* borrow the "walk to a tile" behaviour */

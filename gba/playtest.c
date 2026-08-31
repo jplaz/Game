@@ -175,6 +175,16 @@ static int warpHere(int x, int y) {
   return 0;
 }
 
+/* Whether to walk around the grass rather than through it.
+ *
+ * Every step into cover is a roll for whatever is living in it, and once the
+ * dead have reached a road that is most of what is living in it. A player who
+ * has just been carried home twice walks the bare tiles. Nothing in here did:
+ * the route out of Winterfell went straight through the hedges by the gate,
+ * so the run was jumped, lost, woke where it started, and set off through the
+ * same hedges again, eight thousand times. */
+static int dodgeCover;
+
 static int stepToward(int gx, int gy) {
   int head = 0, tail = 0, i, at, best = -1;
   int hx = hero.px >> 4, hy = hero.py >> 4;
@@ -209,6 +219,7 @@ static int stepToward(int gx, int gy) {
          tester and spat it out one tile below, over and over: thirty-eight
          thousand doors and nineteen maps seen in a whole playthrough. */
       if (!(nx == gx && ny == gy) && warpHere(nx, ny)) continue;
+      if (dodgeCover && coverAt(nx, ny) && !(nx == gx && ny == gy)) continue;
       cameFrom[ny * w + nx] = cur;
       queue[tail++] = ny * w + nx;
     }
@@ -1276,6 +1287,14 @@ void hostFrame(void) {
         /* A net first, always: without one there is no taking anything alive,
            and the run would never walk that half of the game. */
         if (wares[r->makes].kind == WARE_SNARE && you.bag[r->makes] < 2) { best = i; break; }
+        /* And dragonglass before anything else once the dead are over the
+           Wall. Steel does two fifths of its damage to something that is
+           already dead and obsidian does two and a half times, which is a
+           six-fold swing - so a run carrying the best steel in the game and
+           no glass loses three fights in four on every cold road, and the
+           shard needed to fix that has been in its pouch the whole time. */
+        if (wares[r->makes].kind == WARE_WEAPON && wares[r->makes].obsidian
+            && winterStage() >= 3 && !you.bag[r->makes]) { best = i; break; }
         if (best < 0 || recipes[nthRecipe(best)].gold < r->gold) best = i;
       }
       if (best < 0) keys = tap(KEY_SELECT);
@@ -1582,7 +1601,10 @@ void hostFrame(void) {
           frameNo++;
           return;
         }
+        dodgeCover = badGround[worldId];
         dir = stepToward(gx, gy);
+        if (dir < 0 && dodgeCover) { dodgeCover = 0; dir = stepToward(gx, gy); }
+        dodgeCover = 0;
         if (dir >= 0) {
           static const unsigned STEP[4] = { KEY_DOWN, KEY_UP, KEY_LEFT, KEY_RIGHT };
           keys = STEP[dir];
@@ -1682,7 +1704,10 @@ void hostFrame(void) {
             break;
           }
         } else {
+          dodgeCover = badGround[worldId];
           dir = stepToward(sx, sy);
+          if (dir < 0 && dodgeCover) { dodgeCover = 0; dir = stepToward(sx, sy); }
+          dodgeCover = 0;
           if (dir >= 0) { keys = KEYS[dir]; blocked = 0; }
           else if (++blocked < 900) {
             keys = 0;      /* somebody is in the doorway; wait for them to move */

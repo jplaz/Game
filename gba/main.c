@@ -1832,6 +1832,10 @@ static const char *deadReachWord(void) {
    in front of you and the screen is busy. */
 static int ravenWaiting = -1;
 
+/* Steps of quiet owed to somebody who has just been carried off the field.
+   Nothing comes out of the grass while this is running down. */
+static int carriedHome;
+
 static void deepenWinter(int by) {
   int was = winterStage();
   if (by <= 0) return;
@@ -7771,6 +7775,7 @@ static void youFell(void) {
     int wx = you.haven >= 0 ? you.havenX : houses[you.house].startX;
     int wy = you.haven >= 0 ? you.havenY : houses[you.house].startY;
     enterMap(where, wx, wy, 0);
+    carriedHome = 40;
     copyString(scratch, "You go down. You wake in ", sizeof scratch);
     appendString(scratch, maps[where].name, sizeof scratch);
     appendString(scratch, ", wounds dressed and a third of your purse gone.",
@@ -9710,6 +9715,18 @@ static void ambush(void) {
       /* A wight at first, something older once it is properly cold. */
       int deep = stage >= 5 && (int)roll(100) < 25;
       int lift = (world->cold + stage) * 2;
+      /* How far over you they are allowed to be.
+       *
+       * Uncapped this reached fourteen levels over you, on nearly four fights
+       * in five, on the ground your own maester stands on: a directed run took
+       * its ninth sigil at Winterfell and then lost eleven thousand eight
+       * hundred fights there in a row, a third of the purse each time, until
+       * it was level forty with three gold and a hunting knife and nine
+       * sigils it could no longer do anything with. The Long Night is meant
+       * to make the last act's roads a different set of roads. It is not
+       * meant to make them arithmetic. Five over, with the usual band on top
+       * of it, is still the worst thing on any road in the game. */
+      if (lift - 6 > 5) lift = 11;
       wildWanted = deep ? BEAST_WALKER : (stage >= 4 ? BEAST_RISEN : BEAST_WIGHT);
       wildLevel = nearYou(you.level + lift - 6, -1, 5);
       callToArms(-1, 0, -1);
@@ -11049,6 +11066,16 @@ int main(void) {
               startTale(TALE_CHAMPION, AFTER_CHAMPION);
             }
           }
+          /* Somebody carried you here. Give them a moment.
+           *
+           * Losing puts you back at your maester's, and by the last act your
+           * maester may well be standing in a town the dead have reached: you
+           * wake in the snow at Winterfell, take four steps towards the gate,
+           * and something that used to be somebody comes out of the hedge. A
+           * run proved what that is - eleven thousand eight hundred losses in
+           * the same courtyard, because the only way out of it went through
+           * cover. A bed you are carried to has to be a bed you can leave. */
+          else if (carriedHome) carriedHome--;
           /* A sail on the horizon. Rarer per step than the grass is, because
              a sea is crossed in a great many more steps than a wood is and a
              fight out here costs a hull that has to be paid to mend. */

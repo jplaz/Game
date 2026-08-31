@@ -1244,6 +1244,17 @@ void hostFrame(void) {
         else { keys = tap(KEY_A); if (keys) snaresThrown++; }
       } else keys = tap(KEY_B);
     }
+    else if (bagInDuel && you.hp < vigourFor(you.level)) {
+      /* The row with a remedy on it, rather than whichever row the cursor
+         happened to land on. */
+      int have = pocketCount(bagPocket), want = -1, i2;
+      for (i2 = 0; i2 < have; i2++) {
+        if (wares[nthInPocket(bagPocket, i2)].heal) { want = i2; break; }
+      }
+      if (want < 0) keys = tap(KEY_B);
+      else if (bagPick != want) keys = tap(bagPick < want ? KEY_DOWN : KEY_UP);
+      else keys = tap(KEY_A);
+    }
     else keys = (carrying() && you.hp < vigourFor(you.level) && (roll(2) == 0))
       ? tap(KEY_A) : tap(KEY_B);
   } else if (scene == SCENE_SHOP) {
@@ -1355,14 +1366,20 @@ void hostFrame(void) {
          A on one bow three hundred and forty thousand times. A sale always
          takes gold, so gold that has not moved is a counter that has not
          sold. Say so while there are still frames left, and walk out. */
-      if (best >= 0) {
+      if (best >= 0 && shopPick == best) {
         int at = shelfWare(stall, best);
         if (at != askedFor || you.gold != askedGold) {
           askedFor = at; askedGold = you.gold; askedTimes = 0;
         }
-        if (++askedTimes > 40) {
-          finding("a counter asked %d times for %s and never sold one",
-            askedTimes, wares[at].name);
+        /* Only frames the run is actually asking on. Counting the walk down
+           the shelf as well made a sixteen-row counter look like a shopkeeper
+           refusing to sell. */
+        if (++askedTimes > 80) {
+          finding("a counter asked %d times for %s and never sold one "
+                  "(gold %d, asking %d, in the pouch %d, worn %d)",
+            askedTimes, wares[at].name, you.gold, askingPrice(at),
+            (int)you.bag[at],
+            wares[at].kind < WARE_KINDS ? (int)you.worn[wares[at].kind] : -1);
           askedFor = -1;
           best = -1;
         }
@@ -1569,13 +1586,21 @@ void hostFrame(void) {
       /* Only reach for the pouch over an animal if there is actually a net in
          it. Without that check the tester opened the pouch, found nothing,
          shut it, and opened it again - four hundred thousand times. */
-      int haveNet = 0, i2;
+      int haveNet = 0, haveCure = 0, i2;
       for (i2 = 0; i2 < WARE_COUNT; i2++) {
-        if (wares[i2].kind == WARE_SNARE && you.bag[i2]) { haveNet = 1; break; }
+        if (!you.bag[i2]) continue;
+        if (wares[i2].kind == WARE_SNARE) haveNet = 1;
+        if (wares[i2].heal) haveCure = 1;
       }
+      /* And the same rule for a drink as for a net. "Carrying anything at all"
+         is not "carrying something that will help": once the remedies ran out
+         a hurt run opened the pouch on every single turn of every fight,
+         found five and forty pieces of spare armour in it, shut it, and opened
+         it again - three quarters of a million times in one playthrough, one
+         sigil short of the throne. */
       int want = runAway ? 3
         : (foeBeast >= 0 && haveNet && theirs.hp * 3 < theirs.maxHp) ? 1
-        : (you.hp * 3 < vigourFor(you.level) && carrying() ? 1 : 0);
+        : (you.hp * 3 < vigourFor(you.level) && haveCure ? 1 : 0);
       /* And send one of yours out when there is one to send, or whistle it
          back once it has taken enough. */
       if (want == 0 && beastOut && yours.hp * 3 < yours.maxHp) want = 2;

@@ -384,6 +384,11 @@ static int ladderMode, ladderRung = -1, ladderFrames, ladderFights;
    the run stood inside a forge looking for a forge until the frames ran out,
    four rungs short of the throne. */
 static int shopTries;
+/* How many goal-picks the errand is allowed before the climb stops humouring
+   it. Six is plenty for "spend your gold"; the trip that makes an obsidian
+   edge is not a nicety, so it gets a much longer leash - it is the difference
+   between a road you can walk in the last act and one you cannot. */
+static int shopBudget = 6;
 /* The map the climb is trying to reach, so that a harbourmaster can be asked
    for the berth that gets nearest it rather than the berth that happens to
    owe the surveyor a room. */
@@ -391,6 +396,8 @@ static int ladderWants = -1;
 static int wantShop;
 /* Whether this rung has already been sent back for a weapon. */
 static int rearmed;
+/* How many trips have been made for the makings of an obsidian edge. */
+static int glassTries;
 
 /* Whether this ware is something an obsidian edge is made out of, and you are
    still short of what the recipe asks for. The dagger that marks the dead is
@@ -429,6 +436,7 @@ static u16 lostHere[MAP_COUNT];
 static u8 badGround[MAP_COUNT];
 /* Frames spent walking grass since the last fight actually started. */
 static int grindQuiet;
+static int duelCover, duelBad, duelX, duelY;
 
 /* An edge in the pouch that will mark the dead, when what is in your hand
    will not.
@@ -646,6 +654,7 @@ static void pickLadderGoal(void) {
        of the Stormlands instead of up the hill it was standing at. */
     wantShop = !crownRun;
     shopTries = 0;
+    shopBudget = 6;
     rearmed = 0;
     printf("    rung %d  %-22s at %-18s wants about %2d\n",
       at + 1, leaders[lead].name, leaders[lead].seat, want);
@@ -660,15 +669,18 @@ static void pickLadderGoal(void) {
     rearmed = 1;
     wantShop = 1;
     shopTries = 0;
+    shopBudget = 6;
   }
   /* And a forge is also where the bench is. Once the dead are past the Neck
      and there is no glass anywhere on you, the errand is worth making again
      for its own sake: the shard has been in the pouch since Dragonstone and
      the thing that turns it into an edge is behind the smith. */
-  if (!rearmed && winterStage() >= 5 && !haveGlass()) {
-    rearmed = 1;
+  if (winterStage() >= 5 && !haveGlass() && you.gold >= 2400 && !wantShop
+      && glassTries < 60) {
+    glassTries++;
     wantShop = 1;
     shopTries = 0;
+    shopBudget = 60;
   }
   /* Under the weight of that fight: go and earn it - but only where the ground
      is worth walking. Standing in the snow outside your own front door killing
@@ -705,7 +717,7 @@ static void pickLadderGoal(void) {
         goalKind = GOAL_NPC; goalIndex = i; return;
       }
     }
-    if (wantShop && ++shopTries < 6) {
+    if (wantShop && ++shopTries < shopBudget) {
       int door = warpTowardTrade();
       if (door >= 0) { goalKind = GOAL_WARP; goalIndex = door; return; }
       wantShop = 0;
@@ -1518,6 +1530,11 @@ void hostFrame(void) {
     else if (portPick != want) keys = tap(portPick < want ? KEY_DOWN : KEY_UP);
     else { keys = tap(KEY_A); if (keys) { sailed++; goalKind = GOAL_NONE; } }
   } else if (scene == SCENE_DUEL) {
+    if (wasScene != SCENE_DUEL) {
+      duelCover = coverAt(hero.px >> 4, hero.py >> 4);
+      duelBad = badGround[worldId];
+      duelX = hero.px >> 4; duelY = hero.py >> 4;
+    }
     duelMap = worldId;
     grindQuiet = 0;
     if (wasScene != SCENE_DUEL) {
@@ -1657,9 +1674,16 @@ void hostFrame(void) {
          returns before ever asking for a new goal, so without this a ladder run
          walks into the first patch of long grass it sees and stays there until
          the frame cap, which is precisely what it did. */
+      /* And the moment this ground is written off, whatever the level.
+         Grinding latches: the goal is set to a tile, so the errand picker
+         that decides whether to grind at all is never asked again until the
+         level is reached. The run was therefore told eight times over that
+         Winterfell was beating it, wrote the map off, and went on standing
+         in the same two tiles of hedge losing to the same barrowlord six
+         thousand times, because nothing ever unlatched the grind. */
       if (ladderMode && grindMode) {
         int at = nextRung();
-        if (at < 0 || you.level + 1 >= leaderLevel[at]) {
+        if (at < 0 || you.level + 1 >= leaderLevel[at] || badGround[worldId]) {
           grindMode = 0;
           goalKind = GOAL_NONE;
         }
@@ -1856,16 +1880,35 @@ void hostFrame(void) {
      * level forty with three gold and a hunting knife. Losing is meant to
      * cost - it is the lesson - but a player takes the lesson after the
      * third one and walks somewhere else. So does this now. */
+    if (getenv("WHYLOSS") && mine.hp <= 0) {
+      static int said = 0;
+      if (said++ % 250 == 0) {
+        printf("      [loss] on %s vs %s lvl %d (you %d, %s, winter %d, cover %d)\n",
+          duelMap >= 0 ? maps[duelMap].name : "?",
+          foeBeast >= 0 ? beasts[foeBeast].name : "somebody", foeLevel, you.level,
+          you.WORN_WEAPON ? wares[you.WORN_WEAPON - 1].name : "bare hands",
+          winterStage(), duelCover);
+        printf("             loss %d at %d,%d  badGround %d  grind %d  goal %d/%d\n",
+          said, duelX, duelY, duelBad, grindMode, goalKind, goalIndex);
+      }
+    }
     if (duelMap >= 0 && duelMap < MAP_COUNT) {
+      /* A running tally rather than a streak. At a one-in-four win rate a
+         run wins often enough to keep resetting a "five in a row" counter
+         while still being beaten senseless, which is exactly what happened:
+         the ninth rung cost seven and a half million frames and six thousand
+         losses on ground the tester had already been told to leave. Losses
+         push it up, wins pull it back, and eight clear of the wins is a map
+         that is beating you. */
       if (mine.hp <= 0) {
-        if (++lostHere[duelMap] >= 5 && !badGround[duelMap]) {
+        if (++lostHere[duelMap] >= 8 && !badGround[duelMap]) {
           badGround[duelMap] = 1;
           if (ladderMode) {
-            printf("      %s is beating you: five in a row, going elsewhere\n",
-              maps[duelMap].name);
+            printf("      %s is beating you: eight more losses than wins, "
+                   "going elsewhere\n", maps[duelMap].name);
           }
         }
-      } else if (theirs.hp <= 0) lostHere[duelMap] = 0;
+      } else if (theirs.hp <= 0 && lostHere[duelMap]) lostHere[duelMap]--;
     }
   }
   /* What the run actually felt like, printed the moment a sigil is taken. */

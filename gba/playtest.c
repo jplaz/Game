@@ -386,6 +386,14 @@ static int walkableTo(int want) {
 
 /* The door to take from here to get nearer to a map that still owes something.
    Breadth-first over the warp graph, so the tester does not wander. */
+/* How many separate times a door has refused to be walked to from where it
+   stands. One refusal is a body in the gateway; four is the door. Nailing it
+   on the first was worse than never nailing it - a sweep gave up on Westeros
+   after fifteen maps because three passers-by had been standing still. */
+#define MAX_WARP_MARK 32
+#define WARP_GIVE_UP 4
+static unsigned char warpStuck[MAP_COUNT][MAX_WARP_MARK];
+
 static int warpTowardWork(void) {
   int from[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, i, target = -1;
   for (i = 0; i < MAP_COUNT; i++) from[i] = -2;
@@ -409,7 +417,25 @@ static int warpTowardWork(void) {
     }
   }
   while (from[target] != worldId) target = from[target];
-  for (i = 0; i < world->warpCount; i++) if (world->warps[i].to == target) return i;
+  /* And not a door this run has already proved it cannot walk to. That mark
+     was being read by the router that goes somewhere named and ignored by the
+     one that goes looking for work - so a sweep of Highgarden stood on
+     Dragonstone for two and a half million frames wanting the Glass Vault,
+     took eighty-one doors in a whole playthrough, and walked thirty-three
+     maps. A door you cannot reach is not a road, whoever is asking. */
+  {
+    int firstAny = -1;
+    for (i = 0; i < world->warpCount; i++) {
+      if (world->warps[i].to != target) continue;
+      if (firstAny < 0) firstAny = i;
+      if (i < MAX_WARP_MARK && warpStuck[worldId][i] >= WARP_GIVE_UP) continue;
+      return i;
+    }
+    if (firstAny >= 0 && !(firstAny < MAX_WARP_MARK
+        && warpStuck[worldId][firstAny] >= WARP_GIVE_UP)) {
+      return firstAny;
+    }
+  }
   return -1;
 }
 
@@ -560,10 +586,6 @@ static int warpTowardTrade(void) {
 /* The door out of here that gets nearest to a given map. */
 static int hopsBetween(int from, int want);
 
-/* Doors that have proved they cannot be walked to from where they are. */
-#define MAX_WARP_MARK 32
-static unsigned char warpStuck[MAP_COUNT][MAX_WARP_MARK];
-
 /* Whether the hero could put a foot on that tile from where they stand. */
 static int canWalkTo(int gx, int gy) {
   int hx = hero.px >> 4, hy = hero.py >> 4;
@@ -602,7 +624,7 @@ static int warpTowardMap(int want) {
     for (i = 0; i < world->warpCount; i++) {
       if (world->warps[i].to != at) continue;
       if (firstAny < 0) firstAny = i;
-      if (i < MAX_WARP_MARK && warpStuck[worldId][i]) continue;
+      if (i < MAX_WARP_MARK && warpStuck[worldId][i] >= WARP_GIVE_UP) continue;
       return i;
     }
     /* Every door on the shortest road has already refused to be walked to.
@@ -619,7 +641,7 @@ static int warpTowardMap(int want) {
       for (i = 0; i < world->warpCount; i++) {
         int to = world->warps[i].to, near;
         if (!crossable(to)) continue;
-        if (i < MAX_WARP_MARK && warpStuck[worldId][i]) continue;
+        if (i < MAX_WARP_MARK && warpStuck[worldId][i] >= WARP_GIVE_UP) continue;
         if (!canWalkTo(world->warps[i].x, world->warps[i].y)) continue;
         near = to == want ? 0 : hopsBetween(to, want);
         if (near < 0 || near >= bestHops) continue;
@@ -631,7 +653,8 @@ static int warpTowardMap(int want) {
        walked. Saying so is better than walking it again: "no road" sends the
        caller to look for a berth, or to say plainly that it is stuck, and
        both of those are progress. */
-    if (firstAny >= 0 && !(firstAny < MAX_WARP_MARK && warpStuck[worldId][firstAny])) {
+    if (firstAny >= 0 && !(firstAny < MAX_WARP_MARK
+        && warpStuck[worldId][firstAny] >= WARP_GIVE_UP)) {
       return firstAny;
     }
   }
@@ -2257,7 +2280,7 @@ void hostFrame(void) {
              thirty-one had in fact never stood on ten of the maps its own
              scene report then blamed itself for missing. The door is what to
              give up on, so give up on the door. */
-          if (goalIndex < MAX_WARP_MARK) warpStuck[worldId][goalIndex] = 1;
+          if (goalIndex < MAX_WARP_MARK) warpStuck[worldId][goalIndex] = WARP_GIVE_UP;
         }
         goalKind = GOAL_NONE;
         return;
@@ -2326,8 +2349,20 @@ void hostFrame(void) {
           dir = stepToward(sx, sy);
           if (dir < 0 && dodgeCover) { dodgeCover = 0; dir = stepToward(sx, sy); }
           dodgeCover = 0;
-          if (dir >= 0) { keys = KEYS[dir]; blocked = 0; }
-          else if (goalKind == GOAL_NPC && ++npcTries[worldId][goalIndex] > 400) {
+          if (dir >= 0) {
+            keys = KEYS[dir];
+            blocked = 0;
+            /* A step toward them is progress, so the tally starts again. It
+               counts frames on which there was no step to take at all, not
+               frames since the run first tried: a roamer who stands in a
+               doorway now and then blocks the way a hundred times over a
+               playthrough without ever being unreachable, and writing those
+               people off cost the sweep half of Dragonstone. */
+            if (goalKind == GOAL_NPC && goalIndex < MAX_CROWD) {
+              npcTries[worldId][goalIndex] = 0;
+            }
+          }
+          else if (goalKind == GOAL_NPC && ++npcTries[worldId][goalIndex] > 1200) {
             /* A tally that survives leaving the room.
              *
              * `blocked` is one number for the whole run and it resets on any
@@ -2339,8 +2374,8 @@ void hostFrame(void) {
              * for a whole playthrough. Count it against the person, not
              * against the moment: the tally survives leaving the room. */
             npcStuck[worldId][goalIndex] = 1;
-            finding("%s: four hundred frames of walking at %s never found a "
-                    "step to take", world->name, world->npcs[goalIndex].name);
+            finding("%s: twelve hundred frames at %s without one step to take",
+              world->name, world->npcs[goalIndex].name);
             goalKind = GOAL_NONE;
             blocked = 0;
           }
@@ -2371,6 +2406,15 @@ void hostFrame(void) {
             }
             if (goalKind == GOAL_NPC) npcStuck[worldId][goalIndex] = 1;
             else if (goalKind == GOAL_SIGN) signRead[worldId][goalIndex] = 1;
+            /* And a door, which was the one kind of goal this branch gave up
+               on without writing anything down. Nine hundred frames of not
+               reaching it, then the same door again, then the same door
+               again: a sweep of Highgarden stood on Dragonstone wanting the
+               Glass Vault for two and a half million frames and took
+               eighty-one doors in the whole playthrough. */
+            else if (goalKind == GOAL_WARP && goalIndex < MAX_WARP_MARK) {
+              warpStuck[worldId][goalIndex]++;
+            }
             goalKind = GOAL_NONE;
             return;
           }

@@ -297,6 +297,16 @@ static int mapDone(int m) {
    The tester will pay a fare to reach somewhere it cannot walk to and will not
    pay one to reach somewhere it can, which is what stops it spending a whole
    playthrough sailing back and forth between three ports on the same coast. */
+/* Open water is not a road.
+ *
+ * The map graph joins Lannisport to Lordsport through the Sunset Sea, which is
+ * three doors, while the road round by the Riverlands is a dozen. So every
+ * router in here took the short way, walked out onto the sea, and stood on it -
+ * because a sea is ground you steer across and there was no hull. That is why
+ * no run had ever taken the fifth rung: Pyke is perfectly walkable, and nothing
+ * ever walked to it. */
+static int crossable(int m) { return !maps[m].sea || ownShip(); }
+
 static int walkableTo(int want) {
   int from[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, i;
   for (i = 0; i < MAP_COUNT; i++) from[i] = 0;
@@ -307,7 +317,7 @@ static int walkableTo(int want) {
     if (m == want) return 1;
     for (i = 0; i < maps[m].warpCount; i++) {
       int to = maps[m].warps[i].to;
-      if (from[to]) continue;
+      if (from[to] || !crossable(to)) continue;
       from[to] = 1;
       q[tail++] = to;
     }
@@ -327,7 +337,7 @@ static int warpTowardWork(void) {
     if (!mapDone(m)) { target = m; break; }
     for (i = 0; i < maps[m].warpCount; i++) {
       int to = maps[m].warps[i].to;
-      if (from[to] != -2) continue;
+      if (from[to] != -2 || !crossable(to)) continue;
       from[to] = m;
       q[tail++] = to;
     }
@@ -355,6 +365,10 @@ static int grindMode, grindX, grindY;
    levels sag or spike between rungs is a game with a hole in it, and no amount
    of walking every map end to end will show you that. */
 static int ladderMode, ladderRung = -1, ladderFrames, ladderFights;
+/* The map the climb is trying to reach, so that a harbourmaster can be asked
+   for the berth that gets nearest it rather than the berth that happens to
+   owe the surveyor a room. */
+static int ladderWants = -1;
 static int wantShop;
 
 static int leaderNpcOn(int m, int lead) {
@@ -384,7 +398,7 @@ static int warpTowardTrade(void) {
     if (m != worldId && mapHasTrade(m)) { want = m; break; }
     for (i = 0; i < maps[m].warpCount; i++) {
       int to = maps[m].warps[i].to;
-      if (from[to] != -2) continue;
+      if (from[to] != -2 || !crossable(to)) continue;
       from[to] = m;
       q[tail++] = to;
     }
@@ -407,12 +421,85 @@ static int warpTowardMap(int want) {
     int m = q[head++];
     for (i = 0; i < maps[m].warpCount; i++) {
       int to = maps[m].warps[i].to;
-      if (from[to] != -2) continue;
+      if (from[to] != -2 || !crossable(to)) continue;
       from[to] = m;
       q[tail++] = to;
     }
   }
   if (from[want] == -2) return -1;
+  while (from[at] != worldId) { at = from[at]; if (at < 0) return -1; }
+  for (i = 0; i < world->warpCount; i++) if (world->warps[i].to == at) return i;
+  return -1;
+}
+
+static int sailorHere(void);
+
+/* How many doors between two maps, or -1 if there is no road at all. */
+static int hopsBetween(int from, int want) {
+  int seen[MAP_COUNT], q[MAP_COUNT], dist[MAP_COUNT], head = 0, tail = 0, i;
+  if (from == want) return 0;
+  for (i = 0; i < MAP_COUNT; i++) seen[i] = 0;
+  seen[from] = 1;
+  dist[from] = 0;
+  q[tail++] = from;
+  while (head < tail) {
+    int m = q[head++];
+    for (i = 0; i < maps[m].warpCount; i++) {
+      int to = maps[m].warps[i].to;
+      if (seen[to] || !crossable(to)) continue;
+      seen[to] = 1;
+      dist[to] = dist[m] + 1;
+      if (to == want) return dist[to];
+      q[tail++] = to;
+    }
+  }
+  return -1;
+}
+
+/* Which berth lands nearest the map we are trying to reach.
+ *
+ * Pyke is an island and the Iron Islands are the fifth rung of the ladder, so
+ * a run that can only walk stops there - which is what happened, for every run
+ * this game has ever had: rungs five to ten were never played by anything. A
+ * player takes a passage. This is the tester learning to do the same. */
+static int berthToward(int want) {
+  int best = -1, bestHops = 1 << 30, i;
+  int free = !world->warpCount;
+  for (i = 0; i < PORT_COUNT; i++) {
+    int hops;
+    if (ports[i].map == worldId) continue;
+    if ((int)ports[i].needs > countSigils()) continue;
+    if (!free && (int)ports[i].fare > you.gold) continue;
+    hops = ports[i].map == want ? 0 : hopsBetween(ports[i].map, want);
+    if (hops < 0) continue;
+    if (hops < bestHops) { bestHops = hops; best = i; }
+  }
+  return best;
+}
+
+/* The door towards the nearest map that has one. */
+static int warpTowardSails(void) {
+  int from[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, i, k, want = -1, at;
+  for (i = 0; i < MAP_COUNT; i++) from[i] = -2;
+  from[worldId] = -1;
+  q[tail++] = worldId;
+  while (head < tail) {
+    int m = q[head++];
+    if (m != worldId) {
+      for (k = 0; k < maps[m].npcCount; k++) {
+        if (maps[m].npcs[k].sails) { want = m; break; }
+      }
+      if (want >= 0) break;
+    }
+    for (i = 0; i < maps[m].warpCount; i++) {
+      int to = maps[m].warps[i].to;
+      if (from[to] != -2 || !crossable(to)) continue;
+      from[to] = m;
+      q[tail++] = to;
+    }
+  }
+  if (want < 0) return -1;
+  at = want;
   while (from[at] != worldId) { at = from[at]; if (at < 0) return -1; }
   for (i = 0; i < world->warpCount; i++) if (world->warps[i].to == at) return i;
   return -1;
@@ -524,12 +611,25 @@ static void pickLadderGoal(void) {
     who = leaderNpcOn(worldId, lead);
     if (who >= 0 && crowdAlive[who]) { goalKind = GOAL_NPC; goalIndex = who; return; }
   }
+  ladderWants = leaders[lead].map;
   i = warpTowardMap(leaders[lead].map);
   if (i >= 0) { goalKind = GOAL_WARP; goalIndex = i; return; }
-  /* No road from here to the person you want. Falling back to wandering put the
-     run in a two-door loop it walked thirty-five thousand times, so say so and
-     stop rather than pretend to be busy. */
-  printf("      lost: no road from %s to %s at level %d\n",
+  /* No road, because there is no road: the fifth rung is on an island and the
+     ninth is across a bay. A player takes a passage, and until now nothing in
+     the tester did - so the back half of this game had never been played by
+     anything at all, and every rung above the fourth was a guess. */
+  {
+    int sailor = sailorHere();
+    if (sailor >= 0 && berthToward(leaders[lead].map) >= 0) {
+      goalKind = GOAL_NPC; goalIndex = sailor; return;
+    }
+    i = warpTowardSails();
+    if (i >= 0) { goalKind = GOAL_WARP; goalIndex = i; return; }
+  }
+  /* Falling back to wandering put the run in a two-door loop it walked
+     thirty-five thousand times, so say so and stop rather than pretend to be
+     busy. */
+  printf("      lost: no road and no berth from %s to %s at level %d\n",
     world->name, leaders[lead].seat, you.level);
   hostFramesLeft = 0;
 }
@@ -1175,6 +1275,17 @@ void hostFrame(void) {
        because that is where it was standing when the frames ran out. */
     int want = -1, i, j;
     portsSeen++;
+    /* A climb knows where it is going, so it takes the berth that lands
+       nearest - not the one that owes a surveyor a room. */
+    if (ladderMode && ladderWants >= 0 && !walkableTo(ladderWants)) {
+      want = berthToward(ladderWants);
+      if (want >= 0) {
+        if (portPick != want) keys = tap(portPick < want ? KEY_DOWN : KEY_UP);
+        else { keys = tap(KEY_A); if (keys) { sailed++; goalKind = GOAL_NONE; } }
+        return;
+      }
+      want = -1;
+    }
     /* Somewhere there is no road to, that still owes something.
        "Somewhere new" was not enough: a city across the sea is a dead end on
        the door graph, so sailing there once, walking out through the sea gate

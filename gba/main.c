@@ -1488,14 +1488,14 @@ typedef struct {
      on its own; `aboard` is whether you are standing on her deck rather than on
      the ground. She is tied up wherever you last stepped off her. */
   u8 shipKind, shipHull, shipTook, aboard;
-  u8 berthMap, berthX, berthY;
+  MapId berthMap; u8 berthX, berthY;
   u16 winter;
   u8 rangeWant, rangeGot, rangings;   /* the ranging you are out on, if any */
   u8 winterSaid;                      /* the deepest stage a raven has told you */
   /* Dragons. They wake when the realm starts tearing itself apart and they do
      not care whose side anybody is on: one settles over a southern town and
      stays until somebody drives it off or there is nothing left to burn. */
-  u8 swoopMap;                        /* the town one has settled over, 255 none */
+  MapId swoopMap;                     /* the town one has settled over, NO_MAP none */
   u16 swoopAt;                        /* fights until it wakes, or until the town burns */
   u8 swoopsBeaten, swoopsBurned;
   /* Children born the wrong side of the sheets. An evening at a house with a
@@ -1504,11 +1504,11 @@ typedef struct {
      name. Grown, they will take your service - they have your blood, and
      nobody else is offering them anything. */
   u8 bastards;                        /* how many, ever */
-  u8 bastMap[3];                      /* the town each is growing up in */
+  MapId bastMap[3];                   /* the town each is growing up in */
   u16 bastBorn[3];                    /* your kills when each was born: their clock */
   u8 bastTaken[3];                    /* sworn to you and gone from the house */
   u16 eveAt;                          /* fights until word comes, 0 none coming */
-  u8 eveMap;                          /* where the evening was spent */
+  MapId eveMap;                       /* where the evening was spent */
   /* Deeds. Everything you could own in this game was a consequence of somebody
      granting you a title: you took a hall off whoever was holding it, or you
      were given a seat for winning. Nothing was for sale to a man with nothing
@@ -1539,7 +1539,7 @@ typedef struct {
 
 typedef struct {
   u8 has;                       /* is any of the rest of this real yet */
-  u8 map, x, y;                 /* which hall, and the spot inside it   */
+  MapId map; u8 x, y;           /* which hall, and the spot inside it   */
   u32 coffers;                  /* rent that has come in and not been taken */
   u8 office[OFFICE_COUNT];      /* who holds each, as a host slot, 255 vacant */
   u8 wed;                       /* a house index plus one; 0 unwed */
@@ -1550,11 +1550,11 @@ typedef struct {
   u16 lastHeir;                 /* and on the day the last one did */
   u8 vassal[VASSAL_WORDS];      /* which halls have sworn to you */
   u16 raidAt;                   /* the kill count a raid lands on; 0 for none */
-  u8 raidMap, raidLive;         /* which hall it lands on, and is it burning */
+  MapId raidMap; u8 raidLive;   /* which hall it lands on, and is it burning */
   /* And your swords, sent off to take a hall while you are somewhere else.
      Six sworn men who only ever added a number to a blow were six numbers; a
      company you can send away and get back short-handed is a company. */
-  u8 warMap, warLive, warOdds;
+  MapId warMap; u8 warLive, warOdds;
   u16 warAt;
 } Seat;
 
@@ -1919,7 +1919,7 @@ static void sayDragonNews(const char *a, const char *place, const char *b) {
    if it has been left too long. */
 static void dragonAfterWin(void) {
   if (!dragonsLoose()) return;
-  if (you.swoopMap != 255) {
+  if (you.swoopMap != NO_MAP) {
     /* Settled, and eating. */
     if (you.swoopAt) you.swoopAt--;
     if (!you.swoopAt) {
@@ -1930,7 +1930,7 @@ static void dragonAfterWin(void) {
       sayDragonNews("The fire over ", maps[you.swoopMap].name,
         " has gone out, and so has the town. Nobody came. The house that held "
         "it will remember that longer than the dragon will.");
-      you.swoopMap = 255;
+      you.swoopMap = NO_MAP;
       you.swoopAt = (u16)(46 + roll(30));
     }
     return;
@@ -4046,7 +4046,7 @@ static void paintStanding(void) {
     /* Once the chair is yours, what the realm thinks of you matters rather
        more than what a merchant in Highgarden charges, so that is what this
        row says instead. */
-    if (you.swoopMap != 255) {
+    if (you.swoopMap != NO_MAP) {
       copyString(scratch, "A dragon is over ", sizeof scratch);
       appendString(scratch, maps[you.swoopMap].name, sizeof scratch);
       appendString(scratch, ".", sizeof scratch);
@@ -4227,7 +4227,8 @@ extern unsigned char hostSram[65536];              /* the harness's stand-in */
 
 typedef struct {
   u32 magic;
-  u8 house, level, worldId, dir;
+  u8 house, level, dir;
+  MapId worldId;
   u8 x, y, pad0, pad1;
   /* What you had on. One byte per kind of thing, which is how it is held in
      memory too, so a helm and a pair of gauntlets did not need a new record
@@ -4240,12 +4241,13 @@ typedef struct {
      to summer every time the cartridge was switched off would be a season in
      name only. */
   u8 shipKind, shipHull, shipTook, aboard;
-  u8 berthMap, berthX, berthY, padShip;
+  MapId berthMap; u8 berthX, berthY, padShip;
   u16 winter;
   u8 rangeWant, rangeGot, rangings, winterSaid;
-  u8 swoopMap, swoopsBeaten, swoopsBurned;
+  MapId swoopMap; u8 swoopsBeaten, swoopsBurned;
   u16 swoopAt;
-  u8 bastards, bastMap[3], bastTaken[3], eveMap;
+  u8 bastards, bastTaken[3];
+  MapId bastMap[3], eveMap;
   u16 bastBorn[3], eveAt;
   /* What you have bought, and what it has earned since you last drew on it. */
   u8 deeds;
@@ -4261,7 +4263,7 @@ typedef struct {
   u8 holdKind[HOLD_MAX], holdLevel[HOLD_MAX];
   u16 holdExp[HOLD_MAX];
   u8 hostKind[HOST_MAX], hostLevel[HOST_MAX];
-  u8 haven, havenX, havenY, story;
+  MapId haven; u8 havenX, havenY, story;
   /* Your own house, entire. It is one struct in memory for exactly this
      reason: writing it down is one line, and adding an office or an heir to it
      later does not mean a new record format. */
@@ -4303,7 +4305,7 @@ static void keepRecord(void) {
   record.magic = RECORD_MAGIC;
   record.house = (u8)you.house;
   record.level = (u8)you.level;
-  record.worldId = (u8)worldId;
+  record.worldId = (MapId)worldId;
   record.dir = hero.dir;
   record.x = (u8)(hero.px >> 4);
   record.y = (u8)(hero.py >> 4);
@@ -4371,7 +4373,7 @@ static void keepRecord(void) {
   { int k; for (k = 0; k < STORY_WORDS; k++) record.storyFlags[k] = storyFlags[k]; }
   record.eggWins = you.eggWins;
   record.tamed = you.tamed;
-  record.haven = (u8)(you.haven < 0 ? 255 : you.haven);
+  record.haven = (MapId)(you.haven < 0 ? NO_MAP : you.haven);
   record.havenX = (u8)you.havenX;
   record.havenY = (u8)you.havenY;
   for (m = 0; m < MAP_COUNT; m++) for (k = 0; k < 8; k++) record.emptied[m][k] = emptied[m][k];
@@ -4488,7 +4490,7 @@ static void takeUpRecord(void) {
   { int k; for (k = 0; k < STORY_WORDS; k++) storyFlags[k] = record.storyFlags[k]; }
   you.eggWins = record.eggWins;
   you.tamed = record.tamed;
-  you.haven = record.haven == 255 ? -1 : record.haven;
+  you.haven = record.haven == NO_MAP ? -1 : (int)record.haven;
   you.havenX = record.havenX;
   you.havenY = record.havenY;
   for (m = 0; m < MAP_COUNT; m++) for (k = 0; k < 8; k++) emptied[m][k] = record.emptied[m][k];
@@ -4750,6 +4752,24 @@ static int gearLife(int at) {
   return life > 140 ? 140 : life;
 }
 
+/* What you are worth with what you have on, recomputed.
+ *
+ * The three numbers a fight is fought with are taken once, when the duel is
+ * readied, and gear was allowed to change afterwards without anybody telling
+ * them. So putting armour on in the middle of a fight did nothing whatsoever -
+ * the guard being used against every blow was the guard you walked in with -
+ * and armour that broke mid-fight went on protecting you exactly as well as it
+ * had before it broke. Both directions were wrong and neither showed on the
+ * screen, which is the whole of "the armour is broken".
+ *
+ * Vigour is not gear, so it is not in here: only might, guard and swiftness. */
+static void refitYou(void) {
+  mine.might = mightFor(you.level);
+  mine.guard = guardFor(you.level);
+  mine.swiftness = swiftFor(you.level);
+  mine.obsidian = you.WORN_WEAPON && wares[you.WORN_WEAPON - 1].obsidian;
+}
+
 /* Take some life out of what is in that slot. Returns 1 if it just went. */
 static int wearOn(int kind, int by) {
   int at = you.worn[kind];
@@ -4763,6 +4783,7 @@ static int wearOn(int kind, int by) {
   if (you.bag[at]) you.bag[at]--;
   if (kind == WARE_WEAPON) reckonTechniques();
   else if (kind == WARE_ARMOUR) loadPlayerBody();
+  refitYou();
   return 1;
 }
 
@@ -4790,6 +4811,7 @@ static int wearWare(int at) {
      favourite is a thing a player is allowed to do; it is what a second sword
      is for. */
   you.wear[w->kind] = (u16)gearLife(at);
+  refitYou();
   return 1;
 }
 
@@ -5063,7 +5085,7 @@ void newGameState(void) {
   you.shipHull = 0;
   you.shipTook = 0;
   you.aboard = 0;
-  you.berthMap = 255;
+  you.berthMap = NO_MAP;
   you.berthX = 0;
   you.berthY = 0;
   /* And nobody starts in the Long Night. */
@@ -5073,7 +5095,7 @@ void newGameState(void) {
   you.rangings = 0;
   you.winterSaid = 0;
   ravenWaiting = -1;
-  you.swoopMap = 255;
+  you.swoopMap = NO_MAP;
   you.swoopAt = 0;
   you.swoopsBeaten = 0;
   you.swoopsBurned = 0;
@@ -5303,7 +5325,7 @@ static void putToSea(void) {
   /* The stones you left from, so that going down out there puts you back on
      your own quay rather than on whichever berth the port table happens to
      list first for this water. */
-  you.berthMap = (u8)worldId;
+  you.berthMap = (MapId)worldId;
   you.berthX = (u8)(hero.px >> 4);
   you.berthY = (u8)(hero.py >> 4);
   /* Down onto the quay tile of the water itself. Arriving on a warp is safe:
@@ -6511,7 +6533,7 @@ static const char *houseAfterWin(void) {
       if (isVassal(i)) { n++; if (roll((u32)n) == 0) pick = i; }
     if (pick >= 0) {
       int k;
-      seat.raidMap = (u8)pick;
+      seat.raidMap = (MapId)pick;
       seat.raidLive = 1;
       seat.raidAt = (u16)(you.kills + 45);       /* how long you have to answer */
       /* Whoever you cleared out of it is back, and worse, because somebody has
@@ -6813,7 +6835,7 @@ static int houseAct(void) {
       }
       you.gold -= price;
       seat.has = 1;
-      seat.map = (u8)worldId;
+      seat.map = (MapId)worldId;
       seat.x = (u8)(hero.px >> 4);
       seat.y = (u8)(hero.py >> 4);
       { int k; for (k = 0; k < OFFICE_COUNT; k++) seat.office[k] = 255; }
@@ -7038,7 +7060,7 @@ static int sendHost(void) {
     return 0;
   }
   you.gold -= price;
-  seat.warMap = (u8)m;
+  seat.warMap = (MapId)m;
   seat.warLive = 1;
   seat.warOdds = (u8)warOddsOn(m);
   seat.warAt = (u16)(you.kills + 12 + roll(10));
@@ -7519,7 +7541,7 @@ static void beginGame(void) {
   you.winter = 0;
   you.rangeWant = you.rangeGot = you.rangings = you.winterSaid = 0;
   ravenWaiting = -1;
-  you.swoopMap = 255;
+  you.swoopMap = NO_MAP;
   you.swoopAt = 0;
   you.swoopsBeaten = you.swoopsBurned = 0;
   swoopNews = 0;
@@ -7964,7 +7986,7 @@ static void theyFell(void) {
   /* And if that was the dragon, standing on the town it had settled over, the
      town is saved and the house that holds it saw who came. */
   if ((foeBeast == BEAST_WYRM || foeBeast == BEAST_DRAKE)
-      && you.swoopMap != 255 && worldId == you.swoopMap) {
+      && you.swoopMap != NO_MAP && worldId == you.swoopMap) {
     int holder = maps[worldId].holder;
     you.swoopsBeaten++;
     you.gold += 260 + you.level * 6;
@@ -7974,7 +7996,7 @@ static void theyFell(void) {
       " trailing smoke and does not circle back. The bells start up behind "
       "you - the other kind of bells, this time. The purse is from the "
       "granary men, and the house that holds this ground saw who came.");
-    you.swoopMap = 255;
+    you.swoopMap = NO_MAP;
     you.swoopAt = (u16)(46 + roll(30));
   }
   dragonAfterWin();
@@ -9544,7 +9566,7 @@ static void ambush(void) {
      over are exactly the ones whose own tables are empty, because a town has
      people in it instead of wolves. */
   if (dragonsLoose() && world->cold >= 1 && world->cold <= 2) {
-    int over = you.swoopMap != 255 && worldId == you.swoopMap;
+    int over = you.swoopMap != NO_MAP && worldId == you.swoopMap;
     if (over || (int)roll(100) < 4) {
       wildWanted = over ? BEAST_WYRM : BEAST_DRAKE;
       wildLevel = nearYou(you.level + (over ? 6 : 2), -1, over ? 8 : 4);
@@ -9897,7 +9919,7 @@ int main(void) {
         you.winter = 0;
         you.rangeWant = you.rangeGot = you.rangings = you.winterSaid = 0;
         ravenWaiting = -1;
-        you.swoopMap = 255;
+        you.swoopMap = NO_MAP;
         you.swoopAt = 0;
         you.swoopsBeaten = you.swoopsBurned = 0;
         swoopNews = 0;
@@ -10853,7 +10875,7 @@ int main(void) {
              ground the grass is worth watching even where the map's own table
              is empty, because what is in it did not come from that table. */
           else if ((world->ambushCount || theDeadWalkHere()
-                    || (you.swoopMap != 255 && worldId == you.swoopMap))
+                    || (you.swoopMap != NO_MAP && worldId == you.swoopMap))
                    && coverAt(hero.px >> 4, hero.py >> 4)
                    && roll(100) < 12) ambush();
           else if (coverAt(hero.px >> 4, hero.py >> 4) && roll(100) < 4) findInGrass();
@@ -10901,7 +10923,7 @@ int main(void) {
             } else {
               you.gold -= price;
               you.eveAt = (u16)(24 + roll(16));
-              you.eveMap = (u8)worldId;
+              you.eveMap = (MapId)worldId;
               /* The realm minds precisely as much as it minded in the show:
                  a wife's house hears of it, a septon frowns, and life goes on. */
               if (seat.wed) moveFavour(you.house, -2);

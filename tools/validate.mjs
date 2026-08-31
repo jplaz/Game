@@ -251,7 +251,14 @@ for (const [mapId, map] of Object.entries(MAPS)) {
     if (!(entry.weight > 0)) fail(`map ${mapId}: encounter ${what} has no weight`);
   }
   const hasGrass = map.grid.some((row) => [...row].some((c) => TILE_DEFS[c]?.kind === 'encounter'));
-  if (hasGrass && !(map.encounters ?? []).length) {
+  /* Somewhere with a counter or a healer in it is somewhere people live, and
+     nobody is ambushed in the middle of their own town. This warned about
+     Castle Black, which has a patch of grass in the yard and is the safest
+     ground north of Winterfell. */
+  const settled = (map.npcs ?? []).some((n) => n.data?.stock || n.data?.shop
+    || /heal|maester|shop|merchant|smith|innkeep|steward|septa|aemon/i
+         .test(`${n.script ?? ''} ${n.name ?? ''}`));
+  if (hasGrass && !settled && !(map.encounters ?? []).length) {
     warn(`map ${mapId}: has cover to ambush from but no encounter table`);
   }
 
@@ -550,7 +557,10 @@ for (const map of Object.values(MAPS)) {
 }
 // A few duellists are reached through a bespoke script rather than a data.duel
 // NPC; name them here so the "never placed" warning stays meaningful.
-for (const id of ['joryCassel', 'cersei']) duelPlaced.add(id);
+// The throne champion stands nowhere on purpose: the last act puts him in front
+// of you once Cersei falls, which is the one fight in the game that has no
+// person on a map behind it.
+for (const id of ['joryCassel', 'cersei', 'throneChampion']) duelPlaced.add(id);
 for (const id of Object.keys(DUELLISTS)) {
   if (!duelPlaced.has(id)) warn(`duellist ${id}: defined but never placed on a map`);
 }

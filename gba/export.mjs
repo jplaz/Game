@@ -1892,6 +1892,15 @@ L.push('');
 L.push('typedef unsigned char  u8;');
 L.push('typedef unsigned short u16;');
 L.push('typedef unsigned int   u32;');
+/* A map index, and the value that means none.
+ *
+ * This was a byte, which put a hard ceiling of two hundred and fifty-five maps
+ * on the world - and the world stood at two hundred and thirty-one. There is
+ * nothing clever about the widening; it is a named type so that the next time
+ * it matters it is one line rather than thirty, and so that "nowhere" has a
+ * name instead of being the number 255 written out in a dozen places. */
+L.push('typedef u16 MapId;');
+L.push('#define NO_MAP 0xFFFFu');
 L.push('typedef signed char    s8;');
 L.push('');
 
@@ -2028,7 +2037,7 @@ L.push('');
 // Houses.
 L.push(`#define HOUSE_COUNT ${harvest.houses.length}`);
 L.push('typedef struct { const char *name, *full, *words, *sworn, *seat; u16 colour, accent;'
-     + ' u16 looks[4]; u8 startMap, startX, startY, startDir, startLevel;'
+     + ' u16 looks[4]; MapId startMap; u8 startX, startY, startDir, startLevel;'
      + ' u16 rivals, allies; } House;');
 L.push('static const House houses[HOUSE_COUNT] = {');
 for (const h of harvest.houses) {
@@ -2269,7 +2278,7 @@ for (const c of harvest.choices) {
 }
 L.push('};');
 L.push('typedef struct {');
-L.push('  u8 map, x, y, flag, people, quest;');
+L.push('  MapId map; u8 x, y, flag, people, quest;');
 L.push('  u8 needs, denies, sigils;   /* what has to have happened first */');
 L.push('  u16 first, count;');
 L.push('  const char *name;');
@@ -2385,6 +2394,14 @@ L.push('');
   L.push('');
 }
 
+/* And the ceiling, out loud. A map index used to be one byte, and the world
+   crept to two hundred and thirty-one without anything saying so; the failure
+   at two hundred and fifty-six would have been a door quietly opening onto the
+   wrong map rather than an error. NO_MAP is the one index that cannot be a
+   map. */
+if (harvest.maps.length >= 0xFFFF) {
+  throw new Error(`${harvest.maps.length} maps: the index is a MapId and 0xFFFF means nowhere`);
+}
 L.push(`#define MAP_COUNT ${harvest.maps.length}`);
 {
   const order = [...harvest.leaders].sort((a, b) => a.order - b.order);
@@ -2410,7 +2427,7 @@ L.push(`#define MAP_COUNT ${harvest.maps.length}`);
   {
     const berths = PORTS.filter((p) => MAP_IDS.includes(p.map));
     L.push(`#define PORT_COUNT ${berths.length}`);
-    L.push('typedef struct { const char *name; u8 map, x, y, dir; u16 fare; u8 needs; } Port;');
+    L.push('typedef struct { const char *name; MapId map; u8 x, y, dir; u16 fare; u8 needs; } Port;');
     L.push('static const Port ports[PORT_COUNT] = {');
     for (const p of berths) {
       const dir = ['down', 'up', 'left', 'right'].indexOf(p.dir ?? 'down');
@@ -2433,7 +2450,7 @@ L.push(`#define MAP_COUNT ${harvest.maps.length}`);
     L.push('  const char *broker, *paper, *poor, *owned, *rest;');
     L.push('  u16 price;         /* what the deed costs */');
     L.push('  u16 rent;          /* gold a thousand paces, drawn when you sleep there */');
-    L.push('  u8 map, x, y, dir; /* the room, and where you come to in it */');
+    L.push('  MapId map; u8 x, y, dir; /* the room, and where you come to in it */');
     L.push('} Deed;');
     L.push('static const Deed deeds[DEED_COUNT] = {');
     for (const d of harvest.deeds) {
@@ -2457,7 +2474,7 @@ L.push(`#define MAP_COUNT ${harvest.maps.length}`);
 }
 
 // Maps.
-L.push('typedef struct { u8 x, y, to, tx, ty; } Warp;');
+L.push('typedef struct { u8 x, y; MapId to; u8 tx, ty; } Warp;');
 L.push('typedef struct { u8 x, y; const char *text; } Sign;');
 L.push('typedef struct { u16 duellist; u8 bank; } Ambush;');
 L.push('typedef struct { u8 beast, level; } Wild;');

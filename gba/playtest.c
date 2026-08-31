@@ -772,6 +772,16 @@ void hostFrame(void) {
     }
     for (k = 0; k < WARE_KINDS; k++) hadWorn[k] = you.worn[k];
     wornSeen = 1;
+    /* What you are wearing and what you are fighting with have to agree.
+       The three numbers a duel uses are taken once, when it is readied, and
+       anything that changed gear afterwards - putting armour on mid-fight,
+       or a breastplate finally giving out - left them saying what you were
+       worth before it happened. Armour you put on in a fight did nothing at
+       all, and armour that broke went on protecting you. Neither showed. */
+    if (scene == SCENE_DUEL && mine.guard != guardFor(you.level)) {
+      finding("in a duel your guard is %d and what you have on is worth %d",
+              mine.guard, guardFor(you.level));
+    }
   }
 
   /* POSTCARDS=1 catches one picture of every map the tester walks into, drawn
@@ -1874,6 +1884,23 @@ int main(int argc, char **argv) {
   }
   printf("  scenes         %d of %d played, %d answered, log opened %d times\n",
     cutsPlayed, CUT_COUNT, cutsChosen, deedsSeen);
+  /* And why the rest did not. A scene fires when you stand on one named tile of
+     one named map with its gates open, so there are exactly two ways to miss
+     one: the gates were shut, or you never stood on the tile. Which of the two
+     it is decides whether the story is gated wrongly or simply hidden in a
+     corner, and guessing between them is how you fix the wrong one. */
+  {
+    int c2, shutOut = 0, neverStood = 0, wrongMap = 0;
+    for (c2 = 0; c2 < CUT_COUNT; c2++) {
+      if (flagSet(cuts[c2].flag)) continue;
+      if ((cuts[c2].needs != 255 && !flagSet(cuts[c2].needs))
+          || countSigils() < cuts[c2].sigils) { shutOut++; continue; }
+      if (!mapSeen[cuts[c2].map]) { wrongMap++; continue; }
+      neverStood++;
+    }
+    printf("  scenes missed  %d still gated, %d on a map never walked, "
+           "%d walked past on the map itself\n", shutOut, wrongMap, neverStood);
+  }
   printf("  nests          %s found, %s hatched, dragon egg %s\n",
     eggsFound ? "an egg" : "nothing", eggsHatched ? "one" : "none",
     dragonEgg ? "yes" : "not this run");

@@ -104,7 +104,7 @@ static void checkFrame(void) {
     finding("a window ran off the end of its lines and lost text");
     wrapLost = 0;
   }
-  if (scene < 0 || scene > SCENE_LAND) finding("scene is %d, which is not a scene", scene);
+  if (scene < 0 || scene > SCENE_HIRE) finding("scene is %d, which is not a scene", scene);
   /* Nothing is standing anywhere yet on the screens that come before the
      world, and there is no map to be standing on. */
   if (scene == SCENE_TITLE || scene == SCENE_HOUSE || scene == SCENE_NAME) return;
@@ -257,6 +257,8 @@ static int menusSeen, bagsSeen, shopsSeen, bought, records, menuWant = -1;
 static int mustersSeen, kennelsSeen, holdLooks, boarded, fetched, oathsOffered;
 /* Campaigns actually put in the field, and rangings actually taken up. */
 static int warsSent, rangesTaken, sworeIn, hostLost;
+/* The sellsword halls of the Free Cities, and who was taken on in them. */
+static int hiresSeen, companiesHired, hireHeld;
 /* Set while a purse is being bought, so the shelf is not walked twice for one;
    cleared when the counter is left. */
 static int oathWait;
@@ -859,6 +861,45 @@ static void pickGoal(void) {
     goalKind = GOAL_CHAIR; goalIndex = 0; return;
   }
 
+  /* A counter, when the purse that buys a sword is not in the pouch.
+   *
+   * The sweep walks all two hundred and thirty-one maps and spends about two
+   * hundred frames of a whole playthrough standing at counters, because it
+   * only ever opens one by talking to whoever is behind it and then leaves.
+   * So it never had the one thing that turns a beaten man into a sworn one,
+   * and everything downstream of a host - a hall worth holding, a company in
+   * the field - stayed unplayed. */
+  if (hostRoom() >= 0 && !carryingOath() && you.gold >= 1500) {
+    for (i = 0; i < crowdCount; i++) {
+      if (!crowdAlive[i] || npcStuck[worldId][i]) continue;
+      if (world->npcs[i].trade != 2) continue;
+      npcTalked[worldId][i] = 0;
+      goalKind = GOAL_NPC; goalIndex = i; return;
+    }
+  }
+
+  /* A hall of your own, once one you have already emptied is affordable.
+   *
+   * Twelve halls in this world can be bought and they are all at the back of a
+   * stronghold, so whether a wandering run ever stood in one with the money in
+   * its purse was pure chance: one playthrough in nine. And without a seat
+   * there is nowhere to send swords from, which is why the campaign had never
+   * been fought. Go back for it - the map is already cleared, so this is a
+   * walk down a road the run has walked, not a detour into new country. */
+  if (!seat.has) {
+    int m, want = -1;
+    for (m = 0; m < MAP_COUNT; m++) {
+      if (!maps[m].seat || !mapCleared(m)) continue;
+      if (you.gold < (int)maps[m].seat * 100) continue;
+      want = m;
+      break;
+    }
+    if (want >= 0 && want != worldId) {
+      i = warpTowardMap(want);
+      if (i >= 0) { goalKind = GOAL_WARP; goalIndex = i; return; }
+    }
+  }
+
   /* Back to a brother in black with the count.
    *
    * A ranging is the one lever in this game that pushes the winter the other
@@ -874,6 +915,49 @@ static void pickGoal(void) {
       if (!world->npcs[i].ranges) continue;
       npcTalked[worldId][i] = 0;
       goalKind = GOAL_NPC; goalIndex = i; return;
+    }
+    /* And across the map for him if he is not on this one: a count that is
+       made and never reported is worse than never having gone. */
+    {
+      int m, want = -1, k;
+      for (m = 0; m < MAP_COUNT && want < 0; m++) {
+        if (!mapSeen[m]) continue;
+        for (k = 0; k < maps[m].npcCount; k++) {
+          if (maps[m].npcs[k].ranges) { want = m; break; }
+        }
+      }
+      if (want >= 0 && want != worldId) {
+        i = warpTowardMap(want);
+        if (i >= 0) { goalKind = GOAL_WARP; goalIndex = i; return; }
+      }
+    }
+  }
+  /* Out on a ranging and short of the count: go where the dead are.
+   *
+   * Seven sweeps in nine took a ranging and every one of them came back with
+   * nought of three put down, because the dead only walk cold ground and a
+   * wandering run crosses it and keeps going. So the one lever in this game
+   * that pushes the winter back was pulled seven times and turned nothing:
+   * the Watch was a errand board nobody ever collected from. Stand in the
+   * snow and wait for them, the way the man in black asked. */
+  if (you.rangeWant && you.rangeGot < you.rangeWant) {
+    if (world->cold && world->cold + winterStage() >= 7
+        && findCover(&grindX, &grindY)) {
+      grindMode = 1;
+      goalKind = GOAL_SIGN; goalIndex = 0;
+      return;
+    }
+    {
+      int m, want = -1, best = 0;
+      for (m = 0; m < MAP_COUNT; m++) {
+        if (!mapSeen[m] || !maps[m].cold) continue;
+        if (maps[m].cold + winterStage() < 7) continue;
+        if (maps[m].cold > best) { best = maps[m].cold; want = m; }
+      }
+      if (want >= 0 && want != worldId) {
+        i = warpTowardMap(want);
+        if (i >= 0) { goalKind = GOAL_WARP; goalIndex = i; return; }
+      }
     }
   }
   for (i = 0; i < crowdCount; i++) {
@@ -1569,6 +1653,31 @@ void hostFrame(void) {
     if (want < 0 || yardHeld > 500) keys = tap(KEY_B);
     else if (yardPick != want) keys = tap(yardPick < want ? KEY_DOWN : KEY_UP);
     else { keys = tap(KEY_A); if (keys) { hullsBought++; yardHeld = 0; } }
+  } else if (scene == SCENE_HIRE) {
+    /* A captain in the Free Cities with a company standing behind him.
+     *
+     * The tester had no idea this screen existed - it did not even count as a
+     * scene - so a run that walked into a sellsword hall in Braavos stood in
+     * it until the frames ran out, which is also why nobody in Braavos could
+     * ever be reached. It is the shortest road to a host in the game: gold
+     * for swords, no fight and no purse, which is the entire point of Essos.
+     * Take the one this captain actually speaks for, then leave. */
+    int want = -1, i;
+    hiresSeen++;
+    for (i = 0; i < COMPANY_COUNT; i++) {
+      if (i != hireSeller) continue;
+      if (hostRoom() < 0 || you.gold < (int)companies[i].price) continue;
+      want = i;
+    }
+    if (++hireHeld > 900) {
+      finding("a sellsword captain that %d frames of pressing B would not leave",
+        hireHeld);
+      hireHeld = 0;
+      want = -1;
+    }
+    if (want < 0 || hireHeld > 500) keys = tap(KEY_B);
+    else if (hirePick != want) keys = tap(hirePick < want ? KEY_DOWN : KEY_UP);
+    else { keys = tap(KEY_A); if (keys) { companiesHired++; hireHeld = 0; } }
   } else if (scene == SCENE_LAND) {
     /* What is for sale. Buy the one this seller actually has if the purse will
        carry it, then walk out. A run that only ever reads the list has not
@@ -1863,6 +1972,15 @@ void hostFrame(void) {
           grindMode = 0;
           goalKind = GOAL_NONE;
         }
+      }
+      /* A sweep only ever stands still for a ranging, so the count being made
+         is what lets it go. Grinding latches, and a latch with nothing to
+         release it is how the last one of these ate a playthrough. */
+      if (!ladderMode && grindMode
+          && (!you.rangeWant || you.rangeGot >= you.rangeWant
+              || badGround[worldId])) {
+        grindMode = 0;
+        goalKind = GOAL_NONE;
       }
       if (grindMode) {
         /* Grass that never gives you a fight is not grass to train in.
@@ -2531,6 +2649,8 @@ int main(int argc, char **argv) {
     mustersSeen, oathsOffered, hostCount());
   printf("  swords sworn   %d took the purse, %d fell, %d still behind you\n",
     sworeIn, hostLost, hostCount());
+  printf("  the free cities %d sellsword halls walked into, %d companies taken on\n",
+    hiresSeen, companiesHired);
   printf("  the watch      %d taken, %d handed in\n", rangesTaken, you.rangings);
   if (MY_BEAST.kind != 255) {
     int q;

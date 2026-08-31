@@ -130,9 +130,39 @@ clang $HOSTFLAGS -o audit audit.c
 # and checks on every frame that the game has not put itself somewhere
 # impossible. Five houses, five different rolls of the dice.
 clang $HOSTFLAGS -o playtest playtest.c
+: > /tmp/sweeps.txt
 for h in 0 1 2 3 4 5 6 7 8; do
-  SEED=$((h * 104729 + 7)) ./playtest "$h" | sed -n '2,13p'
+  SEED=$((h * 104729 + 7)) ./playtest "$h" > /tmp/sweep.$h.txt
+  sed -n '2,13p' /tmp/sweep.$h.txt
+  cat /tmp/sweep.$h.txt >> /tmp/sweeps.txt
 done
+
+# And the systems a sweep is the only thing that reaches.
+#
+# Each of these was reported as nought by every run this game had ever had -
+# not because they were broken but because nothing pressed the buttons: a
+# ranging handed in, a hall bought, a purse put in front of a beaten man, a
+# company taken on in Essos, a host sent into the field. They are rare enough
+# per run to be luck, so the line is drawn across all nine together: if a whole
+# sweep of Westeros never once does one of these, it has stopped being played.
+node -e '
+const fs = require("fs");
+const out = fs.readFileSync("/tmp/sweeps.txt", "utf8");
+const sum = (re) => [...out.matchAll(re)].reduce((n, m) => n + parseInt(m[1], 10), 0);
+const want = [
+  ["rangings handed in",   sum(/the watch +\d+ taken, (\d+) handed in/g)],
+  ["halls bought",         (out.match(/seat (?!none)\S/g) || []).length],
+  ["purses taken",         sum(/swords sworn +(\d+) took the purse/g)],
+  ["companies taken on",   sum(/sellsword halls walked into, (\d+) companies/g)],
+  ["campaigns sent",       sum(/, (\d+) campaigns sent/g)],
+];
+let bad = 0;
+for (const [what, n] of want) {
+  console.log(`  ${String(n).padStart(3)} ${what}`);
+  if (!n) { console.error(`  nothing in nine playthroughs ever did: ${what}`); bad = 1; }
+}
+process.exit(bad);
+' || exit 1
 
 # The pictures in shots/ come from the playthrough rather than from a written
 # route: it catches each screen the first time it reaches one, so the crowd

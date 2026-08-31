@@ -376,6 +376,8 @@ static int shopTries;
    owe the surveyor a room. */
 static int ladderWants = -1;
 static int wantShop;
+/* Whether this rung has already been sent back for a weapon. */
+static int rearmed;
 
 static int leaderNpcOn(int m, int lead) {
   int i;
@@ -571,8 +573,20 @@ static void pickLadderGoal(void) {
        of the Stormlands instead of up the hill it was standing at. */
     wantShop = !crownRun;
     shopTries = 0;
+    rearmed = 0;
     printf("    rung %d  %-22s at %-18s wants about %2d\n",
       at + 1, leaders[lead].name, leaders[lead].seat, want);
+  }
+  /* Empty hands. Gear wears through, and the rung's one trip to a counter is
+     spent long before the sword that was bought on it snaps - so the seventh
+     rung was fought, and won, with nothing in either hand, which is not a
+     thing a player would ever have chosen to do. Go and buy another one.
+     Once per rung: if the purse will not stretch to a weapon, asking again
+     every frame turns the forge door into the revolving one all over again. */
+  if (!you.WORN_WEAPON && !rearmed && you.gold >= 200) {
+    rearmed = 1;
+    wantShop = 1;
+    shopTries = 0;
   }
   /* Under the weight of that fight: go and earn it - but only where the ground
      is worth walking. Standing in the snow outside your own front door killing
@@ -1239,11 +1253,20 @@ void hostFrame(void) {
     /* Four hulls on the stocks. Buy the best one the purse will carry and get
        off the quay: a run that only ever looks at the list has not tested that
        the money comes off, the hull goes on, or that the man lets go of you
-       afterwards. Nothing here moves the player, so it is safe to buy. */
+       afterwards. Nothing here moves the player, so it is safe to buy.
+     *
+     * Better than what is under you, not merely different. The stocks are
+     * listed cheapest first, and taking the last affordable row meant a run
+     * that owned the cog and could not yet afford the longship traded down to
+     * the skiff, then back to the cog, then down again - burning half the
+     * price each way and going to sea in the worst hull it had ever owned.
+     * And a hull at nought is a run that cannot sail at all, so mending comes
+     * before buying: the last row on the list is the one that keeps the game
+     * finishable. */
     int want = -1, i;
     yardsSeen++;
-    for (i = 0; i < HULL_COUNT; i++) {
-      if (i == you.shipKind) continue;
+    if (ownShip() && mendCost() && you.gold >= mendCost()) want = HULL_COUNT;
+    else for (i = ownShip() ? you.shipKind + 1 : 0; i < HULL_COUNT; i++) {
       if ((int)hulls[i].price - tradeIn() <= you.gold) want = i;
     }
     if (++yardHeld > 900) {

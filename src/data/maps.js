@@ -5240,6 +5240,8 @@ export const MAPS = {
     // about Braavos and makes it read as somewhere else at a glance.
     name: 'Braavos', music: 'town', ground: 'stone', wall: '~', floor: 'o',
     npcs: [
+      { x: 12, y: 17, dir: 'down', sprite: 'sellsword', name: 'Sellsword Captain',
+        script: 'sellswords', data: { company: 'purpleHarbour' } },
       { x: 12, y: 18, dir: 'left', sprite: 'braavosi', name: 'The Harbourmaster',
         script: 'ship',
         data: { line: 'The Harbourmaster: The Purple Harbour takes Braavosi keels and the Ragman\'s takes everyone else. Either will carry you. Only one tells you the true price first.' } },
@@ -5320,6 +5322,8 @@ export const MAPS = {
     dressing: [[9, 16, 'F'], [14, 16, 'F'], [8, 24, 'U'], [15, 24, 'U'], [11, 7, 'F']],
     name: 'Pentos', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
+      { x: 12, y: 17, dir: 'down', sprite: 'sellsword', name: 'Sellsword Captain',
+        script: 'sellswords', data: { company: 'secondSons' } },
       { x: 12, y: 18, dir: 'left', name: 'A Pentoshi Captain', sprite: 'merchant',
         script: 'ship',
         data: { line: 'A Pentoshi Captain: Pentos has no army, so Pentos has ships instead. It has worked for four hundred years. Where are you going?' } },
@@ -5361,6 +5365,8 @@ export const MAPS = {
     dressing: [[6, 8, 'F'], [17, 8, 'F'], [7, 22, 'F'], [16, 22, 'F'], [3, 20, 'U'], [21, 20, 'U']],
     name: 'Volantis', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
+      { x: 15, y: 7, dir: 'down', sprite: 'redPriest', name: 'Priest of the Red Temple',
+        script: 'sellswords', data: { company: 'fieryHand' } },
       { x: 15, y: 8, dir: 'right', name: 'A Volantene Captain', sprite: 'braavosi',
         script: 'ship',
         data: { line: 'A Volantene Captain: Down the Rhoyne and out. I do not ask what you did to want leaving this badly, and you do not ask what is under my deck.' } },
@@ -5406,6 +5412,8 @@ export const MAPS = {
     npcs: [
       { x: 11, y: 6, dir: 'down', name: 'Daenerys Targaryen', sprite: 'targaryen',
         script: 'duel', data: { duel: 'daenerys' } },
+      { x: 12, y: 17, dir: 'down', sprite: 'sellsword', name: 'Pit Master',
+        script: 'sellswords', data: { company: 'pitFighters' } },
       { x: 12, y: 18, dir: 'left', name: 'A Ghiscari Captain', sprite: 'braavosi',
         script: 'ship',
         data: { line: 'A Ghiscari Captain: Eight thousand miles between here and Westeros, and I have sailed every one of them twice. Name the port.' } },

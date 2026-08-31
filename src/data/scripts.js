@@ -14,6 +14,7 @@ import { giveEgg } from '../game/eggs.js';
 import { beginReign, reigning } from '../game/realm.js';
 import { QUESTS } from './quests.js';
 import { PORTS } from './ports.js';
+import { COMPANIES } from './companies.js';
 import {
   holdfast, ownsHoldfast, FURNISHINGS, installed, install, seats, canCook,
   larder, INGREDIENTS, DISHES, canCookDish, cook as cookDish, dishCount,
@@ -261,6 +262,36 @@ export const SCRIPTS = {
   /** Maester's Hall healer. */
   /* The cages at the back of a maester's hall. The cartridge opens its own
      holdfast screen here; in the browser this is a line and nothing more. */
+  /**
+   * A company across the Narrow Sea. West of the water a sword follows you
+   * because you knocked him down first; east of it he follows the money, which
+   * is the only thing the Free Cities have that Westeros has not.
+   *
+   * The cartridge keeps a household of six sworn swords and this fills a place
+   * in it. The browser has companions rather than a household, so here the deal
+   * is struck and remembered - who you have paid for, and what it cost - and
+   * the console is where they draw a sword.
+   */
+  async sellswords({ say, choose, npc }) {
+    const id = npc.data?.company;
+    const def = COMPANIES[id];
+    if (!def) { await say('There is nobody here selling anything.'); return; }
+    game.state.hired = game.state.hired ?? [];
+    if (game.state.hired.includes(id)) {
+      await say(`${def.name} has your coin already. They are waiting on a war.`);
+      return;
+    }
+    const pick = await choose(def.pitch, [`Pay ${def.price}g`, 'Walk away']);
+    if (pick !== 0) {
+      await say('The captain shrugs. There is a war on somewhere always.');
+      return;
+    }
+    if (!canAfford(def.price)) { await say(def.poor); return; }
+    addMoney(-def.price);
+    game.state.hired.push(id);
+    await say(def.taken);
+  },
+
   async kennel({ say, npc }) {
     await say(npc.data?.line
       ?? 'Kennelmaster: Anything you cannot carry, I will board.');

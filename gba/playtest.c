@@ -249,9 +249,26 @@ static int stepToward(int gx, int gy) {
 static int goalKind, goalIndex, goalFrames, goalStage;
 static int npcDuelled[MAP_COUNT][MAX_CROWD];
 static int interacting, duelTries, blocked;
+/* Trips out of one fight into a menu and back, and the foe's health when the
+   last one started. A fight nobody is landing a blow in is not a fight. */
+static int pouchTrips, wasFoeHp = -1;
 static int wantHouse, runAway, statusChecks, sinceStatus, wantTech, techUsed[4];
 static int menusSeen, bagsSeen, shopsSeen, bought, records, menuWant = -1;
 static int mustersSeen, kennelsSeen, holdLooks, boarded, fetched, oathsOffered;
+/* Campaigns actually put in the field, and rangings actually taken up. */
+static int warsSent, rangesTaken, sworeIn, hostLost;
+/* Set while a purse is being bought, so the shelf is not walked twice for one;
+   cleared when the counter is left. */
+static int oathWait;
+
+/* Whether there is a purse in the pouch to put in front of somebody. */
+static int carryingOath(void) {
+  int i;
+  for (i = 0; i < WARE_COUNT; i++) {
+    if (you.bag[i] && wares[i].kind == WARE_OATH) return 1;
+  }
+  return 0;
+}
 /* How many times the run swapped steel for glass because the dead were out. */
 static int glassDrawn;
 static int oathWanted = -1;
@@ -418,6 +435,13 @@ static int glassMaking(int at) {
   return 0;
 }
 
+/* Whether the hall you are standing in is one you could walk out owning. */
+static int hallToBuy(void) {
+  if (seat.has || !world) return 0;
+  if (!maps[worldId].seat || !mapCleared(worldId)) return 0;
+  return you.gold >= (int)maps[worldId].seat * 100;
+}
+
 /* Whether there is an obsidian edge anywhere on you, worn or packed. */
 static int haveGlass(void) {
   int i;
@@ -436,7 +460,6 @@ static u16 lostHere[MAP_COUNT];
 static u8 badGround[MAP_COUNT];
 /* Frames spent walking grass since the last fight actually started. */
 static int grindQuiet;
-static int duelCover, duelBad, duelX, duelY;
 
 /* An edge in the pouch that will mark the dead, when what is in your hand
    will not.
@@ -730,7 +753,19 @@ static void pickLadderGoal(void) {
   }
   if (worldId == leaders[lead].map) {
     who = leaderNpcOn(worldId, lead);
-    if (who >= 0 && crowdAlive[who]) { goalKind = GOAL_NPC; goalIndex = who; return; }
+    if (who >= 0 && crowdAlive[who]) {
+      /* A seat you have not taken is a fight you have not finished.
+       *
+       * "Draw on somebody once" is the right rule for the road - it stops a
+       * sweep killing the whole of Westeros - and it was being applied to the
+       * ten people the whole climb is about. Lose to a leader and the run
+       * would walk back to them, say hello, walk away, and do that until the
+       * frames ran out: three million of them at Casterly Rock with twelve
+       * thousand gold in its purse and six of the ten seats still standing.
+       * The quota is for strangers. */
+      npcDuelled[worldId][who] = 0;
+      goalKind = GOAL_NPC; goalIndex = who; return;
+    }
   }
   ladderWants = leaders[lead].map;
   i = warpTowardMap(leaders[lead].map);
@@ -824,6 +859,23 @@ static void pickGoal(void) {
     goalKind = GOAL_CHAIR; goalIndex = 0; return;
   }
 
+  /* Back to a brother in black with the count.
+   *
+   * A ranging is the one lever in this game that pushes the winter the other
+   * way, and finishing one needs two conversations with the same man: he
+   * sends you north, and you come back and tell him. The sweep speaks to
+   * everybody exactly once, so it took a ranging in eight runs out of nine
+   * and handed one in exactly once - by luck, when the wandering happened to
+   * cross the same brother twice. Anybody who ranges is worth talking to
+   * again the moment the count is made. */
+  if (you.rangeWant && you.rangeGot >= you.rangeWant) {
+    for (i = 0; i < crowdCount; i++) {
+      if (!crowdAlive[i] || npcStuck[worldId][i]) continue;
+      if (!world->npcs[i].ranges) continue;
+      npcTalked[worldId][i] = 0;
+      goalKind = GOAL_NPC; goalIndex = i; return;
+    }
+  }
   for (i = 0; i < crowdCount; i++) {
     /* Anyone who drew on you from across the road and lost is dealt with,
        whether or not there was ever a conversation. */
@@ -904,10 +956,14 @@ static void completeGoal(void) {
       /* Somebody a great deal better than you is a fight a player would not
          pick, and a tester that picks it measures its own stupidity rather than
          the game. It still happens now and then, because the game lets it. */
-      if (world->npcs[goalIndex].fights && duels < MAX_DUELS
-          && !npcDuelled[worldId][goalIndex]
-          && (duellists[world->npcs[goalIndex].duellist].level <= you.level + 5
-              || roll(6) == 0)) {
+      /* The leader of the rung this climb is on is never one of the strangers:
+         no quota, and no "somebody better than you" second thoughts, because
+         beating them is the errand. */
+      int isRung = ladderMode && leaderFor(world->npcs[goalIndex].duellist) >= 0;
+      if (world->npcs[goalIndex].fights
+          && (isRung || (duels < MAX_DUELS && !npcDuelled[worldId][goalIndex]
+              && (duellists[world->npcs[goalIndex].duellist].level <= you.level + 5
+                  || roll(6) == 0)))) {
         goalStage = 1;
         interacting = 0;
         return;
@@ -1134,6 +1190,15 @@ void hostFrame(void) {
     /* The pouch, deliberately, when there is glass in it and steel in your
        hand and the dead on the road outside. */
     if (obsidianToDraw() >= 0) menuWant = 3;
+    /* And the house card, deliberately, while standing in a hall that is for
+       sale and empty of whoever used to hold it.
+     *
+       Twelve halls in this world can be bought, from three thousand gold to
+       twelve, and not one has ever been bought by anything: the card is opened
+       often enough, but almost never in the one room where its second line
+       does anything. No seat means no rents, no feast, no marriage, and
+       nowhere to send swords from - four more systems behind one door. */
+    else if (hallToBuy()) menuWant = 4;
     else if (menuWant < 0) menuWant = (int)roll(MENU_ENTRIES);
     /* Leaving has to clear what it wanted too. Without this the first roll of
        "leave" sticks, and every menu after it is opened and shut again without
@@ -1234,7 +1299,13 @@ void hostFrame(void) {
     /* In a fight with an animal that is nearly down, reach for a net rather
        than for a drink: taking one alive is a whole half of the game and a
        tester that never throws one has not walked it. */
-    if (bagInDuel && foeBeast >= 0 && theirs.hp * 3 < theirs.maxHp) {
+    /* A net is for something that can be held. A wight cannot: the game says
+       so and does not even spend the net on it, and the tester threw one at
+       every wight it met with a third of its life left - opened the pouch,
+       was refused, shut it, opened it again, half a million times in one
+       fight, which is where the last three houses of a nine-house run went. */
+    if (bagInDuel && foeBeast >= 0 && beasts[foeBeast].tame
+        && theirs.hp * 3 < theirs.maxHp) {
       int have = pocketCount(bagPocket), want = -1, i;
       for (i = 0; i < have; i++) {
         if (wares[nthInPocket(bagPocket, i)].kind == WARE_SNARE) { want = i; break; }
@@ -1305,6 +1376,46 @@ void hostFrame(void) {
         return;
       }
     }
+    /* A purse, whichever kind of run this is.
+     *
+     * The pouch has known how to put one in front of a beaten man since the
+     * host was built, and the wandering sweep never carried one: it buys
+     * whatever row the cursor happens to be on, and the odds of that being an
+     * oath are what they are. So across every run this game has ever had, not
+     * one purse was offered, not one sword was sworn, and everything standing
+     * behind a host - a company in the field, a hall worth defending - had
+     * never been reached by anything. */
+    /* A climb buys a purse out of what is left after the armour, never
+       instead of it: sending the run shopping for one at every forge with its
+       last four hundred gold cost three houses their tenth seat. */
+    if (!oathWait && hostRoom() >= 0 && !carryingOath()
+        && (!ladderMode || you.gold >= 3000)) {
+      /* Purses are on the remedies shelf and a smith's counter opens on the
+         arms shelf, so wanting one means walking along the counter first -
+         which the directed climb never did, because it had no reason to. */
+      int want = -1, i, st2, onShelf = -1;
+      for (st2 = 0; st2 < STALL_COUNT && onShelf < 0; st2++) {
+        int shelf = shelfCount(&stalls[st2]);
+        for (i = 0; i < shelf; i++) {
+          int at = shelfWare(&stalls[st2], i);
+          if (wares[at].kind != WARE_OATH || you.bag[at]) continue;
+          if (askingPrice(at) > you.gold) continue;
+          onShelf = st2; want = i; break;
+        }
+      }
+      if (onShelf >= 0 && onShelf != shopStall) keys = tap(KEY_RIGHT);
+      else if (onShelf >= 0 && shopPick != want) {
+        keys = tap(shopPick < want ? KEY_DOWN : KEY_UP);
+      } else if (onShelf >= 0) {
+        keys = tap(KEY_A);
+        if (keys) oathWait = 1;
+      }
+      if (onShelf >= 0) {
+        lastKeys = keys;
+        REG_KEYINPUT = (unsigned short)(~keys & 0x03FF);
+        return;
+      }
+    }
     if (ladderMode && !craftedHere) {
       /* Look behind the counter first: anything a smith will make out of what
          you are carrying is better than anything on the shelf, and it is the
@@ -1355,6 +1466,12 @@ void hostFrame(void) {
            thousand - so the run threw no nets, took nothing alive, and the half
            of this game that is about animals went untested. */
         if (wares[at].kind == WARE_SNARE && !you.bag[at]) { best = i; break; }
+        /* And a purse, for the same reason: the cheapest is three hundred and
+           the dearest sword is nine thousand, so "buy the dearest thing on the
+           counter" never once bought one. */
+        if (wares[at].kind == WARE_OATH && !you.bag[at] && hostRoom() >= 0) {
+          best = i; break;
+        }
         /* And the makings of an obsidian edge before anything else, once the
            dead are past the Neck and there is none on you. */
         if (winterStage() >= 5 && !haveGlass() && glassMaking(at)) { best = i; break; }
@@ -1556,9 +1673,6 @@ void hostFrame(void) {
     else { keys = tap(KEY_A); if (keys) { sailed++; goalKind = GOAL_NONE; } }
   } else if (scene == SCENE_DUEL) {
     if (wasScene != SCENE_DUEL) {
-      duelCover = coverAt(hero.px >> 4, hero.py >> 4);
-      duelBad = badGround[worldId];
-      duelX = hero.px >> 4; duelY = hero.py >> 4;
     }
     duelMap = worldId;
     grindQuiet = 0;
@@ -1577,6 +1691,20 @@ void hostFrame(void) {
       }
       if (foeBeast == BEAST_DRAKE || foeBeast == BEAST_WYRM) dragonsMet++;
       duelTries = 0;
+      /* Re-entering the same fight from a menu is not a new fight.
+       *
+       * duelTries was cleared here, on every entry - and a bounce out to the
+       * pouch and back IS an entry, so the one check meant to catch "a duel
+       * that would not end" was reset by the exact loop it was built for. It
+       * sat silent through half a million round trips. Count the trips into
+       * one fight instead, and let go of the pouch after a few of them. */
+      if (theirs.hp == wasFoeHp && wasScene != SCENE_WORLD) pouchTrips++;
+      else pouchTrips = 0;
+      wasFoeHp = theirs.hp;
+      if (pouchTrips == 300) {
+        finding("a fight left and re-entered %d times without a blow landing",
+          pouchTrips);
+      }
       runAway = ladderMode ? 0 : (duels % 5) == 4;
       if (ladderMode) ladderFights++;
     }
@@ -1586,10 +1714,11 @@ void hostFrame(void) {
       /* Only reach for the pouch over an animal if there is actually a net in
          it. Without that check the tester opened the pouch, found nothing,
          shut it, and opened it again - four hundred thousand times. */
-      int haveNet = 0, haveCure = 0, i2;
+      int haveNet = 0, haveCure = 0, haveOath = 0, i2;
       for (i2 = 0; i2 < WARE_COUNT; i2++) {
         if (!you.bag[i2]) continue;
         if (wares[i2].kind == WARE_SNARE) haveNet = 1;
+        if (wares[i2].kind == WARE_OATH) haveOath = 1;
         if (wares[i2].heal) haveCure = 1;
       }
       /* And the same rule for a drink as for a net. "Carrying anything at all"
@@ -1598,8 +1727,21 @@ void hostFrame(void) {
          found five and forty pieces of spare armour in it, shut it, and opened
          it again - three quarters of a million times in one playthrough, one
          sigil short of the throne. */
-      int want = runAway ? 3
-        : (foeBeast >= 0 && haveNet && theirs.hp * 3 < theirs.maxHp) ? 1
+      /* A purse in front of somebody who has already lost, which is the only
+         way anybody in this world ever ends up behind you.
+       *
+         The pouch knew how to offer one and nothing ever opened the pouch to
+         do it: across nine sweeps and nine climbs, with thousands of musters
+         read, not one oath was ever offered and not one sword ever sworn - so
+         nobody ever had a host, so nobody could ever send one anywhere, and
+         three whole systems sat unplayed behind a menu nothing pressed. */
+      int want = pouchTrips > 6 ? 0
+        : runAway ? 3
+        : (foeBeast < 0 && foeDef && foeDef->sworn < SWORN_KINDS && haveOath
+           && hostRoom() >= 0 && !theirs.dead
+           && theirs.hp * 4 < theirs.maxHp) ? 1
+        : (foeBeast >= 0 && beasts[foeBeast].tame && haveNet
+           && theirs.hp * 3 < theirs.maxHp) ? 1
         : (you.hp * 3 < vigourFor(you.level) && haveCure ? 1 : 0);
       /* And send one of yours out when there is one to send, or whistle it
          back once it has taken enough. */
@@ -1669,6 +1811,7 @@ void hostFrame(void) {
          in. Armed one map at a time, so the ladder run does not walk past
          nine thousand gold's worth of counter on its way to a fight. */
       craftedHere = 0;
+      oathWait = 0;
       /* A ladder run that takes hundreds of doors without taking a sigil is
          walking a two-map loop, not travelling. Say where, and stop. */
       if (ladderMode) {
@@ -1923,18 +2066,6 @@ void hostFrame(void) {
      * level forty with three gold and a hunting knife. Losing is meant to
      * cost - it is the lesson - but a player takes the lesson after the
      * third one and walks somewhere else. So does this now. */
-    if (getenv("WHYLOSS") && mine.hp <= 0) {
-      static int said = 0;
-      if (said++ % 250 == 0) {
-        printf("      [loss] on %s vs %s lvl %d (you %d, %s, winter %d, cover %d)\n",
-          duelMap >= 0 ? maps[duelMap].name : "?",
-          foeBeast >= 0 ? beasts[foeBeast].name : "somebody", foeLevel, you.level,
-          you.WORN_WEAPON ? wares[you.WORN_WEAPON - 1].name : "bare hands",
-          winterStage(), duelCover);
-        printf("             loss %d at %d,%d  badGround %d  grind %d  goal %d/%d\n",
-          said, duelX, duelY, duelBad, grindMode, goalKind, goalIndex);
-      }
-    }
     if (duelMap >= 0 && duelMap < MAP_COUNT) {
       /* A running tally rather than a streak. At a one-in-four win rate a
          run wins often enough to keep resetting a "five in a row" counter
@@ -1971,6 +2102,19 @@ void hostFrame(void) {
       doorsThisRung = 0;
     }
   }
+  /* Two things that happen inside a menu the tester only ever presses at, so
+     the only honest way to count them is to watch the state change. */
+  {
+    static int hadWar, hadRange, hadHost;
+    int now = hostCount();
+    if (seat.warLive && !hadWar) warsSent++;
+    if (you.rangeWant && !hadRange) rangesTaken++;
+    if (now > hadHost) sworeIn += now - hadHost;
+    else if (now < hadHost) hostLost += hadHost - now;
+    hadWar = seat.warLive;
+    hadRange = you.rangeWant != 0;
+    hadHost = now;
+  }
   wasScene = scene;
 
   if (getenv("TRACE") && frameNo > atoi(getenv("FROM") ? getenv("FROM") : "0")
@@ -1991,9 +2135,10 @@ void hostFrame(void) {
     snapshot(name);
   }
   if (getenv("TRACE") && (frameNo % 25000) == 0) {
-    fprintf(stderr, "f%7d %-18s scene %d phase %d win %d typed %d line %d/%d shift %d spot %d at %2d,%2d\n",
+    fprintf(stderr, "f%7d %-18s scene %d phase %d win %d typed %d line %d/%d shift %d spot %d at %2d,%2d goal %d/%d stage %d gf %d rung %d lvl %d gold %d\n",
       frameNo, world ? world->name : "-", scene, duelPhase, windowOpen,
-      typeDone, lineAt, lineCount, shift, spotted, hero.px >> 4, hero.py >> 4);
+      typeDone, lineAt, lineCount, shift, spotted, hero.px >> 4, hero.py >> 4,
+      goalKind, goalIndex, goalStage, goalFrames, ladderRung, you.level, you.gold);
   }
   if (frameNo > frameCap) {
     finding("the playthrough ran out of frames in %s: scene %d, goal %d/%d, "
@@ -2376,13 +2521,17 @@ int main(int argc, char **argv) {
   }
   printf("  the road       %d ride lists read, %d horses taken, %d halls to ride to\n",
     ridesSeen, rodeTo, rideCount());
-  printf("  your swords    %s\n", seat.warLive ? maps[seat.warMap].name
-                                                : "at home, or nowhere to send them");
+  printf("  your swords    %s, %d campaigns sent\n",
+    seat.warLive ? maps[seat.warMap].name : "at home, or nowhere to send them",
+    warsSent);
   printf("  your own house %d cards read, %d arms screens, arms %s, seat %s\n",
     housesSeen, armsSeen, you.arms ? "taken" : "none",
     seat.has ? maps[seat.map].name : "none");
   printf("  the host       %d musters read, %d purses offered, %d sworn\n",
     mustersSeen, oathsOffered, hostCount());
+  printf("  swords sworn   %d took the purse, %d fell, %d still behind you\n",
+    sworeIn, hostLost, hostCount());
+  printf("  the watch      %d taken, %d handed in\n", rangesTaken, you.rangings);
   if (MY_BEAST.kind != 255) {
     int q;
     printf("  at your heel   %s, level %d\n", beasts[MY_BEAST.kind].name, MY_BEAST.level);

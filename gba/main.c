@@ -7768,14 +7768,22 @@ static void youFell(void) {
   you.gold -= you.gold / 3;
   /* And somebody who swore to you does not walk away from it. A host that
      never thinned would be six swords you paid for once and then forgot. */
-  {
+  /* One loss in three, not every loss.
+   *
+   * It was every loss, with no roll: go down, and the last man who swore to
+   * you was gone. A purse costs between three hundred gold and four thousand,
+   * and it bought exactly one defeat. Measured over a whole playthrough that
+   * is not a host that thins, it is a host that cannot exist - seven men took
+   * the purse in one climb and all seven were spent by the end of it, which is
+   * why nothing in the history of this game has ever had a sword behind it,
+   * and why the campaign the host is for had never been sent anywhere. */
+  hostFell = 0;
+  if (roll(3) == 0) {
     int i, last = -1;
     for (i = 0; i < HOST_MAX; i++) if (you.host[i].kind != 255) last = i;
     if (last >= 0) {
       hostFell = swornKinds[you.host[last].kind].name;
       you.host[last].kind = 255;
-    } else {
-      hostFell = 0;
     }
   }
   bare = !you.WORN_WEAPON;

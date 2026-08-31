@@ -9079,6 +9079,17 @@ static int cutHere(int x, int y) {
      * every scene downstream of it for the rest of the game. The spine says
      * `anywhere` and comes to you; the ones that are about a place still make
      * you go to the place. */
+    /* One named tile, and it stays one named tile.
+     *
+     * A sweep that walks the whole map still goes past seven of the
+     * thirty-two, which reads like a fault worth fixing, so it was tried:
+     * fire within a step, nine squares instead of one. It made things worse.
+     * Scenes step the story on, the story steps the winter on, and a run that
+     * trips them early meets the Long Night with half of Westeros still
+     * unwalked - the same sweep went from two hundred and eleven maps and
+     * twenty scenes to a hundred and seven maps and seventeen. Easier to find
+     * is not more seen. The ones that are missed are the ones a player is
+     * meant to have to look for. */
     if (!cuts[i].anywhere && (cuts[i].x != x || cuts[i].y != y)) continue;
     if (flagSet(cuts[i].flag)) continue;
     /* And what has to have happened first. Five things that each happen once

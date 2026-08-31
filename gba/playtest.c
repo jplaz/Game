@@ -2333,14 +2333,14 @@ void hostFrame(void) {
              * `blocked` is one number for the whole run and it resets on any
              * step anywhere, so a person the walk can never reach was only
              * ever written off if the run happened to stand there for nine
-             * hundred unbroken frames. Every harbourmaster in this world
-             * stands on a quay whose only neighbour is the door out to sea:
-             * the run would walk at him, get put on the water, come back,
-             * start counting from nothing, and do that ten thousand times.
-             * Count it against the man, not against the moment. */
+             * hundred unbroken frames - and a run that gets warped off the
+             * map every few hundred frames never does. So the same three
+             * people were walked at, given up on halfway, and walked at again
+             * for a whole playthrough. Count it against the person, not
+             * against the moment: the tally survives leaving the room. */
             npcStuck[worldId][goalIndex] = 1;
-            finding("%s: %s cannot be stood next to - the only way in is a door",
-              world->name, world->npcs[goalIndex].name);
+            finding("%s: four hundred frames of walking at %s never found a "
+                    "step to take", world->name, world->npcs[goalIndex].name);
             goalKind = GOAL_NONE;
             blocked = 0;
           }

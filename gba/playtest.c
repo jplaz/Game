@@ -365,6 +365,12 @@ static int grindMode, grindX, grindY;
    levels sag or spike between rungs is a game with a hole in it, and no amount
    of walking every map end to end will show you that. */
 static int ladderMode, ladderRung = -1, ladderFrames, ladderFights;
+/* How many times this rung has gone looking for a counter. The errand is a
+   nicety - it proves the run spends its gold - and a nicety is not allowed to
+   stop the climb. Storm's End has a forge with no smith left alive in it, so
+   the run stood inside a forge looking for a forge until the frames ran out,
+   four rungs short of the throne. */
+static int shopTries;
 /* The map the climb is trying to reach, so that a harbourmaster can be asked
    for the berth that gets nearest it rather than the berth that happens to
    owe the surveyor a room. */
@@ -555,6 +561,14 @@ static void pickLadderGoal(void) {
   }
   lead = atRung[at];
   want = leaderLevel[at];
+  if (getenv("WHYSAIL") && at + 1 >= atoi(getenv("WHYSAIL"))) {
+    static int said = 0;
+    if (said++ < 25) {
+      printf("      [pick] rung %d on %s lvl %d want %d shop %d road %d\n",
+        at + 1, world->name, you.level, leaderLevel[at], wantShop,
+        warpTowardMap(leaders[atRung[at]].map));
+    }
+  }
   if (at != ladderRung) {
     ladderRung = at;
     /* One trip to a counter for each rung, armed when the rung changes rather
@@ -564,6 +578,7 @@ static void pickLadderGoal(void) {
        errand at a counter - and sending it shopping sent it to the far end
        of the Stormlands instead of up the hill it was standing at. */
     wantShop = !crownRun;
+    shopTries = 0;
     printf("    rung %d  %-22s at %-18s wants about %2d\n",
       at + 1, leaders[lead].name, leaders[lead].seat, want);
   }
@@ -601,11 +616,12 @@ static void pickLadderGoal(void) {
         goalKind = GOAL_NPC; goalIndex = i; return;
       }
     }
-    if (wantShop) {
+    if (wantShop && ++shopTries < 6) {
       int door = warpTowardTrade();
       if (door >= 0) { goalKind = GOAL_WARP; goalIndex = door; return; }
       wantShop = 0;
     }
+    wantShop = 0;
   }
   if (worldId == leaders[lead].map) {
     who = leaderNpcOn(worldId, lead);
@@ -620,9 +636,16 @@ static void pickLadderGoal(void) {
      anything at all, and every rung above the fourth was a guess. */
   {
     int sailor = sailorHere();
-    if (sailor >= 0 && berthToward(leaders[lead].map) >= 0) {
-      goalKind = GOAL_NPC; goalIndex = sailor; return;
+    int berth = berthToward(leaders[lead].map);
+    if (getenv("WHYSAIL")) {
+      static int said = 0;
+      if (said++ < 40) {
+        printf("      [sail] on %s want %s: sailor %d berth %d towardSails %d gold %d\n",
+          world->name, maps[leaders[lead].map].name, sailor, berth,
+          warpTowardSails(), you.gold);
+      }
     }
+    if (sailor >= 0 && berth >= 0) { goalKind = GOAL_NPC; goalIndex = sailor; return; }
     i = warpTowardSails();
     if (i >= 0) { goalKind = GOAL_WARP; goalIndex = i; return; }
   }

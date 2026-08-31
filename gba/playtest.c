@@ -397,6 +397,8 @@ static int askedFor = -1, askedGold, askedTimes;
 static int duelMap = -1;
 static u16 lostHere[MAP_COUNT];
 static u8 badGround[MAP_COUNT];
+/* Frames spent walking grass since the last fight actually started. */
+static int grindQuiet;
 
 static int leaderNpcOn(int m, int lead) {
   int i;
@@ -1437,6 +1439,7 @@ void hostFrame(void) {
     else { keys = tap(KEY_A); if (keys) { sailed++; goalKind = GOAL_NONE; } }
   } else if (scene == SCENE_DUEL) {
     duelMap = worldId;
+    grindQuiet = 0;
     if (wasScene != SCENE_DUEL) {
       if (getenv("DBG")) {
         printf("      duel: foeId %d beast %d level %d (you %d, story %d, hp %d)\n",
@@ -1582,6 +1585,22 @@ void hostFrame(void) {
         }
       }
       if (grindMode) {
+        /* Grass that never gives you a fight is not grass to train in.
+         *
+         * The run levelled up by walking the same six tiles of hedge in the
+         * capital, where the game had no way to put anything in them, and it
+         * did that for eleven million frames without noticing that no fight
+         * had ever started. Ground that has beaten you is already given up
+         * on; ground that will not even meet you belongs in the same list. */
+        if (++grindQuiet > 40000) {
+          grindQuiet = 0;
+          badGround[worldId] = 1;
+          printf("      %s will not give you a fight: %d frames in the grass, "
+                 "going elsewhere\n", world->name, 40000);
+          grindMode = 0;
+          goalKind = GOAL_NONE;
+          return;
+        }
         /* Walk the grass and fight whatever comes out of it. */
         if (!(world->ambushCount || world->wildCount)
             || !findCover(&grindX, &grindY)) {

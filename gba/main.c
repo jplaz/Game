@@ -11082,8 +11082,16 @@ int main(void) {
           else if (you.aboard && world->laneCount && roll(100) < 6) meetAtSea();
           /* Cover with something in it. Once the dead have reached this
              ground the grass is worth watching even where the map's own table
-             is empty, because what is in it did not come from that table. */
-          else if ((world->ambushCount || theDeadWalkHere()
+             is empty, because what is in it did not come from that table.
+             `wildCount` belongs in here as well as `ambushCount`: ambush() has
+             always read both tables, but only the people table opened the
+             door, so a map with animals and nobody on the road had animals
+             that could never come out of the grass. That is one map - the
+             capital, which has two wild rows and six tiles of hedge - and a
+             directed run stood in that hedge at level thirty-five for eleven
+             million frames waiting for a fight the game was never going to
+             offer it, three levels short of its ninth seat. */
+          else if ((world->ambushCount || world->wildCount || theDeadWalkHere()
                     || (you.swoopMap != NO_MAP && worldId == you.swoopMap))
                    && coverAt(hero.px >> 4, hero.py >> 4)
                    && roll(100) < 12) ambush();

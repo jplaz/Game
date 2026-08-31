@@ -5,6 +5,8 @@
 typedef unsigned char  u8;
 typedef unsigned short u16;
 typedef unsigned int   u32;
+typedef u16 MapId;
+#define NO_MAP 0xFFFFu
 typedef signed char    s8;
 
 #define FONT_COUNT 77
@@ -77761,7 +77763,7 @@ static const Fleet fleets[FLEET_COUNT] = {
 typedef struct { u8 fleet, weight; } Lane;
 
 #define HOUSE_COUNT 9
-typedef struct { const char *name, *full, *words, *sworn, *seat; u16 colour, accent; u16 looks[4]; u8 startMap, startX, startY, startDir, startLevel; u16 rivals, allies; } House;
+typedef struct { const char *name, *full, *words, *sworn, *seat; u16 colour, accent; u16 looks[4]; MapId startMap; u8 startX, startY, startDir, startLevel; u16 rivals, allies; } House;
 static const House houses[HOUSE_COUNT] = {
   { "Stark", "House Stark", "Winter is Coming",
     "You are of the North, and the North remembers.", "Winterfell", 0x5251, 0x7bbc,
@@ -80720,7 +80722,7 @@ typedef struct {
 } Beat;
 static const Beat beats[BEAT_COUNT] = {
   { 0, 0, 0, 0, 0, 0, "The hills here have had the insides taken out of them. The spoil heaps are older than the road and taller than the trees." },
-  { 4, 0, 10, 15, 1, 8, "Pit Man" },
+  { 4, 0, 64, 67, 1, 8, "Pit Man" },
   { 5, 0, 1, 2, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "Pit Man: Three generations of us down that shaft. Not one of us has ever held a gold coin for longer than it took to hand it over." },
   { 0, 0, 0, 0, 0, 0, "Pit Man: They say a Lannister always pays his debts. Nobody ever asks who to." },
@@ -80729,24 +80731,24 @@ static const Beat beats[BEAT_COUNT] = {
   { 0, 0, 0, 0, 0, 0, "The pass narrows until two men cannot ride abreast, and the rocks above it are stacked in a way that rocks do not stack." },
   { 1, 0, 48, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "There are bones set into the cliff on both sides, at intervals, for as far up the road as you can see. Not buried. Set." },
-  { 4, 0, 10, 6, 0, 5, "A Watcher on the Wall of Bones" },
+  { 4, 0, 64, 61, 0, 5, "A Watcher on the Wall of Bones" },
   { 0, 0, 0, 0, 0, 0, "Every army that has come this way is still here, and Dorne has never once had to win a battle to arrange it." },
   { 9, 0, 2, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "The light goes out of the day in about the time it takes to notice that it is going." },
   { 3, 0, 24, 0, 0, 0, "" },
   { 2, 0, 66, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "The rain arrives sideways and all at once, and somewhere behind it the sea is making a sound you can feel in your teeth." },
-  { 4, 0, 8, 16, 3, 7, "A Storm Rider" },
+  { 4, 0, 61, 64, 3, 7, "A Storm Rider" },
   { 0, 0, 0, 0, 0, 0, "They build the walls round here forty feet thick and curved, so the weather has nothing flat to push against. Now you know why." },
   { 9, 0, 4, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "The road runs between fields that go all the way to the edge of sight in both directions, and every one of them is being worked." },
-  { 4, 0, 14, 12, 2, 7, "Reaper" },
+  { 4, 0, 67, 66, 2, 7, "Reaper" },
   { 0, 0, 0, 0, 0, 0, "Reaper: Fourth cutting. There will be a fifth. My mother saw seven in one year and nobody believed her either." },
   { 0, 0, 0, 0, 0, 0, "Reaper: Every war in the last two hundred years has been fed out of this county. Not fought here. Fed." },
   { 7, 0, 0, 0, 0, 0, "" },
   { 9, 0, 6, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "Nothing grows here. Not nothing much - nothing. The soil is four inches deep and it is mostly ash and shell." },
-  { 4, 0, 11, 17, 1, 6, "Old Reaver" },
+  { 4, 0, 64, 67, 1, 6, "Old Reaver" },
   { 5, 0, 1, 2, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "Old Reaver: You are standing there working out how we eat. Everyone does. We take it. That is the whole of it." },
   { 10, 0, 0, 0, 0, 0, "" },
@@ -80756,24 +80758,24 @@ static const Beat beats[BEAT_COUNT] = {
   { 1, 0, 54, 0, 0, 0, "" },
   { 2, 0, 42, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "It is warm. Twenty feet down, in winter, on an island in the sea, and it is warm enough to want your cloak off." },
-  { 4, 0, 8, 12, 1, 0, "A Dragonkeeper" },
+  { 4, 0, 64, 66, 1, 0, "A Dragonkeeper" },
   { 0, 0, 0, 0, 0, 0, "Something lived down here long enough to shape the rock around itself, and the Targaryens built a castle on the lid of it and called that a conquest." },
   { 9, 0, 13, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "The water here is shallow enough to walk and slow enough to see the bottom of, which is how people keep finding things in it." },
-  { 4, 0, 13, 21, 2, 6, "Wading Boy" },
+  { 4, 0, 66, 65, 2, 6, "Wading Boy" },
   { 0, 0, 0, 0, 0, 0, "Wading Boy: Rubies. Off a breastplate. A prince died here and they came off him into the water and we are still picking them up." },
   { 0, 0, 0, 0, 0, 0, "Wading Boy: My grandfather found two. My father found one. I have found none, and I have looked more than either of them." },
   { 7, 0, 0, 0, 0, 0, "" },
   { 9, 0, 15, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "A child you have not noticed is suddenly walking beside you at exactly your pace, looking straight ahead." },
-  { 4, 0, 14, 8, 0, 7, "Little Bird" },
+  { 4, 0, 66, 63, 0, 7, "Little Bird" },
   { 5, 0, 2, 2, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "Little Bird: A man came through asking what you look like. He paid in silver and he did not write anything down." },
   { 0, 0, 0, 0, 0, 0, "Little Bird: He asked which way you went. I told him. He would have found out anyway and then I would have nothing." },
   { 10, 0, 1, 0, 0, 0, "" },
   { 9, 0, 20, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "The Sept is enormous and almost empty, which is how a place built for seven thousand people sounds when forty are in it." },
-  { 4, 0, 8, 3, 0, 2, "A Man in Good Boots" },
+  { 4, 0, 64, 61, 0, 2, "A Man in Good Boots" },
   { 5, 0, 0, 2, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "A Man in Good Boots: Five. Nobody expected five. My employer would like to stop being surprised by you." },
   { 0, 0, 0, 0, 0, 0, "A Man in Good Boots: A seat of your own, a wife you would actually like, and the four you have not taken left standing. All of it today, and you stop walking." },
@@ -80783,7 +80785,7 @@ static const Beat beats[BEAT_COUNT] = {
   { 7, 0, 0, 0, 0, 0, "" },
   { 9, 0, 25, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "Flea Bottom at dusk. Somebody steps out of a doorway behind you and two more do not step out of the one opposite, which is worse." },
-  { 4, 0, 11, 6, 0, 9, "A Man in Good Boots" },
+  { 4, 0, 64, 61, 0, 9, "A Man in Good Boots" },
   { 5, 0, 0, 2, 0, 0, "" },
   { 2, 0, 36, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "A Man in Good Boots: Seven. I am told to say that the offer stands and that the price has changed, and I am told to say the second part slowly." },
@@ -80792,7 +80794,7 @@ static const Beat beats[BEAT_COUNT] = {
   { 7, 0, 0, 0, 0, 0, "" },
   { 9, 0, 31, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "A soft man in a soft robe is standing on the carpet inside the doors of the Red Keep as if he has been there since the building went up." },
-  { 4, 0, 9, 17, 0, 7, "The Spider" },
+  { 4, 0, 65, 62, 0, 7, "The Spider" },
   { 0, 0, 0, 0, 0, 0, "The Spider: I have had eleven men watch you and nine of them came back saying you were nobody. It is a very good disguise. I could not have done better and I have had practice." },
   { 0, 0, 0, 0, 0, 0, "The Spider: I did not want you stopped. I wanted you slowed, so I could see what you were for. A man who wants the chair takes the shortest road to it. You went north." },
   { 10, 0, 4, 0, 0, 0, "" },
@@ -80801,7 +80803,7 @@ static const Beat beats[BEAT_COUNT] = {
   { 9, 0, 36, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "The gate here is smaller than the one at Castle Black and there are half as many men on it, and every one of them watches the sea rather than the ice." },
   { 0, 0, 0, 0, 0, 0, "A maester comes down off the wall to meet you, which maesters do not do, and he is looking at your hands rather than your face." },
-  { 4, 0, 11, 17, 0, 5, "Maester Harmune" },
+  { 4, 0, 64, 61, 0, 5, "Maester Harmune" },
   { 5, 0, 0, 2, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "Maester Harmune: You have come up the Gift in winter. Nobody does that for trade. So you read it, and you believed enough of it to walk." },
   { 10, 0, 5, 0, 0, 0, "" },
@@ -80811,12 +80813,12 @@ static const Beat beats[BEAT_COUNT] = {
   { 0, 0, 0, 0, 0, 0, "The boat puts you on a shingle beach and the man rowing it does not tie up. He says he will wait until dark. He is lying." },
   { 1, 0, 54, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "Six thousand people lived here. The houses are standing. The cookfires are laid and never lit. Nothing has been looted." },
-  { 4, 0, 11, 16, 0, 2, "What Was a Woman" },
+  { 4, 0, 64, 61, 0, 2, "What Was a Woman" },
   { 2, 0, 60, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "And then, further up the beach, something that was a woman turns its head towards you with the whole slow patience of a thing that has nowhere else to be." },
   { 9, 0, 44, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "A maester comes across the yard too fast for a man his age, with a scrap of paper held out in front of him like it is hot." },
-  { 4, 0, 12, 13, 0, 2, "Maester Luwin" },
+  { 4, 0, 65, 62, 0, 2, "Maester Luwin" },
   { 5, 0, 0, 2, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "Maester: From the Wall. Not the usual count of stores and cold. It is signed by a man I buried a rumour about last winter." },
   { 0, 0, 0, 0, 0, 0, "Maester: Three words. THEY ARE COMING. No number, no name, nothing a lord could act on, which is what frightens me about it." },
@@ -80824,7 +80826,7 @@ static const Beat beats[BEAT_COUNT] = {
   { 0, 0, 0, 0, 0, 0, "Maester: Then go and be useful about it. Nobody south of the Neck will move for three words and a stranger. Give them nine sigils and they will move for anything you like." },
   { 9, 0, 42, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "There is a black heap at the side of the road that turns out, when it moves, to be a man in the cloak of the Night's Watch." },
-  { 4, 0, 10, 17, 1, 9, "A Sworn Brother" },
+  { 4, 0, 64, 67, 1, 9, "A Sworn Brother" },
   { 0, 0, 0, 0, 0, 0, "A Sworn Brother: Eastwatch. Nine of us started. Do not go north of the Fist, whatever they offer you." },
   { 0, 0, 0, 0, 0, 0, "A Sworn Brother: It is not wildlings. I could fight wildlings. They come at night and the ones you knew come with them." },
   { 10, 0, 7, 0, 0, 0, "" },
@@ -80832,7 +80834,7 @@ static const Beat beats[BEAT_COUNT] = {
   { 9, 0, 41, 0, 0, 0, "" },
   { 9, 0, 42, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "The name he gave you has been sitting behind your teeth for a week, and here is a man wearing that name's colours, waiting." },
-  { 4, 0, 10, 20, 0, 10, "A Man in Good Boots" },
+  { 4, 0, 64, 63, 0, 10, "A Man in Good Boots" },
   { 5, 0, 0, 2, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "A Man in Good Boots: You were meant to die on this road. You are instead collecting seats, which is worse, and now everybody is interested." },
   { 0, 0, 0, 0, 0, 0, "A Man in Good Boots: Nobody sent me to stop you. They sent me to find out what you want. That is the more expensive question." },
@@ -80844,21 +80846,21 @@ static const Beat beats[BEAT_COUNT] = {
   { 1, 0, 48, 0, 0, 0, "" },
   { 3, 0, 30, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "A shape under sailcloth, chained at the wrists to a ring in the floor. It has been chained there since before the last thaw." },
-  { 4, 0, 9, 8, 0, 6, "Lord Commander" },
+  { 4, 0, 64, 61, 0, 6, "Lord Commander" },
   { 0, 0, 0, 0, 0, 0, "Lord Commander: It does not rot. It does not sleep. It stops moving when we bring a torch near and starts again when we take it away. Steel does nothing. We have tried steel." },
   { 10, 0, 9, 0, 0, 0, "" },
   { 9, 0, 62, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "A bird comes down out of a white sky into the middle of the street and does not get up again. There is a scrap on its leg." },
   { 1, 0, 42, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "It is from Eastwatch, and it is not words. It is a list of names with a line drawn through every one of them, and then the line stops in the middle of a name." },
-  { 4, 0, 16, 21, 0, 11, "Lord of the Small Council" },
+  { 4, 0, 64, 61, 0, 11, "Lord of the Small Council" },
   { 5, 0, 0, 2, 0, 0, "" },
   { 2, 0, 54, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "Nothing has come south of the Neck for eleven days. Not a rider, not a trader, not a raven. Eleven days ago there were four a day." },
   { 10, 0, 10, 0, 0, 0, "" },
   { 9, 0, 68, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "A rider comes up the road at a canter, and reins in hard when he sees you." },
-  { 4, 0, 10, 17, 0, 7, "Outrider" },
+  { 4, 0, 64, 61, 0, 7, "Outrider" },
   { 5, 0, 0, 3, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "Outrider: You are the one from Winterfell. Turn back." },
   { 0, 0, 0, 0, 0, 0, "Outrider: There are men on this road who are not taking tolls any more. They are taking whatever they like." },
@@ -80871,26 +80873,26 @@ static const Beat beats[BEAT_COUNT] = {
   { 2, 0, 48, 0, 0, 0, "" },
   { 1, 0, 72, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "Something enormous goes over, high up and heading east, and the horses in the field below scream until it is gone." },
-  { 4, 0, 10, 7, 1, 10, "A Freerider" },
+  { 4, 0, 64, 67, 1, 10, "A Freerider" },
   { 0, 0, 0, 0, 0, 0, "Nobody in Westeros has seen one in a hundred and fifty years. You have now." },
   { 9, 0, 73, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "You come round the tower and stop, because your body stops before you decide to." },
   { 1, 0, 48, 0, 0, 0, "" },
   { 3, 0, 36, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "Seven hundred feet of ice, running east and west until the weather takes it." },
-  { 4, 0, 9, 14, 0, 7, "A Sworn Brother" },
+  { 4, 0, 64, 61, 0, 7, "A Sworn Brother" },
   { 0, 0, 0, 0, 0, 0, "Men built this. That is the part nobody manages to explain." },
   { 9, 0, 64, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "A twig goes, somewhere behind and to the left. Then nothing, which is worse." },
   { 1, 0, 54, 0, 0, 0, "" },
-  { 4, 0, 10, 20, 1, 11, "A Sellsword" },
+  { 4, 0, 64, 68, 1, 11, "A Sellsword" },
   { 5, 0, 1, 2, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "A Sellsword: Three days I have been on you. You never once looked back." },
   { 10, 0, 12, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "The smell reaches you before the turn in the road does." },
   { 1, 0, 42, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "Eleven houses. Nine of them still standing, in the sense that walls are standing." },
-  { 4, 0, 10, 11, 1, 9, "Somebody Left Behind" },
+  { 4, 0, 64, 67, 1, 9, "Somebody Left Behind" },
   { 0, 0, 0, 0, 0, 0, "Whoever did it went through in a morning and was somewhere else by evening. They took the grain and left the people." },
   { 9, 0, 79, 0, 0, 0, "" },
   { 0, 0, 0, 0, 0, 0, "Smallfolk woman: They took a pig. One pig, between three families, and Ser Amory means to hang them for it. You've a sword. I've nothing." },
@@ -80980,44 +80982,45 @@ static const Choice choices[CHOICE_COUNT] = {
     { 6, 6, 1 }, { 255, 255, 6 }, { 10, 6, 10 }, { 0, 0, -6 } },
 };
 typedef struct {
-  u8 map, x, y, flag, people, quest;
+  MapId map; u8 x, y, flag, people, quest;
   u8 needs, denies, sigils;   /* what has to have happened first */
+  u8 anywhere;
   u16 first, count;
   const char *name;
 } Cut;
 static const Cut cuts[CUT_COUNT] = {
-  { 29, 10, 12, 1, 1, 0, 255, 255, 0, 0, 7, "The Golden Tooth" },
-  { 59, 10, 9, 3, 1, 0, 255, 255, 0, 7, 6, "The Boneway" },
-  { 64, 11, 16, 5, 1, 0, 255, 255, 0, 13, 7, "Storm's Coming" },
-  { 54, 11, 10, 7, 1, 0, 255, 255, 0, 20, 6, "The Harvest" },
-  { 69, 11, 14, 12, 1, 0, 255, 255, 0, 26, 7, "The Iron Price" },
-  { 50, 8, 10, 14, 1, 0, 255, 255, 0, 33, 7, "Under the Mountain" },
-  { 162, 11, 20, 16, 1, 0, 255, 255, 0, 40, 6, "The Ruby Ford" },
-  { 19, 12, 9, 21, 1, 0, 255, 255, 1, 46, 7, "Somebody Is Asking" },
-  { 38, 8, 6, 26, 1, 0, 27, 255, 5, 53, 10, "The Offer" },
-  { 40, 11, 9, 32, 1, 0, 25, 255, 7, 63, 9, "The Second Offer" },
-  { 52, 8, 19, 37, 1, 0, 31, 255, 8, 72, 8, "The Spider" },
-  { 147, 11, 20, 43, 1, 0, 255, 255, 0, 80, 9, "The Hand That Wrote It" },
-  { 157, 11, 19, 45, 1, 0, 41, 255, 0, 89, 7, "What Is Left of Hardhome" },
-  { 0, 11, 15, 49, 1, 0, 255, 255, 0, 96, 8, "The Raven" },
-  { 18, 10, 14, 53, 1, 0, 255, 255, 2, 104, 8, "A Crow's Call" },
-  { 34, 10, 21, 57, 1, 0, 58, 255, 3, 112, 9, "Who Paid Him" },
-  { 10, 9, 11, 63, 1, 0, 64, 255, 5, 121, 8, "What They Saw" },
-  { 35, 16, 24, 69, 1, 0, 42, 255, 8, 129, 9, "The Last Raven" },
-  { 9, 10, 20, 72, 1, 0, 255, 255, 0, 138, 9, "ridingSouth" },
-  { 18, 10, 4, 74, 1, 0, 255, 255, 0, 147, 8, "firstDragon" },
-  { 10, 9, 17, 75, 1, 0, 255, 255, 0, 155, 7, "theWallItself" },
-  { 34, 10, 16, 78, 1, 0, 255, 255, 0, 162, 6, "theFollower" },
-  { 29, 10, 8, 80, 1, 0, 255, 255, 0, 168, 6, "burnedVillage" },
-  { 18, 4, 20, 84, 0, 1, 255, 255, 0, 174, 3, "The Hanging Tree" },
-  { 9, 7, 23, 87, 0, 1, 255, 255, 0, 177, 3, "The Broken Tower" },
-  { 54, 4, 20, 91, 0, 1, 255, 255, 0, 180, 3, "A Maester's Debt" },
-  { 10, 3, 16, 94, 0, 1, 255, 255, 0, 183, 3, "The Deserter" },
-  { 72, 11, 5, 98, 0, 1, 255, 255, 0, 186, 3, "The Salt Wife" },
-  { 55, 11, 5, 102, 0, 1, 255, 255, 0, 189, 3, "The Grain Count" },
-  { 60, 11, 5, 106, 0, 1, 255, 255, 0, 192, 3, "The Hostage" },
-  { 77, 11, 4, 110, 0, 1, 255, 255, 0, 195, 3, "The Bastard's Letter" },
-  { 41, 8, 4, 114, 0, 1, 255, 255, 0, 198, 3, "The Sellsword's Wage" },
+  { 29, 10, 12, 1, 1, 0, 255, 255, 0, 0, 0, 7, "The Golden Tooth" },
+  { 59, 10, 9, 3, 1, 0, 255, 255, 0, 0, 7, 6, "The Boneway" },
+  { 64, 11, 16, 5, 1, 0, 255, 255, 0, 0, 13, 7, "Storm's Coming" },
+  { 54, 11, 10, 7, 1, 0, 255, 255, 0, 0, 20, 6, "The Harvest" },
+  { 69, 11, 14, 12, 1, 0, 255, 255, 0, 0, 26, 7, "The Iron Price" },
+  { 50, 8, 10, 14, 1, 0, 255, 255, 0, 0, 33, 7, "Under the Mountain" },
+  { 162, 11, 20, 16, 1, 0, 255, 255, 0, 0, 40, 6, "The Ruby Ford" },
+  { 19, 12, 9, 21, 1, 0, 255, 255, 1, 1, 46, 7, "Somebody Is Asking" },
+  { 38, 8, 6, 26, 1, 0, 27, 255, 5, 0, 53, 10, "The Offer" },
+  { 40, 11, 9, 32, 1, 0, 25, 255, 7, 0, 63, 9, "The Second Offer" },
+  { 52, 8, 19, 37, 1, 0, 31, 255, 8, 0, 72, 8, "The Spider" },
+  { 147, 11, 20, 43, 1, 0, 255, 255, 0, 0, 80, 9, "The Hand That Wrote It" },
+  { 157, 11, 19, 45, 1, 0, 41, 255, 0, 0, 89, 7, "What Is Left of Hardhome" },
+  { 0, 11, 15, 49, 1, 0, 255, 255, 0, 1, 96, 8, "The Raven" },
+  { 18, 10, 14, 53, 1, 0, 255, 255, 2, 1, 104, 8, "A Crow's Call" },
+  { 34, 10, 21, 57, 1, 0, 58, 255, 3, 1, 112, 9, "Who Paid Him" },
+  { 10, 9, 11, 63, 1, 0, 64, 255, 5, 0, 121, 8, "What They Saw" },
+  { 35, 16, 24, 69, 1, 0, 42, 255, 8, 1, 129, 9, "The Last Raven" },
+  { 9, 10, 20, 72, 1, 0, 255, 255, 0, 1, 138, 9, "ridingSouth" },
+  { 18, 10, 4, 74, 1, 0, 255, 255, 0, 0, 147, 8, "firstDragon" },
+  { 10, 9, 17, 75, 1, 0, 255, 255, 0, 1, 155, 7, "theWallItself" },
+  { 34, 10, 16, 78, 1, 0, 255, 255, 0, 1, 162, 6, "theFollower" },
+  { 29, 10, 8, 80, 1, 0, 255, 255, 0, 0, 168, 6, "burnedVillage" },
+  { 18, 4, 20, 84, 0, 1, 255, 255, 0, 0, 174, 3, "The Hanging Tree" },
+  { 9, 7, 23, 87, 0, 1, 255, 255, 0, 0, 177, 3, "The Broken Tower" },
+  { 54, 4, 20, 91, 0, 1, 255, 255, 0, 0, 180, 3, "A Maester's Debt" },
+  { 10, 3, 16, 94, 0, 1, 255, 255, 0, 0, 183, 3, "The Deserter" },
+  { 72, 11, 5, 98, 0, 1, 255, 255, 0, 0, 186, 3, "The Salt Wife" },
+  { 55, 11, 5, 102, 0, 1, 255, 255, 0, 0, 189, 3, "The Grain Count" },
+  { 60, 11, 5, 106, 0, 1, 255, 255, 0, 0, 192, 3, "The Hostage" },
+  { 77, 11, 4, 110, 0, 1, 255, 255, 0, 0, 195, 3, "The Bastard's Letter" },
+  { 41, 8, 4, 114, 0, 1, 255, 255, 0, 0, 198, 3, "The Sellsword's Wage" },
 };
 
 #define REGARD_COUNT 24
@@ -81252,7 +81255,7 @@ static const Leader leaders[LEADER_COUNT] = {
 static const u8 leaderLevel[LEADER_COUNT] = { 9, 12, 15, 19, 22, 26, 30, 34, 38, 43 };
 
 #define PORT_COUNT 9
-typedef struct { const char *name; u8 map, x, y, dir; u16 fare; u8 needs; } Port;
+typedef struct { const char *name; MapId map; u8 x, y, dir; u16 fare; u8 needs; } Port;
 static const Port ports[PORT_COUNT] = {
   { "King's Landing", 35, 11, 20, 0, 400, 0 },
   { "Lordsport", 76, 11, 6, 0, 350, 0 },
@@ -81271,7 +81274,7 @@ typedef struct {
   const char *broker, *paper, *poor, *owned, *rest;
   u16 price;         /* what the deed costs */
   u16 rent;          /* gold a thousand paces, drawn when you sleep there */
-  u8 map, x, y, dir; /* the room, and where you come to in it */
+  MapId map; u8 x, y, dir; /* the room, and where you come to in it */
 } Deed;
 static const Deed deeds[DEED_COUNT] = {
   { "A Room Off the Flea-Channel", "Flea Bottom, King's Landing", "One room over the pot-shop. It smells of the pot-shop.",
@@ -81311,7 +81314,7 @@ static const u8 groundBy[HOUSE_COUNT][MAP_COUNT] = {
   { 28, 32, 32, 32, 32, 32, 32, 32, 24, 32, 28, 32, 32, 32, 32, 19, 24, 24, 15, 19, 24, 24, 24, 24, 19, 24, 28, 28, 28, 19, 15, 19, 19, 19, 19, 24, 28, 28, 28, 28, 28, 28, 44, 44, 44, 44, 44, 24, 28, 28, 28, 28, 28, 24, 19, 24, 28, 28, 28, 28, 32, 36, 36, 36, 24, 28, 32, 32, 32, 11, 15, 7, 3, 7, 7, 7, 7, 32, 36, 40, 40, 40, 36, 40, 24, 24, 28, 44, 44, 44, 44, 24, 28, 44, 44, 28, 28, 36, 32, 28, 44, 44, 28, 44, 7, 40, 28, 28, 28, 28, 36, 36, 32, 32, 28, 28, 44, 44, 44, 44, 28, 28, 44, 44, 7, 7, 40, 40, 28, 32, 28, 32, 40, 44, 44, 44, 44, 44, 28, 32, 44, 44, 36, 40, 32, 36, 24, 19, 24, 24, 24, 24, 24, 24, 24, 28, 32, 19, 19, 24, 28, 28, 28, 32, 32, 36, 19, 15, 11, 19, 15, 24, 19, 15, 24, 19, 28, 36, 36, 24, 19, 24, 24, 24, 24, 32, 28, 28, 40, 28, 36, 36, 36, 32, 32, 32, 32, 32, 32, 40, 40, 40, 36, 36, 36, 32, 32, 32, 44, 44, 44, 44, 44, 44, 32, 32, 32, 44, 44, 44, 11, 11, 11, 44, 44, 44, 28, 28, 28, 36, 36 },
 };
 
-typedef struct { u8 x, y, to, tx, ty; } Warp;
+typedef struct { u8 x, y; MapId to; u8 tx, ty; } Warp;
 typedef struct { u8 x, y; const char *text; } Sign;
 typedef struct { u16 duellist; u8 bank; } Ambush;
 typedef struct { u8 beast, level; } Wild;

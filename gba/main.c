@@ -8912,6 +8912,8 @@ static int cutShake, cutFlash;
 static int cutPick, cutAsking, cutPainted;  /* the chooser, when a beat asks */
 static Body cutBody[CUT_SLOTS];
 static u8 cutBank[CUT_SLOTS], cutLive[CUT_SLOTS];
+/* The tile everybody in the running scene is placed relative to. */
+static int cutBaseX, cutBaseY;
 static int cutWalkLeft, cutWalkSlot, cutWalkDir;
 /* What the answer you gave turned out to mean, and whoever has to be fought
    before it is settled. */
@@ -8924,7 +8926,18 @@ static int cutHere(int x, int y) {
   int i;
   if (cutAt >= 0 || windowOpen || shift || spotted >= 0) return -1;
   for (i = 0; i < CUT_COUNT; i++) {
-    if (cuts[i].map != worldId || cuts[i].x != x || cuts[i].y != y) continue;
+    if (cuts[i].map != worldId) continue;
+    /* On its own tile, or anywhere on its map.
+     *
+     * A scene pinned to one tile of one map is a scene most players never
+     * reach: a full sweep of the world played four of thirty-two, and four of
+     * the ones it missed were on maps it had walked from end to end. That is
+     * bad on its own and worse in a chain - the scenes that matter are the ones
+     * other scenes are waiting on, so one tile stepped around silently kills
+     * every scene downstream of it for the rest of the game. The spine says
+     * `anywhere` and comes to you; the ones that are about a place still make
+     * you go to the place. */
+    if (!cuts[i].anywhere && (cuts[i].x != x || cuts[i].y != y)) continue;
     if (flagSet(cuts[i].flag)) continue;
     /* And what has to have happened first. Five things that each happen once
        and never refer to one another is five things happening; a scene that
@@ -8987,8 +9000,25 @@ static int openBeat(void) {
       break;
     case BEAT_SPAWN:
       if (b->slot < CUT_SLOTS) {
-        cutBody[b->slot].px = (s16)(b->a << 4);
-        cutBody[b->slot].py = (s16)(b->b << 4);
+        /* A step from the base, not a spot on the map. Kept on the map and off
+           the walls: somebody who arrives inside a tree is worse than somebody
+           who arrives a tile further off than they were written. */
+        int sx = cutBaseX + ((int)b->a - 64);
+        int sy = cutBaseY + ((int)b->b - 64);
+        int tries;
+        if (sx < 0) sx = 0;
+        if (sy < 0) sy = 0;
+        if (sx >= world->w) sx = world->w - 1;
+        if (sy >= world->h) sy = world->h - 1;
+        for (tries = 0; tries < 4 && solidAt(sx, sy); tries++) {
+          if (sy > cutBaseY && sy > 0) sy--;
+          else if (sy < cutBaseY && sy + 1 < world->h) sy++;
+          else if (sx > cutBaseX && sx > 0) sx--;
+          else if (sx + 1 < world->w) sx++;
+          else break;
+        }
+        cutBody[b->slot].px = (s16)(sx << 4);
+        cutBody[b->slot].py = (s16)(sy << 4);
         cutBody[b->slot].dir = b->c;
         cutBody[b->slot].walk = 0;
         cutBody[b->slot].stride = 0;
@@ -9035,6 +9065,17 @@ static void startCut(int which) {
   cutAt = which;
   cutBeat = 0;
   cutWalkLeft = 0;
+  /* What the people in it come out around. A scene pinned to its own tile lays
+     them out from that tile, exactly where it always did; one that can happen
+     anywhere on its map lays them out around you, because you could be at the
+     other end of the road from where it was written. */
+  if (cuts[which].anywhere) {
+    cutBaseX = hero.px >> 4;
+    cutBaseY = hero.py >> 4;
+  } else {
+    cutBaseX = cuts[which].x;
+    cutBaseY = cuts[which].y;
+  }
   for (i = 0; i < CUT_SLOTS; i++) cutLive[i] = 0;
   hero.walk = 0;
   openBeat();

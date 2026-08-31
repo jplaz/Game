@@ -1378,7 +1378,15 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       } else if (kind === 'spawn') {
         const at = beat[2];
         row.slot = slotOf(beat[1]);
-        row.a = at.x; row.b = at.y;
+        /* Where they come out, as a step from the trigger rather than a spot on
+           the map. A scene that can fire anywhere on its map has to put people
+           beside the player, and one that fires on its own tile lands in
+           exactly the same place it always did: trigger plus the same step. */
+        row.a = 64 + (at.x - where.x);
+        row.b = 64 + (at.y - where.y);
+        if (row.a < 0 || row.a > 255 || row.b < 0 || row.b > 255) {
+          throw new Error(`${id}: somebody comes out ${at.x},${at.y}, too far from ${where.x},${where.y}`);
+        }
         row.c = actors.DIRECTIONS.indexOf(at.dir ?? 'down');
         /* The person who walks in has to have their art resident on that map,
            the same as anybody standing on it does. */
@@ -1440,6 +1448,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       needs: cs.needs ? flagAt(cs.needs) : 255,
       denies: cs.unless ? flagAt(cs.unless) : 255,
       sigils: cs.sigils ?? 0,
+      anywhere: cs.anywhere ? 1 : 0,
       name: cs.name ?? id });
   }
 
@@ -2280,6 +2289,12 @@ L.push('};');
 L.push('typedef struct {');
 L.push('  MapId map; u8 x, y, flag, people, quest;');
 L.push('  u8 needs, denies, sigils;   /* what has to have happened first */');
+/* Whether standing anywhere on the map is enough. A scene pinned to one tile
+   of one map is a scene most players never see - and when it is one another
+   scene is waiting on, the thread behind it is dead for the rest of the game.
+   The people in an `anywhere` scene come out beside YOU rather than at a
+   fixed spot, which is why it can stay on its own map and keep its art. */
+L.push('  u8 anywhere;');
 L.push('  u16 first, count;');
 L.push('  const char *name;');
 L.push('} Cut;');
@@ -2287,6 +2302,7 @@ L.push('static const Cut cuts[CUT_COUNT] = {');
 for (const sc of harvest.scenes) {
   L.push(`  { ${MAP_IDS.indexOf(sc.map)}, ${sc.x}, ${sc.y}, ${sc.flag}, ${sc.people}, `
     + `${sc.quest ?? 0}, ${sc.needs ?? 255}, ${sc.denies ?? 255}, ${sc.sigils ?? 0}, `
+    + `${sc.anywhere ? 1 : 0}, `
     + `${sc.first}, ${sc.count}, ${cstr(sc.name ?? sc.id)} },`);
 }
 L.push('};');

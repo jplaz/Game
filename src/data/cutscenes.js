@@ -179,6 +179,7 @@ export const CUTSCENES = {
 
   /** Somebody has started asking after you, and the asking has reached you. */
   aWhisperInTheDark: {
+    anywhere: true,
     map: 'riverrun', x: 12, y: 9, flag: 'cs_whisper', name: 'Somebody Is Asking',
     sigils: 1,
     beats: [
@@ -324,6 +325,7 @@ export const CUTSCENES = {
 
   /** The raven that starts it, in the yard you woke up in. */
   theRaven: {
+    anywhere: true,
     map: 'winterfell', x: 12, y: 16, flag: 'cs_raven', name: 'The Raven',
     beats: [
       ['say', 'A maester comes across the yard too fast for a man his age, '
@@ -348,6 +350,7 @@ export const CUTSCENES = {
 
   /** Somebody has come a long way to say the same thing, and is nearly dead. */
   theCrowsCall: {
+    anywhere: true,
     /* No `needs` on this one on purpose. The raven reaches you in the Stark
        yard, and eight of the nine houses do not wake up in it - gating the rest
        of the thread behind a scene most players can never stand on would hide
@@ -377,6 +380,7 @@ export const CUTSCENES = {
 
   /** The sellsword's paymaster, once you have asked who he was. */
   whoPaidHim: {
+    anywhere: true,
     map: 'kingsroad', x: 10, y: 21, flag: 'cs_whoPaid', name: 'Who Paid Him',
     needs: 'theFollower_1', sigils: 3,
     beats: [
@@ -425,6 +429,7 @@ export const CUTSCENES = {
 
   /** The north goes quiet, on the doorstep of the last act. */
   theLastRaven: {
+    anywhere: true,
     map: 'kingsLanding', x: 16, y: 24, flag: 'cs_lastRaven', name: 'The Last Raven',
     needs: 'heardTheRaven', sigils: 8,
     beats: [
@@ -449,6 +454,7 @@ export const CUTSCENES = {
 
   /** Leaving Winterfell for the first time. Somebody has an opinion about it. */
   ridingSouth: {
+    anywhere: true,
     map: 'kingsroadNorth', x: 10, y: 20, flag: 'cs_ridingSouth',
     beats: [
       ['say', 'A rider comes up the road at a canter, and reins in hard when he sees you.'],
@@ -485,6 +491,7 @@ export const CUTSCENES = {
 
   /** The Wall, seen for the first time. */
   theWallItself: {
+    anywhere: true,
     map: 'castleBlack', x: 9, y: 17, flag: 'cs_theWall',
     beats: [
       ['say', 'You come round the tower and stop, because your body stops before you decide to.'],
@@ -499,6 +506,7 @@ export const CUTSCENES = {
 
   /** Somebody has been following you, and stops bothering to hide it. */
   theFollower: {
+    anywhere: true,
     map: 'kingsroad', x: 10, y: 16, flag: 'cs_follower',
     beats: [
       ['say', 'A twig goes, somewhere behind and to the left. Then nothing, which is worse.'],

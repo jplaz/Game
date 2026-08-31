@@ -1002,6 +1002,40 @@ int main(void) {
     }
   }
 
+  /* --- does the kit actually get better as the road gets harder? ---------- */
+  /* Every piece of gear carries the road you have to be on before a counter
+     will sell it. Nothing checked that the two agree - that the far end of the
+     road is dressed better than the near end - so the ladder could have been
+     shuffled by a single edited price and nothing would have said a word. What
+     is asked here is only what a player would notice: the best thing money can
+     reach climbs as you go, and never falls back. */
+  {
+    int road, best = 0, wasBest = 0, first = -1, last = 0, slipped = 0;
+    for (road = 0; road <= 44; road += 4) {
+      int w;
+      best = 0;
+      for (w = 0; w < WARE_COUNT; w++) {
+        int worth;
+        if (!wares[w].price || wares[w].far > road) continue;
+        if (wares[w].kind == WARE_POTION || wares[w].kind == WARE_STUFF
+            || wares[w].kind == WARE_SNARE || wares[w].kind == WARE_OATH) continue;
+        worth = wares[w].might + wares[w].guard;
+        if (worth > best) best = worth;
+      }
+      if (first < 0) first = best;
+      if (best < wasBest) slipped = 1;
+      wasBest = best;
+      last = best;
+    }
+    if (slipped) bad("the best kit for sale gets worse further down the road");
+    if (last <= first) {
+      bad("the far end of the road is dressed no better than the near end: %d then %d",
+          first, last);
+    }
+    note("the best kit a counter will sell runs from %d at your own gate to %d "
+         "at the far end", first, last);
+  }
+
   /* --- the five things anybody can buy ------------------------------------ */
   /* A deed is the only way into the room it names, so everything about it has
      to hold at once: somebody must be selling it, the room must exist, the tile
@@ -2693,30 +2727,36 @@ int main(void) {
       }
     }
     /* The clock: arms, lands, burns. */
-    you.swoopMap = 255;
+    you.swoopMap = NO_MAP;
     you.swoopAt = 0;
     dragonAfterWin();
     if (!you.swoopAt) bad("the first swoop never arms");
-    for (k = 0; k < 200 && you.swoopMap == 255; k++) dragonAfterWin();
-    if (you.swoopMap == 255) bad("two hundred fights and no dragon has settled");
-    at = you.swoopMap;
-    was = favour[maps[at].holder];
-    for (k = 0; k < 200 && you.swoopMap != 255; k++) dragonAfterWin();
-    if (you.swoopMap != 255) bad("a settled dragon never burns the town it sits on");
-    if (you.swoopsBurned != 1) bad("%d towns counted burned, not 1", you.swoopsBurned);
-    if (favour[maps[at].holder] >= was) {
-      bad("%s burned and the house that held it does not mind", maps[at].name);
+    for (k = 0; k < 200 && you.swoopMap == NO_MAP; k++) dragonAfterWin();
+    /* `bad` reports and carries on, so everything after a failed check has to
+       be safe on its own: reading maps[NO_MAP] to explain that nothing settled
+       is how a checker turns a finding into a crash. */
+    at = you.swoopMap < MAP_COUNT ? (int)you.swoopMap : -1;
+    if (at < 0) {
+      bad("two hundred fights and no dragon has settled");
+    } else {
+      was = favour[maps[at].holder];
+      for (k = 0; k < 200 && you.swoopMap != NO_MAP; k++) dragonAfterWin();
+      if (you.swoopMap != NO_MAP) bad("a settled dragon never burns the town it sits on");
+      if (you.swoopsBurned != 1) bad("%d towns counted burned, not 1", you.swoopsBurned);
+      if (favour[maps[at].holder] >= was) {
+        bad("%s burned and the house that held it does not mind", maps[at].name);
+      }
     }
     /* Driving one off: the win handler pays and clears. That path needs a
        whole duel, so what is checked here is the arithmetic it uses. */
     newGameState();
     seedFavour(0);
     sigils = 7;
-    you.swoopMap = 255; you.swoopAt = 0;
+    you.swoopMap = NO_MAP; you.swoopAt = 0;
     dragonAfterWin();
-    for (k = 0; k < 200 && you.swoopMap == 255; k++) dragonAfterWin();
-    at = you.swoopMap;
-    if (at != 255) {
+    for (k = 0; k < 200 && you.swoopMap == NO_MAP; k++) dragonAfterWin();
+    at = you.swoopMap < MAP_COUNT ? (int)you.swoopMap : -1;
+    if (at >= 0) {
       int holder = maps[at].holder;
       was = favour[holder];
       moveFavour(holder, 10);      /* what the win handler does */
@@ -2730,10 +2770,10 @@ int main(void) {
     {
       int wyrms = 0, tries;
       you.level = 30;
-      you.swoopMap = 255; you.swoopAt = 0;
+      you.swoopMap = NO_MAP; you.swoopAt = 0;
       dragonAfterWin();
-      for (k = 0; k < 200 && you.swoopMap == 255; k++) dragonAfterWin();
-      if (you.swoopMap != 255) {
+      for (k = 0; k < 200 && you.swoopMap == NO_MAP; k++) dragonAfterWin();
+      if (you.swoopMap != NO_MAP) {
         world = &maps[you.swoopMap];
         worldId = you.swoopMap;
         for (tries = 0; tries < 30; tries++) {
@@ -2888,7 +2928,7 @@ int main(void) {
     for (i = 0; i < WARE_KINDS; i++) you.worn[i] = 0;
     you.winter = 0; you.rangeWant = 0; you.rangeGot = 0;
     you.rangings = 0; you.winterSaid = 0;
-    you.swoopMap = 255; you.swoopAt = 0; you.swoopsBeaten = 0; you.swoopsBurned = 0;
+    you.swoopMap = NO_MAP; you.swoopAt = 0; you.swoopsBeaten = 0; you.swoopsBurned = 0;
     you.bastards = 0; you.eveAt = 0; you.eveMap = 0;
     { int b; for (b = 0; b < 3; b++) { you.bastMap[b] = 0; you.bastBorn[b] = 0; you.bastTaken[b] = 0; } }
     for (i = 0; i < WARE_COUNT; i++) you.bag[i] = 0;

@@ -1604,7 +1604,7 @@ int main(int argc, char **argv) {
     r.x = (u8)THRONE_GATE_X; r.y = (u8)THRONE_GATE_Y;
     r.sigils = (u16)((1u << (LEADER_COUNT - 1)) - 1u);   /* nine of ten */
     { int q; for (q = 0; q < PARTY_MAX; q++) r.partyKind[q] = 255; }
-    r.haven = 255;
+    r.haven = NO_MAP;
     r.exp = (unsigned)expForLevel(44);
     r.gold = 40000; r.hp = 9999; r.kills = 200;
     /* Dressed for it: the best of everything the road can hand over - and
@@ -1653,7 +1653,7 @@ int main(int argc, char **argv) {
     r.worn[WARE_WEAPON] = 3; r.worn[WARE_ARMOUR] = 2; r.worn[WARE_SHIELD] = 1;
     r.worn[WARE_HELM] = 4; r.worn[WARE_GLOVES] = 5;
     { int q; for (q = 0; q < PARTY_MAX; q++) r.partyKind[q] = 255; }
-    r.haven = 255;
+    r.haven = NO_MAP;
     r.exp = (unsigned)expForLevel(14) + 40;
     r.gold = 1180; r.hp = 140; r.kills = 9;
     r.sum = tally(&r);
@@ -1857,7 +1857,7 @@ int main(int argc, char **argv) {
     rangingsDone, you.rangeWant ? 1 : 0, you.rangeGot, you.rangeWant);
   printf("  the dragons    %d met on the road, %d towns saved, %d burned%s\n",
     dragonsMet, townsSaved, townsBurned,
-    you.swoopMap != 255 ? ", one still settled" : "");
+    you.swoopMap != NO_MAP ? ", one still settled" : "");
   printf("  the red lamp   %d evenings, %d children born, %d grown and sworn\n",
     eveningsSpent, childrenBorn, childrenSworn);
   {
@@ -1900,6 +1900,17 @@ int main(int argc, char **argv) {
     }
     printf("  scenes missed  %d still gated, %d on a map never walked, "
            "%d walked past on the map itself\n", shutOut, wrongMap, neverStood);
+    if (getenv("SCENES")) {
+      for (c2 = 0; c2 < CUT_COUNT; c2++) {
+        const char *why;
+        if (flagSet(cuts[c2].flag)) continue;
+        if (cuts[c2].needs != 255 && !flagSet(cuts[c2].needs)) why = "waiting on an earlier scene";
+        else if (countSigils() < cuts[c2].sigils) why = "not enough seats yet";
+        else if (!mapSeen[cuts[c2].map]) why = "never went to the map";
+        else why = "walked the map, missed the tile";
+        printf("      %-22s %-20s %s\n", cuts[c2].name, maps[cuts[c2].map].name, why);
+      }
+    }
   }
   printf("  nests          %s found, %s hatched, dragon egg %s\n",
     eggsFound ? "an egg" : "nothing", eggsHatched ? "one" : "none",

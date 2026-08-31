@@ -153,12 +153,30 @@ for t in 1 2 3; do
   SAVED=$t SEED=5 ./playtest 3 | sed -n '/swore to/p;/nothing went wrong/p'
 done
 
-# And the last act, which neither the sweep nor the climb ever reaches: the
-# wandering run never collects nine sigils, and a full ladder climb is more
-# frames than any test budget. This starts one door from the Red Keep with the
-# nine seats already bent and plays the ending through - the gate, the queen,
-# her champion, the chair and the crowning - for two houses, because the writing
-# differs by the house you swore to.
+# And then the whole game, played to the end, as every house there is.
+#
+# The wandering sweep above proves the world is reachable. It does not prove
+# the game can be won, and for most of this game's life nothing did: no run
+# had ever passed the fourth rung of the ladder, so rungs five to ten - half
+# the game - had never been played by anything at all. Each of these swears to
+# a house, climbs all ten seats in order, and goes on to the chair. A build
+# where any house cannot finish is a build that is broken, whatever else
+# passes, so this is not allowed to fail quietly: every one of the nine has to
+# say the realm is yours.
+for h in 0 1 2 3 4 5 6 7 8; do
+  out=$(LADDER=1 FRAMES=9000000 SEED=$((h * 104729 + 7)) ./playtest "$h")
+  printf '%s\n' "$out" | sed -n '/realm is yours/p;/thing to look at/,$p'
+  printf '%s\n' "$out" | grep -q 'realm is yours' || {
+    printf '%s\n' "$out" | sed -n '/^ *rung /p;/sigils /p'
+    echo "house $h could not finish the game" >&2
+    exit 1
+  }
+done
+
+# And the last act on its own, started one door from the Red Keep with the nine
+# seats already bent: the climb above reaches it the long way, and this reaches
+# it in ninety seconds every time, so a break in the ending is caught whether
+# or not the climb that day happened to get there.
 for h in 0 8; do
   CROWN=1 FRAMES=900000 SEED=7 ./playtest $h | sed -n '/the last act/p;/the court /p;/nothing went wrong/p;/thing to look at/,$p'
 done

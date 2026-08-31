@@ -381,6 +381,11 @@ static int rearmed;
 /* What the counter is being asked for, what was in the purse when the asking
    started, and how many times. A sale always takes gold. */
 static int askedFor = -1, askedGold, askedTimes;
+/* Where the last fight was fought, how many in a row have been lost there, and
+   the maps that have proved they are not a place to train. */
+static int duelMap = -1;
+static u16 lostHere[MAP_COUNT];
+static u8 badGround[MAP_COUNT];
 
 static int leaderNpcOn(int m, int lead) {
   int i;
@@ -603,7 +608,8 @@ static void pickLadderGoal(void) {
        map whose crowd is so large there was no object memory left for roamers -
        so a run that went there to earn its ninth sigil stood in a hedge for
        nine million frames with six hundred thousand gold and level thirty-six. */
-    if (here + 8 >= you.level && (world->ambushCount || world->wildCount)
+    if (here + 8 >= you.level && !badGround[worldId]
+        && (world->ambushCount || world->wildCount)
         && findCover(&grindX, &grindY)) {
       grindMode = 1;
       goalKind = GOAL_SIGN; goalIndex = 0;            /* borrow "walk to a tile" */
@@ -1411,6 +1417,7 @@ void hostFrame(void) {
     else if (portPick != want) keys = tap(portPick < want ? KEY_DOWN : KEY_UP);
     else { keys = tap(KEY_A); if (keys) { sailed++; goalKind = GOAL_NONE; } }
   } else if (scene == SCENE_DUEL) {
+    duelMap = worldId;
     if (wasScene != SCENE_DUEL) {
       if (getenv("DBG")) {
         printf("      duel: foeId %d beast %d level %d (you %d, story %d, hp %d)\n",
@@ -1716,6 +1723,26 @@ void hostFrame(void) {
     if (theirs.hp <= 0) duelsWon++;
     else if (mine.hp <= 0) duelsLost++;
     else fled++;
+    /* Ground that keeps beating you is not ground to level up on.
+     *
+     * The ninth sigil is taken at Winterfell, and by the ninth sigil the
+     * Long Night is on the whole of the North: the run stood in the same
+     * snow it had trained in at level nine and lost eleven thousand eight
+     * hundred fights in a row, a third of the purse each time, until it was
+     * level forty with three gold and a hunting knife. Losing is meant to
+     * cost - it is the lesson - but a player takes the lesson after the
+     * third one and walks somewhere else. So does this now. */
+    if (duelMap >= 0 && duelMap < MAP_COUNT) {
+      if (mine.hp <= 0) {
+        if (++lostHere[duelMap] >= 5 && !badGround[duelMap]) {
+          badGround[duelMap] = 1;
+          if (ladderMode) {
+            printf("      %s is beating you: five in a row, going elsewhere\n",
+              maps[duelMap].name);
+          }
+        }
+      } else if (theirs.hp <= 0) lostHere[duelMap] = 0;
+    }
   }
   /* What the run actually felt like, printed the moment a sigil is taken. */
   if (ladderMode) {

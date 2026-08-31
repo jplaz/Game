@@ -561,14 +561,6 @@ static void pickLadderGoal(void) {
   }
   lead = atRung[at];
   want = leaderLevel[at];
-  if (getenv("WHYSAIL") && at + 1 >= atoi(getenv("WHYSAIL"))) {
-    static int said = 0;
-    if (said++ < 25) {
-      printf("      [pick] rung %d on %s lvl %d want %d shop %d road %d\n",
-        at + 1, world->name, you.level, leaderLevel[at], wantShop,
-        warpTowardMap(leaders[atRung[at]].map));
-    }
-  }
   if (at != ladderRung) {
     ladderRung = at;
     /* One trip to a counter for each rung, armed when the rung changes rather
@@ -637,14 +629,6 @@ static void pickLadderGoal(void) {
   {
     int sailor = sailorHere();
     int berth = berthToward(leaders[lead].map);
-    if (getenv("WHYSAIL")) {
-      static int said = 0;
-      if (said++ < 40) {
-        printf("      [sail] on %s want %s: sailor %d berth %d towardSails %d gold %d\n",
-          world->name, maps[leaders[lead].map].name, sailor, berth,
-          warpTowardSails(), you.gold);
-      }
-    }
     if (sailor >= 0 && berth >= 0) { goalKind = GOAL_NPC; goalIndex = sailor; return; }
     i = warpTowardSails();
     if (i >= 0) { goalKind = GOAL_WARP; goalIndex = i; return; }
@@ -1139,6 +1123,17 @@ void hostFrame(void) {
        the shelf - so this is deliberate instead: a straight run of B presses,
        the way a person leaves a shop, and a finding if that does not work. */
     shopsSeen++;
+    /* The counter asks how many now, for anything you can hold more than one
+       of. A tester that does not know about the question answers it with the
+       arrows - which change the number instead of the row - and stands at the
+       counter forever. Say one and mean it. */
+    if (shopMany) {
+      keys = tap(KEY_A);
+      if (keys) { bought++; }
+      lastKeys = keys;
+      REG_KEYINPUT = (unsigned short)(~keys & 0x03FF);
+      return;
+    }
     if (++shopHeld > 1200) {
       finding("a counter that %d frames of pressing B would not leave", shopHeld);
       shopHeld = 0;
@@ -1181,10 +1176,18 @@ void hostFrame(void) {
       /* Buy the dearest thing on the counter that is better than what is in
          your hands and that the purse will stand, which is what somebody
          playing to finish would do. */
+      /* The rows the counter is actually showing.
+       *
+       * A stall holds everything of its kind; the shelf shows only what this
+       * far down the road is sold. Choosing out of the stall gave a row number
+       * the cursor could never reach - row sixteen of a nine-row shelf - so the
+       * run stood at the Storm's End counter with ten thousand gold pressing
+       * DOWN against the end of the list, four rungs short of the throne. */
       const Stall *stall = &stalls[shopStall];
+      int shelf = shelfCount(stall);
       int best = -1, i;
-      for (i = 0; i < stall->count; i++) {
-        int at = stall->ware[i];
+      for (i = 0; i < shelf; i++) {
+        int at = shelfWare(stall, i);
         int had = wares[at].kind < WARE_KINDS ? you.worn[wares[at].kind] : 0;
         if (wares[at].kind == WARE_POTION) { if (you.bag[at] >= 4) continue; }
         else if (wares[at].kind == WARE_SNARE) { if (you.bag[at] >= 3) continue; }
@@ -1198,13 +1201,13 @@ void hostFrame(void) {
            thousand - so the run threw no nets, took nothing alive, and the half
            of this game that is about animals went untested. */
         if (wares[at].kind == WARE_SNARE && !you.bag[at]) { best = i; break; }
-        if (best < 0 || wares[stall->ware[best]].price < wares[at].price) best = i;
+        if (best < 0 || wares[shelfWare(stall, best)].price < wares[at].price) best = i;
       }
       if (best < 0) keys = tap(KEY_B);
       else if (shopPick != best) keys = tap(shopPick < best ? KEY_DOWN : KEY_UP);
       else {
         keys = tap(KEY_A);
-        if (keys) { bought++; boughtOf[stall->ware[best]]++; }
+        if (keys) { bought++; boughtOf[shelfWare(stall, best)]++; }
       }
     }
     else if (bought < 24 && roll(3) == 0) { keys = tap(KEY_A); if (keys) bought++; }

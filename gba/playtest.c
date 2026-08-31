@@ -76,6 +76,9 @@ static int partiesSeen, partyLooks, swaps;
 static int npcTalked[MAP_COUNT][MAX_CROWD];
 static int signRead[MAP_COUNT][8];
 static int npcStuck[MAP_COUNT][MAX_CROWD];
+/* How many frames of walking at somebody have gone nowhere, kept per person
+   so it is not thrown away every time the run leaves the room. */
+static unsigned short npcTries[MAP_COUNT][MAX_CROWD];
 static int talked, signs, duels, duelsWon, duelsLost, fled, warpsTaken, levels, kills;
 
 /* ------------------------------------------------------------ invariants -- */
@@ -259,6 +262,12 @@ static int mustersSeen, kennelsSeen, holdLooks, boarded, fetched, oathsOffered;
 static int warsSent, rangesTaken, sworeIn, hostLost;
 /* The sellsword halls of the Free Cities, and who was taken on in them. */
 static int hiresSeen, companiesHired, hireHeld;
+/* Trips made to a counter for a purse, so the errand cannot become the run. */
+static int oathTrips;
+/* Doors taken since the run last did a thing worth doing, and which door it
+   was, so a two-map circle can be broken where it is made. */
+static int doorsSinceWork, wasTalked, wasSigns, lastDoorMap = -1, lastDoorIndex = -1;
+static const char *goalWhy = "-";
 /* Set while a purse is being bought, so the shelf is not walked twice for one;
    cleared when the counter is left. */
 static int oathWait;
@@ -308,6 +317,14 @@ static unsigned tap(unsigned key) {
 }
 
 /* Whether a map still owes the tester anything. */
+/* Stop this run asking that map for anything ever again. */
+static void giveUpOnMap(int m) {
+  int i;
+  if (m < 0 || m >= MAP_COUNT) return;
+  for (i = 0; i < maps[m].npcCount && i < MAX_CROWD; i++) npcStuck[m][i] = 1;
+  for (i = 0; i < maps[m].signCount && i < 8; i++) signRead[m][i] = 1;
+}
+
 static int mapDone(int m) {
   int i;
   /* The Red Keep is shut until nine seats have bent to you, and the two white
@@ -385,6 +402,12 @@ static int warpTowardWork(void) {
     }
   }
   if (target < 0 || target == worldId) return -1;
+  if (getenv("WHYDOORS")) {
+    static int said = 0;
+    if (said++ > 2000 && said < 2016) {
+      printf("      [work] on %-22s wants %-22s\n", world->name, maps[target].name);
+    }
+  }
   while (from[target] != worldId) target = from[target];
   for (i = 0; i < world->warpCount; i++) if (world->warps[i].to == target) return i;
   return -1;
@@ -604,7 +627,13 @@ static int warpTowardMap(int want) {
       }
       if (best >= 0) return best;
     }
-    if (firstAny >= 0) return firstAny;
+    /* Every door that way has been nailed shut by a circle this run already
+       walked. Saying so is better than walking it again: "no road" sends the
+       caller to look for a berth, or to say plainly that it is stuck, and
+       both of those are progress. */
+    if (firstAny >= 0 && !(firstAny < MAX_WARP_MARK && warpStuck[worldId][firstAny])) {
+      return firstAny;
+    }
   }
   return -1;
 }
@@ -921,23 +950,74 @@ static void pickGoal(void) {
      else in the tester ever sits it, so without this the whole postgame is
      eighteen petitions nobody has ever read. */
   if (you.story >= 3 && world->courtX < 255 && petitionWaiting() >= 0) {
-    goalKind = GOAL_CHAIR; goalIndex = 0; return;
+    goalWhy = "chair"; goalKind = GOAL_CHAIR; goalIndex = 0; return;
   }
 
-  /* A counter, when the purse that buys a sword is not in the pouch.
+  /* What this map still owes, before any errand of your own.
    *
-   * The sweep walks all two hundred and thirty-one maps and spends about two
-   * hundred frames of a whole playthrough standing at counters, because it
-   * only ever opens one by talking to whoever is behind it and then leaves.
-   * So it never had the one thing that turns a beaten man into a sworn one,
-   * and everything downstream of a host - a hall worth holding, a company in
-   * the field - stayed unplayed. */
-  if (hostRoom() >= 0 && !carryingOath() && you.gold >= 1500) {
+   * The errands below came first for one build and the sweep stopped being a
+   * sweep: it walked all two hundred and thirty-one maps and read fifteen
+   * signs, played two of the thirty-two scenes, and spoke to nobody twice
+   * over. A run that is buying purses is not walking Westeros. Finish the
+   * room you are standing in; the errands are what a finished room is for. */
+  for (i = 0; i < crowdCount; i++) {
+    /* Anyone who drew on you from across the road and lost is dealt with,
+       whether or not there was ever a conversation. */
+    if (!crowdAlive[i] && !npcTalked[worldId][i]) { npcTalked[worldId][i] = 1; talked++; }
+    if (!crowdAlive[i] || npcTalked[worldId][i] || npcStuck[worldId][i]) continue;
+    goalWhy = "crowd"; goalKind = GOAL_NPC; goalIndex = i; return;
+  }
+  for (i = 0; i < world->signCount && i < 8; i++) {
+    if (signRead[worldId][i]) continue;
+    goalWhy = "sign"; goalKind = GOAL_SIGN; goalIndex = i; return;
+  }
+
+  /* Back to a brother in black with the count.
+   *
+   * A ranging is the one lever in this game that pushes the winter the other
+   * way, and finishing one needs two conversations with the same man: he
+   * sends you north, and you come back and tell him. The sweep speaks to
+   * everybody exactly once, so it took a ranging in eight runs out of nine
+   * and handed one in exactly once - by luck, when the wandering happened to
+   * cross the same brother twice.
+   *
+   * The goal is set here directly rather than by clearing the flag that says
+   * he has been spoken to. Clearing it counts the same conversation again
+   * every time, which is how a sweep came back having spoken to a hundred and
+   * seventy thousand of seven hundred and seven people. */
+  if (you.rangeWant && you.rangeGot >= you.rangeWant) {
+    for (i = 0; i < crowdCount; i++) {
+      if (!crowdAlive[i] || npcStuck[worldId][i]) continue;
+      if (!world->npcs[i].ranges) continue;
+      goalWhy = "handin"; goalKind = GOAL_NPC; goalIndex = i; return;
+    }
+    /* And across the map for him if he is not on this one: a count that is
+       made and never reported is worse than never having gone. */
+    {
+      int m, want = -1, k;
+      for (m = 0; m < MAP_COUNT && want < 0; m++) {
+        if (!mapSeen[m]) continue;
+        for (k = 0; k < maps[m].npcCount; k++) {
+          if (maps[m].npcs[k].ranges) { want = m; break; }
+        }
+      }
+      if (want >= 0 && want != worldId) {
+        i = warpTowardMap(want);
+        if (i >= 0) { goalWhy = "handin-far"; goalKind = GOAL_WARP; goalIndex = i; return; }
+      }
+    }
+  }
+
+  /* A counter, when the purse that buys a sword is not in the pouch. The
+     sweep opens a counter only by talking to whoever stands behind one, and
+     then leaves - about two hundred frames of a whole playthrough - so it
+     never carried the one thing that turns a beaten man into a sworn one. */
+  if (hostRoom() >= 0 && !carryingOath() && you.gold >= 1500 && oathTrips < 20) {
     for (i = 0; i < crowdCount; i++) {
       if (!crowdAlive[i] || npcStuck[worldId][i]) continue;
       if (world->npcs[i].trade != 2) continue;
-      npcTalked[worldId][i] = 0;
-      goalKind = GOAL_NPC; goalIndex = i; return;
+      oathTrips++;
+      goalWhy = "purse"; goalKind = GOAL_NPC; goalIndex = i; return;
     }
   }
 
@@ -959,55 +1039,23 @@ static void pickGoal(void) {
     }
     if (want >= 0 && want != worldId) {
       i = warpTowardMap(want);
-      if (i >= 0) { goalKind = GOAL_WARP; goalIndex = i; return; }
+      if (i >= 0) { goalWhy = "hall"; goalKind = GOAL_WARP; goalIndex = i; return; }
     }
   }
 
-  /* Back to a brother in black with the count.
-   *
-   * A ranging is the one lever in this game that pushes the winter the other
-   * way, and finishing one needs two conversations with the same man: he
-   * sends you north, and you come back and tell him. The sweep speaks to
-   * everybody exactly once, so it took a ranging in eight runs out of nine
-   * and handed one in exactly once - by luck, when the wandering happened to
-   * cross the same brother twice. Anybody who ranges is worth talking to
-   * again the moment the count is made. */
-  if (you.rangeWant && you.rangeGot >= you.rangeWant) {
-    for (i = 0; i < crowdCount; i++) {
-      if (!crowdAlive[i] || npcStuck[worldId][i]) continue;
-      if (!world->npcs[i].ranges) continue;
-      npcTalked[worldId][i] = 0;
-      goalKind = GOAL_NPC; goalIndex = i; return;
-    }
-    /* And across the map for him if he is not on this one: a count that is
-       made and never reported is worse than never having gone. */
-    {
-      int m, want = -1, k;
-      for (m = 0; m < MAP_COUNT && want < 0; m++) {
-        if (!mapSeen[m]) continue;
-        for (k = 0; k < maps[m].npcCount; k++) {
-          if (maps[m].npcs[k].ranges) { want = m; break; }
-        }
-      }
-      if (want >= 0 && want != worldId) {
-        i = warpTowardMap(want);
-        if (i >= 0) { goalKind = GOAL_WARP; goalIndex = i; return; }
-      }
-    }
-  }
   /* Out on a ranging and short of the count: go where the dead are.
    *
    * Seven sweeps in nine took a ranging and every one of them came back with
    * nought of three put down, because the dead only walk cold ground and a
    * wandering run crosses it and keeps going. So the one lever in this game
    * that pushes the winter back was pulled seven times and turned nothing:
-   * the Watch was a errand board nobody ever collected from. Stand in the
+   * the Watch was an errand board nobody ever collected from. Stand in the
    * snow and wait for them, the way the man in black asked. */
   if (you.rangeWant && you.rangeGot < you.rangeWant) {
     if (world->cold && world->cold + winterStage() >= 7
         && findCover(&grindX, &grindY)) {
       grindMode = 1;
-      goalKind = GOAL_SIGN; goalIndex = 0;
+      goalWhy = "ranging-grind"; goalKind = GOAL_SIGN; goalIndex = 0;
       return;
     }
     {
@@ -1019,21 +1067,11 @@ static void pickGoal(void) {
       }
       if (want >= 0 && want != worldId) {
         i = warpTowardMap(want);
-        if (i >= 0) { goalKind = GOAL_WARP; goalIndex = i; return; }
+        if (i >= 0) { goalWhy = "ranging-north"; goalKind = GOAL_WARP; goalIndex = i; return; }
       }
     }
   }
-  for (i = 0; i < crowdCount; i++) {
-    /* Anyone who drew on you from across the road and lost is dealt with,
-       whether or not there was ever a conversation. */
-    if (!crowdAlive[i] && !npcTalked[worldId][i]) { npcTalked[worldId][i] = 1; talked++; }
-    if (!crowdAlive[i] || npcTalked[worldId][i] || npcStuck[worldId][i]) continue;
-    goalKind = GOAL_NPC; goalIndex = i; return;
-  }
-  for (i = 0; i < world->signCount && i < 8; i++) {
-    if (signRead[worldId][i]) continue;
-    goalKind = GOAL_SIGN; goalIndex = i; return;
-  }
+
   /* Everything here is done. If the only unfinished ground is across water,
      go and find whoever sells passage; otherwise take a door. */
   if (portOwesWork()) {
@@ -1042,10 +1080,10 @@ static void pickGoal(void) {
        counted the same conversation again every time - which is how a sweep
        came back having spoken to two hundred and sixty-four of two hundred
        and fifty-five people. */
-    if (i >= 0) { goalKind = GOAL_NPC; goalIndex = i; return; }
+    if (i >= 0) { goalWhy = "sailor"; goalKind = GOAL_NPC; goalIndex = i; return; }
   }
   i = warpTowardWork();
-  if (i >= 0) { goalKind = GOAL_WARP; goalIndex = i; }
+  if (i >= 0) { goalWhy = "work"; goalKind = GOAL_WARP; goalIndex = i; }
 }
 
 /* Whether that tile is a counter you can lean over. */
@@ -1118,7 +1156,13 @@ static void completeGoal(void) {
     } else {
       npcDuelled[worldId][goalIndex] = 1;
     }
-  } else if (goalKind == GOAL_SIGN) { signRead[worldId][goalIndex] = 1; signs++; }
+  } else if (goalKind == GOAL_SIGN) {
+    /* Grinding borrows this goal to mean "walk to that tile", so counting it
+       as a sign read had a run come back having read three hundred thousand
+       of a hundred and ninety-two signs. A borrowed errand is not the errand
+       it borrowed. */
+    if (!grindMode) { signRead[worldId][goalIndex] = 1; signs++; }
+  }
   else if (goalKind == GOAL_CHAIR) { courtsHeld++; }
   goalKind = GOAL_NONE;
 }
@@ -1309,6 +1353,24 @@ void hostFrame(void) {
     REG_KEYINPUT = (unsigned short)(~keys & 0x03FF);
     frameNo++;
     return;
+  }
+
+  /* A conversation that opens a screen is still a conversation.
+   *
+   * `completeGoal` is called from the world, once the window has been read to
+   * the end - and a harbourmaster does not open a window, he opens the passage
+   * list. So every port in this world was spoken to hundreds of times and
+   * never counted as spoken to, its map owed work forever, and every router in
+   * the tester kept sending the run back for it: that is what the coastal
+   * circles were, at Lordsport, at Dragonstone, at Braavos, at Hardhome, in
+   * every sweep this game has ever had. Whoever opened this screen, you have
+   * met them. */
+  if (goalKind == GOAL_NPC && interacting && goalIndex < crowdCount
+      && scene != SCENE_WORLD && scene != SCENE_DUEL && scene != SCENE_BAG
+      && scene != SCENE_TITLE && scene != SCENE_HOUSE && scene != SCENE_NAME
+      && !npcTalked[worldId][goalIndex]) {
+    npcTalked[worldId][goalIndex] = 1;
+    talked++;
   }
 
   if (scene == SCENE_TITLE) {
@@ -1978,6 +2040,53 @@ void hostFrame(void) {
       if (wasMap >= 0) warpsTaken++;
       wasMap = worldId;
       mapSeen[worldId]++;
+      /* Doors taken since the run last did anything.
+       *
+       * The wandering sweep had no circle-detector - the directed climb has
+       * one, and the sweep is the run that actually needs it. Measured: a
+       * sweep took twelve thousand doors and walked ninety-one maps, because
+       * ten thousand of them were Lordsport and the Sunset Sea, one after the
+       * other, each map's router insisting the way on lay through the other.
+       * That is most of a playthrough's frames and it is why half the scenes
+       * in this game had never fired. When a door has been taken two hundred
+       * times over without a word spoken, a sign read or a new map walked,
+       * the door is the problem: nail it shut and let the router find
+       * another. */
+      if (mapSeen[worldId] == 1 || talked != wasTalked || signs != wasSigns) {
+        doorsSinceWork = 0;
+        wasTalked = talked;
+        wasSigns = signs;
+      } else if (++doorsSinceWork > 200) {
+        doorsSinceWork = 0;
+        /* Nailing the door was not enough: the run went back through another
+           one. What it is actually doing is walking to a map it can never
+           finish - a person who died before it spoke to them stops counting
+           as dealt with the moment you leave, so the map owes work forever
+           and every router in the tester keeps sending you back for it. Write
+           the pair off and let the sweep get on with Westeros. */
+        {
+          int m2 = lastDoorMap >= 0 ? lastDoorMap : worldId, k2, owed = -1;
+          if (mapDone(m2)) m2 = worldId;
+          for (k2 = 0; k2 < maps[m2].npcCount && k2 < MAX_CROWD; k2++) {
+            if (!npcTalked[m2][k2] && !npcStuck[m2][k2]) { owed = k2; break; }
+          }
+          finding("%s and %s: two hundred doors between them, and %s still owes "
+                  "%s", lastDoorMap >= 0 ? maps[lastDoorMap].name : "nowhere",
+            world->name, maps[m2].name,
+            owed >= 0 ? maps[m2].npcs[owed].name : "a sign nobody can read");
+        }
+        giveUpOnMap(worldId);
+        if (lastDoorMap >= 0 && lastDoorMap < MAP_COUNT) giveUpOnMap(lastDoorMap);
+      }
+      if (getenv("WHYDOORS")) {
+        static int said = 0;
+        if (said++ > 3000 && said < 3020) {
+          printf("      [door] into %-22s why %-14s goal %d/%d\n",
+            world->name, goalWhy, goalKind, goalIndex);
+        }
+      }
+      lastDoorMap = wasMap;
+      lastDoorIndex = goalKind == GOAL_WARP ? goalIndex : -1;
       goalKind = GOAL_NONE;
       /* A room with a smith in it and money in your purse is a room you stop
          in. Armed one map at a time, so the ladder run does not walk past
@@ -2141,7 +2250,13 @@ void hostFrame(void) {
           you.story = 2;                          /* stop trying to sit it */
         } else {
           finding("%s: could not reach the door at %d,%d", world->name, gx, gy);
-          mapSeen[world->warps[goalIndex].to]++;   /* stop trying for this one */
+          /* Marking the far side "seen" was how this stopped trying the same
+             door - and it is also how the headline number lied. A map you
+             could not reach the door of is a map you have not walked, and a
+             run that reported two hundred and thirty-one of two hundred and
+             thirty-one had in fact never stood on ten of the maps its own
+             scene report then blamed itself for missing. The door is what to
+             give up on, so give up on the door. */
           if (goalIndex < MAX_WARP_MARK) warpStuck[worldId][goalIndex] = 1;
         }
         goalKind = GOAL_NONE;
@@ -2212,6 +2327,23 @@ void hostFrame(void) {
           if (dir < 0 && dodgeCover) { dodgeCover = 0; dir = stepToward(sx, sy); }
           dodgeCover = 0;
           if (dir >= 0) { keys = KEYS[dir]; blocked = 0; }
+          else if (goalKind == GOAL_NPC && ++npcTries[worldId][goalIndex] > 400) {
+            /* A tally that survives leaving the room.
+             *
+             * `blocked` is one number for the whole run and it resets on any
+             * step anywhere, so a person the walk can never reach was only
+             * ever written off if the run happened to stand there for nine
+             * hundred unbroken frames. Every harbourmaster in this world
+             * stands on a quay whose only neighbour is the door out to sea:
+             * the run would walk at him, get put on the water, come back,
+             * start counting from nothing, and do that ten thousand times.
+             * Count it against the man, not against the moment. */
+            npcStuck[worldId][goalIndex] = 1;
+            finding("%s: %s cannot be stood next to - the only way in is a door",
+              world->name, world->npcs[goalIndex].name);
+            goalKind = GOAL_NONE;
+            blocked = 0;
+          }
           else if (++blocked < 900) {
             keys = 0;      /* somebody is in the doorway; wait for them to move */
           } else {
@@ -2344,7 +2476,8 @@ void hostFrame(void) {
 }
 
 int main(int argc, char **argv) {
-  int i, seenMaps = 0, totalNpcs = 0, totalSigns = 0, house = argc > 1 ? atoi(argv[1]) : 0;
+  int i, seenMaps = 0, walkedMaps = 0, totalNpcs = 0, totalSigns = 0;
+  int house = argc > 1 ? atoi(argv[1]) : 0;
   gbaMem = calloc(MEM_SPAN, 1);
   if (!gbaMem) return 1;
   REG_KEYINPUT = 0x03FF;
@@ -2519,7 +2652,7 @@ int main(int argc, char **argv) {
     }
   }
   for (i = 0; i < MAP_COUNT; i++) {
-    if (mapSeen[i]) seenMaps++;
+    if (mapSeen[i]) { seenMaps++; walkedMaps++; }
     /* The throne room is meant to be shut. A wandering run does not collect
        nine sigils, so not reaching it is the game working rather than a fault -
        the LADDER run is what proves that door opens. */
@@ -2550,7 +2683,16 @@ int main(int argc, char **argv) {
   }
 
   printf("\n  played %d frames, about %d minutes of real play\n", frameNo, frameNo / 3600);
-  printf("  maps reached   %d of %d\n", seenMaps, MAP_COUNT);
+  /* Two numbers, because they are two different facts and one of them was
+     wearing the other's name. "Reached" counted every map the run stood on
+     AND every map it had a good excuse for - behind a gate it never earned,
+     the shut throne room - and printed the total as if it had walked them.
+     So a run would say it had reached all two hundred and thirty-one and then
+     its own scene report would blame it for missing ten scenes on maps it had
+     never set foot on. Both sentences were true; only one of them was the one
+     being read. */
+  printf("  maps reached   %d walked, %d shut to this run, of %d\n",
+    walkedMaps, seenMaps - walkedMaps, MAP_COUNT);
   printf("  people spoken  %d of %d\n", talked, totalNpcs);
   /* And who, by name. "524 of 533" every single run is nine people standing
      somewhere nobody can get to, and the report never said which nine, so

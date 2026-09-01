@@ -8475,6 +8475,24 @@ static void tookAlive(const char *said) {
   sfxRank();
   you.exp += won;
   you.hp = mine.hp;
+  /* A man who has just sworn to you is walking behind you. He cannot also be
+     standing in the road squaring up.
+   *
+   * Going down was written up properly - the body is marked slain, taken off
+   * the crowd and remembered across the save - and being taken alive was not
+   * written up at all. So the one path in this game that ends a fight without
+   * a death left the loser exactly where he was, unbeaten as far as the map
+   * was concerned, ready to draw on you again the moment you walked past. You
+   * could swear the same man six times.
+   *
+   * Only a person: netting an animal is the other half of this function, and
+   * whoever brought it to the fight is still standing there and still owes you
+   * a conversation. */
+  if (foeBeast < 0 && foeSlot >= 0 && foeSlot < crowdCount) {
+    beaten[worldId][foeSlot] = 1;
+    slain[worldId][foeSlot] = 1;
+    crowdAlive[foeSlot] = 0;
+  }
   duelPhase = DUEL_SPOILS;
   copyString(scratch, said ? said : "It stops fighting.", sizeof scratch);
   appendString(scratch, "  ", sizeof scratch);

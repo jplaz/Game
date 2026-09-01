@@ -2866,7 +2866,18 @@ void hostFrame(void) {
     int now = hostCount();
     if (seat.warLive && !hadWar) warsSent++;
     if (you.rangeWant && !hadRange) rangesTaken++;
-    if (now > hadHost) sworeIn += now - hadHost;
+    if (now > hadHost) {
+      sworeIn += now - hadHost;
+      /* And the man who just swore is off the road. Going down was written up
+         properly and being taken alive was not, so the one way a fight ends
+         without a death left the loser standing exactly where he was, ready
+         to draw on you again - the same man could be sworn over and over. */
+      if (scene == SCENE_DUEL && foeBeast < 0 && foeSlot >= 0
+          && foeSlot < crowdCount && crowdAlive[foeSlot]) {
+        finding("%s swore to you and is still standing in %s squaring up",
+          world->npcs[foeSlot].name, world->name);
+      }
+    }
     else if (now < hadHost) hostLost += hadHost - now;
     hadWar = seat.warLive;
     hadRange = you.rangeWant != 0;

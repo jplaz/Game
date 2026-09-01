@@ -463,6 +463,15 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       might10: low.might, might40: high.might,
       guard10: low.guard, guard40: high.guard,
       vigour10: low.vigour, vigour40: high.vigour,
+      /* And what he looks like and what he swings, so that a sworn sword can
+         be sent out to stand in front of you the way an animal can. Both were
+         already on the roamer he turns out to have been; neither was carried
+         across, so a man who followed you about was a number added to your
+         blows and nothing you could ever see or send anywhere. */
+      swiftness10: low.swiftness, swiftness40: high.swiftness,
+      wind10: low.wind, wind40: high.wind,
+      actor: actorFor(personLook(low.sprite, low.name), `${low.sprite}|${low.name}`),
+      techs: techSlots(low.techniques),
     };
   });
   const swornOf = (id) => {
@@ -2381,11 +2390,16 @@ L.push(`#define SWORN_KINDS ${harvest.swornKinds.length}`);
 L.push('typedef struct {');
 L.push('  const char *name;');
 L.push('  u16 might10, might40, guard10, guard40, vigour10, vigour40;');
+L.push('  u16 swiftness10, swiftness40, wind10, wind40;');
+L.push('  u16 actor;            /* what he looks like, standing in front of you */');
+L.push('  u8 tech[4];           /* and what he swings when he is out there */');
 L.push('} SwornKind;');
 L.push('static const SwornKind swornKinds[SWORN_KINDS] = {');
 for (const k of harvest.swornKinds) {
   L.push(`  { ${cstr(k.name)}, ${k.might10}, ${k.might40}, ${k.guard10}, `
-    + `${k.guard40}, ${k.vigour10}, ${k.vigour40} },`);
+    + `${k.guard40}, ${k.vigour10}, ${k.vigour40}, `
+    + `${k.swiftness10}, ${k.swiftness40}, ${k.wind10}, ${k.wind40}, `
+    + `${k.actor}, { ${k.techs.join(', ')} } },`);
 }
 L.push('};');
 L.push('');

@@ -527,6 +527,9 @@ static unsigned char warpStuck[MAP_COUNT][MAX_WARP_MARK];
 
 static int canWalkTo(int gx, int gy);
 
+/* Which map the last search was aiming at, and the one being walked to now. */
+static int workTarget = -1, workWant = -1;
+
 static int warpTowardWork(void) {
   int from[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, i;
   for (i = 0; i < MAP_COUNT; i++) from[i] = -2;
@@ -565,7 +568,7 @@ static int warpTowardWork(void) {
           break;
         }
       }
-      if (door >= 0) return door;
+      if (door >= 0) { workTarget = m; return door; }
     }
     for (i = 0; i < maps[m].warpCount; i++) {
       int to = maps[m].warps[i].to;
@@ -1502,6 +1505,22 @@ void hostFrame(void) {
   checkFrame();
   if (scene != SCENE_SHOP) shopHeld = 0;
 
+  /* A body is written down the moment it falls, wherever the run goes next.
+   *
+   * This used to be done in the goal picker, in a loop that half a dozen
+   * earlier errands can return before ever reaching. So somebody killed on the
+   * way through a map was never marked dealt with, and `mapDone` counts a dead
+   * man as dealt with only while you are standing on his floor: walk out and
+   * the map owes work again, so every router sends you back, and you arrive,
+   * and he is dead, and the map is finished, and you leave. Lannisport and the
+   * Kingsroad passed two and a half million frames doing that to each other. */
+  if (scene == SCENE_WORLD && world && worldId >= 0 && worldId < MAP_COUNT) {
+    int k;
+    for (k = 0; k < crowdCount && k < MAX_CROWD; k++) {
+      if (!crowdAlive[k] && !npcTalked[worldId][k]) { npcTalked[worldId][k] = 1; talked++; }
+    }
+  }
+
   /* The dead do not walk every cold field, and standing in one that they do
      not walk is not an errand, it is the rest of the playthrough.
    *
@@ -2415,8 +2434,24 @@ void hostFrame(void) {
             lastDoorMap >= 0 ? maps[lastDoorMap].name : "nowhere",
             world->name, maps[m2].name,
             owed >= 0 ? maps[m2].npcs[owed].name : "a sign nobody can read");
-          if (++circlesBroken >= 3) {
-            finding("%d two-map circles in one playthrough", circlesBroken);
+          /* Once is the detector doing its job. Three is a run spending its
+             life going back and forth, and it is worth stopping for - but as
+             one finding, not two hundred: the count is what matters, and a
+             fresh sentence per circle filled the report with the same fault
+             written out again and again. */
+          if (++circlesBroken == 3) {
+            finding("two-map circles: the run keeps walking between the same "
+                    "pair, %s and %s", maps[m2].name, world->name);
+          }
+          /* And nail the door it just came through. Writing the two maps off
+             is not enough on its own: the router is walking towards some third
+             map through this pair, so it goes straight back the way it came.
+             Lannisport and the Kingsroad passed two and a half million frames
+             between them doing exactly that. Take the road away and it finds
+             another. */
+          if (lastDoorMap >= 0 && lastDoorIndex >= 0
+              && lastDoorIndex < MAX_WARP_MARK) {
+            warpStuck[lastDoorMap][lastDoorIndex] = WARP_GIVE_UP;
           }
         }
         giveUpOnMap(worldId);

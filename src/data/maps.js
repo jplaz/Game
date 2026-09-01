@@ -5034,7 +5034,7 @@ export const MAPS = {
         data: { berth: { map: 'sunsetSea', x: 25, y: 12 }, where: 'the Lannisport quay' } },
       { x: 21, y: 14, dir: 'left', sprite: 'oldman', name: 'Harbourmaster', script: 'harbourmaster' },
       { x: 7, y: 4, dir: 'down', sprite: 'lannister', name: 'Gold Cloak', script: 'lannisportGuard' },
-      { x: 8, y: 4, dir: 'down', sprite: 'septa', name: 'Septa of Lannisport',
+      { x: 13, y: 4, dir: 'down', sprite: 'septa', name: 'Septa of Lannisport',
         script: 'townTalk', data: { line: 'Septa of Lannisport: A match costs what your name is worth, and in this city that is a number somebody has written down. Have a hall first.' } },
       { x: 22, y: 16, dir: 'left', sprite: 'goodwife', name: 'Goldsmith', script: 'lannisportHint' },
       { x: 15, y: 21, dir: 'right', sprite: 'rival', name: 'Joffrey', script: 'rivalLannisport',
@@ -6002,7 +6002,7 @@ export const MAPS = {
       { x: 12, y: 3, text: 'THE BRIDGE\nThe only one joined to land, and they watch it day and night.\nEverything else here you cross over water.' },
     ],
     npcs: [
-      { x: 11, y: 5, dir: 'down', sprite: 'septa', name: 'Salt Septon',
+      { x: 13, y: 3, dir: 'down', sprite: 'septa', name: 'Salt Septon',
         script: 'townTalk', data: { line: 'Salt Septon: They will tell you the ironborn take salt wives and do not bother with septs. They come here anyway, before the winter. Bring a hall and I will read the words.' } },
       { x: 10, y: 5, dir: 'down', sprite: 'goodwife', name: 'A Woman of Fair Isle', script: 'quest',
         data: { quest: 'saltWivesOfPyke' } },

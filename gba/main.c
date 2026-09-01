@@ -1105,6 +1105,17 @@ static void drawChevron(int x, int y, int leftward, u8 colour) {
   }
 }
 
+/* The same, turned on its side, for a list that runs off the bottom. */
+static void drawChevronUp(int x, int y, int upward, u8 colour) {
+  int i;
+  for (i = 0; i < 4; i++) {
+    fillRect(x + 3 - i, upward ? y + i : y + 3 - i, 1 + i * 2, 1, colour);
+  }
+}
+
+/* How many companies fit above the two lines that describe the one you are on. */
+#define HIRE_ROWS 4
+
 /* ---------------------------------------------------------------- plate ---- */
 
 static int plateTimer;
@@ -2674,6 +2685,55 @@ static void enterMap(int id, int tx, int ty, int dir) {
   if (cutWaitsHere()) showAside("Somebody here");
 }
 
+/* ----------------------------------------------------------- pulled off --
+ *
+ * Nobody should ever be able to stand somewhere with nowhere to go.
+ *
+ * A sea is walked on two footings: the beaches on foot, and the water on a
+ * keel. Take the keel away - a hull beaten to nothing, a ship never bought, a
+ * record written before there were ships - and every one of those beaches is a
+ * few tiles of sand with an ocean round it. Some of them have a cave mouth on
+ * them and some of them have nothing at all, and on those the four directions
+ * are four walls and the game is over without saying so.
+ *
+ * The world is checked door by door and landing by landing, and every landing
+ * in it is sound. This is for everything that is not a landing: whatever a
+ * fight, a sinking, a save from an older cartridge or an honest mistake leaves
+ * you standing on. It costs four tests a frame and it means the answer to "I
+ * am stuck" is never "start again". */
+static int boxedIn(void) {
+  int hx = hero.px >> 4, hy = hero.py >> 4, i;
+  if (hero.walk || windowOpen) return 0;
+  if (warpAt(hx, hy)) return 0;                 /* standing in a doorway */
+  for (i = 0; i < 4; i++) {
+    int nx = hx + DIR_X[i], ny = hy + DIR_Y[i];
+    if (nx < 0 || ny < 0 || nx >= world->w || ny >= world->h) continue;
+    if (!solidAt(nx, ny)) return 0;
+    if (ledgeAt(nx, ny)) return 0;              /* a drop is still a way down */
+  }
+  return 1;
+}
+
+/* Somewhere you can certainly stand: your own berth if it is a real tile, and
+   otherwise a quay - the same ladder the sea fight uses to put a drowned man
+   back on stone. */
+static void pullYouOff(void) {
+  int bm = you.berthMap, bx = you.berthX, by = you.berthY;
+  int fine = bm < MAP_COUNT && bx < maps[bm].w && by < maps[bm].h
+             && !maps[bm].solid[by * maps[bm].w + bx];
+  /* Failing a berth, the yard you started the game in: it is a real tile in
+     every house, it is checked on every build, and it is home. */
+  if (!fine) {
+    bm = houses[you.house].startMap;
+    bx = houses[you.house].startX;
+    by = houses[you.house].startY;
+  }
+  enterMap(bm, bx, by, 0);
+  openWindow(0, "There is nowhere to put your feet here and no hull to carry "
+                "you off. A fishing boat comes past, takes you aboard without "
+                "much conversation, and puts you down where you last slept.");
+}
+
 static const Sign *signAt(int x, int y) {
   int i;
   for (i = 0; i < world->signCount; i++) {
@@ -2693,6 +2753,29 @@ static const Warp *warpAt(int x, int y) {
 /* A doorway is often the only tile a gate is reachable through. Somebody
    wandering into it seals the map until they wander out again, so the crowd
    keeps clear of doors and of the ground in front of them. */
+/* A tile with exactly two ways off it, opposite each other: a corridor one
+   tile wide. Standing in one is standing in a doorway that is not a door.
+ *
+ * The rule that keeps roamers out of gateways only looked at doors and at the
+ * gaps in a line of ledges. A septa put in Lannisport so that marrying could
+ * be found wandered three tiles, as everybody does, onto the single tile that
+ * leads to the town's north gate - and the gate was gone. The map owed a sign
+ * nobody could reach for the rest of the game and three of nine sweeps spent
+ * two and a half million frames walking back and forth for it.
+ *
+ * Four tests, once per step, per person. Nobody misses the tile; there is
+ * always somewhere else within three tiles of home to stand. */
+static int inCorridor(int x, int y) {
+  int i, open = 0, which = -1;
+  for (i = 0; i < 4; i++) {
+    if (solidAt(x + DIR_X[i], y + DIR_Y[i])) continue;
+    open++;
+    if (which < 0) which = i;
+    else if ((i ^ which) != 1) return 0;    /* not the two opposite each other */
+  }
+  return open == 2;
+}
+
 static int nearWarp(int x, int y) {
   int i;
   for (i = 0; i < world->warpCount; i++) {
@@ -5829,8 +5912,21 @@ static void paintHire(void) {
   drawText(14, 6, "SWORDS FOR HIRE", C_GOLD);
   drawText(TXT_W - 14 - textWidth("A: take him on   B: back"), 6,
     "A: take him on   B: back", C_DIM);
+  /* Four rows and a scroll, not one row per company. There were four
+     companies in the world when this screen was written and every one of them
+     got a line; there are eight now, and the last four were drawn straight
+     through the rule, the gold and the tally underneath it. */
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
-  for (i = 0; i < COMPANY_COUNT; i++) drawHireRow(i, 22 + i * 10);
+  {
+    int top = listTopN(hirePick, COMPANY_COUNT, HIRE_ROWS);
+    for (i = 0; i < HIRE_ROWS && top + i < COMPANY_COUNT; i++) {
+      drawHireRow(top + i, 22 + i * 11);
+    }
+    if (COMPANY_COUNT > HIRE_ROWS) {
+      if (top) drawChevronUp(TXT_W - 20, 24, 1, C_DIM);
+      if (top + HIRE_ROWS < COMPANY_COUNT) drawChevronUp(TXT_W - 20, 60, 0, C_DIM);
+    }
+  }
   fillRect(14, TXT_H - 40, TXT_W - 28, 1, C_EDGE);
   {
     copyString(scratch, companies[hirePick].where, sizeof scratch);
@@ -10328,7 +10424,7 @@ static void moveCrowd(void) {
       if (ny > world->npcs[i].y + 3 || ny < world->npcs[i].y - 3) continue;
       if (solidAt(nx, ny) || occupied(nx, ny, i)) continue;
       if (nearWarp(nx, ny) || ledgeAt(nx, ny) || ledgeGate(nx, ny)
-          || gateAt(nx, ny)) continue;
+          || gateAt(nx, ny) || inCorridor(nx, ny)) continue;
       stepBody(&crowd[i], dir);
     }
   }
@@ -11505,6 +11601,8 @@ int main(void) {
         }
       } else if (spotted >= 0) {
         /* Nothing to do but wait for them. */
+      } else if (boxedIn()) {
+        pullYouOff();
       } else if (!hero.walk && cutHere(hero.px >> 4, hero.py >> 4) >= 0) {
         startCut(cutHere(hero.px >> 4, hero.py >> 4));
       } else if (hero.walk) {

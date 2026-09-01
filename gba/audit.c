@@ -620,6 +620,93 @@ static int runLength(int level, int tries) {
   return total / tries;
 }
 
+/* ------------------------------------------ standing in the only way through --
+ *
+ * A person is a wall you can talk to. Put one on a tile that is the only way
+ * to a door, a sign or somebody else, and that thing is gone: the walk in this
+ * game routes round bodies, so a corridor one tile wide with a septa in it is
+ * a corridor with no other side.
+ *
+ * A septa added to Lannisport to make marrying findable was placed on the only
+ * tile leading to the town's north gate. The map therefore owed a sign nobody
+ * could reach for the rest of the game, so every router in the tester kept
+ * sending runs back for it, and three of the nine sweeps spent two and a half
+ * million frames walking between Lannisport and the Kingsroad. One tile.
+ *
+ * The flood already knows how to take a tile out of the map - it is how the
+ * roamers are checked. This asks the same question about the people who never
+ * move. */
+static int spareNextTo(const Map *m, int x, int y) {
+  int i;
+  for (i = 0; i < 4; i++) {
+    int nx = x + DIR_X[i], ny = y + DIR_Y[i];
+    if (nx < 0 || ny < 0 || nx >= m->w || ny >= m->h) continue;
+    if (spare[ny * m->w + nx]) return 1;
+  }
+  return 0;
+}
+
+static void checkNobodyBlocks(void) {
+  int m, i, j, said = 0;
+  for (m = 0; m < MAP_COUNT; m++) {
+    const Map *map = &maps[m];
+    int sx = -1, sy = -1;
+    if (!map->warpCount || map->w * map->h > 64 * 64) continue;
+    /* Start from a tile beside the first door, which is where somebody walking
+       in from outside is standing. */
+    for (i = 0; i < 4 && sx < 0; i++) {
+      int nx = map->warps[0].x + DIR_X[i], ny = map->warps[0].y + DIR_Y[i];
+      if (nx < 0 || ny < 0 || nx >= map->w || ny >= map->h) continue;
+      blocked = -1;
+      if (!solidOn(map, nx, ny)) { sx = nx; sy = ny; }
+    }
+    if (sx < 0) continue;
+    /* What can be reached with nobody in the way, so that a thing already cut
+       off for some other reason is not blamed on the first person standing
+       near it. */
+    blocked = -1;
+    memset(standable, 0, sizeof standable);
+    flood(map, sx, sy);
+    memcpy(spare, standable, sizeof spare);
+    for (i = 0; i < map->npcCount; i++) {
+      if (map->npcs[i].roams) continue;          /* they move; the walk waits */
+      blocked = map->npcs[i].y * map->w + map->npcs[i].x;
+      memset(standable, 0, sizeof standable);
+      flood(map, sx, sy);
+      for (j = 0; j < map->signCount; j++) {
+        int sxx = map->signs[j].x, syy = map->signs[j].y;
+        if (!standNextTo(map, sxx, syy) && spareNextTo(map, sxx, syy)) {
+          if (said++ < 12) {
+            bad("%s: %s stands on the only way to the sign at %d,%d",
+              map->name, map->npcs[i].name, sxx, syy);
+          }
+        }
+      }
+      for (j = 0; j < map->warpCount; j++) {
+        int wx = map->warps[j].x, wy = map->warps[j].y;
+        if (!standNextTo(map, wx, wy) && spareNextTo(map, wx, wy)) {
+          if (said++ < 12) {
+            bad("%s: %s stands on the only way to the door at %d,%d",
+              map->name, map->npcs[i].name, wx, wy);
+          }
+        }
+      }
+      for (j = 0; j < map->npcCount; j++) {
+        int nx2, ny2;
+        if (j == i) continue;
+        nx2 = map->npcs[j].x; ny2 = map->npcs[j].y;
+        if (!standNextTo(map, nx2, ny2) && spareNextTo(map, nx2, ny2)) {
+          if (said++ < 12) {
+            bad("%s: %s stands on the only way to %s",
+              map->name, map->npcs[i].name, map->npcs[j].name);
+          }
+        }
+      }
+    }
+    blocked = -1;
+  }
+}
+
 int main(void) {
   int m, i, j, seen[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, reached = 0, wayIn = -1;
   int totalNpc = 0, totalSign = 0, totalWarp = 0;
@@ -731,6 +818,7 @@ int main(void) {
   }
 
   checkNoWayBack();
+  checkNobodyBlocks();
 
   for (m = 0; m < MAP_COUNT; m++) {
     const Map *map = &maps[m];

@@ -235,6 +235,188 @@ static const Warp *warpOn(const Map *m, int x, int y) {
   return 0;
 }
 
+/* ------------------------------------------------- a door with no way back --
+ *
+ * The flood above asks, from where a door puts you down, whether you can reach
+ * a way out. On The Gullet you could: the cave mouth you had just come out of
+ * was one tile away. What it could not ask is where that way out goes, and the
+ * answer was back into the cave, whose only door goes back to that same two
+ * tiles of sand. The Wreckers' Cave was a room you could enter and never leave
+ * - the mouth is cut into the top of the islet and the cave returned you to
+ * the middle of it, walled in on four sides, and the only reason nobody ever
+ * saw it is that nothing had ever gone in.
+ *
+ * The check it needed is not about one door. A map is not one room: doors join
+ * *regions*, and the world is only sound if every region you can walk into is
+ * a region you can walk back out of. So: cut each map into regions of floor
+ * (a doorway is a boundary, because stepping onto one takes you somewhere
+ * else, not to the tile beyond it), draw an arrow for every door from each
+ * region that touches it to the region it lands in, join the berths together
+ * because a harbourmaster will carry you between any two of them, and then ask
+ * the only question that matters - which regions can be reached from a starting
+ * yard, and of those, which cannot reach one back. */
+
+#define MAX_REGION 8192
+#define MAX_ARROW  65536
+
+static short regionOf[MAP_COUNT][32 * 32];
+static int regionTotal;
+static int arrowFrom[MAX_ARROW], arrowTo[MAX_ARROW], arrowCount;
+/* One of the tiles in each region, so a complaint can say where it is. */
+static short regionX[MAX_REGION], regionY[MAX_REGION], regionMap[MAX_REGION];
+
+static void arrow(int from, int to) {
+  if (from < 0 || to < 0 || from == to || arrowCount >= MAX_ARROW) return;
+  arrowFrom[arrowCount] = from;
+  arrowTo[arrowCount] = to;
+  arrowCount++;
+}
+
+/* The region a tile belongs to, or -1 for a wall or a doorway. */
+static int regionAt(int m, int x, int y) {
+  if (x < 0 || y < 0 || x >= maps[m].w || y >= maps[m].h) return -1;
+  return regionOf[m][y * maps[m].w + x];
+}
+
+/* Where you are standing when you are put down on a tile. A doorway is nobody's
+   region, so landing on one - which a sea crossing does, every time - means the
+   floor beside it. */
+static void landsIn(int m, int x, int y, int *out, int *n) {
+  int i, r = regionAt(m, x, y);
+  if (r >= 0) { out[(*n)++] = r; return; }
+  for (i = 0; i < 4 && *n < 4; i++) {
+    int nr = regionAt(m, x + DIR_X[i], y + DIR_Y[i]);
+    int k, dup = 0;
+    if (nr < 0) continue;
+    for (k = 0; k < *n; k++) if (out[k] == nr) dup = 1;
+    if (!dup) out[(*n)++] = nr;
+  }
+}
+
+static void checkNoWayBack(void) {
+  static unsigned char forward[MAX_REGION], backward[MAX_REGION];
+  static int q[MAX_REGION];
+  int m, x, y, i, j, k, head, tail, lanes, said = 0;
+
+  regionTotal = 0;
+  memset(regionOf, 0xff, sizeof regionOf);        /* -1: nobody's region yet */
+  for (m = 0; m < MAP_COUNT; m++) {
+    const Map *map = &maps[m];
+    /* A map too big for the screen map is already a problem of its own above;
+       do not also run off the end of this one's region table for it. */
+    if (map->w * map->h > 32 * 32) continue;
+    for (y = 0; y < map->h; y++) {
+      for (x = 0; x < map->w; x++) {
+        int id;
+        if (regionOf[m][y * map->w + x] >= 0) continue;
+        if (solidOn(map, x, y) || ledgeOn(map, x, y) || warpOn(map, x, y)) continue;
+        if (regionTotal >= MAX_REGION) return;
+        id = regionTotal++;
+        regionMap[id] = (short)m; regionX[id] = (short)x; regionY[id] = (short)y;
+        /* This region, on the walk's own rules, with doorways as walls: you do
+           not cross a threshold, you go through it, and the tile on the far
+           side of a cave mouth is not one step away from the tile in front of
+           it - it is a boat ride and a walk. `flood` goes straight over them,
+           which is the whole reason this needs its own. */
+        {
+          int qh = 0, qt = 0;
+          regionOf[m][y * map->w + x] = (short)id;
+          floodQ[qt++] = y * map->w + x;
+          while (qh < qt) {
+            int cur = floodQ[qh++], cx = cur % map->w, cy = cur / map->w;
+            for (j = 0; j < 5; j++) {
+              int nx, ny;
+              if (j < 4) {
+                nx = cx + DIR_X[j]; ny = cy + DIR_Y[j];
+                if (ledgeOn(map, nx, ny)) continue;
+              } else {
+                if (!ledgeOn(map, cx, cy + 1)) continue;
+                nx = cx; ny = cy + 2;
+              }
+              if (nx < 0 || ny < 0 || nx >= map->w || ny >= map->h) continue;
+              if (regionOf[m][ny * map->w + nx] >= 0) continue;
+              if (solidOn(map, nx, ny) || warpOn(map, nx, ny)) continue;
+              regionOf[m][ny * map->w + nx] = (short)id;
+              floodQ[qt++] = ny * map->w + nx;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /* Doorways: an arrow from each region that touches one to the region it puts
+     you down in. */
+  arrowCount = 0;
+  for (m = 0; m < MAP_COUNT; m++) {
+    const Map *map = &maps[m];
+    for (i = 0; i < map->warpCount; i++) {
+      int to = map->warps[i].to, lands[4], n = 0;
+      if (to < 0 || to >= MAP_COUNT) continue;
+      landsIn(to, map->warps[i].tx, map->warps[i].ty, lands, &n);
+      for (j = 0; j < 4; j++) {
+        int r = regionAt(m, map->warps[i].x + DIR_X[j], map->warps[i].y + DIR_Y[j]);
+        if (r < 0) continue;
+        for (k = 0; k < n; k++) arrow(r, lands[k]);
+      }
+    }
+  }
+  /* And the passage list: every berth reaches every other berth, both ways,
+     for the price of asking whoever sails. */
+  lanes = regionTotal < MAX_REGION ? regionTotal++ : -1;
+  if (lanes >= 0) {
+    regionMap[lanes] = -1; regionX[lanes] = 0; regionY[lanes] = 0;
+    for (i = 0; i < PORT_COUNT; i++) {
+      int lands[4], n = 0;
+      if (ports[i].map < 0 || ports[i].map >= MAP_COUNT) continue;
+      landsIn(ports[i].map, ports[i].x, ports[i].y, lands, &n);
+      for (k = 0; k < n; k++) { arrow(lands[k], lanes); arrow(lanes, lands[k]); }
+    }
+  }
+
+  /* Out from the yards every house starts in... */
+  memset(forward, 0, sizeof forward);
+  head = tail = 0;
+  for (i = 0; i < HOUSE_COUNT; i++) {
+    int lands[4], n = 0, s = houses[i].startMap;
+    if (s < 0 || s >= MAP_COUNT) continue;
+    landsIn(s, houses[i].startX, houses[i].startY, lands, &n);
+    for (k = 0; k < n; k++) if (!forward[lands[k]]) { forward[lands[k]] = 1; q[tail++] = lands[k]; }
+  }
+  while (head < tail) {
+    int r = q[head++];
+    for (i = 0; i < arrowCount; i++) {
+      if (arrowFrom[i] != r || forward[arrowTo[i]]) continue;
+      forward[arrowTo[i]] = 1;
+      q[tail++] = arrowTo[i];
+    }
+  }
+  /* ...and back to them, up the same arrows the other way. */
+  memset(backward, 0, sizeof backward);
+  head = tail = 0;
+  for (i = 0; i < HOUSE_COUNT; i++) {
+    int lands[4], n = 0, s = houses[i].startMap;
+    if (s < 0 || s >= MAP_COUNT) continue;
+    landsIn(s, houses[i].startX, houses[i].startY, lands, &n);
+    for (k = 0; k < n; k++) if (!backward[lands[k]]) { backward[lands[k]] = 1; q[tail++] = lands[k]; }
+  }
+  while (head < tail) {
+    int r = q[head++];
+    for (i = 0; i < arrowCount; i++) {
+      if (arrowTo[i] != r || backward[arrowFrom[i]]) continue;
+      backward[arrowFrom[i]] = 1;
+      q[tail++] = arrowFrom[i];
+    }
+  }
+
+  for (i = 0; i < regionTotal; i++) {
+    if (!forward[i] || backward[i] || regionMap[i] < 0) continue;
+    if (said++ >= 12) { bad("...and more ground with no way back off it"); break; }
+    bad("%s: walk onto %d,%d and there is no way back to where you started",
+      maps[regionMap[i]].name, regionX[i], regionY[i]);
+  }
+}
+
 /* Every character the cartridge will ever try to draw has to have a glyph, or
    it comes out as a hole in the middle of a word. */
 static void checkText(const char *what, const char *s) {
@@ -547,6 +729,8 @@ int main(void) {
     }
     (void)in;
   }
+
+  checkNoWayBack();
 
   for (m = 0; m < MAP_COUNT; m++) {
     const Map *map = &maps[m];

@@ -5581,7 +5581,12 @@ export const MAPS = {
 
   wreckersCave: makeCave({
     id: 'wreckersCave', name: "The Wreckers' Cave",
-    back: 'theGullet', backX: 8, backY: 4,
+    /* Out onto the beach that rings the islet, not into the middle of it. The
+       mouth is cut in the cliff's top face and this used to put you down on
+       the far side of it, on two tiles of sand walled in by rock, where the
+       only thing you could walk onto was the mouth again - so anyone who went
+       into this cave stayed in it for the rest of the game. */
+    back: 'theGullet', backX: 8, backY: 2,
     encounters: [
       { beast: 'krakenling', min: 14, max: 18, weight: 30 },
       { beast: 'crabcrag', min: 13, max: 17, weight: 24 },
@@ -5640,7 +5645,9 @@ export const MAPS = {
 
   iceCave: makeCave({
     id: 'iceCave', name: 'The Ice Caves', w: 24, h: 18, chambers: 4, cold: 5,
-    back: 'shiveringSea', backX: 12, backY: 10,
+    /* The beach north of the mouth, not the one tile of sand that used to be
+       cut into the cliff top behind it. See the Wreckers' Cave. */
+    back: 'shiveringSea', backX: 12, backY: 9,
     encounters: [
       { beast: 'wightling', min: 30, max: 35, weight: 30 },
       { beast: 'barrowlord', min: 32, max: 36, weight: 22 },
@@ -5700,8 +5707,10 @@ export const MAPS = {
   theGullet: makeSea({
     name: 'The Gullet',
     draw: ({ put, isle, crossing, wreck, mouth }) => {
+      /* The mouth is in the cliff face and you stand on the beach below it.
+         The two tiles of sand that used to be cut into the middle of the rock
+         were ground nothing could reach and the cave put you down on. */
       isle(6, 3, 4, 3);
-      put(7, 4, 's'); put(8, 4, 's');
       mouth(8, 3, 'wreckersCave', 2, 15, 'up');
       isle(9, 17, 5, 3);
       isle(20, 7, 3, 6);
@@ -5762,9 +5771,10 @@ export const MAPS = {
       quay(3, 23, 'eastwatch', 11, 19, 'right');
       span(27, 3, 4, 4, 's'); span(28, 3, 3, 3, 'C');
       quay(27, 5, 'hardhome', 11, 21, 'left');
+      /* Same shape as the Gullet: the mouth in the cliff, the beach outside
+         it. The single tile of sand cut into the cliff top was a cell. */
       isle(11, 10, 3, 2);
-      put(12, 10, 's');
-      mouth(12, 9, 'iceCave', 2, 16, 'up');
+      mouth(12, 10, 'iceCave', 2, 16, 'up');
       isle(19, 16, 3, 2);
       put(7, 8, 'i'); put(22, 7, 'i'); put(14, 21, 'i');
       wreck(14, 11, 'kissOfFire', 'sea_shiver_fire');

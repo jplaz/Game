@@ -276,6 +276,9 @@ static int oathTrips;
    was, so a two-map circle can be broken where it is made. */
 static int doorsSinceWork, wasTalked, wasSigns, lastDoorMap = -1, lastDoorIndex = -1;
 static int circlesBroken;
+/* How many times each map has been left by the door at the hero's feet
+   because no door leading anywhere unfinished could be walked to. */
+static unsigned char pocketOuts[MAP_COUNT];
 /* How many times every nailed door has been forgiven. */
 static int forgiven;
 static const char *goalWhy = "-";
@@ -405,6 +408,8 @@ static int walkableTo(int want) {
 #define WARP_GIVE_UP 4
 static unsigned char warpStuck[MAP_COUNT][MAX_WARP_MARK];
 
+static int canWalkTo(int gx, int gy);
+
 static int warpTowardWork(void) {
   int from[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, i;
   for (i = 0; i < MAP_COUNT; i++) from[i] = -2;
@@ -433,6 +438,12 @@ static int warpTowardWork(void) {
         for (k = 0; k < world->warpCount; k++) {
           if (world->warps[k].to != at) continue;
           if (k < MAX_WARP_MARK && warpStuck[worldId][k] >= WARP_GIVE_UP) continue;
+          /* Not "and a door you can walk to": a passer-by standing in a
+             gateway makes the right door look unreachable for a moment, and
+             skipping it on that basis sends the search on to some other
+             unfinished map and hands back a door pointing the opposite way.
+             Doing that here took a sweep from a thousand doors to a hundred
+             thousand. The caller checks the one door this returns instead. */
           door = k;
           break;
         }
@@ -531,6 +542,17 @@ static u16 lostHere[MAP_COUNT];
 static u8 badGround[MAP_COUNT];
 /* Frames spent walking grass since the last fight actually started. */
 static int grindQuiet;
+/* Frames stood in the snow since the ranging count last went up, and the cold
+   fields already given a fair go.
+ *
+ * The dead do not walk every cold field. A sweep stood at Castle Black for two
+ * million frames - three quarters of a whole playthrough - winning a hundred
+ * fights against living men and putting down one wight of the three it had
+ * been asked for, because the only thing that ever let the ranging grind go
+ * was the count being made, and the only thing that ever let a *grind* go was
+ * no fight starting at all. Fights were starting. They were just not the dead. */
+static int rangeQuiet, rangeWas = -1;
+static unsigned char coldTried[MAP_COUNT];
 
 /* An edge in the pouch that will mark the dead, when what is in your hand
    will not.
@@ -595,6 +617,32 @@ static int warpTowardTrade(void) {
 
 /* The door out of here that gets nearest to a given map. */
 static int hopsBetween(int from, int want);
+
+/* How much floor the hero can actually get to from where they stand, counted
+   the way the walk counts it - so doors are walls, because the walk will not
+   route through a door it did not choose. A room is dozens of tiles and a map
+   is hundreds; a pocket is a handful. */
+static int roomHere(void) {
+  int head = 0, tail = 0, i, n = 0;
+  int hx = hero.px >> 4, hy = hero.py >> 4;
+  int w = world->w, h = world->h;
+  for (i = 0; i < w * h; i++) cameFrom[i] = -2;
+  cameFrom[hy * w + hx] = -1;
+  queue[tail++] = hy * w + hx;
+  while (head < tail) {
+    int cur = queue[head++], cx = cur % w, cy = cur / w;
+    n++;
+    for (i = 0; i < 4; i++) {
+      int nx = cx + DIR_X[i], ny = cy + DIR_Y[i];
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+      if (cameFrom[ny * w + nx] != -2) continue;
+      if (solidAt(nx, ny) || ledgeAt(nx, ny) || warpHere(nx, ny)) continue;
+      cameFrom[ny * w + nx] = cur;
+      queue[tail++] = ny * w + nx;
+    }
+  }
+  return n;
+}
 
 /* Whether the hero could put a foot on that tile from where they stand. */
 static int canWalkTo(int gx, int gy) {
@@ -1121,7 +1169,7 @@ static void pickGoal(void) {
    * the Watch was an errand board nobody ever collected from. Stand in the
    * snow and wait for them, the way the man in black asked. */
   if (you.rangeWant && you.rangeGot < you.rangeWant) {
-    if (world->cold && world->cold + winterStage() >= 7
+    if (!coldTried[worldId] && world->cold && world->cold + winterStage() >= 7
         && findCover(&grindX, &grindY)) {
       grindMode = 1;
       goalWhy = "ranging-grind"; goalKind = GOAL_SIGN; goalIndex = 0;
@@ -1130,7 +1178,7 @@ static void pickGoal(void) {
     {
       int m, want = -1, best = 0;
       for (m = 0; m < MAP_COUNT; m++) {
-        if (!mapSeen[m] || !maps[m].cold) continue;
+        if (!mapSeen[m] || !maps[m].cold || coldTried[m]) continue;
         if (maps[m].cold + winterStage() < 7) continue;
         if (maps[m].cold > best) { best = maps[m].cold; want = m; }
       }
@@ -1152,7 +1200,59 @@ static void pickGoal(void) {
     if (i >= 0) { goalWhy = "sailor"; goalKind = GOAL_NPC; goalIndex = i; return; }
   }
   i = warpTowardWork();
-  if (i >= 0) { goalWhy = "work"; goalKind = GOAL_WARP; goalIndex = i; }
+  if (i >= 0 && canWalkTo(world->warps[i].x, world->warps[i].y)) {
+    goalWhy = "work"; goalKind = GOAL_WARP; goalIndex = i; return;
+  }
+
+  if (getenv("WHYPOCKET")) {
+    static int said = 0;
+    if (said++ < 40)
+      printf("      [pocket] %s at %d,%d room %d outs %d workdoor %d\n",
+        world->name, hero.px >> 4, hero.py >> 4, roomHere(),
+        pocketOuts[worldId], i);
+  }
+
+  /* Out of this pocket by whatever door is at your feet.
+   *
+   * A map is not always one room. The Gullet is a sea with a rocky islet in
+   * it, and the two tiles at the mouth of the Wreckers' Cave touch nothing
+   * else on that map: the walk will not route through a door it did not
+   * choose, so the only way off those two tiles is the cave mouth you came in
+   * by - and the router never picks that one, because the far side is a map
+   * it has already finished. A sweep of Highgarden stood there for five
+   * hundred thousand frames trying each of the other thirty-one doors four
+   * times, could reach none of them, and then said there was nothing left in
+   * the world to do, thirty-five maps into two hundred and thirty-one.
+   *
+   * Twice per map, and then it is written off. Taking the door at your feet
+   * gets you out of the pocket; taking it every time the far side sends you
+   * back is the two-map circle again.
+   *
+   * And only when the hero really is boxed in. "The door the search wanted
+   * cannot be reached" is also what a passer-by standing in a gateway looks
+   * like for a second or two, and diverting the run through the nearest other
+   * door on that showing cost a sweep half the maps it used to walk. A body
+   * moves; a pocket is twenty tiles of floor with nothing but doors around
+   * it, and it does not. */
+  if (pocketOuts[worldId] < 2 && roomHere() <= 20) {
+    int best = -1, k;
+    for (k = 0; k < world->warpCount; k++) {
+      if (!crossable(world->warps[k].to)) continue;
+      if (!canWalkTo(world->warps[k].x, world->warps[k].y)) continue;
+      if (best < 0 || !mapDone(world->warps[k].to)) best = k;
+      if (!mapDone(world->warps[k].to)) break;
+    }
+    if (best >= 0 && best != i) {
+      pocketOuts[worldId]++;
+      goalWhy = "out of the pocket"; goalKind = GOAL_WARP; goalIndex = best;
+      return;
+    }
+  }
+  /* No pocket, or the allowance is spent: go back to the door the search
+     wanted. It cannot be walked to this instant, but a body in a gateway
+     moves, and if it does not the give-up count will nail the door in four
+     tries and the search will pick another. */
+  if (i >= 0) { goalWhy = "work"; goalKind = GOAL_WARP; goalIndex = i; return; }
 }
 
 /* Whether that tile is a counter you can lean over. */
@@ -1266,6 +1366,33 @@ void hostFrame(void) {
 
   checkFrame();
   if (scene != SCENE_SHOP) shopHeld = 0;
+
+  /* The dead do not walk every cold field, and standing in one that they do
+     not walk is not an errand, it is the rest of the playthrough.
+   *
+   * A sweep from Riverrun stood at Castle Black for two million frames - three
+   * quarters of everything it played - winning a hundred fights against living
+   * men and putting down one wight of the three the Watch had asked for. Every
+   * latch that could have let it go was looking at the wrong thing: the grind
+   * gives up on ground that will not give you a *fight*, and this ground gave
+   * it plenty. What was not happening was the count going up.
+   *
+   * Counted out here, before anything in the frame can return early, because
+   * the grind is one of several paths that never reach the bottom of this
+   * function and putting the count inside one of them left it reading one. */
+  if (grindMode && !ladderMode && you.rangeWant && you.rangeGot < you.rangeWant) {
+    if (you.rangeGot != rangeWas) { rangeWas = you.rangeGot; rangeQuiet = 0; }
+    if (++rangeQuiet > 60000) {
+      rangeQuiet = 0;
+      coldTried[worldId] = 1;
+      printf("      %s is cold and empty: %d frames and no dead thing in them, "
+             "ranging elsewhere\n", world->name, 60000);
+      grindMode = 0;
+      goalKind = GOAL_NONE;
+    }
+  } else if (!grindMode) {
+    rangeQuiet = 0;
+  }
 
   /* DRAGONS=1 hands the run three broken seats the moment it is in the world,
      because that is what wakes the dragons and a wandering run never climbs
@@ -2589,10 +2716,10 @@ void hostFrame(void) {
     snapshot(name);
   }
   if (getenv("TRACE") && (frameNo % 25000) == 0) {
-    fprintf(stderr, "f%7d %-18s scene %d phase %d win %d typed %d line %d/%d shift %d spot %d at %2d,%2d goal %d/%d stage %d gf %d rung %d lvl %d gold %d\n",
+    fprintf(stderr, "f%7d %-18s scene %d phase %d win %d typed %d line %d/%d shift %d spot %d at %2d,%2d goal %d/%d (%s) stage %d gf %d grind %d rangeQ %d rung %d lvl %d gold %d\n",
       frameNo, world ? world->name : "-", scene, duelPhase, windowOpen,
       typeDone, lineAt, lineCount, shift, spotted, hero.px >> 4, hero.py >> 4,
-      goalKind, goalIndex, goalStage, goalFrames, ladderRung, you.level, you.gold);
+      goalKind, goalIndex, goalWhy, goalStage, goalFrames, grindMode, rangeQuiet, ladderRung, you.level, you.gold);
   }
   if (frameNo > frameCap) {
     finding("the playthrough ran out of frames in %s: scene %d, goal %d/%d, "

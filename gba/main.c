@@ -657,6 +657,30 @@ static void plot(int x, int y, u8 colour) {
  * only the ragged edges go through plot(). A full-page clear is four hundred
  * and twenty tiles instead of twenty-seven thousand pixels.
  */
+/* ------------------------------------------------- watching for overdraw --
+ *
+ * Two pieces of text drawn on top of each other read as neither of them. The
+ * counter had it twice at once - the sixth row of the shelf landing on the
+ * line that describes what the cursor is on, and "START: sell" landing on
+ * "SELECT: brew" - and both had been on the cartridge, in a screen anybody
+ * playing opens within a minute, for as long as the screen has existed.
+ *
+ * Nothing could have caught them by reading the source: what collides depends
+ * on how wide a particular sentence is in a particular font, and the two
+ * strings are written eight lines apart in a painter that never measures
+ * either. So the check goes where every piece of text in the game must pass -
+ * here - and the tester, which opens every screen, watches for one box of
+ * letters landing on another that has not been painted over first. */
+#ifdef WATCH_TEXT
+void hostTextDrawn(int x, int y, int w, int h, const char *s);
+void hostAreaCleared(int x, int y, int w, int h);
+#define TEXT_DRAWN(x, y, w, h, s) hostTextDrawn((x), (y), (w), (h), (s))
+#define AREA_CLEARED(x, y, w, h)  hostAreaCleared((x), (y), (w), (h))
+#else
+#define TEXT_DRAWN(x, y, w, h, s) ((void)0)
+#define AREA_CLEARED(x, y, w, h)  ((void)0)
+#endif
+
 static void fillRect(int x, int y, int w, int h, u8 colour) {
   int x1, y1, ty, tx, tyEnd, txEnd;
   u8 pair;
@@ -667,6 +691,7 @@ static void fillRect(int x, int y, int w, int h, u8 colour) {
   if (x1 > TXT_W) x1 = TXT_W;
   if (y1 > TXT_H) y1 = TXT_H;
   if (x >= x1 || y >= y1) return;
+  AREA_CLEARED(x, y, x1 - x, y1 - y);
   pair = (u8)(colour | (colour << 4));
   tyEnd = (y1 - 1) >> 3;
   txEnd = (x1 - 1) >> 3;
@@ -705,6 +730,7 @@ static void clearPage(void) {
   int i, j;
   for (i = 0; i < TXT_TILES; i++) for (j = 0; j < 32; j++) pageTiles[i][j] = 0;
   dirtyLo = 0; dirtyHi = TXT_TILES - 1;
+  AREA_CLEARED(0, 0, TXT_W, TXT_H);
 }
 
 static void clearRows(int y, int h) { fillRect(0, y, TXT_W, h, C_CLEAR); }
@@ -754,6 +780,7 @@ static int textWidth(const char *s) {
 static void drawText(int x, int y, const char *s, u8 ink) {
   const char *p;
   int at, row, col, pass;
+  int hi = FONT_ROWS, lo = -1;             /* the rows this string actually inks */
   for (pass = 0; pass < 2; pass++) {
     for (p = s, at = x; *p; p++) {
       int g = glyphOf[(u8)*p & 127];
@@ -763,11 +790,19 @@ static void drawText(int x, int y, const char *s, u8 ink) {
           if (!((bits >> col) & 1)) continue;
           if (pass) plot(at + col, y + row, ink);
           else plot(at + col + 1, y + row + 1, C_SHADE);
+          if (row < hi) hi = row;
+          if (row > lo) lo = row;
         }
       }
       at += font_advance[g];
     }
   }
+  /* The rows it put ink on, not the rows the font reserves: a line of capitals
+     and a line with a 'y' hanging off it occupy very different amounts of the
+     eleven pixels between one row of a list and the next, and measuring the
+     reserved height instead called every pair of adjacent lines a collision.
+     One pixel past the ink on both axes, for the shadow. */
+  if (lo >= 0) TEXT_DRAWN(x, y + hi, at - x + 1, lo - hi + 2, s);
 }
 
 /* One letter, and how far the next one starts along. Text is typed out rather
@@ -785,6 +820,27 @@ static int drawGlyph(int x, int y, char c, u8 ink) {
     }
   }
   return font_advance[g];
+}
+
+/* A name written into a column, cut to the column it is written into.
+ *
+ * Half the lists in this game put a name on the left and a number on the
+ * right at a fixed x, and a name long enough simply ran under the number:
+ * "Targaryen Dragonrider" is a hundred and thirty pixels of name in a hundred
+ * pixels of room, and what you read was the two of them at once. Better a
+ * name with its tail off than a name with a level printed through it. */
+static void drawTextIn(int x, int y, const char *s, u8 ink, int room) {
+  char cut[72];
+  int n = 0, w = 0;
+  while (s[n] && n < (int)sizeof cut - 1) {
+    int cw = charWidth(s[n]);
+    if (w + cw > room) break;
+    cut[n] = s[n];
+    w += cw;
+    n++;
+  }
+  cut[n] = 0;
+  drawText(x, y, cut, ink);
 }
 
 static void centreText(int y, const char *s, u8 ink) {
@@ -1021,11 +1077,32 @@ static void drawCursor(int x, int y, u8 colour) {
 /* Six rows of a list, with the chosen one kept in view. */
 #define LIST_ROWS 6
 
-static int listTop(int pick, int count) {
-  int top = pick - (LIST_ROWS >> 1);
-  if (top > count - LIST_ROWS) top = count - LIST_ROWS;
+static int listTopN(int pick, int count, int rows) {
+  int top = pick - (rows >> 1);
+  if (top > count - rows) top = count - rows;
   if (top < 0) top = 0;
   return top;
+}
+
+static int listTop(int pick, int count) { return listTopN(pick, count, LIST_ROWS); }
+
+/* Where the rows of the counter and the pouch sit, and how many of them there
+   is actually room for above the line that describes what the cursor is on. */
+#define BAG_ROWS   5
+#define SHOP_ROW0  22
+#define SHOP_PITCH 11
+#define SHOP_MEND_Y 68
+#define SHOP_DESC_Y 80
+#define SHOP_HINT_Y 92
+
+
+/* A little solid arrowhead, for saying "there is more of this that way" without
+   spending eight pixels of a crowded line on the word "left". */
+static void drawChevron(int x, int y, int leftward, u8 colour) {
+  int i;
+  for (i = 0; i < 4; i++) {
+    fillRect(leftward ? x + 3 - i : x + i, y + 3 - i, 1, 1 + i * 2, colour);
+  }
 }
 
 /* ---------------------------------------------------------------- plate ---- */
@@ -2890,7 +2967,7 @@ static void paintDuelPlates(void) {
      had thirty rows and wanted twenty-four, and the six it did not want are
      the six yours had been going without. */
   drawPlate(4, 0, 152, 24);
-  drawText(12, 2, theirs.name, C_INK);
+  drawTextIn(12, 2, theirs.name, C_INK, 108);
   copyString(scratch, "Lv ", sizeof scratch);
   appendNumber(scratch, theirs.level, sizeof scratch);
   drawText(124, 2, scratch, C_DIM);
@@ -2901,7 +2978,7 @@ static void paintDuelPlates(void) {
      them. It had twenty-four, and the bars were drawn straight through the
      name and the level. */
   drawPlate(TXT_W - 156, 24, 152, 32);
-  drawText(TXT_W - 148, 27, nearSide()->name, C_INK);
+  drawTextIn(TXT_W - 148, 27, nearSide()->name, C_INK, 108);
   copyString(scratch, "Lv ", sizeof scratch);
   appendNumber(scratch, nearSide()->level, sizeof scratch);
   drawText(TXT_W - 36, 27, scratch, C_DIM);
@@ -2979,24 +3056,22 @@ static void paintDuelPack(void) {
        guesswork with six animals' lives on it. */
     full = beastVigour(k->kind, k->level);
     now = k->hp < 0 ? 0 : (k->hp > full ? full : k->hp);
-    copyString(scratch, beasts[k->kind].name, sizeof scratch);
-    /* Six of these across two columns: trim the name rather than let it run
-       under the numbers. */
-    while (textWidth(scratch) > 56) {
-      int n = 0;
-      while (scratch[n]) n++;
-      if (!n) break;
-      scratch[n - 1] = 0;
-    }
-    drawText(x, y, scratch, tint);
+    /* Six of these across two columns a hundred and ten apart: a name, a
+       level and "216/238" want a hundred and twenty between them, so the name
+       is trimmed to forty and the health is written back from the column's
+       right edge. */
+    drawTextIn(x, y, beasts[k->kind].name, tint, 40);
     copyString(scratch, "", sizeof scratch);
     appendNumber(scratch, k->level, sizeof scratch);
-    drawText(x + 60, y, scratch, tint);
+    drawText(x + 44, y, scratch, tint);
     copyString(scratch, "", sizeof scratch);
     appendNumber(scratch, now, sizeof scratch);
     appendString(scratch, "/", sizeof scratch);
     appendNumber(scratch, full, sizeof scratch);
-    drawText(x + 76, y, scratch, k->hp <= 0 ? C_HURT : C_DIM);
+    /* Written from the right of its own column. Two hundred and eight plus a
+       seven-figure "216/238" is two hundred and forty-eight, and the page is
+       two hundred and forty wide: the right-hand column lost its last digit. */
+    drawText(x + 104 - textWidth(scratch), y, scratch, k->hp <= 0 ? C_HURT : C_DIM);
     /* A slim rail under each, so the whole pack reads at a glance. Two rows
        deep rather than the four the duel plates use: six of these have to fit
        in the same short window the rest of the fight is played in. */
@@ -4080,7 +4155,7 @@ static void paintStanding(void) {
     copyString(scratch, "The season: ", sizeof scratch);
     appendString(scratch, seasonWord(), sizeof scratch);
     drawText(16, 88, scratch, ink);
-    drawText(16, 97, deadReachWord(), ink);
+    drawTextIn(16, 97, deadReachWord(), ink, TXT_W - 32);
   }
 }
 
@@ -4111,7 +4186,8 @@ static void paintStatus(void) {
     if (style) {
       copyString(scratch, "Addressed as ", sizeof scratch);
       appendString(scratch, style, sizeof scratch);
-      drawText(TXT_W - 16 - textWidth(scratch), 17, scratch, C_TRIM);
+      drawTextIn(TXT_W - 16 - textWidth(scratch) < 126 ? 126
+                 : TXT_W - 16 - textWidth(scratch), 17, scratch, C_TRIM, TXT_W - 16 - 126);
     }
   }
 
@@ -4151,7 +4227,7 @@ static void paintStatus(void) {
     appendString(scratch, ", level ", sizeof scratch);
     appendNumber(scratch, MY_BEAST.level, sizeof scratch);
     if (MY_BEAST.hp <= 0) appendString(scratch, ", and down", sizeof scratch);
-    drawText(16, 76, scratch, MY_BEAST.hp <= 0 ? C_HURT : C_WELL);
+    drawTextIn(16, 76, scratch, MY_BEAST.hp <= 0 ? C_HURT : C_WELL, TXT_W - 32);
   } else if (you.tamed) {
     drawText(16, 76, "Nothing at your heel just now.", C_DIM);
   } else {
@@ -4586,6 +4662,47 @@ static void showGold(int y) {
   drawText(TXT_W - 14 - textWidth(scratch), y, scratch, C_GOLD);
 }
 
+/* Where the purse begins, so nothing is laid out into it. A run with thirty
+   thousand gold in it wrote the number straight through the last tab of the
+   counter's strip, because the strip was placed by counting from the left and
+   the purse by counting from the right and neither of them knew about the
+   other. */
+static int goldLeftEdge(void) {
+  char sum[24];
+  copyString(sum, "Gold ", sizeof sum);
+  appendNumber(sum, you.gold, sizeof sum);
+  return TXT_W - 14 - textWidth(sum);
+}
+
+/* The four sections along the top of the counter and of the pouch, so you can
+   see at a glance that there is an armourer's shelf and a pedlar's table as
+   well as the one you opened on. One counter with seventy-six things on it is
+   not a shop.
+ *
+ * The gap between them is whatever is left over once the purse has had its
+   corner, down to a single pixel: it is better for the strip to read tight
+   than for the last tab to be written over. */
+static void paintStallTabs(int chosen) {
+  int i, total = 0, gap, room, x = 14;
+  for (i = 0; i < STALL_COUNT; i++) total += textWidth(stallName[i]);
+  room = goldLeftEdge() - 8 - 14 - total;
+  gap = STALL_COUNT > 1 ? room / (STALL_COUNT - 1) : 9;
+  if (gap > 9) gap = 9;
+  if (gap < 1) gap = 1;
+  for (i = 0; i < STALL_COUNT; i++) {
+    const char *tab = stallName[i];
+    drawText(x, 6, tab, i == chosen ? C_GOLD : C_DIM);
+    if (i == chosen) fillRect(x, 15, textWidth(tab), 1, C_GOLD);
+    x += textWidth(tab) + gap;
+  }
+  showGold(6);
+  /* Two arrowheads on the rule instead of the words "left/right: shelf", which
+     in this font is fifty-seven pixels of a line that has none to spare. */
+  fillRect(22, 18, TXT_W - 44, 1, C_EDGE);
+  drawChevron(14, 16, 1, C_GOLD);
+  drawChevron(TXT_W - 18, 16, 0, C_GOLD);
+}
+
 static int worn(int at) {
   int k;
   for (k = 0; k < WARE_KINDS; k++) if (you.worn[k] == at + 1) return 1;
@@ -4641,8 +4758,8 @@ static void describeWare(int at, int inPouch) {
       const Ware *had = &wares[you.worn[w->kind] - 1];
       int step = (w->might + w->guard) - (had->might + had->guard);
       appendString(scratch, "   ", sizeof scratch);
-      appendString(scratch, step > 0 ? "Better than your " : step < 0 ? "Worse than your "
-                                                                     : "Same as your ", sizeof scratch);
+      appendString(scratch, step > 0 ? "better than " : step < 0 ? "worse than "
+                                                                  : "same as ", sizeof scratch);
       appendString(scratch, had->name, sizeof scratch);
     }
   }
@@ -4682,33 +4799,28 @@ static int wareWorth(int at) {
 }
 
 static void paintBag(void) {
-  int have = pocketCount(bagPocket), top = listTop(bagPick, have), i, k, x = 14;
+  int have = pocketCount(bagPocket), top = listTopN(bagPick, have, BAG_ROWS), i;
   clearRows(0, TXT_H);
   drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
   /* The same tab strip the counter wears, because they are two sides of the
      same furniture. */
-  for (k = 0; k < STALL_COUNT; k++) {
-    const char *tab = stallName[k];
-    drawText(x, 6, tab, k == bagPocket ? C_GOLD : C_DIM);
-    if (k == bagPocket) fillRect(x, 15, textWidth(tab), 1, C_GOLD);
-    x += textWidth(tab) + 9;
-  }
-  showGold(6);
-  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+  paintStallTabs(bagPocket);
 
   if (!carrying()) {
     drawText(20, 34, "Nothing but your own hands.", C_DIM);
-    drawText(14, TXT_H - 18, "B to put it away", C_DIM);
+    drawText(14, SHOP_HINT_Y, "B: put it away", C_DIM);
     return;
   }
   if (!have) {
     drawText(20, 34, "Nothing in this pocket.", C_DIM);
-    drawText(14, TXT_H - 18, "left/right: pocket    B: put it away", C_DIM);
+    drawText(14, SHOP_HINT_Y, "B: put it away", C_DIM);
     return;
   }
-  for (i = 0; i < LIST_ROWS && top + i < have; i++) {
+  /* Five rows, not six, for the same reason the counter has five: the sixth
+     lands on the line that says what the cursor is on. */
+  for (i = 0; i < BAG_ROWS && top + i < have; i++) {
     int at = nthInPocket(bagPocket, top + i);
-    int y = 22 + i * 11;
+    int y = SHOP_ROW0 + i * SHOP_PITCH;
     if (top + i == bagPick) drawCursor(14, y + 1, C_GOLD);
     drawText(24, y, wares[at].name, top + i == bagPick ? C_GOLD : C_INK);
     if (wares[at].kind == WARE_POTION || wares[at].kind == WARE_STUFF
@@ -4734,7 +4846,7 @@ static void paintBag(void) {
   {
     int at = nthInPocket(bagPocket, bagPick);
     describeWare(at, 1);
-    drawText(14, TXT_H - 18, scratch, C_DIM);
+    drawTextIn(14, SHOP_DESC_Y, scratch, C_DIM, TXT_W - 28);
     /* At a counter the pouch is also where you sell, so it says what this is
        worth and which button takes it. */
     if (atCounter && have) {
@@ -4742,8 +4854,7 @@ static void paintBag(void) {
       copyString(scratch, worth ? "SELECT: sell for " : "SELECT: they will not take that",
         sizeof scratch);
       if (worth) appendNumber(scratch, worth, sizeof scratch);
-      drawText(TXT_W - 14 - textWidth(scratch), TXT_H - 18, scratch,
-        worth ? C_GOLD : C_DIM);
+      drawText(14, SHOP_HINT_Y, scratch, worth ? C_GOLD : C_DIM);
     }
   }
 }
@@ -5298,9 +5409,15 @@ static void paintCraft(void) {
       appendNumber(scratch, you.bag[r->mat[i2]], sizeof scratch);
       appendString(scratch, ")", sizeof scratch);
     }
-    drawText(14, TXT_H - 32, scratch, C_INK);
-    drawText(14, TXT_H - 18, craftAt ? "A: forge it    SELECT: the counter    B: go"
-                                     : "A: brew it    SELECT: the counter    B: go", C_DIM);
+    {
+      int k;
+      wrapText(scratch, TXT_W - 28);
+      for (k = 0; k <= lineCount && k < 2; k++) {
+        drawText(14, TXT_H - 42 + k * 10, lines[k], C_INK);
+      }
+    }
+    drawText(14, TXT_H - 18, craftAt ? "A: forge it   SELECT: counter   B: go"
+                                     : "A: brew it   SELECT: counter   B: go", C_DIM);
   }
 }
 
@@ -5433,7 +5550,7 @@ static void paintPort(void) {
     appendString(scratch, hulls[you.shipKind].name, sizeof scratch);
     if (portPick == -1) drawCursor(14, 23, C_GOLD);
     drawText(24, 22, scratch, portPick == -1 ? C_GOLD : C_INK);
-    drawText(TXT_W - 46, 22, soundWord(), C_DIM);
+    drawText(TXT_W - 14 - textWidth(soundWord()), 22, soundWord(), C_DIM);
     fillRect(14, 34, TXT_W - 28, 1, C_EDGE);
     row = 0;
   }
@@ -5451,7 +5568,7 @@ static void paintPort(void) {
     drawText(24, y, ports[i].name,
       !able ? C_DIM : (i == portPick ? C_GOLD : C_INK));
     if (i == mine) {
-      drawText(TXT_W - 62, y, "you are here", C_DIM);
+      drawText(TXT_W - 14 - textWidth("you are here"), y, "you are here", C_DIM);
     } else {
       if (countSigils() < (int)ports[i].needs) {
         copyString(scratch, "", sizeof scratch);
@@ -5512,8 +5629,8 @@ static void drawLandRow(int i, int y) {
   int mine = ownsLand(i);
   int able = !mine && you.gold >= (int)deeds[i].price;
   if (i == landPick) drawCursor(14, y + 1, C_GOLD);
-  drawText(24, y, deeds[i].name,
-    mine ? C_INK : (!able ? C_DIM : (i == landPick ? C_GOLD : C_INK)));
+  drawTextIn(24, y, deeds[i].name,
+    mine ? C_INK : (!able ? C_DIM : (i == landPick ? C_GOLD : C_INK)), TXT_W - 60 - 24);
   if (mine) {
     drawText(TXT_W - 52, y, "yours", C_GOLD);
   } else {
@@ -5528,10 +5645,16 @@ static void paintLand(void) {
   clearRows(0, TXT_H);
   drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
   drawText(14, 6, "WHAT IS FOR SALE", C_GOLD);
-  showGold(6);
+  /* The two buttons go up here beside the title. Underneath there are four
+     lines of writing about whichever deed the cursor is on and room for three,
+     and the one that lost was the hint - it was drawn straight through the
+     second line of the summary. */
+  copyString(scratch, ownsLand(landPick) ? "A: go there   B: back"
+                                         : "A: buy it   B: back", sizeof scratch);
+  drawText(TXT_W - 14 - textWidth(scratch), 6, scratch, C_DIM);
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
-  for (i = 0; i < DEED_COUNT; i++) drawLandRow(i, 22 + i * 11);
-  fillRect(14, TXT_H - 42, TXT_W - 28, 1, C_EDGE);
+  for (i = 0; i < DEED_COUNT; i++) drawLandRow(i, 22 + i * 10);
+  fillRect(14, TXT_H - 40, TXT_W - 28, 1, C_EDGE);
   /* Underneath, whichever one the cursor is on: where it is, and either what
      it is or what it has made you. */
   {
@@ -5546,15 +5669,13 @@ static void paintLand(void) {
     } else if (landPick != landSeller) {
       appendString(scratch, "  -  ask for it there", sizeof scratch);
     }
-    drawText(14, TXT_H - 36, scratch, C_DIM);
+    drawTextIn(14, TXT_H - 37, scratch, C_DIM, goldLeftEdge() - 8 - 14);
+    showGold(TXT_H - 37);
     wrapText(deeds[landPick].summary, TXT_W - 28);
     for (k = 0; k <= lineCount && k < 2; k++) {
-      drawText(14, TXT_H - 26 + k * 10, lines[k], C_DIM);
+      drawText(14, TXT_H - 27 + k * 10, lines[k], C_DIM);
     }
   }
-  drawText(14, TXT_H - 14,
-    ownsLand(landPick) ? "A: go there    B: another day"
-                       : "A: buy it      B: another day", C_DIM);
 }
 
 /* ---------------------------------------------------------- the companies ---
@@ -5580,7 +5701,8 @@ static int hireSeller = -1;  /* the company this one speaks for, -1 for none */
 static void drawHireRow(int i, int y) {
   int able = you.gold >= (int)companies[i].price && hostRoom() >= 0;
   if (i == hirePick) drawCursor(14, y + 1, C_GOLD);
-  drawText(24, y, companies[i].name, !able ? C_DIM : (i == hirePick ? C_GOLD : C_INK));
+  drawTextIn(24, y, companies[i].name, !able ? C_DIM : (i == hirePick ? C_GOLD : C_INK),
+    TXT_W - 60 - 24);
   copyString(scratch, "", sizeof scratch);
   appendNumber(scratch, (int)companies[i].price, sizeof scratch);
   drawText(TXT_W - 24 - textWidth(scratch), y, scratch, able ? C_GOLD : C_DYING);
@@ -5591,25 +5713,26 @@ static void paintHire(void) {
   clearRows(0, TXT_H);
   drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
   drawText(14, 6, "SWORDS FOR HIRE", C_GOLD);
-  showGold(6);
+  drawText(TXT_W - 14 - textWidth("A: take him on   B: back"), 6,
+    "A: take him on   B: back", C_DIM);
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
-  for (i = 0; i < COMPANY_COUNT; i++) drawHireRow(i, 22 + i * 11);
-  fillRect(14, TXT_H - 42, TXT_W - 28, 1, C_EDGE);
+  for (i = 0; i < COMPANY_COUNT; i++) drawHireRow(i, 22 + i * 10);
+  fillRect(14, TXT_H - 40, TXT_W - 28, 1, C_EDGE);
   {
     copyString(scratch, companies[hirePick].where, sizeof scratch);
     appendString(scratch, "  -  ", sizeof scratch);
     appendString(scratch, swornKinds[companies[hirePick].kind].name, sizeof scratch);
     appendString(scratch, ", level ", sizeof scratch);
     appendNumber(scratch, companies[hirePick].level, sizeof scratch);
-    drawText(14, TXT_H - 36, scratch, C_DIM);
+    drawTextIn(14, TXT_H - 37, scratch, C_DIM, goldLeftEdge() - 8 - 14);
+    showGold(TXT_H - 37);
     copyString(scratch, "", sizeof scratch);
     appendNumber(scratch, hostCount(), sizeof scratch);
     appendString(scratch, " of ", sizeof scratch);
     appendNumber(scratch, HOST_MAX, sizeof scratch);
     appendString(scratch, " swords behind you", sizeof scratch);
-    drawText(14, TXT_H - 24, scratch, C_DIM);
+    drawText(14, TXT_H - 25, scratch, C_DIM);
   }
-  drawText(14, TXT_H - 14, "A: take him on   B: another day", C_DIM);
 }
 
 /* Takes one on. Returns what the captain says about it. */
@@ -5798,32 +5921,35 @@ static void paintSeaFight(void) {
   clearRows(0, TXT_H);
   drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
   drawText(14, 6, "AT SEA", C_GOLD);
+  drawText(TXT_W - 14 - textWidth("A: do it"), 6, "A: do it", C_DIM);
 
-  drawText(14, 20, f->name, C_INK);
+  drawTextIn(14, 20, f->name, C_INK, TXT_W - 80 - 14);
   drawText(TXT_W - 74, 20, "hull", C_DIM);
   fillRect(TXT_W - 50, 22, 36, 5, C_EDGE);
   if (foeHull > 0) fillRect(TXT_W - 50, 22, 36 * foeHull / f->hull, 5, C_GOLD);
 
-  drawText(14, 34, h->name, C_INK);
-  drawText(TXT_W - 74, 34, soundWord(), C_DIM);
+  drawTextIn(14, 34, h->name, C_INK, TXT_W - 28 - textWidth(soundWord()) - 14);
+  drawText(TXT_W - 14 - textWidth(soundWord()), 34, soundWord(), C_DIM);
   fillRect(TXT_W - 50, 36, 36, 5, C_EDGE);
   if (you.shipHull > 0) fillRect(TXT_W - 50, 36, 36 * (int)you.shipHull / shipMax(), 5, C_GOLD);
 
   fillRect(14, 48, TXT_W - 28, 1, C_EDGE);
   for (i = 0; i < 3; i++) {
-    int y = 54 + i * 12;
+    int y = 52 + i * 11;
     /* Nobody goes over a rail at a hull that is still whole: she has forty
        hands on her and you would be stepping onto their deck, not yours. */
     int able = i != 1 || foeHull * 3 <= (int)f->hull;
     if (i == seaPick) drawCursor(14, y + 1, C_GOLD);
     drawText(24, y, PICKS[i], !able ? C_DIM : (i == seaPick ? C_GOLD : C_INK));
   }
+  /* Three lines of it began at ninety-four and the third one was written two
+     rows below the bottom of the page, on top of the button. Two lines, and
+     the button up beside the title where there is room for it. */
   if (seaSaid) {
     int k;
     wrapText(seaSaid, TXT_W - 28);
-    for (k = 0; k <= lineCount && k < 3; k++) drawText(14, 94 + k * 10, lines[k], C_INK);
+    for (k = 0; k <= lineCount && k < 2; k++) drawText(14, 86 + k * 10, lines[k], C_INK);
   }
-  drawText(14, TXT_H - 18, "A: do it", C_DIM);
 }
 
 /* She goes down under you. You keep your life and lose the rest. */
@@ -6035,28 +6161,32 @@ static int shelfWare(const Stall *st, int nth) {
   return st->ware[0];
 }
 
+/* The counter, laid out so that nothing lands on anything else.
+ *
+ * It used to draw six rows of shelf at eleven pixels apart starting at
+ * twenty-two, which puts the sixth row on top of the line that says what the
+ * cursor is on; and it drew "A: buy   left/right: shelf   START: sell" from
+ * the left and "SELECT: brew" from the right on the same line, which in this
+ * font is a hundred and ninety-one pixels and sixty-five in two hundred and
+ * twelve. Both were on the cartridge from the day the screen was written.
+ *
+ * So the rows are counted against the space there actually is, the shelf hint
+ * is a pair of arrowheads on the rule instead of two words that do not fit,
+ * and at a forge - the one counter that needs a line for mending - the shelf
+ * gives up a row for it. */
 static void paintShop(void) {
   const Stall *stall = &stalls[shopStall];
   int shelf = shelfCount(stall);
-  int top = listTop(shopPick, shelf), i;
-  int x = 14, k;
+  int mends = keeperMends();
+  int rows = mends ? 4 : 5;
+  int top = listTopN(shopPick, shelf, rows), i;
   clearRows(0, TXT_H);
   drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
-  /* The four sections along the top, so you can see at a glance that there is
-     an armourer's shelf and a pedlar's table as well as the one you opened on.
-     One counter with seventy-six things on it is not a shop. */
-  for (k = 0; k < STALL_COUNT; k++) {
-    const char *tab = stallName[k];
-    drawText(x, 6, tab, k == shopStall ? C_GOLD : C_DIM);
-    if (k == shopStall) fillRect(x, 15, textWidth(tab), 1, C_GOLD);
-    x += textWidth(tab) + 9;
-  }
-  showGold(6);
-  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+  paintStallTabs(shopStall);
 
-  for (i = 0; i < LIST_ROWS && top + i < shelf; i++) {
+  for (i = 0; i < rows && top + i < shelf; i++) {
     int at = shelfWare(stall, top + i);
-    int y = 22 + i * 11;
+    int y = SHOP_ROW0 + i * SHOP_PITCH;
     int mine = (wares[at].kind == WARE_POTION) ? 0 : worn(at);
     if (top + i == shopPick) drawCursor(14, y + 1, C_GOLD);
     drawText(24, y, wares[at].name,
@@ -6066,40 +6196,37 @@ static void paintShop(void) {
     drawText(TXT_W - 24 - textWidth(scratch), y, scratch,
       you.gold >= askingPrice(at) ? C_INK : C_DYING);
   }
-  if (!shelf) drawText(24, 34, "Nothing on this road comes with that.", C_DIM);
-  {
+  if (!shelf) drawText(24, SHOP_ROW0 + SHOP_PITCH, "Nothing on this road comes with that.", C_DIM);
+  /* And what a smith is really for once you have been carrying the same sword
+     through forty fights. */
+  if (mends) {
+    int price = mendPrice();
+    if (price) {
+      copyString(scratch, "R: mend everything, ", sizeof scratch);
+      appendNumber(scratch, price, sizeof scratch);
+      appendString(scratch, " gold", sizeof scratch);
+    } else {
+      copyString(scratch, "Nothing on you wants mending", sizeof scratch);
+    }
+    drawText(14, SHOP_MEND_Y, scratch, price && you.gold >= price ? C_WELL : C_DIM);
+  }
+  /* Nobody would ever have found any of this by pressing buttons at a counter,
+     so the counter says it outright. */
+  if (shopMany && shelf) {
+    int at = shelfWare(stall, shopPick);
+    copyString(scratch, "How many?  ", sizeof scratch);
+    appendNumber(scratch, shopMany, sizeof scratch);
+    appendString(scratch, "   for ", sizeof scratch);
+    appendNumber(scratch, shopMany * askingPrice(at), sizeof scratch);
+    drawText(14, SHOP_DESC_Y, scratch, C_GOLD);
+    drawText(14, SHOP_HINT_Y, "up/down: how many   A: buy   B: back", C_DIM);
+  } else {
     if (shelf) describeWare(shelfWare(stall, shopPick), 0);
     else copyString(scratch, "", sizeof scratch);
-    drawText(14, TXT_H - 30, scratch, C_DIM);
-    /* Nobody would ever have found any of this by pressing buttons at a
-       counter, so the counter says it outright. */
-    if (shopMany && shelf) {
-      int at = shelfWare(stall, shopPick);
-      copyString(scratch, "How many?  ", sizeof scratch);
-      appendNumber(scratch, shopMany, sizeof scratch);
-      appendString(scratch, "   for ", sizeof scratch);
-      appendNumber(scratch, shopMany * askingPrice(at), sizeof scratch);
-      drawText(14, TXT_H - 18, scratch, C_GOLD);
-      drawText(TXT_W - 130, TXT_H - 18, "up/down: how many   A: buy   B: back", C_DIM);
-    } else {
-      drawText(14, TXT_H - 18, "A: buy   left/right: shelf   START: sell", C_GOLD);
-    }
-    copyString(scratch, keeperMends() ? "SELECT: forge" : "SELECT: brew",
-      sizeof scratch);
-    drawText(TXT_W - 14 - textWidth(scratch), TXT_H - 18, scratch, C_GOLD);
-    /* And what a smith is really for once you have been carrying the same
-       sword through forty fights. */
-    if (keeperMends()) {
-      int price = mendPrice();
-      if (price) {
-        copyString(scratch, "R: mend everything, ", sizeof scratch);
-        appendNumber(scratch, price, sizeof scratch);
-        appendString(scratch, " gold", sizeof scratch);
-      } else {
-        copyString(scratch, "Nothing on you wants mending", sizeof scratch);
-      }
-      drawText(14, TXT_H - 42, scratch, price && you.gold >= price ? C_WELL : C_DIM);
-    }
+    drawTextIn(14, SHOP_DESC_Y, scratch, C_DIM, TXT_W - 28);
+    drawText(14, SHOP_HINT_Y, "A: buy   START: sell", C_GOLD);
+    copyString(scratch, mends ? "SELECT: forge" : "SELECT: brew", sizeof scratch);
+    drawText(TXT_W - 14 - textWidth(scratch), SHOP_HINT_Y, scratch, C_GOLD);
   }
 }
 
@@ -6467,9 +6594,9 @@ static const char *const OFFICES[OFFICE_COUNT] =
 /* What each office is actually for, in the words the card uses. A list of three
    titles with no consequences attached is furniture. */
 static const char *const OFFICE_DOES[OFFICE_COUNT] = {
-  "counts the rents, and finds more of them",
-  "drills your swords, and they hit harder for it",
-  "patches your company up after every fight you win",
+  "counts the rents, and finds more",
+  "drills your swords; they hit harder",
+  "patches your company up after a win",
 };
 
 static int isVassal(int map) {
@@ -6836,12 +6963,12 @@ static void paintHouse(void) {
     else if (housePick == HROW_WED) hint = "A septon will arrange it. Find a sept.";
     else if (housePick == HROW_LANDS) hint = "A: what is for sale, and where";
     else if (seat.warLive) {
-      copyString(scratch, "Your swords are at ", sizeof scratch);
+      copyString(scratch, "Away at ", sizeof scratch);
       appendString(scratch, maps[seat.warMap].name, sizeof scratch);
       hint = scratch;
     }
-    else hint = "A: call on cleared halls   SELECT: send your swords";
-    drawText(34, 20, hint, raidedMap() >= 0 && !houseSaid ? C_HURT : C_WELL);
+    else hint = "A: cleared halls  SELECT: send swords";
+    drawTextIn(34, 20, hint, raidedMap() >= 0 && !houseSaid ? C_HURT : C_WELL, TXT_W - 48);
   }
 
   fillRect(10, 33, TXT_W - 20, 1, C_EDGE);
@@ -6956,7 +7083,7 @@ static int houseAct(void) {
       int price = maps[worldId].seat ? maps[worldId].seat * 100 : 0;
       if (!price) { houseSaid = "Nobody here has a hall to sell you."; return 0; }
       if (!mapCleared(worldId)) {
-        houseSaid = "Whoever holds this hall is still standing in it."; return 0;
+        houseSaid = "Somebody still holds this hall."; return 0;
       }
       if (you.gold < price) {
         copyString(scratch, "They want ", sizeof scratch);
@@ -6974,7 +7101,7 @@ static int houseAct(void) {
       you.haven = worldId;
       you.havenX = seat.x;
       you.havenY = seat.y;
-      houseSaid = "It is yours. Somebody had better hang a banner.";
+      houseSaid = "Yours. Somebody hang a banner.";
       return 0;
     }
     if (worldId == seat.map) {
@@ -6990,7 +7117,7 @@ static int houseAct(void) {
       you.haven = worldId;
       you.havenX = (u8)(hero.px >> 4);
       you.havenY = (u8)(hero.py >> 4);
-      houseSaid = "You sleep in your own hall. Everyone is whole in the morning.";
+      houseSaid = "You sleep. Everyone is whole in the morning.";
       /* And whichever of your children has got old enough to be a nuisance
          about it asks to come with you. They ride out as a hedge knight,
          because that is what a lord's child with no land of their own has
@@ -7020,7 +7147,7 @@ static int houseAct(void) {
 
   if (housePick == HROW_COFFER) {
     if (!seat.has) { houseSaid = "No hall, no rents."; return 0; }
-    if (!seat.coffers) { houseSaid = "Nothing has come in since you last asked."; return 0; }
+    if (!seat.coffers) { houseSaid = "Nothing in since you last asked."; return 0; }
     you.gold += (int)seat.coffers;
     copyString(scratch, "Your steward sends on ", sizeof scratch);
     appendNumber(scratch, (int)seat.coffers, sizeof scratch);
@@ -7039,9 +7166,9 @@ static int houseAct(void) {
 
   if (housePick == HROW_WED) {
     if (!seat.has) {
-      houseSaid = "A match wants a roof to put somebody under first.";
+      houseSaid = "A match wants a roof first.";
     } else if (seat.wed) {
-      houseSaid = "You are wed. That is generally the end of the matter.";
+      houseSaid = "You are wed. That is generally that.";
     } else {
       copyString(scratch, "A septon arranges these. It will cost about ", sizeof scratch);
       appendNumber(scratch, bridePrice(), sizeof scratch);
@@ -7088,7 +7215,7 @@ static int houseAct(void) {
      making the player press A eleven times is not a decision, it is a chore. */
   {
     int i, took = 0;
-    if (!seat.has) { houseSaid = "A house with no hall has nothing to swear to."; return 0; }
+    if (!seat.has) { houseSaid = "No hall yet, so nothing to swear to."; return 0; }
     for (i = 0; i < MAP_COUNT; i++) {
       int price;
       if (isVassal(i) || i == seat.map) continue;
@@ -7111,7 +7238,7 @@ static int houseAct(void) {
       appendString(scratch, " gold apiece. Come back richer.", sizeof scratch);
       houseSaid = scratch;
     } else {
-      houseSaid = "Clear a hall out first. Nobody swears to a stranger.";
+      houseSaid = "Clear a hall out first.";
     }
   }
   return 0;
@@ -7167,7 +7294,7 @@ static const char *houseTalk(void) {
 /* Send them. Returns 1 when the order was given. */
 static int sendHost(void) {
   int m = warTarget(), price;
-  if (!seat.has) { houseSaid = "Swords are sent from somewhere. Buy a hall."; return 0; }
+  if (!seat.has) { houseSaid = "Swords go out from a hall. Buy one."; return 0; }
   if (seat.warLive) {
     copyString(scratch, "Your swords are already at ", sizeof scratch);
     appendString(scratch, maps[seat.warMap].name, sizeof scratch);
@@ -7176,7 +7303,7 @@ static int sendHost(void) {
     return 0;
   }
   if (hostCount() < 2) {
-    houseSaid = "Two swords is a company. One is a man going for a walk.";
+    houseSaid = "One sword is a walk. Two is a company.";
     return 0;
   }
   if (m < 0) {
@@ -7249,7 +7376,7 @@ static int holdFeast(void) {
       crown.favour[hw] = (s8)(f > 100 ? 100 : f);
     }
   }
-  houseSaid = "Four hours of it, and a hall that smells of it in the morning.";
+  houseSaid = "Four hours of it. The hall reeks.";
   return 1;
 }
 
@@ -7521,29 +7648,31 @@ static void paintRide(void) {
   clearRows(0, TXT_H);
   drawFrame(4, 2, TXT_W - 8, TXT_H - 6);
   drawText(14, 6, "WHERE ARE YOU RIDING?", C_GOLD);
-  copyString(scratch, "", sizeof scratch);
-  appendNumber(scratch, rideCost(), sizeof scratch);
-  appendString(scratch, " gold, and you have ", sizeof scratch);
-  appendNumber(scratch, you.gold, sizeof scratch);
-  drawText(TXT_W - 14 - textWidth(scratch), 6, scratch,
-    you.gold >= rideCost() ? C_GOLD : C_HURT);
+  showGold(6);
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
 
   if (!have) {
-    drawText(24, 34, "You have not found another maester's hall yet.", C_DIM);
-    drawText(24, 48, "Walk somewhere. Then he can send you back to it.", C_DIM);
+    drawText(14, 34, "No other maester's hall found yet.", C_DIM);
+    drawText(14, 48, "Walk somewhere first, and he can send you.", C_DIM);
   }
   for (i = 0; i < LIST_ROWS && i + rideTop < have; i++) {
     int m = nthRide(i + rideTop), y = 24 + i * 12;
     int here = (i + rideTop) == ridePick;
     if (m < 0) break;
     if (here) drawCursor(14, y + 1, C_GOLD);
-    drawText(24, y, maps[m].name, here ? C_GOLD : C_INK);
+    drawTextIn(24, y, maps[m].name, here ? C_GOLD : C_INK, TXT_W - 96 - 24);
     if (seat.has && m == seat.map) {
       drawText(TXT_W - 14 - textWidth("your own hall"), y, "your own hall", C_HOUSE);
     }
   }
-  drawText(14, TXT_H - 18, have ? "A: ride   B: stay" : "B: go", C_DIM);
+  if (have) {
+    copyString(scratch, "A: ride for ", sizeof scratch);
+    appendNumber(scratch, rideCost(), sizeof scratch);
+    appendString(scratch, " gold   B: stay", sizeof scratch);
+    drawText(14, TXT_H - 18, scratch, you.gold >= rideCost() ? C_DIM : C_HURT);
+  } else {
+    drawText(14, TXT_H - 18, "B: go", C_DIM);
+  }
 }
 
 /* Take the horse. Returns 0 when you cannot. */
@@ -8709,12 +8838,12 @@ static void paintParty(void) {
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
 
   for (i = 0; i < PARTY_MAX; i++) {
-    int y = 24 + shown * 14, full;
+    int y = 22 + shown * 10, full;
     const Kept *k = &you.party[i];
     if (k->kind == 255) continue;
-    if (i == partyPick) drawCursor(14, y + 2, C_GOLD);
-    drawText(24, y, beasts[k->kind].name,
-      i == partyPick ? C_GOLD : (i == you.lead ? C_WELL : C_INK));
+    if (i == partyPick) drawCursor(14, y + 1, C_GOLD);
+    drawTextIn(24, y, beasts[k->kind].name,
+      i == partyPick ? C_GOLD : (i == you.lead ? C_WELL : C_INK), TXT_W - 112 - 24);
     copyString(scratch, "Lv ", sizeof scratch);
     appendNumber(scratch, k->level, sizeof scratch);
     drawText(TXT_W - 108, y, scratch, C_DIM);
@@ -8731,7 +8860,7 @@ static void paintParty(void) {
       appendNumber(scratch, now, sizeof scratch);
       appendString(scratch, "/", sizeof scratch);
       appendNumber(scratch, full, sizeof scratch);
-      drawText(TXT_W - 78, y, scratch, C_DIM);
+      drawText(TXT_W - 14 - textWidth(scratch), y, scratch, C_DIM);
     }
     shown++;
   }
@@ -8751,13 +8880,18 @@ static void paintParty(void) {
       } else {
         copyString(scratch, "This is as far as it grows.", sizeof scratch);
       }
-      drawText(14, TXT_H - 32, scratch, C_DIM);
-      copyString(scratch, "", sizeof scratch);
-      appendNumber(scratch, got < 0 ? 0 : got, sizeof scratch);
-      appendString(scratch, " of ", sizeof scratch);
-      appendNumber(scratch, next < 1 ? 1 : next, sizeof scratch);
-      appendString(scratch, " to the next level", sizeof scratch);
-      drawText(TXT_W - 14 - textWidth(scratch), TXT_H - 32, scratch, C_DIM);
+      {
+        char grows[80];
+        copyString(grows, scratch, sizeof grows);
+        copyString(scratch, "", sizeof scratch);
+        appendNumber(scratch, got < 0 ? 0 : got, sizeof scratch);
+        appendString(scratch, "/", sizeof scratch);
+        appendNumber(scratch, next < 1 ? 1 : next, sizeof scratch);
+        appendString(scratch, " to the next", sizeof scratch);
+        drawText(TXT_W - 14 - textWidth(scratch), TXT_H - 29, scratch, C_DIM);
+        drawTextIn(14, TXT_H - 29, grows, C_DIM,
+          TXT_W - 22 - textWidth(scratch) - 14);
+      }
     }
   }
   drawText(14, TXT_H - 18, "A: send it out    B: go", C_DIM);
@@ -8805,8 +8939,9 @@ static void paintHoldfast(void) {
     const Kept *k = &you.party[i];
     if (!holdSide && i == partyPick) drawCursor(14, y + 1, C_GOLD);
     if (k->kind == 255) { drawText(24, y, "-", C_DIM); continue; }
-    drawText(24, y, beasts[k->kind].name,
-      (!holdSide && i == partyPick) ? C_GOLD : (i == you.lead ? C_WELL : C_INK));
+    drawTextIn(24, y, beasts[k->kind].name,
+      (!holdSide && i == partyPick) ? C_GOLD : (i == you.lead ? C_WELL : C_INK),
+      TXT_W - 126 - 24);
     copyString(scratch, "", sizeof scratch);
     appendNumber(scratch, k->level, sizeof scratch);
     drawText(TXT_W - 122 - textWidth(scratch), y, scratch, C_DIM);
@@ -8818,8 +8953,8 @@ static void paintHoldfast(void) {
     const Kept *k = &you.holdfast[at];
     if (holdSide && at == holdPick) drawCursor(TXT_W - 110, y + 1, C_GOLD);
     if (k->kind == 255) { drawText(TXT_W - 100, y, "-", C_DIM); continue; }
-    drawText(TXT_W - 100, y, beasts[k->kind].name,
-      (holdSide && at == holdPick) ? C_GOLD : C_INK);
+    drawTextIn(TXT_W - 100, y, beasts[k->kind].name,
+      (holdSide && at == holdPick) ? C_GOLD : C_INK, 100 - 24);
     copyString(scratch, "", sizeof scratch);
     appendNumber(scratch, k->level, sizeof scratch);
     drawText(TXT_W - 20 - textWidth(scratch), y, scratch, C_DIM);
@@ -8849,10 +8984,11 @@ static void paintHost(void) {
     const Kept *h = &you.host[i];
     if (h->kind == 255) continue;
     if (i == hostPick) drawCursor(14, y + 1, C_GOLD);
-    drawText(24, y, swornKinds[h->kind].name, i == hostPick ? C_GOLD : C_INK);
+    drawTextIn(24, y, swornKinds[h->kind].name, i == hostPick ? C_GOLD : C_INK,
+      TXT_W - 148 - 24);
     copyString(scratch, "Lv ", sizeof scratch);
     appendNumber(scratch, h->level, sizeof scratch);
-    drawText(TXT_W - 116, y, scratch, C_DIM);
+    drawText(TXT_W - 144, y, scratch, C_DIM);
     copyString(scratch, "adds ", sizeof scratch);
     appendNumber(scratch, swornMight(h->kind, h->level) / 6, sizeof scratch);
     appendString(scratch, " to a blow", sizeof scratch);
@@ -8861,15 +8997,15 @@ static void paintHost(void) {
   }
   if (!shown) {
     drawText(24, 34, "Nobody has sworn to you.", C_DIM);
-    drawText(24, 48, "Beat somebody on the road down to nearly nothing,", C_DIM);
-    drawText(24, 60, "then put a purse in front of them instead of a sword.", C_DIM);
+    drawText(14, 48, "Beat somebody down to almost nothing,", C_DIM);
+    drawText(14, 60, "then offer a purse instead of a sword.", C_DIM);
   } else {
     /* Their own numbers, not what they would do to whoever you last fought:
        `theirs` still holds the last opponent out here, and a card that read
        differently depending on who you happened to beat an hour ago would be
        a card nobody could trust. */
     int sum = hostBonus();
-    copyString(scratch, "Together they add about ", sizeof scratch);
+    copyString(scratch, "About ", sizeof scratch);
     appendNumber(scratch, sum, sizeof scratch);
     appendString(scratch, " to every blow you land.", sizeof scratch);
     drawText(14, TXT_H - 32, scratch, C_WELL);
@@ -8889,6 +9025,7 @@ static void paintDeeds(void) {
   clearRows(0, TXT_H);
   drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
   drawText(14, 6, "WHAT YOU HAVE DONE", C_GOLD);
+  drawText(TXT_W - 84 - textWidth("B: go"), 6, "B: go", C_DIM);
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
   for (i = 0; i < CUT_COUNT; i++) if (flagSet(cuts[i].flag)) open++;
   copyString(scratch, "", sizeof scratch);
@@ -8906,9 +9043,7 @@ static void paintDeeds(void) {
     drawText(TXT_W - 76, y, seen ? "settled" : "not yet", seen ? C_WELL : C_DIM);
     shown++;
   }
-  drawText(14, TXT_H - 30,
-    "Places worth stopping at, and what you said when you got there.", C_DIM);
-  drawText(14, TXT_H - 18, "B: go", C_DIM);
+  drawText(14, TXT_H - 18, "Places you stopped, and what you said.", C_DIM);
 }
 
 /* ---------------------------------------------------------- the last act --

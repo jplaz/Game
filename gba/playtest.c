@@ -21,6 +21,9 @@
 #include <stdarg.h>
 
 #define HOST_TEST 1
+/* Watch every piece of text the game paints and say so when one lands on
+   another. See the note by fillRect in main.c. */
+#define WATCH_TEXT 1
 #define main gba_main
 #include "main.c"
 #undef main
@@ -57,6 +60,95 @@ static void finding(const char *fmt, ...) {
   va_end(ap);
   for (i = 0; i < findingCount; i++) if (!strcmp(findings[i], line)) return;
   if (findingCount < MAX_FINDINGS) snprintf(findings[findingCount++], 160, "%s", line);
+}
+
+/* -------------------------------------------------- letters on top of letters --
+ *
+ * Every string the game paints comes through drawText, and every rectangle it
+ * paints over comes through fillRect. Hold on to the box each string was drawn
+ * in, drop the ones a fill has since covered, and if a new string lands on one
+ * still standing, say so: that is exactly what "the menu text is messed up"
+ * looks like from in here.
+ *
+ * It found two on the counter screen the moment it was switched on - the sixth
+ * row of the shelf on the line describing the ware, and "START: sell" on
+ * "SELECT: brew" - neither of which anything in this project could have caught
+ * before, because whether they collide depends on how wide the sentences are
+ * in this particular font. */
+#define MAX_BOXES 96
+
+static struct { short x, y, w, h; char s[44]; } textBox[MAX_BOXES];
+static int textBoxes;
+
+static void finding(const char *fmt, ...);
+
+void hostAreaCleared(int x, int y, int w, int h) {
+  int i, k = 0;
+  if (getenv("WHYTEXT")) printf("      [clear] %d,%d %dx%d (boxes %d)\n", x, y, w, h, textBoxes);
+  for (i = 0; i < textBoxes; i++) {
+    int bx = textBox[i].x, by = textBox[i].y;
+    int bw = textBox[i].w, bh = textBox[i].h;
+    /* What of it is left. A fill that spans the whole width of a box and eats
+       into it from the top or the bottom leaves a shorter box, and one that
+       spans its whole height leaves a narrower one - which is how a screen
+       wiped in two bands, the way the duel wipes its plates, gets recognised
+       as wiped at all. A fill that only takes a corner leaves the box where it
+       was: half a word is still a word on the glass. */
+    if (bx >= x && bx + bw <= x + w) {
+      if (by >= y && by < y + h) { bh -= (y + h) - by; by = y + h; }
+      else if (by + bh > y && by + bh <= y + h) bh = y - by;
+    } else if (by >= y && by + bh <= y + h) {
+      if (bx >= x && bx < x + w) { bw -= (x + w) - bx; bx = x + w; }
+      else if (bx + bw > x && bx + bw <= x + w) bw = x - bx;
+    }
+    if (bw <= 1 || bh <= 0) continue;               /* nothing of it left */
+    textBox[k] = textBox[i];
+    textBox[k].x = (short)bx; textBox[k].y = (short)by;
+    textBox[k].w = (short)bw; textBox[k].h = (short)bh;
+    k++;
+  }
+  textBoxes = k;
+}
+
+void hostTextDrawn(int x, int y, int w, int h, const char *s) {
+  int i;
+  if (w <= 1) return;                               /* an empty string */
+  /* A line too long for the glass. The page clips it, so the last words are
+     simply not there - the house card's hint line ran forty pixels past the
+     right edge and lost the end of every sentence on it. */
+  if (x + w > TXT_W + 1 || x < 0) {
+    finding("\"%s\" is %d wide at x %d and runs off the edge of the screen",
+      s, w - 1, x);
+  }
+  /* And clip what is remembered to the page, or a string that overhangs can
+     never be covered by a clear of the whole page, and haunts every screen
+     painted after it. */
+  if (x < 0) { w += x; x = 0; }
+  if (y < 0) { h += y; y = 0; }
+  if (x + w > TXT_W) w = TXT_W - x;
+  if (y + h > TXT_H) h = TXT_H - y;
+  if (w <= 1 || h <= 0) return;
+  for (i = 0; i < textBoxes; i++) {
+    /* How much of the two boxes is actually shared. A tail hanging off a 'y'
+       into the top pixel of the row below it is typography, not a collision;
+       three rows deep and four pixels wide is two sentences on one line. */
+    int ox = (x + w < textBox[i].x + textBox[i].w ? x + w : textBox[i].x + textBox[i].w)
+           - (x > textBox[i].x ? x : textBox[i].x);
+    int oy = (y + h < textBox[i].y + textBox[i].h ? y + h : textBox[i].y + textBox[i].h)
+           - (y > textBox[i].y ? y : textBox[i].y);
+    if (ox < 4 || oy < 3) continue;
+    if (getenv("WHYTEXT")) printf("      [hit] \"%s\" %d,%d %dx%d over \"%s\" %d,%d %dx%d\n",
+      s, x, y, w, h, textBox[i].s, textBox[i].x, textBox[i].y, textBox[i].w, textBox[i].h);
+    finding("\"%s\" at %d,%d is drawn on top of \"%s\" at %d,%d",
+      s, x, y, textBox[i].s, textBox[i].x, textBox[i].y);
+    break;
+  }
+  if (textBoxes < MAX_BOXES) {
+    textBox[textBoxes].x = (short)x; textBox[textBoxes].y = (short)y;
+    textBox[textBoxes].w = (short)w; textBox[textBoxes].h = (short)h;
+    snprintf(textBox[textBoxes].s, sizeof textBox[0].s, "%s", s);
+    textBoxes++;
+  }
 }
 
 /* ------------------------------------------------------------- the tally -- */

@@ -1127,6 +1127,24 @@ static void showPlate(const char *name) {
   plateTimer = 110;
 }
 
+/* And a second plate on the other side of the same row, for the one thing the
+   world never said out loud: that there is something on this map worth walking
+   to. Thirty-two scenes in this game each wait on one named tile, and a player
+   who does not know a tile is there walks past every one of them - which is
+   what "I never see anyone who gives me a choice" is, from in here.
+ *
+ * Not the tile. Somewhere on this map is enough: the looking is the part that
+ * makes finding it worth anything, and a scene that walks up to you is not a
+ * place you went to. */
+static int cutWaitsHere(void);
+
+static void showAside(const char *what) {
+  int w = textWidth(what) + 18;
+  int x = TXT_W - 3 - w;
+  drawPlate(x, 0, w, 16);
+  drawText(x + 9, 3, what, C_GOLD);
+}
+
 /* --------------------------------------------------------------- objects --- */
 
 static u16 oam[128 * 4];
@@ -2653,6 +2671,7 @@ static void enterMap(int id, int tx, int ty, int dir) {
   if (you.aboard) loadHullArt();
   REG_DISPCNT = was;
   showPlate(world->name);
+  if (cutWaitsHere()) showAside("Somebody here");
 }
 
 static const Sign *signAt(int x, int y) {
@@ -2991,7 +3010,23 @@ static void paintDuelPlates(void) {
 /* Two menus, one inside the other, the way the handhelds do it: what kind of
    thing you are about to do, and then which one. */
 static int topPick;
-static const char *const DUEL_TOP_ITEMS[4] = { "Fight", "Pouch", "Guard", "Flee" };
+/* Five, not four. The fifth is the one thing in this game nobody could find.
+ *
+ * A sword swears to you when you put a purse in front of him after you have
+ * beaten him nearly down - which is a fine rule and was completely invisible:
+ * you had to already own a purse, know that a purse was a thing, know it went
+ * in the pouch, and know to open the pouch in the middle of a fight and use it
+ * on a man rather than drink it. Nothing anywhere said any of that. So it is a
+ * word on the menu where the fight is, it says what it needs when you cannot
+ * use it, and it says where purses are sold when you have none. */
+static const char *const DUEL_TOP_ITEMS[6] = {
+  "Fight", "Pouch", "Guard", "Offer", "Flee", ""
+};
+
+/* Whether the man in front of you is somebody who could swear at all. */
+static int canBeSworn(void);
+/* The best purse in the pouch, or -1. */
+static int bestPurse(void);
 
 /* Guard is already the fourth technique on the Fight menu, so the third slot up
    here was doing nothing that could not be done one press deeper. It opens the
@@ -3009,14 +3044,21 @@ static void paintFrameOnly(void) {
   drawFrame(3, DUEL_WINDOW_TOP + 1, TXT_W - 6, DUEL_WINDOW_ROWS * 8 - 2);
 }
 
+/* Two rows of three instead of two of two, because the window is five rows
+   deep and a third row of writing would be drawn under the bottom of it. */
+#define TOP_ITEMS 5
+
 static void paintDuelTop(void) {
   int i;
   paintFrameOnly();
-  for (i = 0; i < 4; i++) {
-    int x = 24 + (i & 1) * 112;
-    int y = DUEL_WINDOW_TOP + 10 + (i >> 1) * 16;
+  for (i = 0; i < TOP_ITEMS; i++) {
+    int x = 22 + (i % 3) * 74;
+    int y = DUEL_WINDOW_TOP + 10 + (i / 3) * 16;
+    /* Greyed rather than hidden. A word that is there and will not work tells
+       you the rule; a word that is not there tells you nothing at all. */
+    u8 ink = i == topPick ? C_GOLD : (i == 3 && !canBeSworn() ? C_DIM : C_INK);
     if (i == topPick) drawCursor(x - 11, y + 1, C_GOLD);
-    drawText(x, y, topItem(i), i == topPick ? C_GOLD : C_INK);
+    drawText(x, y, topItem(i), ink);
   }
 }
 
@@ -3285,9 +3327,12 @@ static int mySureShots;          /* this many of your blows cannot miss */
 static int wildWanted = -1, wildLevel;   /* the animal a shift is carrying in */
 
 /* The screen the fight is fought on, once both sides are built. */
+static int swearOffered;
+
 static void openTheDuel(const char *intro) {
   snareEdge = 0;
   theyBalk = 0;
+  swearOffered = 0;
   mySureShots = 0;
   duelOver = 0;
   duelMenu = 0;
@@ -5044,6 +5089,43 @@ static int snareOdds(int snare) {
 /* And the odds on a purse. Nobody swears to somebody who has not beaten them
    badly, so how far down they are counts for more here than it does with a net:
    a man on his feet takes the money and keeps fighting. */
+/* Whether the person in front of you is somebody who could swear at all, and
+   if not, why not - said in their words rather than left as a dead menu row. */
+static const char *swearBalkSaid;
+static int hostRoom(void);
+
+static int canBeSworn(void) {
+  swearBalkSaid = 0;
+  if (foeBeast >= 0) {
+    swearBalkSaid = "An animal cannot swear anything, and would not keep it.";
+    return 0;
+  }
+  if (!foeDef || foeDef->sworn >= SWORN_KINDS) {
+    swearBalkSaid = "That one is not for sale, at any price.";
+    return 0;
+  }
+  if (theirs.dead) {
+    swearBalkSaid = "It has nothing left to swear with.";
+    return 0;
+  }
+  if (hostRoom() < 0) {
+    swearBalkSaid = "Six swords already follow you, and six is what you can pay.";
+    return 0;
+  }
+  return 1;
+}
+
+/* The heaviest purse in the pouch. A heavier one buys a harder man, so there is
+   never a reason to reach for a lighter one first. */
+static int bestPurse(void) {
+  int i, best = -1;
+  for (i = 0; i < WARE_COUNT; i++) {
+    if (!you.bag[i] || wares[i].kind != WARE_OATH) continue;
+    if (best < 0 || wares[i].hold > wares[best].hold) best = i;
+  }
+  return best;
+}
+
 static int oathOdds(int oath) {
   int room = theirs.maxHp > 0 ? (int)udiv((u32)theirs.hp * 100, (u32)theirs.maxHp) : 100;
   int hurt = 100 - room;
@@ -7074,6 +7156,55 @@ static int bridePrice(void) { return 1200 + standing() * 90; }
 /* What pressing A on a line of the house card actually does. Returns 1 when it
    wants a whole screen of its own (the arms builder), 0 when it has done its
    business and only has a line to say about it. */
+/* How many doors from one map to another, or -1 if there is no road. Breadth
+   first over the warp graph, with both working arrays in the slow memory: a
+   queue of two hundred and thirty-one on a stack with eight kilobytes on it is
+   not a thing to do inside a menu. */
+COLD_STORE static u8 hopSeen[MAP_COUNT];
+COLD_STORE static u8 hopQueue[MAP_COUNT];
+COLD_STORE static u8 hopDist[MAP_COUNT];
+
+static int mapHops(int from, int want) {
+  int head = 0, tail = 0, i;
+  if (from == want) return 0;
+  for (i = 0; i < MAP_COUNT; i++) hopSeen[i] = 0;
+  hopSeen[from] = 1;
+  hopDist[from] = 0;
+  hopQueue[tail++] = (u8)from;
+  while (head < tail) {
+    int m = hopQueue[head++];
+    for (i = 0; i < maps[m].warpCount; i++) {
+      int to = maps[m].warps[i].to;
+      if (to >= MAP_COUNT || hopSeen[to]) continue;
+      hopSeen[to] = 1;
+      hopDist[to] = (u8)(hopDist[m] + 1);
+      if (to == want) return hopDist[to];
+      hopQueue[tail++] = (u8)to;
+    }
+  }
+  return -1;
+}
+
+/* Where the nearest person who does a particular job is standing, by name of
+   the place. The three things this game asks you to go and find - a septon, a
+   deed, a captain - were all findable only by walking into them, and a player
+   who never happened to walk into a sept never married in a hundred hours. A
+   card that says "find a sept" and does not say where is not help. */
+static int mapWithWeds(void) {
+  int m, i, best = -1, bestHops = 1 << 30;
+  for (m = 0; m < MAP_COUNT; m++) {
+    for (i = 0; i < maps[m].npcCount; i++) {
+      int far;
+      if (!maps[m].npcs[i].weds) continue;
+      far = m == worldId ? 0 : mapHops(worldId, m);
+      if (far < 0 || far >= bestHops) continue;
+      bestHops = far; best = m;
+      break;
+    }
+  }
+  return best;
+}
+
 static int houseAct(void) {
   houseSaid = 0;
   if (housePick == HROW_ARMS) return 1;
@@ -7170,9 +7301,18 @@ static int houseAct(void) {
     } else if (seat.wed) {
       houseSaid = "You are wed. That is generally that.";
     } else {
-      copyString(scratch, "A septon arranges these. It will cost about ", sizeof scratch);
+      int sept = mapWithWeds();
+      copyString(scratch, "A septon arranges it, for about ", sizeof scratch);
       appendNumber(scratch, bridePrice(), sizeof scratch);
       appendString(scratch, " gold.", sizeof scratch);
+      if (sept >= 0) {
+        appendString(scratch, sept == worldId ? "  There is one on this floor."
+                                              : "  Nearest: ", sizeof scratch);
+        if (sept != worldId) {
+          appendString(scratch, maps[sept].name, sizeof scratch);
+          appendString(scratch, ".", sizeof scratch);
+        }
+      }
       houseSaid = scratch;
     }
     return 0;
@@ -8520,6 +8660,19 @@ static int roundEnds(void) {
   if (said) duelSay(0, scratch);
   if (mine.hp <= 0) { duelPhase = DUEL_END; duelOver = 2; return 1; }
   if (theirs.hp <= 0) { duelPhase = DUEL_END; duelOver = 1; return 1; }
+  /* And the one thing the fight will not tell you unless it is told to. A man
+     beaten to a third of himself will listen to a purse, and every purse ever
+     bought was bought by somebody who already knew that. Said once a fight,
+     when it becomes true, and only to somebody carrying one. */
+  if (!swearOffered && theirs.hp * 3 <= theirs.maxHp && bestPurse() >= 0
+      && canBeSworn()) {
+    swearOffered = 1;
+    copyString(scratch, theirs.name, sizeof scratch);
+    appendString(scratch, " is beaten far enough to listen. Offer, on the menu, "
+      "puts a purse in front of him instead of another blow.", sizeof scratch);
+    duelSay(0, scratch);
+    return 1;
+  }
   return 0;
 }
 
@@ -8968,6 +9121,17 @@ static void paintHoldfast(void) {
 
 static int hostPick;
 
+/* The cheapest purse anybody sells, so the muster can say what an oath costs
+   rather than leaving the player to find out that purses exist. */
+static int cheapestPurse(void) {
+  int i, best = -1;
+  for (i = 0; i < WARE_COUNT; i++) {
+    if (wares[i].kind != WARE_OATH) continue;
+    if (best < 0 || wares[i].price < wares[best].price) best = i;
+  }
+  return best;
+}
+
 static void paintHost(void) {
   int i, shown = 0;
   clearRows(0, TXT_H);
@@ -8996,9 +9160,22 @@ static void paintHost(void) {
     shown++;
   }
   if (!shown) {
-    drawText(24, 34, "Nobody has sworn to you.", C_DIM);
-    drawText(14, 48, "Beat somebody down to almost nothing,", C_DIM);
-    drawText(14, 60, "then offer a purse instead of a sword.", C_DIM);
+    /* The whole of how a sword ends up behind you, on the screen that is empty
+       because nobody knew any of it. Naming the word on the duel menu matters:
+       a rule you can only carry out through a submenu of a submenu is a rule
+       nobody carries out. */
+    int purse = cheapestPurse();
+    drawText(24, 32, "Nobody has sworn to you.", C_DIM);
+    copyString(scratch, "Buy a purse - the oddments shelf, ", sizeof scratch);
+    if (purse >= 0) {
+      appendNumber(scratch, (int)wares[purse].price, sizeof scratch);
+      appendString(scratch, " gold.", sizeof scratch);
+    } else {
+      appendString(scratch, "any counter.", sizeof scratch);
+    }
+    drawText(14, 46, scratch, C_DIM);
+    drawText(14, 58, "Beat a man down to a third of himself.", C_DIM);
+    drawText(14, 70, "Then choose Offer, on the duel menu.", C_DIM);
   } else {
     /* Their own numbers, not what they would do to whoever you last fought:
        `theirs` still holds the last opponent out here, and a card that read
@@ -9252,6 +9429,22 @@ static int cutHere(int x, int y) {
     return i;
   }
   return -1;
+}
+
+/* Whether this map is holding a scene you could still walk into. The same
+   tests cutHere uses, minus the tile, so the plate never promises something
+   the ground will not give. */
+static int cutWaitsHere(void) {
+  int i;
+  for (i = 0; i < CUT_COUNT; i++) {
+    if (cuts[i].map != worldId) continue;
+    if (flagSet(cuts[i].flag)) continue;
+    if (cuts[i].needs != 255 && !flagSet(cuts[i].needs)) continue;
+    if (cuts[i].denies != 255 && flagSet(cuts[i].denies)) continue;
+    if (countSigils() < cuts[i].sigils) continue;
+    return 1;
+  }
+  return 0;
 }
 
 static void endCut(void) {
@@ -11038,10 +11231,10 @@ int main(void) {
         }
       } else if (duelPhase == DUEL_TOP) {
         int was = topPick;
-        if (hit(KEY_LEFT) && (topPick & 1)) topPick--;
-        if (hit(KEY_RIGHT) && !(topPick & 1)) topPick++;
-        if (hit(KEY_UP) && topPick > 1) topPick -= 2;
-        if (hit(KEY_DOWN) && topPick < 2) topPick += 2;
+        if (hit(KEY_LEFT) && (topPick % 3)) topPick--;
+        if (hit(KEY_RIGHT) && topPick % 3 < 2 && topPick + 1 < TOP_ITEMS) topPick++;
+        if (hit(KEY_UP) && topPick > 2) topPick -= 3;
+        if (hit(KEY_DOWN) && topPick + 3 < TOP_ITEMS) topPick += 3;
         if (topPick != was) { sfxPick(); paintDuelTop(); }
         if (hit(KEY_A)) {
           if (topPick == 0) { duelPhase = DUEL_MENU; paintDuelMenu(); }
@@ -11068,6 +11261,29 @@ int main(void) {
             mine.defending = 0;
             duelPhase = DUEL_MINE;
             duelTurn();
+          } else if (topPick == 3) {
+            /* The purse. Everything this needs is said out loud, because none
+               of it could be guessed: who will swear, how beaten they have to
+               be, that a purse is the thing that does it, and where purses are
+               sold. */
+            int purse = bestPurse();
+            if (!canBeSworn()) {
+              duelSay(0, swearBalkSaid);
+            } else if (purse < 0) {
+              duelSay(0, "You have nothing to offer him. A purse is what buys "
+                         "an oath, and every counter's oddments shelf sells "
+                         "one; a heavier purse buys a harder man.");
+            } else {
+              wareBalked = 0;
+              snareSaid = 0;
+              if (purse >= 0 && useInDuel(purse)) {
+                if (snaredIt) { snaredIt = 0; tookAlive(snareSaid); }
+                else { duelPhase = DUEL_THEIRS; duelSay(0, snareSaid); }
+              } else {
+                duelSay(0, wareBalked ? wareBalked
+                  : "Nobody here is going to swear anything to you.");
+              }
+            }
           } else {
             if (roll(100) < 55) {
               you.hp = mine.hp;

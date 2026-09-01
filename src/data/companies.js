@@ -88,6 +88,87 @@ export const COMPANIES = {
     full: 'Pit Master: Six behind you already. A seventh would only be somebody '
         + 'else to bury.',
   },
+
+  /* --------------------------------------------------------- and at home --
+   *
+   * Four of these stood in the Free Cities and nowhere else, behind a ship you
+   * had to buy, on the far side of a sea. Which meant that for the whole first
+   * half of a game the only way to put a man behind you was to beat him nearly
+   * to death and then find out, from nothing and nobody, that a purse exists
+   * and goes in your pouch. Somebody who has just started has no company and
+   * no idea there is such a thing as one.
+   *
+   * So: four more, on this side of the water, at four places anybody walking
+   * the roads goes past. They are cheaper and worse than the Essosi companies,
+   * which is right - a hedge knight at a crossroads inn is not a water dancer -
+   * and they are the difference between a system you meet in hour one and a
+   * system you meet in hour thirty. */
+
+  crossroadsSwords: {
+    name: 'The Crossroads Men',
+    where: 'The Crossroads',
+    kind: 'sellsword',
+    level: 8,
+    price: 700,
+    pitch: 'Hedge Knight: There are four of us drinking here and none of us has '
+         + 'been paid since the spring. We are not much. We are cheap, we are '
+         + 'here, and we will stand where you put us.',
+    taken: 'Hedge Knight: Right. He has a horse and most of a mail shirt, and '
+         + 'he will not run off in the first hour. That is the whole promise.',
+    poor: 'Hedge Knight: Seven hundred. It is not a fortune. It is four men and '
+        + 'a winter.',
+    full: 'Hedge Knight: Six already. You could not feed a seventh and you know it.',
+  },
+
+  riverSpears: {
+    name: 'The Tumblestone Spears',
+    where: 'Riverrun',
+    kind: 'sellsword',
+    level: 14,
+    price: 1500,
+    pitch: 'Serjeant of Spears: River levies, and better than that sounds. Half '
+         + 'of them held the fords in the last war and the other half are the '
+         + 'sons of the ones who did not come back off them.',
+    taken: 'Serjeant of Spears: Taken and counted. He fights in a line, so put '
+         + 'him in one.',
+    poor: 'Serjeant of Spears: Fifteen hundred, and that is the widows\u2019 share '
+        + 'in it, not mine.',
+    full: 'Serjeant of Spears: Six is a company. Seven is a crowd with a wage bill.',
+  },
+
+  stormRiders: {
+    name: 'The Rainwood Riders',
+    where: "Storm's End",
+    kind: 'knight',
+    level: 20,
+    price: 2800,
+    pitch: 'Master-at-Arms: Landless knights, most of them second sons out of '
+         + 'the rainwood. They ride well, they hold, and they have all been '
+         + 'wet for so long that nothing about a campaign frightens them.',
+    taken: 'Master-at-Arms: Then he is yours. He will want feeding and he will '
+         + 'want telling, in that order.',
+    poor: 'Master-at-Arms: Twenty-eight hundred buys a horse, a lance and the '
+        + 'man on top of it. Come back when you have it.',
+    full: 'Master-at-Arms: Six. That is what a man can turn round and count in '
+        + 'the dark. Leave it there.',
+  },
+
+  sandSteeds: {
+    name: 'The Sand Steeds',
+    where: 'Sunspear',
+    kind: 'knight',
+    level: 26,
+    price: 4200,
+    pitch: 'Captain of the Sands: Light horse. They will not stand in your line '
+         + 'and they will not thank you for asking. What they will do is be '
+         + 'somewhere else by the time the other man has turned round.',
+    taken: 'Captain of the Sands: Done. Do not put him in a wall of shields and '
+         + 'then complain about him.',
+    poor: 'Captain of the Sands: Four thousand two hundred. The horse alone is '
+        + 'worth half of it.',
+    full: 'Captain of the Sands: Six. Dorne has never needed more than six of '
+        + 'anything.',
+  },
 };
 
 export const COMPANY_IDS = Object.keys(COMPANIES);

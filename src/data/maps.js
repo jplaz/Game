@@ -3698,6 +3698,8 @@ export const MAPS = {
       { x: 3, y: 13, text: "ALYSSA'S TEARS\nShe wept for her murdered children and never stopped.\nThe fall is so long the water is gone to mist before it lands." },
     ],
     npcs: [
+      { x: 8, y: 6, dir: 'down', sprite: 'septa', name: 'Septa of the Eyrie',
+        script: 'townTalk', data: { line: 'Septa of the Eyrie: The Vale marries carefully; it has to, there are only so many roads down. Have a roof of your own first, and then we will talk about who sits under it.' } },
       { x: 7, y: 6, dir: 'down', sprite: 'arryn', name: 'Ser Vardis Egen',
         script: 'duel', data: { duel: 'manAtArms' } },
       { x: 15, y: 13, dir: 'down', sprite: 'oldman', name: 'Mountain Steward', script: 'deedBroker',
@@ -3843,6 +3845,8 @@ export const MAPS = {
       { x: 6, y: 12, text: 'THE WHITE WALLS\nTwo rings of it, and the gardens in between.\nNo other castle in the realm wastes that much ground on flowers.' },
     ],
     npcs: [
+      { x: 13, y: 5, dir: 'down', sprite: 'septa', name: 'Septa of Highgarden',
+        script: 'townTalk', data: { line: 'Septa of Highgarden: Half the Reach is somebody\u2019s cousin. Bring me a hall and a name that has bent to you, and a match is the easiest thing in the world.' } },
       { x: 12, y: 5, dir: 'down', sprite: 'tyrell', name: 'Highgarden Steward', script: 'quest',
         data: { quest: 'theGrainCount' } },
       { x: 8, y: 14, dir: 'down', sprite: 'goodwife', name: 'Lady Olenna', script: 'olenna' },
@@ -3983,6 +3987,10 @@ export const MAPS = {
       { x: 12, y: 4, text: 'THE WINDING WALLS\nThree turns between walls you cannot see over.\nAn army that gets through the gate has got nowhere at all.' },
     ],
     npcs: [
+      { x: 10, y: 18, dir: 'down', sprite: 'septa', name: 'Septa of Sunspear',
+        script: 'townTalk', data: { line: 'Septa of Sunspear: Dorne is not troubled about who marries whom, only about whether they meant it. Buy a hall. Then come back and mean it.' } },
+      { x: 14, y: 18, dir: 'down', sprite: 'sellsword', name: 'Captain of the Sands',
+        script: 'sellswords', data: { company: 'sandSteeds' } },
       { x: 9, y: 18, dir: 'down', sprite: 'guard', name: 'Sunspear Guard', script: 'quest',
         data: { quest: 'theDornishHostage' } },
       { x: 13, y: 18, dir: 'down', sprite: 'martell', name: 'Orchard-Keeper', script: 'deedBroker',
@@ -4124,6 +4132,10 @@ export const MAPS = {
     ],
     npcs: [
       { x: 7, y: 7, dir: 'down', sprite: 'redPriest', name: 'Melisandre', script: 'melisandre' },
+      { x: 8, y: 7, dir: 'down', sprite: 'septa', name: "Septa of Storm's End",
+        script: 'townTalk', data: { line: 'Septa of Storm\u2019s End: I have married people in this sept through three sieges. A roof and the price of the feast is all it has ever taken.' } },
+      { x: 18, y: 7, dir: 'down', sprite: 'sellsword', name: 'Master-at-Arms',
+        script: 'sellswords', data: { company: 'stormRiders' } },
       { x: 17, y: 7, dir: 'left', sprite: 'baratheon', name: 'Ser Davos', script: 'davos' },
       { x: 8, y: 22, dir: 'right', sprite: 'goodwife', name: 'Fisherwife', script: 'stormHint' },
     ],
@@ -4803,6 +4815,10 @@ export const MAPS = {
     npcs: [
       { x: 9, y: 16, dir: 'down', name: 'Smallfolk Woman', sprite: 'goodwife',
         script: 'quest', data: { quest: 'hangingTree' } },
+      { x: 10, y: 16, dir: 'down', sprite: 'septa', name: 'Septon of Riverrun',
+        script: 'townTalk', data: { line: 'Septon of Riverrun: A match is arranged, not fallen into. Bring me a hall to send her to and the coin to do it properly, and I will do the rest.' } },
+      { x: 14, y: 16, dir: 'down', sprite: 'sellsword', name: 'Serjeant of Spears',
+        script: 'sellswords', data: { company: 'riverSpears' } },
       { x: 13, y: 16, dir: 'down', sprite: 'child', name: 'Squire', script: 'riverrunSquire' },
       { x: 25, y: 14, dir: 'left', sprite: 'oldman', name: 'Boatwright', script: 'riverrunHint' },
       { x: 2, y: 8, dir: 'right', sprite: 'goodwife', name: 'Fishwife', script: 'riverrunFishwife' },
@@ -5018,6 +5034,8 @@ export const MAPS = {
         data: { berth: { map: 'sunsetSea', x: 25, y: 12 }, where: 'the Lannisport quay' } },
       { x: 21, y: 14, dir: 'left', sprite: 'oldman', name: 'Harbourmaster', script: 'harbourmaster' },
       { x: 7, y: 4, dir: 'down', sprite: 'lannister', name: 'Gold Cloak', script: 'lannisportGuard' },
+      { x: 8, y: 4, dir: 'down', sprite: 'septa', name: 'Septa of Lannisport',
+        script: 'townTalk', data: { line: 'Septa of Lannisport: A match costs what your name is worth, and in this city that is a number somebody has written down. Have a hall first.' } },
       { x: 22, y: 16, dir: 'left', sprite: 'goodwife', name: 'Goldsmith', script: 'lannisportHint' },
       { x: 15, y: 21, dir: 'right', sprite: 'rival', name: 'Joffrey', script: 'rivalLannisport',
         hideIfFlag: 'trainer_rival2' },
@@ -5984,6 +6002,8 @@ export const MAPS = {
       { x: 12, y: 3, text: 'THE BRIDGE\nThe only one joined to land, and they watch it day and night.\nEverything else here you cross over water.' },
     ],
     npcs: [
+      { x: 11, y: 5, dir: 'down', sprite: 'septa', name: 'Salt Septon',
+        script: 'townTalk', data: { line: 'Salt Septon: They will tell you the ironborn take salt wives and do not bother with septs. They come here anyway, before the winter. Bring a hall and I will read the words.' } },
       { x: 10, y: 5, dir: 'down', sprite: 'goodwife', name: 'A Woman of Fair Isle', script: 'quest',
         data: { quest: 'saltWivesOfPyke' } },
       { x: 11, y: 13, dir: 'down', sprite: 'ironborn', name: 'Yara Greyjoy',
@@ -7543,6 +7563,8 @@ export const MAPS = {
         data: { property: 'riverCottage' } },
       { x: 8, y: 18, dir: 'right', sprite: 'brotherhood', name: 'Hooded Man',
         script: 'duel', data: { duel: 'brotherhoodBowman' } },
+      { x: 13, y: 24, dir: 'down', sprite: 'sellsword', name: 'Hedge Knight',
+        script: 'sellswords', data: { company: 'crossroadsSwords' } },
       { x: 14, y: 24, dir: 'left', sprite: 'smallfolk', name: 'Beggar',
         script: 'hideoutLocal',
         data: { line: 'Beggar: I have sat here eleven years. '

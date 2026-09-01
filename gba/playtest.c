@@ -2257,11 +2257,13 @@ void hostFrame(void) {
          read, not one oath was ever offered and not one sword ever sworn - so
          nobody ever had a host, so nobody could ever send one anywhere, and
          three whole systems sat unplayed behind a menu nothing pressed. */
+      /* Offer is its own word on the menu now, so the purse goes through the
+         front door rather than through the pouch. */
       int want = pouchTrips > 6 ? 0
-        : runAway ? 3
+        : runAway ? 4
         : (foeBeast < 0 && foeDef && foeDef->sworn < SWORN_KINDS && haveOath
            && hostRoom() >= 0 && !theirs.dead
-           && theirs.hp * 4 < theirs.maxHp) ? 1
+           && theirs.hp * 4 < theirs.maxHp) ? 3
         : (foeBeast >= 0 && beasts[foeBeast].tame && haveNet
            && theirs.hp * 3 < theirs.maxHp) ? 1
         : (you.hp * 3 < vigourFor(you.level) && haveCure ? 1 : 0);
@@ -2269,8 +2271,9 @@ void hostFrame(void) {
          back once it has taken enough. */
       if (want == 0 && beastOut && yours.hp * 3 < yours.maxHp) want = 2;
       else if (want == 0 && !beastOut && packHave() && (roll(3) == 0)) want = 2;
-      if ((want & 1) != (topPick & 1)) keys = tap((want & 1) ? KEY_RIGHT : KEY_LEFT);
-      else if ((want & 2) != (topPick & 2)) keys = tap((want & 2) ? KEY_DOWN : KEY_UP);
+      /* Two rows of three: along first, then down. */
+      if (want / 3 != topPick / 3) keys = tap(want / 3 > topPick / 3 ? KEY_DOWN : KEY_UP);
+      else if (want % 3 != topPick % 3) keys = tap(want % 3 > topPick % 3 ? KEY_RIGHT : KEY_LEFT);
       else keys = tap(KEY_A);
       if (++duelTries > 900) { finding("a duel that would not end"); duelTries = 0; }
     }

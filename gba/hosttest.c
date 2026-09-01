@@ -36,6 +36,17 @@ static int frameNo;
 typedef struct { int frames; unsigned keys; const char *shot; int gx, gy; } Step;   /* not the cartridge Beat: that one is a cutscene */
 #define WALK_TO(f, x, y, shot) { f, 0, shot, x, y }
 
+/* Read whatever is on the screen and get back to the world, however long that
+   takes, up to a limit.
+ *
+ * Every other beat here is a number of frames somebody counted once. That was
+ * fine while the road between two screens was fixed; then beginning the game
+ * grew an opening window and a cutscene at Winterfell, and every hard-counted
+ * beat after it was pressed at a page of prose - so this route took nineteen
+ * pictures of the same field and reported nothing wrong. A beat that waits for
+ * a condition cannot be broken by somebody adding a paragraph. */
+#define CLEAR(f) { f, 0, 0, -1, 0 }
+
 static const Step script[] = {
   { 6, 0, "01-title", 0, 0 },
   { 2, KEY_START, 0, 0, 0 },
@@ -44,8 +55,43 @@ static const Step script[] = {
   { 4, 0, 0, 0, 0 },
   { 2, KEY_RIGHT, 0, 0, 0 },
   { 6, 0, "03-tully", 0, 0 },
+  /* And back to Stark before committing. The two presses above are there for
+     the picture of somebody else's shield; every tile this route walks to
+     afterwards is a tile in Winterfell, so it has to actually start there. */
+  { 2, KEY_LEFT, 0, 0, 0 },
+  { 4, 0, 0, 0, 0 },
+  { 2, KEY_LEFT, 0, 0, 0 },
+  { 4, 0, 0, 0, 0 },
   { 2, KEY_A, 0, 0, 0 },
+  /* Then your name, and then your arms, before a foot goes on any road.
+   *
+   * Swearing your sword used to be the last thing between the title and the
+   * world, and this route pressed A and expected to be standing in a yard.
+   * Two screens went in between and nothing here was told: every beat after
+   * this one held its buttons at the letter grid, all nineteen pictures were
+   * of the same screen, and the walk beats asked which way was open on a map
+   * that had never been loaded, which is how a fixed route ends in a
+   * segmentation fault instead of a report. */
+  { 8, 0, "02c-your-name", 0, 0 },
+  { 2, KEY_A, 0, 0, 0 },              /* one letter, so the name is yours */
+  { 4, 0, 0, 0, 0 },
+  { 2, KEY_START, 0, 0, 0 },
+  { 8, 0, "02d-your-arms", 0, 0 },
+  { 2, KEY_RIGHT, 0, 0, 0 },          /* a charge that is not the default */
+  { 4, 0, 0, 0, 0 },
+  { 2, KEY_START, 0, 0, 0 },
   { 10, 0, "04-winterfell", 0, 0 },
+  /* Whatever the first morning has to say, read and dismissed. Beginning the
+     game puts a window up, and START into a window is not a menu: every beat
+     below this one used to be pressed at a page of text nobody had turned. */
+  CLEAR(900),
+  /* Twice, with a pause between: the opening window is up the moment the game
+     begins, and Winterfell's own scene does not fire until a frame or two
+     after that. Clearing once cleared the window and walked straight into the
+     cutscene. */
+  { 60, 0, 0, 0, 0 },
+  CLEAR(900),
+  { 10, 0, 0, 0, 0 },
   /* The menu, the card, and the pouch. */
   { 2, KEY_START, 0, 0, 0 },
   { 6, 0, "05-menu", 0, 0 },
@@ -53,8 +99,12 @@ static const Step script[] = {
   { 8, 0, "06-sigil", 0, 0 },
   { 2, KEY_B, 0, 0, 0 },
   { 4, 0, 0, 0, 0 },
-  { 2, KEY_DOWN, 0, 0, 0 },
-  { 4, 0, 0, 0, 0 },
+  /* Down to the pouch, which is the fourth line and used to be the second:
+     "At Heel" and "Swords" went in above it and this route kept pressing down
+     once and photographing whatever it landed on. */
+  { 2, KEY_DOWN, 0, 0, 0 }, { 4, 0, 0, 0, 0 },
+  { 2, KEY_DOWN, 0, 0, 0 }, { 4, 0, 0, 0, 0 },
+  { 2, KEY_DOWN, 0, 0, 0 }, { 4, 0, 0, 0, 0 },
   { 2, KEY_A, 0, 0, 0 },
   { 8, 0, "07-pouch", 0, 0 },
   { 2, KEY_B, 0, 0, 0 },
@@ -130,6 +180,21 @@ void hostFrame(void) {
   {
     const Step *beat = &script[beatAt - 1];
     unsigned keys = beat->keys;
+    if (beat->gx < 0) {
+      /* Hold A through anything the game wants read, and end the moment the
+         world is yours again rather than when a count runs out. */
+      if (windowOpen || cutAt >= 0) {
+        REG_KEYINPUT = (unsigned short)(~((frameNo & 3) ? 0u : KEY_A) & 0x03FF);
+        beatLeft--;
+        frameNo++;
+        return;
+      }
+      beatLeft = 0;
+      if (beat->shot) snapshot(beat->shot);
+      REG_KEYINPUT = 0x03FF;
+      frameNo++;
+      return;
+    }
     if (beat->gx || beat->gy) {
       static const unsigned KEYS[4] = { KEY_DOWN, KEY_UP, KEY_LEFT, KEY_RIGHT };
       int hx = hero.px >> 4, hy = hero.py >> 4;
@@ -158,7 +223,14 @@ void hostFrame(void) {
         frameNo++;
         return;
       }
-      for (i = 0; i < n + 4; i++) {
+      /* Only once there is somewhere to walk.
+       *
+       * `world` is null until the first map is loaded, and every one of these
+       * tests reads it. A route that asks which way is open before the game
+       * has put you anywhere is reading tile nought of nothing - which is what
+       * this did the day the opening grew a step, because the script walked
+       * the man out of a screen he was no longer standing on. */
+      for (i = 0; world && i < n + 4; i++) {
         int d = want[i];
         int nx = hx + DIR_X[d], ny = hy + DIR_Y[d];
         if (solidAt(nx, ny) || occupied(nx, ny, -1)) continue;

@@ -96,12 +96,24 @@ static unsigned char standable[64 * 64];
 static unsigned char spare[64 * 64];
 static int floodQ[64 * 64];
 static int blocked = -1;               /* one tile taken out of the map */
+/* And a handful of them at once, for a household: your wife and four children
+   are five people standing still in one room, and no single-tile question can
+   tell you whether the five of them between them have shut the door. */
+#define BLOCK_MANY 8
+static int blockSet[BLOCK_MANY], blockCount;
+
+static int isBlocked(int at) {
+  int i;
+  if (at == blocked) return 1;
+  for (i = 0; i < blockCount; i++) if (blockSet[i] == at) return 1;
+  return 0;
+}
 
 static void flood(const Map *m, int sx, int sy) {
   int head = 0, tail = 0, i;
   if (sx < 0 || sy < 0 || sx >= m->w || sy >= m->h) return;
   if (solidOn(m, sx, sy) || ledgeOn(m, sx, sy)) return;
-  if (sy * m->w + sx == blocked) return;
+  if (isBlocked(sy * m->w + sx)) return;
   if (standable[sy * m->w + sx]) return;
   standable[sy * m->w + sx] = 1;
   floodQ[tail++] = sy * m->w + sx;
@@ -118,7 +130,7 @@ static void flood(const Map *m, int sx, int sy) {
       }
       if (nx < 0 || ny < 0 || nx >= m->w || ny >= m->h) continue;
       if (solidOn(m, nx, ny)) continue;
-      if (ny * m->w + nx == blocked) continue;
+      if (isBlocked(ny * m->w + nx)) continue;
       if (standable[ny * m->w + nx]) continue;
       standable[ny * m->w + nx] = 1;
       floodQ[tail++] = ny * m->w + nx;
@@ -432,6 +444,26 @@ static void checkText(const char *what, const char *s) {
   }
 }
 
+/* A panel that draws the first two lines of a wrapped string and no more. Any
+   word past those two is written into memory and shown to nobody. */
+static void checkPastTwo(const char *what, const char *which, const char *s) {
+  int k;
+  /* Wiped first. wrapText writes only the lines it needs and leaves whatever
+     the last string put in the ones past them, so a short string measured
+     after a long one reads the long one's tail and is reported as spilling
+     text it does not contain. Proving the check worked is what found that:
+     one deliberately over-long line was reported twice. */
+  for (k = 0; k < MAX_LINES; k++) lines[k][0] = 0;
+  speaker = 0;
+  wrapText(s, TXT_W - 28);
+  for (k = 2; k <= lineCount && k < MAX_LINES; k++) {
+    if (!lines[k][0]) continue;                /* wrapText leaves a blank one */
+    bad("what a %s %s spills onto a third line: \"%.30s\" is never drawn",
+      what, which, lines[k]);
+    return;
+  }
+}
+
 /* And it has to fit the window it is put in. */
 static void checkFits(const char *what, const char *s, int rows) {
   speaker = 0;
@@ -707,6 +739,141 @@ static void checkNobodyBlocks(void) {
   }
 }
 
+/* ------------------------------------------- five people in your own hall ---
+ *
+ * The household is the first thing in this game that puts people on a map at
+ * run time. Everybody else was placed by hand and looked at; your wife and
+ * four children are placed by an algorithm, in a room the player chose, on
+ * whichever tile they happened to be standing on when they bought the place -
+ * and unlike the crowd they never wander, so wherever they are put is where
+ * they are for the rest of the game.
+ *
+ * That is the exact shape of the septa who sealed Lannisport's north gate,
+ * except that nobody authored it and so nobody can look at it and see.
+ *
+ * The cartridge's own placement is run, rather than a copy of it written out
+ * here: settleFolk reads the loaded map and the globals, so the globals are
+ * set up the way a cleared hall with a family in it looks and it is called. A
+ * copy would drift, and a copy that drifted would agree with itself while the
+ * game walled somebody in. Then every hall in the realm that is for sale, from
+ * every tile in it you could have bought it standing on, is checked: doors,
+ * signs and everyone still reachable, and room for all five of them.
+ *
+ * Twelve halls, a couple of hundred hearths apiece. It costs about a second. */
+static void checkHouseholdFits(void) {
+  int m, said = 0;
+  /* Everything this borrows, given back.
+   *
+   * It has to load maps and stand the player in them to run the cartridge's
+   * own placement, and the first version walked away leaving the world pointed
+   * at The Chieftain's Cave - so every duel the audit fought afterwards was
+   * fought on that cave's ground, and the swordfighting check three hundred
+   * lines below reported level five four fights easier than it is. A check
+   * that quietly changes the answer to the next check is worse than no check. */
+  const Map *keptWorld = world;
+  int keptId = worldId, keptCrowd = crowdCount;
+  Body keptHero = hero;
+  Seat keptSeat = seat;
+  for (m = 0; m < MAP_COUNT; m++) {
+    const Map *map = &maps[m];
+    int hx, hy, sx = -1, sy = -1, i, worst = FOLK_MAX, worstX = 0, worstY = 0, hearths = 0;
+    if (!map->seat || !map->warpCount) continue;
+    /* Where somebody walking in from outside is standing. */
+    for (i = 0; i < 4 && sx < 0; i++) {
+      int nx = map->warps[0].x + DIR_X[i], ny = map->warps[0].y + DIR_Y[i];
+      if (nx < 0 || ny < 0 || nx >= map->w || ny >= map->h) continue;
+      if (!solidOn(map, nx, ny)) { sx = nx; sy = ny; }
+    }
+    if (sx < 0) continue;
+
+    /* A hall you have taken: everyone who was in it is down, which is the only
+       state you can ever own one in - houseAct will not sell you a hall
+       somebody is still holding. */
+    world = map;
+    worldId = m;
+    crowdCount = 0;
+    folkCount = 0;
+    hero.px = (s16)(sx * 16); hero.py = (s16)(sy * 16);
+    hero.walk = 0; hero.dir = 0;
+    seat.has = 1;
+    seat.map = (MapId)m;
+    seat.wed = 1;
+    seat.grade = GRADE_COUNT - 1;      /* a castle, so the whole family is home */
+    seat.heirs = HEIR_MAX;
+    seat.heirOut = 0;
+    for (i = 0; i < HEIR_MAX; i++) seat.heirBorn[i] = 0;
+
+    /* What the room is worth with nobody of yours in it. */
+    blocked = -1;
+    blockCount = 0;
+    memset(standable, 0, sizeof standable);
+    flood(map, sx, sy);
+    memcpy(spare, standable, sizeof spare);
+
+    for (hy = 0; hy < map->h; hy++) {
+      for (hx = 0; hx < map->w; hx++) {
+        int j;
+        if (!spare[hy * map->w + hx]) continue;     /* not a tile you could buy it on */
+        seat.x = (u8)hx;
+        seat.y = (u8)hy;
+        settleFolk(m);                              /* the game's own placement */
+        hearths++;
+        if (folkCount < worst) { worst = folkCount; worstX = hx; worstY = hy; }
+
+        blockCount = 0;
+        for (j = 0; j < folkCount && blockCount < BLOCK_MANY; j++) {
+          blockSet[blockCount++] = (folk[j].py >> 4) * map->w + (folk[j].px >> 4);
+        }
+        memset(standable, 0, sizeof standable);
+        flood(map, sx, sy);
+        for (j = 0; j < map->warpCount; j++) {
+          int wx = map->warps[j].x, wy = map->warps[j].y;
+          if (standable[wy * map->w + wx] || !spare[wy * map->w + wx]) continue;
+          if (said++ < 8)
+            bad("%s: a household settled from %d,%d shuts the door at %d,%d",
+              map->name, hx, hy, wx, wy);
+        }
+        for (j = 0; j < map->signCount; j++) {
+          int gx = map->signs[j].x, gy = map->signs[j].y;
+          if (standNextTo(map, gx, gy) || !spareNextTo(map, gx, gy)) continue;
+          if (said++ < 8)
+            bad("%s: a household settled from %d,%d shuts off the sign at %d,%d",
+              map->name, hx, hy, gx, gy);
+        }
+        /* And your own family: a child you cannot walk up to is a child you
+           cannot take into your service. */
+        for (j = 0; j < folkCount; j++) {
+          int px = folk[j].px >> 4, py = folk[j].py >> 4;
+          if (standNextTo(map, px, py)) continue;
+          if (said++ < 8)
+            bad("%s: a household settled from %d,%d cannot reach its own %d",
+              map->name, hx, hy, j);
+        }
+      }
+    }
+    /* And whether there is room for all of them. A hall whose worst hearth
+       seats two of five is a hall where a player who built a castle for four
+       children finds two of them missing. */
+    if (worst < FOLK_MAX) {
+      if (worst < 3) {
+        bad("%s: a household settled from %d,%d seats only %d of %d",
+          map->name, worstX, worstY, worst, FOLK_MAX);
+      } else {
+        note("%s seats %d of %d at the worst of its %d hearths",
+          map->name, worst, FOLK_MAX, hearths);
+      }
+    }
+    blockCount = 0;
+  }
+  blocked = -1;
+  folkCount = 0;
+  world = keptWorld;
+  worldId = keptId;
+  crowdCount = keptCrowd;
+  hero = keptHero;
+  seat = keptSeat;
+}
+
 int main(void) {
   int m, i, j, seen[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, reached = 0, wayIn = -1;
   int totalNpc = 0, totalSign = 0, totalWarp = 0;
@@ -819,6 +986,28 @@ int main(void) {
 
   checkNoWayBack();
   checkNobodyBlocks();
+  checkHouseholdFits();
+
+  /* The masons' panel. Four names on rows sixty pixels wide, and two
+     paragraphs under a rule with room for two lines apiece - so the names have
+     to fit the row and the prose has to fit the box, and both are checked the
+     way every other table in the game is. */
+  for (i = 0; i < GRADE_COUNT; i++) {
+    checkText(GRADE_NAME[i], GRADE_NAME[i]);
+    checkText(GRADE_NAME[i], GRADE_IS[i]);
+    checkText(GRADE_NAME[i], GRADE_GIVES[i]);
+    if (textWidth(GRADE_NAME[i]) > TXT_W - 60 - 24) {
+      bad("\"%s\" is %d wide and the works panel's row holds %d",
+        GRADE_NAME[i], textWidth(GRADE_NAME[i]), TXT_W - 60 - 24);
+    }
+    /* Two lines is what the panel draws; a third is written and never seen.
+       Asked by looking for words past the second line rather than by counting
+       lines: wrapText leaves a blank one on the end, so counting says three
+       for a sentence that fits perfectly in two, and a check that fires on
+       correct text is a check somebody will delete. */
+    checkPastTwo(GRADE_NAME[i], "is", GRADE_IS[i]);
+    checkPastTwo(GRADE_NAME[i], "buys you", GRADE_GIVES[i]);
+  }
 
   for (m = 0; m < MAP_COUNT; m++) {
     const Map *map = &maps[m];
@@ -1448,6 +1637,15 @@ int main(void) {
   {
     static const int AT[5] = { 5, 10, 15, 20, 25 };
     int a;
+    /* From a fixed place in the random stream.
+     *
+     * This measures the game, and it was measuring where in the sequence the
+     * audit happened to have got to: adding a check anywhere above it changed
+     * how many rolls had been drawn, which moved level five between 23 and 26
+     * against a wall at 25. Two runs of the same cartridge disagreed about
+     * whether its swordfighting was too easy. Seeded here, the number is a
+     * fact about the game and moves only when the game does. */
+    seed = 0x51ED9E1Du;
     for (a = 0; a < 5; a++) {
       int lv = AT[a], run;
       u8 wasW = you.WORN_WEAPON, wasA = you.WORN_ARMOUR, wasS = you.WORN_SHIELD;
@@ -1455,7 +1653,21 @@ int main(void) {
       you.WORN_WEAPON = k.arm == KIT_NONE ? 0 : (u8)(k.arm + 1);
       you.WORN_ARMOUR = k.mail == KIT_NONE ? 0 : (u8)(k.mail + 1);
       you.WORN_SHIELD = k.shield == KIT_NONE ? 0 : (u8)(k.shield + 1);
-      run = runLength(lv, 300);
+      /* Three hundred runs, three times, and the middle one.
+       *
+       * One draw of three hundred was not one number, it was a sample: level
+       * five came out at 22 to 27 depending on nothing but where in the random
+       * stream this happened to start, against a wall at 25. So an unrelated
+       * change anywhere earlier in the audit that consumed a different number
+       * of rolls would fail the game's swordfighting. The median of three
+       * costs a fraction of a second and cannot be flipped by a shuffle. */
+      { int s, draw[3], t;
+        for (s = 0; s < 3; s++) draw[s] = runLength(lv, 300);
+        for (s = 0; s < 2; s++)
+          if (draw[s] > draw[s + 1]) { t = draw[s]; draw[s] = draw[s + 1]; draw[s + 1] = t; }
+        if (draw[0] > draw[1]) { t = draw[0]; draw[0] = draw[1]; draw[1] = t; }
+        run = draw[1];
+      }
       you.WORN_WEAPON = wasW; you.WORN_ARMOUR = wasA; you.WORN_SHIELD = wasS;
       note("at level %d, in what a level %d carries, you get through %d fights "
            "of your own standing before somebody puts you down", lv, lv, run);
@@ -1909,7 +2121,7 @@ int main(void) {
      marriage wants a great house already knelt. So the rules are checked here,
      directly, the same way the party's and the host's are. */
   {
-    int k, halls = 0, was, i2;
+    int k, g, halls = 0, was, i2;
     extern void newGameState(void);
 
     /* Nought is a real charge, a real field and a real map, so an unwritten
@@ -2049,7 +2261,13 @@ int main(void) {
     houseAfterWin();
     if (!seat.coffers) bad("a win pays no rent into your own hall");
 
-    /* Children: only once wed, on a schedule, and never more than four. */
+    /* Children: only once wed, on a schedule, and never more than the house
+       has beds for - which is what the works are for. A holdfast holds one and
+       a castle holds four, so this walks the ladder and checks that each step
+       actually opens the next cot. Without the grade term this loop used to
+       say four whatever you had built, which was the whole complaint: gold
+       bought nothing and a bigger house meant nothing. */
+    seat.grade = 0;
     seat.wed = 0;
     seat.heirs = 0;
     seat.lastHeir = 0;
@@ -2058,13 +2276,31 @@ int main(void) {
     if (seat.heirs) bad("an unwed lord has %d children", seat.heirs);
     seat.wed = 1;
     seat.lastHeir = (u16)you.kills;
-    for (k = 0; k < HEIR_EVERY * (HEIR_MAX + 3); k++) { you.kills++; houseAfterWin(); }
+    for (g = 0; g < GRADE_COUNT; g++) {
+      seat.grade = (u8)g;
+      for (k = 0; k < HEIR_EVERY * (HEIR_MAX + 3); k++) { you.kills++; houseAfterWin(); }
+      if (seat.heirs != g + 1) {
+        bad("a %s houses %d children, not the %d it has room for",
+          GRADE_NAME[g], seat.heirs, g + 1);
+      }
+    }
     if (seat.heirs != HEIR_MAX) {
-      bad("%d children after %d wins wed, not the %d there is room for",
-        seat.heirs, HEIR_EVERY * (HEIR_MAX + 3), HEIR_MAX);
+      bad("%d children in a castle, not the %d there is room for",
+        seat.heirs, HEIR_MAX);
     }
     for (k = 0; k < seat.heirs; k++) {
       if (!seat.heirName[k][0]) bad("child %d of your house has no name", k);
+    }
+    /* And that raising the walls is worth something in itself. */
+    seat.grade = 0;
+    { int poor = rentPerWin(), rich;
+      seat.grade = GRADE_COUNT - 1;
+      rich = rentPerWin();
+      if (rich <= poor) bad("a castle pays no more rent than a holdfast");
+      if (!garrison()) bad("a castle has no garrison");
+      seat.grade = 0;
+      if (garrison()) bad("a holdfast has a garrison");
+      if (heirRoom() != 1) bad("a holdfast has room for %d children", heirRoom());
     }
 
     /* And a raid: it picks a hall you hold, puts the people who were cleared

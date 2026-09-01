@@ -1685,9 +1685,38 @@ typedef struct {
      company you can send away and get back short-handed is a company. */
   MapId warMap; u8 warLive, warOdds;
   u16 warAt;
+  /* And what you have raised on it. A hall you buy is a holdfast: one hard
+     building and a wall somebody's grandfather put up. Everything above that
+     you pay masons for, and every step of it is worth something on its own -
+     more rent, room for another child, and men on the wall who can turn a raid
+     back without you riding four regions to do it yourself. */
+  u8 grade;
 } Seat;
 
 static Seat seat;
+
+/* ------------------------------------------------------------ your people --
+ *
+ * Whoever of your household is at home, standing in your hall.
+ *
+ * A marriage and four children were two numbers on a card and a name in a
+ * sentence: you could be wed for thirty hours of play and never once see the
+ * person, and a child arrived as one line of text on the road and after that
+ * existed only as the digit next to "Marriage". Nothing in the world changed
+ * when you had a family, which is a strange thing for a game about houses.
+ *
+ * So they are there. One body for whoever you married, one for each child who
+ * has not yet ridden out, put down near the spot you were standing on when you
+ * bought the place - and solid, and worth walking up to. They cannot live in
+ * the map data, which is in read-only memory on a cartridge and was written
+ * before you had met anybody, so they are their own small crowd that exists on
+ * exactly one map: yours. */
+#define FOLK_MAX (1 + HEIR_MAX)
+#define FOLK_BASE 100          /* how the drawing order refers to them */
+static Body folk[FOLK_MAX];
+static u8 folkWho[FOLK_MAX];   /* 0 for your spouse, child index plus one after */
+static u8 folkBank[FOLK_MAX];  /* which appearance, as a resident slot */
+static int folkCount;
 
 /* ------------------------------------------------------------ the nine ------
  *
@@ -2466,6 +2495,15 @@ static int bodyAt(const Body *b, int x, int y) {
   return 0;
 }
 
+/* Which of your household is standing on a tile, or -1. Separate from the
+   crowd because they are not on the map, and checked everywhere the crowd is:
+   a wife you could walk through would be a ghost. */
+static int folkAt(int x, int y) {
+  int i;
+  for (i = 0; i < folkCount; i++) if (bodyAt(&folk[i], x, y)) return i;
+  return -1;
+}
+
 static int occupied(int x, int y, int ignore) {
   int i;
   if (bodyAt(&hero, x, y)) return 1;
@@ -2473,6 +2511,7 @@ static int occupied(int x, int y, int ignore) {
     if (i == ignore || !crowdAlive[i]) continue;
     if (bodyAt(&crowd[i], x, y)) return 1;
   }
+  if (folkAt(x, y) >= 0) return 1;
   return 0;
 }
 
@@ -2522,6 +2561,43 @@ static void loadActors(void) {
       for (w = 0; w < 2 * ACTOR_FRAME_TILES * 8; w++) *dst++ = from[w];
     }
     for (w = 0; w < 16; w++) PAL_OBJ[(i + 1) * 16 + w] = a->pal[w];
+  }
+
+  /* Your household goes in after them, in whatever appearance slots this map
+     has left over. Twelve are resident and every hall in the realm that can be
+     bought uses five or fewer, so there is always room - but it is checked,
+     because the twelfth is where the hull and the animals live and painting a
+     wife over your own ship would be a strange bug to have to find.
+
+     Nobody is drawn out for them. Your wife wears the colours of the house she
+     was born into, which is the body that house's own player would have worn,
+     and your children wear yours. It costs nothing and it says the right
+     thing: there is a Tully in a Stark hall, and the children are Starks. */
+  for (i = 0; i < FOLK_MAX; i++) folkBank[i] = 255;
+  if (folkCount) {
+    int slot = world->residentCount, k, kids = -1;
+    for (k = 0; k < folkCount; k++) {
+      int who = folkWho[k];
+      int house;
+      const Actor *a;
+      volatile u32 *dst;
+      /* All your children are the same picture, so they are one appearance
+         between them however many there are. Two slots, ever. */
+      if (who && kids >= 0) { folkBank[k] = (u8)kids; continue; }
+      if (slot >= 11) break;
+      house = who == 0 ? (int)seat.wed - 1 : (int)you.house;
+      if (house < 0 || house >= HOUSE_COUNT) house = (int)you.house;
+      a = &actors[houses[house].looks[who == 0 ? 1 : 0]];
+      dst = VRAM_OBJ + (NPC_TILE_BASE + slot * NPC_TILE_STRIDE) * 8;
+      for (d = 0; d < 4; d++) {
+        const u32 *from = a->tiles + (d * 4) * ACTOR_FRAME_TILES * 8;
+        for (w = 0; w < 2 * ACTOR_FRAME_TILES * 8; w++) *dst++ = from[w];
+      }
+      for (w = 0; w < 16; w++) PAL_OBJ[(slot + 1) * 16 + w] = a->pal[w];
+      folkBank[k] = (u8)slot;
+      if (who) kids = slot;
+      slot++;
+    }
   }
 }
 
@@ -2627,6 +2703,177 @@ static void placeWeather(void) {
   }
 }
 
+/* Whether a child has lived long enough to be any use, counted the way the
+   game has always counted it: in fights you have won since they were born. */
+static int heirGrown(int i) {
+  return i >= 0 && i < seat.heirs
+      && (u16)you.kills >= (u16)(seat.heirBorn[i] + HEIR_GROWN);
+}
+
+/* And whether one is at home rather than out on the road with you. */
+static int heirAtHome(int i) {
+  return i >= 0 && i < seat.heirs && !((seat.heirOut >> i) & 1);
+}
+
+static int inCorridor(int x, int y);
+
+/* Would putting somebody down here shut part of the room off?
+ *
+ * The corridor rule keeps them out of doorways and one-tile passages, and it
+ * is not enough. A hall is not a corridor: The Chieftain's Cave has a corner
+ * where two tiles side by side are the only way through, and neither of them
+ * is a corridor by that test - so two children could stand in it, and there
+ * would be no bug to see until somebody's save had a wing of their own castle
+ * walled off in it.
+ *
+ * The map is a few hundred tiles and this runs when a door is already blacked
+ * out for the tile load, so it is simply asked properly: flood the room from
+ * where you are standing with the household treated as walls, and refuse any
+ * spot that costs you a door, a person, or one of your own family. */
+COLD_STORE static u8 sealSeen[1024];
+COLD_STORE static u16 sealQueue[1024];
+
+static int sealReaches(int fx, int fy, int mine) {
+  int head = 0, tail = 0, n = world->w * world->h, i;
+  if (n > (int)(sizeof sealSeen)) return 1;      /* too big to ask; nothing this big is a hall */
+  for (i = 0; i < n; i++) sealSeen[i] = 0;
+  if (fx < 0 || fy < 0 || fx >= world->w || fy >= world->h) return 1;
+  sealSeen[fy * world->w + fx] = 1;
+  sealQueue[tail++] = (u16)(fy * world->w + fx);
+  while (head < tail) {
+    int cur = sealQueue[head++], cx = cur - (cur / world->w) * world->w, cy = cur / world->w;
+    for (i = 0; i < 4; i++) {
+      int nx = cx + DIR_X[i], ny = cy + DIR_Y[i], at;
+      if (nx < 0 || ny < 0 || nx >= world->w || ny >= world->h) continue;
+      at = ny * world->w + nx;
+      if (sealSeen[at]) continue;
+      if (solidAt(nx, ny)) continue;
+      if (folkAt(nx, ny) >= 0) continue;         /* everyone already put down */
+      if (mine >= 0 && at == mine) continue;     /* and the one being tried */
+      sealSeen[at] = 1;
+      sealQueue[tail++] = (u16)at;
+    }
+  }
+  return 0;
+}
+
+/* A tile is reached if you can stand on it; a person is reached if you can
+   stand beside them. */
+static int sealAt(int x, int y) {
+  if (x < 0 || y < 0 || x >= world->w || y >= world->h) return 0;
+  return sealSeen[y * world->w + x];
+}
+
+static int sealBeside(int x, int y) {
+  int i;
+  for (i = 0; i < 4; i++) if (sealAt(x + DIR_X[i], y + DIR_Y[i])) return 1;
+  return 0;
+}
+
+COLD_STORE static u8 sealWas[1024];
+
+/* The whole question, rather than a list of the things it occurred to somebody
+   to name.
+ *
+ * The first version of this asked whether any door, sign or person had stopped
+ * being reachable, and passed - and the check that drives this code from the
+ * host still put children in rooms you could not walk into. A body standing on
+ * the one tile joining two halves of a room strands the far half; there is
+ * nothing in the far half worth naming yet, so nothing was lost by that test;
+ * and then the next child is put down in there, where nobody can ever reach
+ * them.
+ *
+ * So: no tile you could stand on a moment ago may stop being one. Nobody of
+ * yours ever stands on the join. It is the same few hundred tiles either way
+ * and it cannot be got wrong by forgetting to name something. */
+static int folkWouldSeal(int x, int y) {
+  int hx = hero.px >> 4, hy = hero.py >> 4, i, n, at = y * world->w + x;
+  if (sealReaches(hx, hy, -1)) return 0;      /* nothing to compare against */
+  n = world->w * world->h;
+  for (i = 0; i < n; i++) sealWas[i] = sealSeen[i];
+  /* You have to be able to walk up to them, or they are furniture. */
+  if (!sealWas[at]) return 1;
+  if (sealReaches(hx, hy, at)) return 0;
+  for (i = 0; i < n; i++) {
+    if (i == at) continue;                    /* they are standing on it now */
+    if (sealWas[i] && !sealSeen[i]) return 1;
+  }
+  /* The tile they take stops being standable, which is the one exception
+     above - and that tile may have been somebody else's only doorstep. So
+     everybody already in the room has to still have one, and so does whoever
+     is being put down. Without this a daughter walls her mother into a corner
+     of The Chieftain's Cave and neither of them is ever spoken to again. */
+  for (i = 0; i < folkCount; i++) {
+    if (!sealBeside(folk[i].px >> 4, folk[i].py >> 4)) return 1;
+  }
+  return !sealBeside(x, y);
+}
+
+/* Your household has changed while you are standing in the room: you have just
+   married, a child has just been born, or one has just ridden out with you.
+   Put them down again and load whoever is new.
+ *
+ * Behind a forced blank, the way a map load does it. Nine hundred tiles of
+ * object memory do not fit in a blanking period, and half a sprite table
+ * written while the hardware is drawing is a screenful of torn people. */
+static void reloadHousehold(void);
+
+/* Putting your household down in your own hall.
+ *
+ * Called at the end of every map load, and on all but one map in the realm it
+ * does nothing at all. On yours it walks outwards from the tile you were
+ * standing on when you bought the place, looking for somewhere each of them
+ * can stand: not in a wall, not on a door, not in a passage, not on top of the
+ * crowd or you or each other, and nowhere that would shut a part of the room
+ * off. Whoever finds nowhere in a five-tile square is simply not put down -
+ * better a child missing from a cramped holdfast than a child in the
+ * fireplace, and the reason to build a bigger house is that there is room. */
+static void settleFolk(int id) {
+  int want[FOLK_MAX], wants = 0, i, ring;
+  folkCount = 0;
+  if (!seat.has || id != seat.map || !seat.wed) return;
+  want[wants++] = 0;                                  /* whoever you married */
+  for (i = 0; i < HEIR_MAX && i < seat.heirs; i++) {
+    if (!heirAtHome(i)) continue;
+    if (wants < FOLK_MAX) want[wants++] = i + 1;
+  }
+  /* Rings out from the hearth, so your wife is nearest the middle of the room
+     and the children are round her rather than scattered by array order. */
+  for (ring = 0; ring <= 4 && folkCount < wants; ring++) {
+    int dy, dx;
+    for (dy = -ring; dy <= ring && folkCount < wants; dy++) {
+      for (dx = -ring; dx <= ring && folkCount < wants; dx++) {
+        int x, y;
+        if (ring && dy != -ring && dy != ring && dx != -ring && dx != ring) continue;
+        x = seat.x + dx; y = seat.y + dy;
+        if (x < 0 || y < 0 || x >= world->w || y >= world->h) continue;
+        if (solidAt(x, y) || warpAt(x, y) || coverAt(x, y)) continue;
+        /* Never in a doorway or a one-tile passage. Your household does not
+           wander, so anywhere they are put is somewhere they will be standing
+           for the rest of the game - which is the difference between a wife in
+           the hall and a wife who has sealed the only way to the cellar. */
+        if (inCorridor(x, y)) continue;
+        if (occupied(x, y, -1)) continue;
+        /* And the hard question, asked properly: nothing you could reach a
+           moment ago may stop being reachable because somebody of yours is
+           standing here. */
+        if (folkWouldSeal(x, y)) continue;
+        folk[folkCount].px = (s16)(x * 16);
+        folk[folkCount].py = (s16)(y * 16);
+        /* Whoever you married faces the room; the children face about, so a
+           household reads as people standing in a hall rather than as a rank
+           drawn up for inspection. */
+        folk[folkCount].dir = (u8)(folkCount == 0 ? 0
+                                 : (folkCount * 3 + (x & 1)) & 3);
+        folk[folkCount].walk = 0;
+        folk[folkCount].stride = 0;
+        folkWho[folkCount] = (u8)want[folkCount];
+        folkCount++;
+      }
+    }
+  }
+}
+
 static void enterMap(int id, int tx, int ty, int dir) {
   int i;
   u16 was = REG_DISPCNT;
@@ -2693,6 +2940,10 @@ static void enterMap(int id, int tx, int ty, int dir) {
     }
   }
 
+  /* And your own household, after the crowd, because they stand around the
+     people who were already in the room rather than through them. */
+  settleFolk(id);
+
   /* Half of video memory changes at a warp, which does not fit in a blanking
      period, so hold the display off rather than showing the world half-changed. */
   REG_DISPCNT = (u16)(was | 0x0080);
@@ -2706,6 +2957,16 @@ static void enterMap(int id, int tx, int ty, int dir) {
   REG_DISPCNT = was;
   showPlate(world->name);
   if (cutWaitsHere()) showAside("Somebody here");
+}
+
+static void reloadHousehold(void) {
+  u16 was = REG_DISPCNT;
+  if (!world) return;
+  settleFolk(worldId);
+  REG_DISPCNT = (u16)(was | 0x0080);
+  loadActors();
+  if (you.aboard) loadHullArt();
+  REG_DISPCNT = was;
 }
 
 /* ----------------------------------------------------------- pulled off --
@@ -6219,7 +6480,15 @@ static int ramFor(int base, int sound) {
 
 static void paintSeaFight(void) {
   const Fleet *f = &fleets[foeFleet];
-  const Hull *h = &hulls[you.shipKind];
+  /* Your hull, if you still have one.
+   *
+   * When she goes down under you, foundering sets the hull to the no-ship
+   * sentinel and leaves the panel up for you to read what happened - and the
+   * panel then went and read hull two hundred and fifty-five out of a table
+   * with six rows in it, and drew whatever string that landed on. It had been
+   * doing that since ships went in; it only ever crashed once an unrelated
+   * change moved what was on the other side of the table. */
+  const Hull *h = ownShip() ? &hulls[you.shipKind] : 0;
   int i;
   static const char *PICKS[3] = { "Go in bow-first", "Over the rail", "Come about and run" };
   clearRows(0, TXT_H);
@@ -6232,10 +6501,13 @@ static void paintSeaFight(void) {
   fillRect(TXT_W - 50, 22, 36, 5, C_EDGE);
   if (foeHull > 0) fillRect(TXT_W - 50, 22, 36 * foeHull / f->hull, 5, C_GOLD);
 
-  drawTextIn(14, 34, h->name, C_INK, TXT_W - 28 - textWidth(soundWord()) - 14);
+  drawTextIn(14, 34, h ? h->name : "Your ship", C_INK,
+             TXT_W - 28 - textWidth(soundWord()) - 14);
   drawText(TXT_W - 14 - textWidth(soundWord()), 34, soundWord(), C_DIM);
   fillRect(TXT_W - 50, 36, 36, 5, C_EDGE);
-  if (you.shipHull > 0) fillRect(TXT_W - 50, 36, 36 * (int)you.shipHull / shipMax(), 5, C_GOLD);
+  if (h && you.shipHull > 0 && shipMax() > 0) {
+    fillRect(TXT_W - 50, 36, 36 * (int)you.shipHull / shipMax(), 5, C_GOLD);
+  }
 
   fillRect(14, 48, TXT_W - 28, 1, C_EDGE);
   for (i = 0; i < 3; i++) {
@@ -7007,11 +7279,80 @@ static const char *standingWord(void) {
   return "a name and not much else";
 }
 
+/* --------------------------------------------------------------- the works --
+ *
+ * Buying a hall bought you a bed and a line on a card, and after that there was
+ * nothing on earth to do with the gold it made you. You could not put a wall
+ * round it, you could not make it bigger, and a hundred thousand gold bought
+ * exactly the same holdfast as the first two thousand had.
+ *
+ * So: four grades, and you pay masons to climb them. Each one is worth three
+ * separate things, because a step that only raised a number on a card would be
+ * a number on a card:
+ *
+ *   rents      what every win pays into the coffers
+ *   nursery    how many of your children the house has room for
+ *   garrison   whether men on your own wall can turn a raid back without you
+ *
+ * The last of those is the one that matters. A raid used to mean dropping
+ * whatever you were doing and riding the length of the realm or losing a hall;
+ * a castle means the hall can sometimes look after itself, which is what a
+ * castle is for. */
+#define GRADE_COUNT 4
+
+static const char *const GRADE_NAME[GRADE_COUNT] = {
+  "Holdfast", "Hall", "Keep", "Castle"
+};
+
+/* Nought for the first, because you have already paid for that one: it is the
+   hall itself. The rest is a ladder you climb over most of a game. */
+static const u32 GRADE_PRICE[GRADE_COUNT] = { 0, 2500, 9000, 25000 };
+
+/* Two lines apiece, because two lines is what the box under the rule draws.
+   The first pass at these ran to five and the audit said so: three lines of
+   every one of them were written and never shown to anybody. */
+static const char *const GRADE_IS[GRADE_COUNT] = {
+  "One hard building and a wall nobody has touched in fifty years.",
+  "A long table, outbuildings, and a gate that shuts.",
+  "Stone to the top, a curtain wall, and a well inside it.",
+  "Towers, a barbican, and men drilling in the yard all year.",
+};
+
+/* What the next step buys, said in the order the panel lists it. */
+static const char *const GRADE_GIVES[GRADE_COUNT] = {
+  "What taking the hall got you, and nothing more.",
+  "More rent, a second child, and men on the gate.",
+  "More rent again, a third child, and a garrison worth the word.",
+  "The best rents in the realm, a fourth child, and walls that hold.",
+};
+
+static int gradePrice(int g) {
+  return g <= 0 || g >= GRADE_COUNT ? 0 : (int)GRADE_PRICE[g];
+}
+
+/* How many children your household has room for. A holdfast is one bedroom and
+   a loft; a castle has a wing for them. This is the whole reason to build, for
+   a player who wanted a family more than they wanted a bigger number. */
+static int heirRoom(void) {
+  int n = 1 + seat.grade;
+  return n > HEIR_MAX ? HEIR_MAX : n;
+}
+
+/* Whether men of your own turn something back at the gate. Nought at a
+   holdfast, which has no gate worth the word, and clamped, because this is
+   compared against a four-sided roll and a grade off the end of the ladder
+   would mean nothing ever got near your walls again. */
+static int garrison(void) {
+  return seat.grade >= GRADE_COUNT ? GRADE_COUNT - 1 : seat.grade;
+}
+
 /* What comes in from a win. The steward is the difference between owning halls
-   and being paid by them. */
+   and being paid by them, and the works are the difference between a hall and
+   somewhere worth stewarding. */
 static int rentPerWin(void) {
   int n = 6 + vassalCount() * 7;
   n += officeLevel(0) / 2;
+  n += seat.grade * 8;
   return n;
 }
 
@@ -7069,8 +7410,10 @@ static const char *houseAfterWin(void) {
     }
   }
 
-  /* A child, on a schedule slow enough that four of them is most of a game. */
-  if (seat.wed && seat.heirs < HEIR_MAX &&
+  /* A child, on a schedule slow enough that four of them is most of a game -
+     and only as many as the house has room for, which is what the works are
+     for. A holdfast holds one; you raise a castle to hold four. */
+  if (seat.wed && seat.heirs < heirRoom() &&
       (u16)you.kills >= (u16)(seat.lastHeir + HEIR_EVERY)) {
     int at = seat.heirs++;
     seat.heirBorn[at] = (u16)you.kills;
@@ -7082,6 +7425,8 @@ static const char *houseAfterWin(void) {
     said = (seat.heirBoy >> at) & 1
       ? "  A rider catches you on the road. Your household has a son."
       : "  A rider catches you on the road. Your household has a daughter.";
+    /* And if you happened to win that fight in your own hall, they are in it. */
+    if (seat.has && worldId == seat.map) reloadHousehold();
   }
 
   /* Word back from wherever you sent your swords. */
@@ -7116,7 +7461,15 @@ static const char *houseAfterWin(void) {
     int i, pick = -1, n = 0;
     for (i = 0; i < MAP_COUNT; i++)
       if (isVassal(i)) { n++; if (roll((u32)n) == 0) pick = i; }
-    if (pick >= 0) {
+    if (pick >= 0 && garrison() && roll(4) < (u32)garrison()) {
+      /* Your own men held it. This is the whole payback for the works: the
+         difference between a message that ruins your afternoon and a message
+         that tells you the walls you paid for did their job. */
+      seat.raidAt = (u16)(you.kills + 40 + roll(30));
+      seat.coffers += 120;
+      said = "  Word from your own walls: somebody came at one of your halls "
+             "in the night and your garrison sent them home lighter.";
+    } else if (pick >= 0) {
       int k;
       seat.raidMap = (MapId)pick;
       seat.raidLive = 1;
@@ -7282,7 +7635,7 @@ static void paintHouse(void) {
       hint = scratch;
     }
     else if (housePick == HROW_ARMS) hint = "A: your own charge, colours and words";
-    else if (housePick == HROW_SEAT) hint = seat.has ? "A: sleep here   SELECT: hold a feast"
+    else if (housePick == HROW_SEAT) hint = seat.has ? "A: sleep here   SELECT: build on it"
                                                      : "A: buy the hall you are standing in";
     else if (housePick == HROW_COFFER) hint = "A: send for what the rents have made";
     else if (housePick == HROW_HOUSEHOLD) hint = OFFICE_DOES[officeShown];
@@ -7307,8 +7660,17 @@ static void paintHouse(void) {
       side = you.arms ? sayings[you.saying % SAYING_COUNT] : "none of your own";
     } else if (i == HROW_SEAT) {
       what = "Seat";
-      side = seat.has ? maps[seat.map].name
-                      : (maps[worldId].seat ? "this hall is for sale" : "none");
+      if (seat.has) {
+        /* The name and what has been raised on it, because "Winterfell" and
+           "Winterfell, a Castle" are two different sentences about how the
+           game has gone. */
+        copyString(scratch, maps[seat.map].name, sizeof scratch);
+        appendString(scratch, ", a ", sizeof scratch);
+        appendString(scratch, GRADE_NAME[seat.grade % GRADE_COUNT], sizeof scratch);
+        side = scratch;
+      } else {
+        side = maps[worldId].seat ? "this hall is for sale" : "none";
+      }
     } else if (i == HROW_COFFER) {
       what = "Coffers";
       copyString(scratch, "", sizeof scratch);
@@ -7366,8 +7728,20 @@ static void paintHouse(void) {
     }
     if (i == housePick) drawCursor(10, y + 1, C_GOLD);
     drawText(20, y, what, i == housePick ? C_GOLD : C_INK);
-    if (side) drawText(TXT_W - 12 - textWidth(side), y, side,
-                       i == housePick ? C_GOLD : C_DIM);
+    /* Right-aligned while it fits, and cut off at the label when it does not.
+       Adding the grade to the seat's line made it long enough that "The Hall
+       of the Crossing, a Holdfast" started at forty-one and was drawn straight
+       through the word "Seat" - which is exactly what the card looked like in
+       the picture that started all of this. */
+    if (side) {
+      int used = 20 + textWidth(what) + 8;
+      int room = TXT_W - 12 - used;
+      int wide = textWidth(side);
+      int ink = i == housePick ? C_GOLD : C_DIM;
+      if (room < 8) room = 8;
+      if (wide <= room) drawText(TXT_W - 12 - wide, y, side, ink);
+      else drawTextIn(used, y, side, ink, room);
+    }
   }
 }
 
@@ -7476,7 +7850,8 @@ static int houseAct(void) {
       you.haven = worldId;
       you.havenX = seat.x;
       you.havenY = seat.y;
-      houseSaid = "Yours. Somebody hang a banner.";
+      seat.grade = 0;
+      houseSaid = "Yours, and a holdfast. SELECT builds on it.";
       return 0;
     }
     if (worldId == seat.map) {
@@ -7493,21 +7868,15 @@ static int houseAct(void) {
       you.havenX = (u8)(hero.px >> 4);
       you.havenY = (u8)(hero.py >> 4);
       houseSaid = "You sleep. Everyone is whole in the morning.";
-      /* And whichever of your children has got old enough to be a nuisance
-         about it asks to come with you. They ride out as a hedge knight,
-         because that is what a lord's child with no land of their own has
-         always had to be. */
+      /* And if one of your children has got old enough to be a nuisance about
+         it, you are told - and told to go and talk to them, because they are
+         standing in this hall and taking somebody into your service by
+         pressing A on a bed was never going to be found by anybody. */
       for (i = 0; i < HEIR_MAX; i++) {
-        if (i >= seat.heirs || ((seat.heirOut >> i) & 1)) continue;
-        if ((u16)you.kills < (u16)(seat.heirBorn[i] + HEIR_GROWN)) continue;
-        if (!swearIn(3, you.level > 4 ? you.level - 4 : 1)) {
-          houseSaid = "Your eldest wants to ride out with you, and there is "
-                      "nowhere in your company to put them.";
-          break;
-        }
-        seat.heirOut |= (u8)(1u << i);
+        if (!heirAtHome(i) || !heirGrown(i)) continue;
         copyString(scratch, seat.heirName[i], sizeof scratch);
-        appendString(scratch, " is grown, and rides out with you.", sizeof scratch);
+        appendString(scratch, " is grown, and wants a word with you about it.",
+                     sizeof scratch);
         houseSaid = scratch;
         break;
       }
@@ -7762,6 +8131,165 @@ static int holdFeast(void) {
   }
   houseSaid = "Four hours of it. The hall reeks.";
   return 1;
+}
+
+/* ------------------------------------------------------------- the masons ---
+ *
+ * The panel the works ladder is climbed on. Four grades and a feast, laid out
+ * the way the deeds are laid out, because they are the same shape of decision:
+ * a list of things with prices on them, the ones you have marked as had, and a
+ * paragraph under the rule saying what the one under the cursor actually is.
+ *
+ * Everything above the grade you hold is dimmed and priced. Only the very next
+ * one can be bought - you do not skip a keep and put a castle on a holdfast -
+ * and pressing A anywhere else says so rather than doing nothing. */
+
+#define WORKS_ROWS (GRADE_COUNT + 1)
+#define WORKS_FEAST GRADE_COUNT
+
+static int worksPick;
+static const char *worksSaid;
+
+static void drawWorksRow(int i, int y) {
+  const char *what;
+  int lit = i == worksPick;
+  if (lit) drawCursor(14, y + 1, C_GOLD);
+  if (i == WORKS_FEAST) {
+    what = "Hold a feast";
+    copyString(scratch, "", sizeof scratch);
+    appendNumber(scratch, feastPrice(), sizeof scratch);
+    drawTextIn(24, y, what, lit ? C_GOLD : C_INK, TXT_W - 60 - 24);
+    drawText(TXT_W - 24 - textWidth(scratch), y, scratch,
+             you.gold >= feastPrice() ? C_GOLD : C_DYING);
+    return;
+  }
+  what = GRADE_NAME[i];
+  if (!seat.has) {
+    /* Nothing is standing anywhere, so nothing on this panel is yours yet.
+       Saying "Holdfast - standing" to a man with no hall is the panel telling
+       him he owns something he does not. */
+    drawTextIn(24, y, what, C_DIM, TXT_W - 60 - 24);
+    drawText(TXT_W - 24 - textWidth("no hall"), y, "no hall", C_DYING);
+    return;
+  }
+  if (i <= seat.grade) {
+    /* Right-aligned like every other value on every other panel. Set at a
+       fixed left edge it was seventy-two pixels wide starting at a hundred and
+       eighty, and the last two letters of "what you have" were off the screen. */
+    const char *had = i == seat.grade ? "standing" : "raised";
+    drawTextIn(24, y, what, lit ? C_GOLD : C_INK, TXT_W - 60 - 24);
+    drawText(TXT_W - 24 - textWidth(had), y, had, C_WELL);
+  } else {
+    int next = i == seat.grade + 1;
+    int able = next && you.gold >= gradePrice(i);
+    drawTextIn(24, y, what, able ? (lit ? C_GOLD : C_INK) : C_DIM, TXT_W - 60 - 24);
+    copyString(scratch, "", sizeof scratch);
+    appendNumber(scratch, gradePrice(i), sizeof scratch);
+    drawText(TXT_W - 24 - textWidth(scratch), y, scratch, able ? C_GOLD : C_DYING);
+  }
+}
+
+static void paintWorks(void) {
+  int i;
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
+  drawText(14, 6, "YOUR WORKS", C_GOLD);
+  copyString(scratch, !seat.has ? "B: back"
+             : worksPick == WORKS_FEAST ? "A: feast   B: back"
+                                        : "A: raise it   B: back", sizeof scratch);
+  drawText(TXT_W - 14 - textWidth(scratch), 6, scratch, C_DIM);
+  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+  for (i = 0; i < WORKS_ROWS; i++) drawWorksRow(i, 22 + i * 10);
+  fillRect(14, TXT_H - 40, TXT_W - 28, 1, C_EDGE);
+  {
+    int k;
+    const char *body;
+    /* The line above the paragraph says the state of the household rather than
+       repeating the row: how much room there is for children at this grade,
+       and how much of it is taken, which is the one number a player wanting a
+       family is actually looking for. */
+    if (worksSaid) {
+      copyString(scratch, worksSaid, sizeof scratch);
+    } else if (seat.has) {
+      /* The household, and the hall's name only if there is room left for it.
+         The name went first and a six-figure purse pushed the rest off the
+         end: "The Flayed Man's Hall  -  0 of" and then nothing, which reads
+         as the game having lost its place. The number is the thing somebody
+         opened this panel to see, so the number goes first. */
+      copyString(scratch, "", sizeof scratch);
+      appendNumber(scratch, seat.heirs, sizeof scratch);
+      appendString(scratch, " of ", sizeof scratch);
+      appendNumber(scratch, heirRoom(), sizeof scratch);
+      appendString(scratch, heirRoom() == 1 ? " child at home" : " children at home",
+                   sizeof scratch);
+      if (textWidth(scratch) + 12 + textWidth(maps[seat.map].name)
+            < goldLeftEdge() - 8 - 14) {
+        appendString(scratch, " at ", sizeof scratch);
+        appendString(scratch, maps[seat.map].name, sizeof scratch);
+      }
+    } else {
+      copyString(scratch, "You have no hall to build on.", sizeof scratch);
+    }
+    drawTextIn(14, TXT_H - 37, scratch, C_DIM, goldLeftEdge() - 8 - 14);
+    showGold(TXT_H - 37);
+    body = worksPick == WORKS_FEAST
+      ? "A night of it for everyone under your roof. Your whole company wakes "
+        "whole, and your wife's people hear that you kept a good table."
+      : (worksPick <= seat.grade ? GRADE_IS[worksPick] : GRADE_GIVES[worksPick]);
+    wrapText(body, TXT_W - 28);
+    for (k = 0; k <= lineCount && k < 2; k++) {
+      drawText(14, TXT_H - 27 + k * 10, lines[k], C_DIM);
+    }
+  }
+}
+
+/* Paying the masons. Returns nothing; the line it leaves behind is the whole
+   answer, and the panel repaints itself over it. */
+static void raiseWorks(void) {
+  int want = worksPick, price;
+  worksSaid = 0;
+  if (!seat.has) { worksSaid = "Buy a hall first. Then we can talk about walls."; return; }
+  if (worldId != seat.map) {
+    copyString(scratch, "The masons want you standing in it. Your seat is ",
+               sizeof scratch);
+    appendString(scratch, maps[seat.map].name, sizeof scratch);
+    appendString(scratch, ".", sizeof scratch);
+    worksSaid = scratch;
+    return;
+  }
+  if (want <= seat.grade) {
+    worksSaid = want == seat.grade ? "That is what is standing there now."
+                                   : "That is behind you. You built it.";
+    return;
+  }
+  if (want > seat.grade + 1) {
+    copyString(scratch, "One at a time. ", sizeof scratch);
+    appendString(scratch, GRADE_NAME[seat.grade + 1], sizeof scratch);
+    appendString(scratch, " first - you do not put a castle on a holdfast and "
+                          "hope.", sizeof scratch);
+    worksSaid = scratch;
+    return;
+  }
+  price = gradePrice(want);
+  if (you.gold < price) {
+    copyString(scratch, "The masons want ", sizeof scratch);
+    appendNumber(scratch, price, sizeof scratch);
+    appendString(scratch, " gold and will not start for less.", sizeof scratch);
+    worksSaid = scratch;
+    return;
+  }
+  you.gold -= price;
+  seat.grade = (u8)want;
+  sfxRank();
+  copyString(scratch, "It takes them a season and they build it well. ",
+             sizeof scratch);
+  appendString(scratch, maps[seat.map].name, sizeof scratch);
+  appendString(scratch, " is a ", sizeof scratch);
+  appendString(scratch, GRADE_NAME[want], sizeof scratch);
+  appendString(scratch, " now, and room in it for ", sizeof scratch);
+  appendNumber(scratch, heirRoom(), sizeof scratch);
+  appendString(scratch, heirRoom() == 1 ? " child." : " children.", sizeof scratch);
+  worksSaid = scratch;
 }
 
 /* A match. Somebody in a sept arranges it; what it costs is what your standing
@@ -8156,6 +8684,7 @@ static void paintTitle(void) {
 #define SCENE_SEA  20     /* somebody has come over the horizon at you */
 #define SCENE_LAND 21     /* what is for sale, and who is selling it */
 #define SCENE_HIRE 22     /* swords for gold, which is what Essos is for */
+#define SCENE_WORKS 23    /* masons: what your hall is, and what it could be */
 
 static int scene;
 
@@ -9227,7 +9756,15 @@ static const u16 SKIES[6][11] = {
    out as a picket fence of alternating columns. Two rounds of xor-shift are
    enough to break it. */
 static int grainHash(int x, int y, int tile, int salt) {
-  u32 v = (u32)(x * 374761393 + y * 668265263 + tile * 1013904223 + salt);
+  /* Mixed as unsigned. The three multiplies overflow a signed int on purpose -
+     that is what a hash is - but signed overflow is undefined, and the compiler
+     had been saying so for a while: "iteration 4 invokes undefined behaviour",
+     with a note pointing at the loop that calls this. Unsigned wraps by
+     definition and gives the identical bits, so every tile of ground looks the
+     same and the compiler is no longer entitled to assume the loop is
+     unreachable. */
+  u32 v = (u32)x * 374761393u + (u32)y * 668265263u
+        + (u32)tile * 1013904223u + (u32)salt;
   v ^= v >> 13;
   v *= 1274126177u;
   v ^= v >> 16;
@@ -10102,10 +10639,96 @@ static void openChest(int which) {
   openWindow(0, scratch);
 }
 
+/* ------------------------------------------------------- talking at home ---
+ *
+ * What your wife and your children have to say, which is the whole point of
+ * their being there. None of it is a menu: she tells you how the house is, and
+ * hands over whatever the rents have made while you were away, so that a
+ * player who never once opens the house card still gets paid for owning
+ * things. A child says how old they are in the only unit this game has - how
+ * many fights you have won since the day they were born - and a grown one
+ * asks to come with you, which is a thing you now do by walking up to them
+ * rather than by pressing A on a bed. */
+static void talkToFolk(int at) {
+  int who = folkWho[at];
+  folk[at].dir = (u8)(hero.dir ^ 1);           /* they turn round to you */
+  if (!who) {
+    copyString(scratch, "", sizeof scratch);
+    if (seat.coffers) {
+      /* The rents, handed over in the room they were collected in. */
+      appendString(scratch, "The steward left this with me and I have been "
+        "carrying it about waiting for you. ", sizeof scratch);
+      appendNumber(scratch, (int)seat.coffers, sizeof scratch);
+      appendString(scratch, " gold.  ", sizeof scratch);
+      you.gold += (int)seat.coffers;
+      seat.coffers = 0;
+      sfxYes();
+    }
+    appendString(scratch, "This is a ", sizeof scratch);
+    appendString(scratch, GRADE_NAME[seat.grade % GRADE_COUNT], sizeof scratch);
+    appendString(scratch, seat.grade + 1 < GRADE_COUNT
+      ? " and I have seen better, and I have seen a great deal worse. "
+      : ". There is not a finer one in the realm and you know it. ",
+      sizeof scratch);
+    if (!seat.heirs) {
+      appendString(scratch, seat.grade
+        ? "It is also very quiet. Come home more often."
+        : "It is also very small. Build me something to be quiet in.",
+        sizeof scratch);
+    } else if (seat.heirs >= heirRoom() && seat.grade + 1 < GRADE_COUNT) {
+      appendString(scratch, "And there is no room in it for another child, "
+        "which you may want to do something about.", sizeof scratch);
+    } else {
+      appendString(scratch, "The children are well. They ask after you and I "
+        "tell them what I can.", sizeof scratch);
+    }
+    openWindow(seat.spouse, scratch);
+    return;
+  }
+  {
+    int kid = who - 1;
+    if (kid < 0 || kid >= HEIR_MAX) return;
+    if (!heirGrown(kid)) {
+      int won = (int)((u16)you.kills - seat.heirBorn[kid]);
+      copyString(scratch, "", sizeof scratch);
+      appendString(scratch, won < 12
+        ? "They are very small and entirely uninterested in you. "
+        : "They follow you the length of the hall asking what everything on "
+          "your belt is for. ", sizeof scratch);
+      appendString(scratch, "There is a good while yet before they are any "
+        "use to anybody with a sword.", sizeof scratch);
+      openWindow(seat.heirName[kid], scratch);
+      return;
+    }
+    /* Grown, and asking. A lord's child with no land of their own has always
+       had exactly one trade. */
+    if (!swearIn(3, you.level > 4 ? you.level - 4 : 1)) {
+      openWindow(seat.heirName[kid],
+        "I am ready and you have six swords already. Come back when one of "
+        "them has found something better to do.");
+      return;
+    }
+    seat.heirOut |= (u8)(1u << kid);
+    reloadHousehold();                         /* and they are not stood here any more */
+    sfxRank();
+    copyString(scratch, "They have their things by the door and have "
+      "evidently had them by the door for some time. ", sizeof scratch);
+    appendString(scratch, seat.heirName[kid], sizeof scratch);
+    appendString(scratch, " rides out with you, as a hedge knight of your own "
+      "house, which is what a lord's child with no land of their own has "
+      "always been.", sizeof scratch);
+    openWindow(seat.heirName[kid], scratch);
+  }
+}
+
 static void tryTalk(void) {
   int fx = (hero.px >> 4) + DIR_X[hero.dir];
   int fy = (hero.py >> 4) + DIR_Y[hero.dir];
   int who = facing();
+  {
+    int mine = folkAt(fx, fy);
+    if (mine >= 0) { talkToFolk(mine); return; }
+  }
   {
     int box = chestFacing(fx, fy);
     if (box >= 0) { openChest(box); return; }
@@ -10285,9 +10908,13 @@ static void tryTalk(void) {
         appendString(scratch, houses[pick].name, sizeof scratch);
         appendString(scratch, " will be at ", sizeof scratch);
         appendString(scratch, maps[seat.map].name, sizeof scratch);
-        appendString(scratch, " before the moon turns. Their house and yours "
-          "are one house now, whatever either of them thought of the other "
-          "last year. Go and be worth it.", sizeof scratch);
+        appendString(scratch, " before the moon turns, and will be there when "
+          "you get there. Their house and yours are one house now, whatever "
+          "either of them thought of the other last year. Go and be worth it.",
+          sizeof scratch);
+        /* And if this sept happens to be inside your own hall, she is standing
+           in it before the window has closed. */
+        reloadHousehold();
         openWindow(npc->name, scratch);
         return;
       }
@@ -10611,6 +11238,29 @@ static int shoveDir = -1, shoveHold;
 
 static int shoveAside(int x, int y) {
   int who = crowdAt(x, y), d;
+  /* Your own household first. They never wander, so they can never wander out
+     of a doorway on their own - which means that without this, a child put
+     down in the wrong place would be a wall for the rest of the game. They are
+     placed clear of doorways in the first place; this is the second lock. */
+  {
+    int mine = folkAt(x, y);
+    if (mine >= 0) {
+      if (folk[mine].walk || hero.walk) return 0;
+      for (d = 0; d < 4; d++) {
+        int tx = x + DIR_X[d], ty = y + DIR_Y[d];
+        if (solidAt(tx, ty) || ledgeAt(tx, ty) || occupied(tx, ty, -1)) continue;
+        stepBody(&folk[mine], d);
+        moveBody(&folk[mine], WALK_SPEED);
+        return 1;
+      }
+      folk[mine].px = hero.px;
+      folk[mine].py = hero.py;
+      folk[mine].dir = (u8)(hero.dir ^ 1);
+      hero.px = (s16)(x << 4);
+      hero.py = (s16)(y << 4);
+      return 1;
+    }
+  }
   if (who < 0 || crowd[who].walk || hero.walk) return 0;
   for (d = 0; d < 4; d++) {
     int tx = x + DIR_X[d], ty = y + DIR_Y[d];
@@ -10631,6 +11281,9 @@ static int shoveAside(int x, int y) {
 
 static void moveCrowd(void) {
   int i;
+  /* Your household do not roam - they are at home - but one of them may be
+     halfway through being stepped out of your way. */
+  for (i = 0; i < folkCount; i++) if (folk[i].walk) moveBody(&folk[i], WALK_SPEED);
   for (i = 0; i < crowdCount; i++) {
     if (!crowdAlive[i]) continue;
     if (crowd[i].walk) { moveBody(&crowd[i], WALK_SPEED); continue; }
@@ -10661,6 +11314,7 @@ static void moveCrowd(void) {
 /* Whoever a place in the drawing order refers to: the crowd by index, the
    player at -1, and whoever a cutscene has put on the map below that. */
 static const Body *bodyOf(int who) {
+  if (who >= FOLK_BASE) return &folk[who - FOLK_BASE];
   if (who <= -2) return &cutBody[-2 - who];
   if (who < 0) return &hero;
   return &crowd[who];
@@ -10669,11 +11323,14 @@ static const Body *bodyOf(int who) {
 /* Objects are handed to the hardware front to back, so whoever is lower on the
    screen is drawn over whoever is behind them. */
 static void placeEveryone(void) {
-  int order[MAX_CROWD + 1 + CUT_SLOTS], count = 0, i, j;
+  int order[MAX_CROWD + 1 + CUT_SLOTS + FOLK_MAX], count = 0, i, j;
   hideAllObjects();
 
   for (i = 0; i < crowdCount; i++) if (crowdAlive[i]) order[count++] = i;
   order[count++] = -1;                              /* the player */
+  /* Your own household, who sort by depth with everybody else so that walking
+     behind your daughter puts her in front of you. */
+  for (i = 0; i < folkCount; i++) if (folkBank[i] != 255) order[count++] = FOLK_BASE + i;
   /* And anybody a cutscene has walked onto the map, who sorts by depth with
      everyone else: somebody who always drew in front of you would read as
      standing on the road rather than on it. */
@@ -10712,7 +11369,12 @@ static void placeEveryone(void) {
   for (i = 0; i < count; i++) {
     int who = order[i];
     int slot = count - 1 - i;
-    if (who <= -2) {
+    if (who >= FOLK_BASE) {
+      int at = who - FOLK_BASE, bank = folkBank[at];
+      placeObject(slot, folk[at].px - camX, folk[at].py - camY - 16,
+        NPC_TILE_BASE + bank * NPC_TILE_STRIDE + frameOf(&folk[at], 2) * ACTOR_FRAME_TILES,
+        bank + 1);
+    } else if (who <= -2) {
       int at = -2 - who, bank = cutBank[at];
       placeObject(slot, cutBody[at].px - camX, cutBody[at].py - camY - 16,
         NPC_TILE_BASE + bank * NPC_TILE_STRIDE + frameOf(&cutBody[at], 2) * ACTOR_FRAME_TILES,
@@ -11012,9 +11674,20 @@ int main(void) {
         sfxPick();
         paintHouse();
       } else if (hit(KEY_SELECT) && housePick == HROW_SEAT) {
-        holdFeast();
+        /* The masons. The feast went in there with them, because holding one
+           and raising a wall are the same kind of decision - what you spend
+           the hall's own money on - and the card had no eighth line to give
+           either of them. */
+        scene = SCENE_WORKS;
+        /* On the next step up, not on what is already standing: opening a
+           panel with the cursor on the one row where pressing A does nothing
+           is a panel that appears to be broken. */
+        worksPick = seat.grade + 1 < GRADE_COUNT ? seat.grade + 1 : WORKS_FEAST;
+        worksSaid = 0;
         sfxPick();
-        paintHouse();
+        clearPage();
+        layoutTextRows(TEXT_TOP);
+        paintWorks();
       } else if (hit(KEY_SELECT) && housePick == HROW_OATHS) {
         houseSaid = 0;
         sendHost();
@@ -11377,6 +12050,30 @@ int main(void) {
         clearPage();
         layoutTextRows(TEXT_PLAY);
         openWindow(companies[titled].name, said);
+      }
+    } else if (scene == SCENE_WORKS) {
+      int was = worksPick;
+      if (hit(KEY_UP) && worksPick > 0) worksPick--;
+      if (hit(KEY_DOWN) && worksPick < WORKS_ROWS - 1) worksPick++;
+      if (worksPick != was) { worksSaid = 0; sfxPick(); paintWorks(); }
+      if (hit(KEY_B)) {
+        scene = SCENE_SEAT;
+        houseSaid = 0;
+        clearPage();
+        layoutTextRows(TEXT_TOP);
+        paintHouse();
+      } else if (hit(KEY_A)) {
+        if (worksPick == WORKS_FEAST) {
+          /* holdFeast leaves its answer in houseSaid, because it was written
+             for the card. Move it across rather than teaching it two homes. */
+          houseSaid = 0;
+          holdFeast();
+          worksSaid = houseSaid;
+          houseSaid = 0;
+        } else {
+          raiseWorks();
+        }
+        paintWorks();
       }
     } else if (scene == SCENE_LAND) {
       int was = landPick;

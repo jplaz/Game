@@ -163,6 +163,23 @@ static int seatsAtBerth;
 static int portsSeen, sailed, talesSeen, crownRun;
 static int yardsSeen, hullsBought, yardHeld;   /* the shipwright's */
 static int landsSeen, deedsBought, roomsSeen, landHeld;  /* what is for sale */
+/* The masons, and what the household came to. Nothing in the tester ever built
+   anything before, so nothing had ever seen a hall with more than one child in
+   it - and a household of five is the only state the placement is interesting
+   in. */
+static int worksSeen, worksHeld, raised, feasted;
+static int folkSeen, folkSpoken, childrenOut, mostAtHome;
+static u8 folkDone[FOLK_MAX];       /* who of yours this visit has spoken to */
+static int folkWasHome;             /* how many were standing here last frame */
+static int seatVisited;             /* has the run been home since it married */
+/* How many door-hops the run may spend walking to a sept or walking home, and
+   what it was spending them on. A budget that is never reset runs out on the
+   first crossing of the realm and the errand never arrives; one that is never
+   spent is the two-map circle that ate three sweeps. So it is reset when the
+   reason changes - a new sigil, a hall bought, a child grown - and not
+   otherwise, which is the shape the ranging hand-in already uses. */
+static int homeTrips, homeFor = -1, septTrips, septFor = -1;
+#define ERRAND_HOPS 40
 static int seaFights, seaHeld, putToSeaCount;  /* and what is out on it */
 static int partiesSeen, partyLooks, swaps;
 /* How often the swords chooser was opened, and how often one was sent in. */
@@ -203,7 +220,7 @@ static void checkFrame(void) {
     finding("a window ran off the end of its lines and lost text");
     wrapLost = 0;
   }
-  if (scene < 0 || scene > SCENE_HIRE) finding("scene is %d, which is not a scene", scene);
+  if (scene < 0 || scene > SCENE_WORKS) finding("scene is %d, which is not a scene", scene);
   /* Nothing is standing anywhere yet on the screens that come before the
      world, and there is no map to be standing on. */
   /* Nothing is standing anywhere yet on the screens that come before the
@@ -375,6 +392,7 @@ static int stepToward(int gx, int gy) {
 #define GOAL_SIGN 2
 #define GOAL_WARP 3
 #define GOAL_CHAIR 4                /* the Iron Throne, once it is yours */
+#define GOAL_FOLK 5                 /* somebody of your own, standing in your hall */
 
 static int goalKind, goalIndex, goalFrames, goalStage;
 static int npcDuelled[MAP_COUNT][MAX_CROWD];
@@ -653,6 +671,8 @@ static int glassMaking(int at) {
 }
 
 /* Whether the hall you are standing in is one you could walk out owning. */
+static int hallsStoodIn, hallsCleared, hallsAfforded;
+
 static int hallToBuy(void) {
   if (seat.has || !world) return 0;
   if (!maps[worldId].seat || !mapCleared(worldId)) return 0;
@@ -1190,6 +1210,17 @@ static void pickGoal(void) {
     goalWhy = "sign"; goalKind = GOAL_SIGN; goalIndex = i; return;
   }
 
+  /* Your own people, standing in your own hall. Nothing else in the tester
+     goes near them: they are not in the crowd, so the loop above cannot see
+     them, and a run that never walked up to one would never find out whether
+     you can - which is the whole question about people who are placed by an
+     algorithm rather than by hand. Talking to a grown child also takes them
+     into your service, which is the other half of the feature. */
+  for (i = 0; i < folkCount; i++) {
+    if (folkDone[folkWho[i]]) continue;
+    goalWhy = "your household"; goalKind = GOAL_FOLK; goalIndex = i; return;
+  }
+
   /* Back to the house with the red lamp, when the child is grown.
    *
    * The evening is one conversation and taking them into your service is
@@ -1222,6 +1253,70 @@ static void pickGoal(void) {
       if (want >= 0 && want != worldId) {
         i = warpTowardMap(want);
         if (i >= 0) { goalWhy = "the child, far"; goalKind = GOAL_WARP; goalIndex = i; return; }
+      }
+    }
+  }
+
+  /* Back to a septon, once you have a roof to bring somebody home to.
+   *
+   * The same shape as the child of the evening, and the same hole. A septon
+   * will not arrange a match for a man with no hall, no great house sworn to
+   * him and no gold - and a sweep buys its hall about two thirds of the way
+   * through, by which time it has already said hello to every septon in the
+   * realm and will not go back. So nine playthroughs married nobody, had no
+   * children, and never once put a household in a room: everything downstream
+   * of a marriage was code nothing had ever run.
+   *
+   * Set as a goal directly, never by clearing the flag that says he has been
+   * spoken to, so the same conversation is not counted again every time. */
+  if (seat.has && !seat.wed && countSigils() && you.gold >= bridePrice()) {
+    if (countSigils() != septFor) { septFor = countSigils(); septTrips = 0; }
+    for (i = 0; i < crowdCount; i++) {
+      if (!crowdAlive[i] || npcStuck[worldId][i]) continue;
+      if (!world->npcs[i].weds) continue;
+      goalWhy = "a septon"; goalKind = GOAL_NPC; goalIndex = i; return;
+    }
+    /* And the road to the nearest one, which is what mapWithWeds is for - on
+       the same budget as every other errand that walks the run across the
+       realm, because a sept that cannot be reached is otherwise the rest of
+       the playthrough. */
+    if (septTrips < ERRAND_HOPS) {
+      int want = mapWithWeds();
+      if (want >= 0 && want != worldId && mapSeen[want]) {
+        i = warpTowardMap(want);
+        if (i >= 0) {
+          septTrips++;
+          goalWhy = "a septon, far"; goalKind = GOAL_WARP; goalIndex = i; return;
+        }
+      }
+    }
+  }
+
+  /* And home again once you are wed, because your wife and your children are
+     standing in your hall and nothing else in the run would ever bring it back
+     there.
+   *
+   * On a budget, and only for a reason. The first version went home whenever a
+   * grown child was at home - and a grown child whose father already has six
+   * swords cannot ride out, so the errand was true for ever: the sweep made
+   * three and a half thousand trips to The Hall of the Crossing and walked a
+   * hundred and sixty-eight maps instead of two hundred. Errands that cannot
+   * be finished are how a playthrough stops being a playthrough. */
+  if (seat.has && seat.wed && worldId != seat.map && mapSeen[seat.map]) {
+    int home = 0, k, why;
+    for (k = 0; k < HEIR_MAX && k < seat.heirs; k++) {
+      if (heirAtHome(k) && heirGrown(k) && hostRoom() >= 0) home++;
+    }
+    /* A fresh budget for each new reason to go: the first time, and every
+       child who becomes old enough to ride out and has somewhere to ride to.
+       Nothing else buys another crossing of the realm. */
+    why = seatVisited ? home : -2;
+    if (why != homeFor) { homeFor = why; homeTrips = 0; }
+    if ((!seatVisited || home) && homeTrips < ERRAND_HOPS) {
+      i = warpTowardMap(seat.map);
+      if (i >= 0) {
+        homeTrips++;
+        goalWhy = "home"; goalKind = GOAL_WARP; goalIndex = i; return;
       }
     }
   }
@@ -1434,6 +1529,10 @@ static void goalTile(int *gx, int *gy) {
   if (goalKind == GOAL_NPC) { *gx = crowd[goalIndex].px >> 4; *gy = crowd[goalIndex].py >> 4; }
   else if (goalKind == GOAL_SIGN) { *gx = world->signs[goalIndex].x; *gy = world->signs[goalIndex].y; }
   else if (goalKind == GOAL_CHAIR) { *gx = world->courtX; *gy = world->courtY; }
+  else if (goalKind == GOAL_FOLK) {
+    int at = goalIndex < folkCount ? goalIndex : 0;
+    *gx = folk[at].px >> 4; *gy = folk[at].py >> 4;
+  }
   else { *gx = world->warps[goalIndex].x; *gy = world->warps[goalIndex].y; }
 }
 
@@ -1486,6 +1585,13 @@ static void completeGoal(void) {
     if (!grindMode) { signRead[worldId][goalIndex] = 1; signs++; }
   }
   else if (goalKind == GOAL_CHAIR) { courtsHeld++; }
+  else if (goalKind == GOAL_FOLK) {
+    /* Marked by folkWho rather than by slot, because a grown child taken into
+       your service is removed from the hall and everybody behind them shifts
+       down one. */
+    if (goalIndex < folkCount) folkDone[folkWho[goalIndex]] = 1;
+    folkSpoken++;
+  }
   goalKind = GOAL_NONE;
 }
 
@@ -1494,7 +1600,7 @@ static void completeGoal(void) {
 /* Catch each interesting screen the first time the tester reaches it, so the
    pictures are of the game actually being played rather than of a route
    somebody wrote down and that the crowd has since wandered out of. */
-static int caught[40];
+static int caught[48];
 
 /* Is that phrase anywhere in the window that is open? Used to catch the screens
    that only exist for one particular thing having happened. */
@@ -1533,6 +1639,42 @@ void hostFrame(void) {
     int k;
     for (k = 0; k < crowdCount && k < MAX_CROWD; k++) {
       if (!crowdAlive[k] && !npcTalked[worldId][k]) { npcTalked[worldId][k] = 1; talked++; }
+    }
+  }
+
+  /* Your household, whenever you are standing in your own hall.
+   *
+   * Two things are watched. That everybody who ought to be at home is at home:
+   * the placement can give up on a hall it cannot fit somebody into, and a
+   * child who is quietly not there is exactly the kind of fault that would
+   * never be noticed by anything except a count. And that a family standing in
+   * a room is one you can still get about - the world walker will find that
+   * out for itself, because it is now sent to talk to every one of them. */
+  /* How near the run ever gets to owning a hall, counted where it is true
+     rather than where somebody happens to ask. The first version of this was
+     counted inside the menu driver, so it read nought for a reason that had
+     nothing to do with halls: the card was simply never open in one. */
+  if (scene == SCENE_WORLD && world && !seat.has && maps[worldId].seat) {
+    hallsStoodIn++;
+    if (mapCleared(worldId)) {
+      hallsCleared++;
+      if (you.gold >= (int)maps[worldId].seat * 100) hallsAfforded++;
+    }
+  }
+
+  if (scene == SCENE_WORLD && world && seat.has && worldId == seat.map && seat.wed) {
+    int k, home = 1;                              /* whoever you married */
+    for (k = 0; k < HEIR_MAX && k < seat.heirs; k++) if (heirAtHome(k)) home++;
+    if (home > FOLK_MAX) home = FOLK_MAX;
+    if (folkCount > mostAtHome) mostAtHome = folkCount;
+    if (folkCount < home) {
+      finding("%s has room for %d of your household and only %d of them are "
+              "standing in it", maps[worldId].name, home, folkCount);
+    }
+    /* And a child who has ridden out is counted the once. */
+    { int out = 0;
+      for (k = 0; k < HEIR_MAX; k++) if ((seat.heirOut >> k) & 1) out++;
+      if (out > childrenOut) childrenOut = out;
     }
   }
 
@@ -1642,6 +1784,7 @@ void hostFrame(void) {
       statusPage ? "06b-where-you-stand" : "06-your-sigil");
     else if (scene == SCENE_SEAT) catchOnce(27, "08-your-own-house");
     else if (scene == SCENE_ARMS) catchOnce(26, "08b-your-own-arms");
+    else if (scene == SCENE_WORKS && seat.has) catchOnce(38, "08c-the-masons");
     else if (scene == SCENE_BAG) catchOnce(4, "07-the-pouch");
     else if (scene == SCENE_CRAFT) catchOnce(24, craftAt ? "12b-at-the-anvil" : "11b-at-the-bench");
     else if (scene == SCENE_SHOP) {
@@ -1678,6 +1821,11 @@ void hostFrame(void) {
       /* One picture of each settlement, so the four of them can be put side by
          side and told apart, which is the whole point of building them out of
          different materials. */
+      /* And your own hall with your household standing in it, which is the
+         one picture that says what all of this was for. */
+      else if (!windowOpen && !hero.walk && folkCount >= 2) {
+        catchOnce(39, "08d-your-household-at-home");
+      }
       else if (!windowOpen && !hero.walk) {
         if (worldId == 7) catchOnce(23, "23-castle-black");
         else if (worldId == 11) catchOnce(24, "24-moat-cailin");
@@ -2170,6 +2318,34 @@ void hostFrame(void) {
     if (want < 0 || hireHeld > 500) keys = tap(KEY_B);
     else if (hirePick != want) keys = tap(hirePick < want ? KEY_DOWN : KEY_UP);
     else { keys = tap(KEY_A); if (keys) { companiesHired++; hireHeld = 0; } }
+  } else if (scene == SCENE_WORKS) {
+    /* The masons. Raise the walls whenever the purse will carry the next step,
+       and hold a feast now and then, because those are the two things on this
+       panel and nothing else in the tester ever presses either.
+
+       Raising it is worth pressing for its own sake: the grade decides how many
+       children the house has room for, so a run that never built would never
+       have more than one child in it and would never once put a household of
+       five into a hall. */
+    int next = seat.grade + 1;
+    worksSeen++;
+    if (++worksHeld > 900) {
+      finding("a mason that %d frames of pressing B would not leave", worksHeld);
+      worksHeld = 0;
+      keys = tap(KEY_B);
+    } else if (worldId == seat.map && next < GRADE_COUNT
+               && you.gold >= gradePrice(next) && worksHeld < 400) {
+      int was = seat.grade;
+      if (worksPick != next) keys = tap(worksPick < next ? KEY_DOWN : KEY_UP);
+      else { keys = tap(KEY_A); if (keys && seat.grade > was) { raised++; worksHeld = 0; } }
+    } else if (worldId == seat.map && you.gold >= feastPrice() && worksHeld < 200
+               && !feasted) {
+      if (worksPick != WORKS_FEAST) keys = tap(KEY_DOWN);
+      else { keys = tap(KEY_A); if (keys) feasted++; }
+    } else {
+      keys = tap(KEY_B);
+      if (keys) worksHeld = 0;
+    }
   } else if (scene == SCENE_LAND) {
     /* What is for sale. Buy the one this seller actually has if the purse will
        carry it, then walk out. A run that only ever reads the list has not
@@ -2446,6 +2622,20 @@ void hostFrame(void) {
       if (wasMap >= 0) warpsTaken++;
       wasMap = worldId;
       mapSeen[worldId]++;
+      /* Walking into your own hall again is a fresh call on your household:
+         a child who was too small last time may be grown, and a grown one is
+         a conversation the tester has to have to test it at all. */
+      { int k;
+        for (k = 0; k < FOLK_MAX; k++) folkDone[k] = 0;
+        folkWasHome = 0;
+        if (folkCount) folkSeen++;
+        /* Been home since you married, which is a different question from
+           been home. The run buys its hall while standing in it, so this was
+           already set the moment there was a hall at all - and then the errand
+           that walks a married man home to meet his wife could never fire,
+           and nine sweeps married somebody and never once laid eyes on her. */
+        if (seat.has && seat.wed && worldId == seat.map) seatVisited = 1;
+      }
       /* Doors taken since the run last did anything.
        *
        * The wandering sweep had no circle-detector - the directed climb has
@@ -3283,6 +3473,19 @@ int main(int argc, char **argv) {
     yardsSeen, hullsBought, putToSeaCount, seaFights);
   printf("  what is for sale  %d visits, %d deeds bought, %d walked into\n",
     landsSeen, deedsBought, roomsSeen);
+  printf("  the masons     %d frames in front of them, raised to a %s, %d feasts\n",
+    worksSeen, GRADE_NAME[seat.grade % GRADE_COUNT], feasted);
+  printf("  buying a hall  %d frames stood in one, %d of them cleared, %d "
+         "of those affordable\n", hallsStoodIn, hallsCleared, hallsAfforded);
+  if (seat.wed) {
+    printf("  your household wed %s of House %s, %d children, %d at home\n",
+      seat.spouse, houses[(seat.wed - 1) % HOUSE_COUNT].name, seat.heirs, folkCount);
+  } else {
+    printf("  your household never married\n");
+  }
+  printf("  your household %d visits home with them standing in it, %d spoken "
+         "to, most at once %d, %d children rode out\n",
+    folkSeen, folkSpoken, mostAtHome, childrenOut);
   printf("  the last act   %d pages read, story at %d\n", talesSeen, you.story);
   printf("  the party card %d visits, %d sent out in front\n", partiesSeen, swaps);
   if (crownRun && you.story < 3) {

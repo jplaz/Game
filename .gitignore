@@ -11,6 +11,8 @@ gba/shots/*.ppm
 gba/shots-ladder/
 gba/playtest
 gba/playtest_dbg
+# the same sweep built with every read and write watched
+gba/playtest-watched
 gba/audit
 gba/w
 

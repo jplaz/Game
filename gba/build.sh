@@ -130,6 +130,40 @@ clang $HOSTFLAGS -o audit audit.c
 # and checks on every frame that the game has not put itself somewhere
 # impossible. Five houses, five different rolls of the dice.
 clang $HOSTFLAGS -o playtest playtest.c
+
+# One sweep with every read and write watched.
+#
+# The game reads a lot of tables by index and nothing had ever checked that the
+# indices were in them. When your ship goes down under you, foundering sets the
+# hull to the no-ship sentinel and leaves the panel up for you to read what
+# happened - and the panel read hull two hundred and fifty-five out of a table
+# of six and drew whatever string was on the other side of it. That had been
+# happening since ships went into the game. It never crashed, because whatever
+# was over there happened to be readable, so nothing ever said a word; the day
+# an unrelated change moved the tables about, the same line took the whole
+# playthrough down.
+#
+# So one house is played through under the sanitiser, every run. It costs about
+# fifteen seconds and it is the only thing here that can see a read that is
+# wrong but survivable - which is the kind that sits in a game for a year and
+# then takes it down on somebody else's console.
+#
+# The sanitiser runtimes ship with the system compiler here rather than with
+# clang, so this one build uses cc. If neither has them the sweep is skipped
+# with a word rather than failing the build on a missing library.
+if cc -DHOST_TEST -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all \
+      -w -o playtest-watched playtest.c 2>/dev/null; then
+  SEED=7 ./playtest-watched 0 > /tmp/watched.txt 2>&1 || {
+    echo "the watched sweep stopped:"
+    grep -E "runtime error|ERROR: AddressSanitizer" /tmp/watched.txt | head -5
+    sed -n '/#0 /,/#4 /p' /tmp/watched.txt | head -6
+    exit 1
+  }
+  sed -n '/nothing went wrong/p;/thing to look at/,$p' /tmp/watched.txt | head -8
+else
+  echo "  (no sanitiser runtime here; the watched sweep was skipped)"
+fi
+
 : > /tmp/sweeps.txt
 for h in 0 1 2 3 4 5 6 7 8; do
   SEED=$((h * 104729 + 7)) ./playtest "$h" > /tmp/sweep.$h.txt

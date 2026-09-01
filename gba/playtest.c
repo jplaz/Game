@@ -204,7 +204,11 @@ static void checkFrame(void) {
   if (scene < 0 || scene > SCENE_HIRE) finding("scene is %d, which is not a scene", scene);
   /* Nothing is standing anywhere yet on the screens that come before the
      world, and there is no map to be standing on. */
-  if (scene == SCENE_TITLE || scene == SCENE_HOUSE || scene == SCENE_NAME) return;
+  /* Nothing is standing anywhere yet on the screens that come before the
+     world, and there is no map to be standing on. The arms screen is one of
+     them now: it is the last thing between the name and the first road. */
+  if (scene == SCENE_TITLE || scene == SCENE_HOUSE || scene == SCENE_NAME
+      || (scene == SCENE_ARMS && armsOpening)) return;
 
   if (worldId < 0 || worldId >= MAP_COUNT) {
     finding("worldId is %d with %d maps", worldId, MAP_COUNT);

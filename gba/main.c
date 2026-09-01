@@ -3047,13 +3047,18 @@ static void paintFrameOnly(void) {
 /* Two rows of three instead of two of two, because the window is five rows
    deep and a third row of writing would be drawn under the bottom of it. */
 #define TOP_ITEMS 5
+/* Which square each word sits in. Written down rather than worked out, for the
+   same reason the pack list wraps its cursor by hand: dividing by three on
+   this machine is a call into a library that is not there. */
+static const u8 TOP_ROW[TOP_ITEMS] = { 0, 0, 0, 1, 1 };
+static const u8 TOP_COL[TOP_ITEMS] = { 0, 1, 2, 0, 1 };
 
 static void paintDuelTop(void) {
   int i;
   paintFrameOnly();
   for (i = 0; i < TOP_ITEMS; i++) {
-    int x = 22 + (i % 3) * 74;
-    int y = DUEL_WINDOW_TOP + 10 + (i / 3) * 16;
+    int x = 22 + TOP_COL[i] * 74;
+    int y = DUEL_WINDOW_TOP + 10 + TOP_ROW[i] * 16;
     /* Greyed rather than hidden. A word that is there and will not work tells
        you the rule; a word that is not there tells you nothing at all. */
     u8 ink = i == topPick ? C_GOLD : (i == 3 && !canBeSworn() ? C_DIM : C_INK);
@@ -4108,6 +4113,11 @@ static void wearYourColours(void) {
 static int armsRow;
 #define ARMS_ROWS 4
 
+/* Set while the arms screen is part of starting a game rather than something
+   opened from the house card, so that finishing it begins the game instead of
+   going back to a card that does not exist yet. */
+static int armsOpening;
+
 static void paintArms(void) {
   int i;
   clearPage();
@@ -4128,12 +4138,13 @@ static void paintArms(void) {
       else what = you.houseName[0] ? you.houseName : "(unnamed)";
       if (i == armsRow) drawCursor(66, y + 1, C_GOLD);
       drawText(76, y, LABEL[i], C_DIM);
-      drawText(132, y, what, i == armsRow ? C_GOLD : C_INK);
+      drawTextIn(132, y, what, i == armsRow ? C_GOLD : C_INK, TXT_W - 14 - 132);
     }
   }
 
-  centreText(88, you.arms ? "LEFT RIGHT change   A name   START done"
-                          : "LEFT RIGHT change   A name   START take them", C_DIM);
+  centreText(88, armsOpening ? "LEFT RIGHT change   A name   START begin"
+                             : you.arms ? "LEFT RIGHT change   A name   START done"
+                                        : "LEFT RIGHT change   A name   START take them", C_DIM);
 }
 
 
@@ -4731,7 +4742,10 @@ static void paintStallTabs(int chosen) {
   int i, total = 0, gap, room, x = 14;
   for (i = 0; i < STALL_COUNT; i++) total += textWidth(stallName[i]);
   room = goldLeftEdge() - 8 - 14 - total;
-  gap = STALL_COUNT > 1 ? room / (STALL_COUNT - 1) : 9;
+  /* Divided the long way round. An ARM7 has no divide instruction and there
+     is no library behind this cartridge, so a plain "/ 3" on a signed int is
+     a call to __aeabi_idivmod and a link that fails. */
+  gap = room > 0 ? (int)udiv((u32)room, STALL_COUNT - 1) : 1;
   if (gap > 9) gap = 9;
   if (gap < 1) gap = 1;
   for (i = 0; i < STALL_COUNT; i++) {
@@ -10560,7 +10574,24 @@ int main(void) {
         } else {
           /* Somebody who will not be told keeps their house's name. */
           if (!nameLen) copyString(you.name, houses[you.house].name, sizeof you.name);
-          beginGame();
+          /* And then the arms, before a foot is put on any road.
+           *
+           * Choosing a charge, a field, words and a house name was on the
+           * house card, four presses into a menu, behind a row most players
+           * never opened - so the one screen in this game that is entirely
+           * about who you are was met, if at all, some hours after you had
+           * stopped wondering. It belongs where the name is: you say what you
+           * are called, you say what you fly, and then the door opens. */
+          armsOpening = 1;
+          armsRow = 0;
+          /* Your own name on the banner until you say otherwise, rather than
+             "(unnamed)" - a house that has just started is called after the
+             person who started it. */
+          if (!you.houseName[0]) copyString(you.houseName, you.name, sizeof you.houseName);
+          scene = SCENE_ARMS;
+          clearPage();
+          layoutTextRows(TEXT_TOP);
+          paintArms();
         }
       }
     } else if (scene == SCENE_STATUS) {
@@ -10710,17 +10741,36 @@ int main(void) {
         while (you.houseName[nameLen]) nameLen++;
         layoutTextRows(TEXT_TOP);
         paintNamer();
+      } else if (hit(KEY_B) && armsOpening) {
+        /* Back to the letters, for somebody who has just looked at their own
+           name written under a shield and thought better of it. */
+        scene = SCENE_NAME;
+        nameInto = you.name;
+        nameAsking = "WHAT ARE YOU CALLED?";
+        nameThen = 0;
+        nameCol = 0;
+        nameRow = 0;
+        nameLen = 0;
+        while (you.name[nameLen]) nameLen++;
+        clearPage();
+        layoutTextRows(TEXT_TOP);
+        paintNamer();
       } else if (hit(KEY_START) || hit(KEY_B)) {
         if (!you.arms) {
           you.arms = 1;
           if (!you.houseName[0]) copyString(you.houseName, you.name, sizeof you.houseName);
         }
         wearYourColours();
-        scene = SCENE_SEAT;
-        houseSaid = you.arms ? "Those are your arms. Nobody else's." : 0;
-        clearPage();
-        layoutTextRows(TEXT_TOP);
-        paintHouse();
+        if (armsOpening) {
+          armsOpening = 0;
+          beginGame();
+        } else {
+          scene = SCENE_SEAT;
+          houseSaid = "Those are your arms. Nobody else's.";
+          clearPage();
+          layoutTextRows(TEXT_TOP);
+          paintHouse();
+        }
       } else if (hit(KEY_UP) || hit(KEY_DOWN) || hit(KEY_LEFT) || hit(KEY_RIGHT)) {
         paintArms();
       }
@@ -11252,14 +11302,14 @@ int main(void) {
         }
       } else if (duelPhase == DUEL_TOP) {
         int was = topPick;
-        if (hit(KEY_LEFT) && (topPick % 3)) topPick--;
-        if (hit(KEY_RIGHT) && topPick % 3 < 2 && topPick + 1 < TOP_ITEMS) topPick++;
-        if (hit(KEY_UP) && topPick > 2) topPick -= 3;
+        if (hit(KEY_LEFT) && TOP_COL[topPick]) topPick--;
+        if (hit(KEY_RIGHT) && TOP_COL[topPick] < 2 && topPick + 1 < TOP_ITEMS) topPick++;
+        if (hit(KEY_UP) && TOP_ROW[topPick]) topPick -= 3;
         /* Down from the third column lands on the last word rather than
            nowhere. Five items in six squares means the bottom right is empty,
            and "there is nothing directly below you" left the cursor stuck on
            Guard with no way down to Offer or Flee at all. */
-        if (hit(KEY_DOWN) && topPick < 3) {
+        if (hit(KEY_DOWN) && !TOP_ROW[topPick]) {
           topPick = topPick + 3 < TOP_ITEMS ? topPick + 3 : TOP_ITEMS - 1;
         }
         if (topPick != was) { sfxPick(); paintDuelTop(); }

@@ -165,6 +165,8 @@ static int yardsSeen, hullsBought, yardHeld;   /* the shipwright's */
 static int landsSeen, deedsBought, roomsSeen, landHeld;  /* what is for sale */
 static int seaFights, seaHeld, putToSeaCount;  /* and what is out on it */
 static int partiesSeen, partyLooks, swaps;
+/* How often the swords chooser was opened, and how often one was sent in. */
+static int swordsSeen, swordsOut;
 static int npcTalked[MAP_COUNT][MAX_CROWD];
 static int signRead[MAP_COUNT][8];
 static int npcStuck[MAP_COUNT][MAX_CROWD];
@@ -394,7 +396,7 @@ static int oathTrips;
 static int doorsSinceWork, wasTalked, wasSigns, lastDoorMap = -1, lastDoorIndex = -1;
 static int circlesBroken;
 /* How much of the world had been walked when the last circle was broken. */
-static int circleMaps;
+static int circleMaps, circlesTotal;
 /* How many times each map has been left by the door at the hero's feet
    because no door leading anywhere unfinished could be walked to. */
 static unsigned char pocketOuts[MAP_COUNT];
@@ -1657,6 +1659,8 @@ void hostFrame(void) {
       else if (duelPhase == DUEL_PACK) catchOnce(28, "09b-who-comes-out");
       else if (beastOut && foeBeast >= 0 && !windowOpen)
         catchOnce(29, "09d-yours-against-a-wild-one");
+      else if (swordOut && !windowOpen) catchOnce(36, "09e-your-sword-in-front");
+      else if (duelPhase == DUEL_HOST) catchOnce(37, "09f-which-sword");
       else if (beastOut && !windowOpen) catchOnce(30, "09c-yours-out-in-front");
       else if (duelPhase == DUEL_TOP) catchOnce(7, "09-what-to-do");
       else if (duelPhase == DUEL_MENU) catchOnce(8, "10-which-blow");
@@ -2334,18 +2338,27 @@ void hostFrame(void) {
          three whole systems sat unplayed behind a menu nothing pressed. */
       /* Offer is its own word on the menu now, so the purse goes through the
          front door rather than through the pouch. */
+      /* Fight, Pouch, Beasts on the top row; Swords, Offer, Flee on the
+         bottom. The words moved when the swords got theirs, and a tester
+         pressing the old squares would have run away every time it meant to
+         offer a purse. */
       int want = pouchTrips > 6 ? 0
-        : runAway ? 4
+        : runAway ? 5
         : (foeBeast < 0 && foeDef && foeDef->sworn < SWORN_KINDS && haveOath
            && hostRoom() >= 0 && !theirs.dead
-           && theirs.hp * 4 < theirs.maxHp) ? 3
+           && theirs.hp * 4 < theirs.maxHp) ? 4
         : (foeBeast >= 0 && beasts[foeBeast].tame && haveNet
            && theirs.hp * 3 < theirs.maxHp) ? 1
         : (mine.hp * 3 < vigourFor(you.level) && haveCure ? 1 : 0);
       /* And send one of yours out when there is one to send, or whistle it
-         back once it has taken enough. */
+         back once it has taken enough - an animal, or a man who has sworn.
+         Without this the whole of the second one would sit unplayed behind a
+         menu nothing presses, which is how the purse spent nine playthroughs
+         never being offered. */
       if (want == 0 && beastOut && yours.hp * 3 < yours.maxHp) want = 2;
-      else if (want == 0 && !beastOut && packHave() && (roll(3) == 0)) want = 2;
+      else if (want == 0 && swordOut && yours.hp * 3 < yours.maxHp) want = 3;
+      else if (want == 0 && !beastOut && !swordOut && packHave() && roll(3) == 0) want = 2;
+      else if (want == 0 && !beastOut && !swordOut && hostHave() && roll(3) == 0) want = 3;
       /* Two rows of three: get to the right row first, then along it. One
          step a frame, and A only once the cursor is actually on the word -
          pressing towards a square that does not exist is how a run spends a
@@ -2354,6 +2367,30 @@ void hostFrame(void) {
       else if (topPick % 3 != want % 3) keys = tap(want % 3 > topPick % 3 ? KEY_RIGHT : KEY_LEFT);
       else keys = tap(KEY_A);
       if (++duelTries > 900) { finding("a duel that would not end"); duelTries = 0; }
+    }
+    else if (duelPhase == DUEL_HOST) {
+      /* The healthiest sword who is not already standing there; nothing to
+         send means back out rather than sitting on the list. */
+      int want = -1, i2, best = 0;
+      static int held;
+      static int wasHost;
+      if (!wasHost) { swordsSeen++; held = 0; }
+      wasHost = 1;
+      for (i2 = 0; i2 < HOST_MAX; i2++) {
+        const Kept *h2 = &you.host[i2];
+        if (h2->kind == 255 || h2->hp <= 0) continue;
+        if (swordOut && i2 == swordAt) continue;
+        if (h2->hp > best) { best = h2->hp; want = i2; }
+      }
+      /* Six slots in two columns and three rows: the row is the whole of the
+         index above the bottom bit, not one bit of it. Comparing a single bit
+         meant the cursor could never get from the top row to the bottom one,
+         and a run sat in this list for two million frames. */
+      if (want < 0 || ++held > 400) { keys = tap(KEY_B); if (keys) wasHost = 0; }
+      else if ((hostPickAt & 1) != (want & 1)) keys = tap((want & 1) ? KEY_RIGHT : KEY_LEFT);
+      else if ((hostPickAt >> 1) != (want >> 1)) {
+        keys = tap((want >> 1) > (hostPickAt >> 1) ? KEY_DOWN : KEY_UP);
+      } else { keys = tap(KEY_A); if (keys) { swordsOut++; wasHost = 0; } }
     }
     else if (duelPhase == DUEL_PACK) {
       /* Send out the healthiest one that is not already standing there; if
@@ -2458,22 +2495,12 @@ void hostFrame(void) {
              no new ground walked between them. A run can break out of a dozen
              and still walk two hundred maps; a run that breaks out of eight
              and has not stood anywhere new is going round and round. */
+          circlesTotal++;
           {
             int walked = 0, k3;
             for (k3 = 0; k3 < MAP_COUNT; k3++) if (mapSeen[k3]) walked++;
             if (walked > circleMaps) { circleMaps = walked; circlesBroken = 0; }
-            /* Twenty-five, chosen from what the real faults measured rather
-               than from what sounds tidy. A septa standing on the one tile
-               that led to Lannisport's north gate cost four hundred and
-               seventy-two; a ranging that could not be handed in, a hundred
-               and four; a pair of sea maps with no hull to cross, seven
-               hundred and twenty-one. A run that recovers and goes on to walk
-               a hundred and ninety maps burns eight, and once twenty-three.
-               There is a great deal of daylight between those two sets. */
-            else if (++circlesBroken == 25) {
-              finding("twenty-five circles between %s and %s and not one new "
-                      "map walked in any of them", maps[m2].name, world->name);
-            }
+            else circlesBroken++;
           }
           /* And nail the door it just came through. Writing the two maps off
              is not enough on its own: the router is walking towards some third
@@ -3182,6 +3209,23 @@ int main(int argc, char **argv) {
      being read. */
   printf("  maps reached   %d walked, %d shut to this run, of %d\n",
     walkedMaps, seenMaps - walkedMaps, MAP_COUNT);
+  /* Circles are only a fault if the run got nowhere.
+   *
+   * Counting them as they happen asks the wrong question. A sweep that breaks
+   * out of thirty and goes on to walk a hundred and seventy maps has done its
+   * job; a sweep that breaks out of thirty and finishes having stood on fifty
+   * has spent a playthrough going round and round. The two are told apart at
+   * the end, where the ground actually walked is known, and the numbers come
+   * from what the real faults measured: a septa on one tile finished on
+   * fifty-six maps with four hundred and seventy-two circles, a ranging that
+   * could not be handed in on thirty-seven with a hundred and four, two sea
+   * maps with no hull on fifty-six with seven hundred and twenty-one - while
+   * every run that recovers walks a hundred and seventy or better. */
+  if (circlesTotal >= 25 && walkedMaps < 120) {
+    finding("%d circles broken and only %d of %d maps walked: the run spent "
+            "its playthrough going back and forth", circlesTotal, walkedMaps,
+            MAP_COUNT);
+  }
   printf("  people spoken  %d of %d\n", talked, totalNpcs);
   /* And who, by name. "524 of 533" every single run is nine people standing
      somewhere nobody can get to, and the report never said which nine, so
@@ -3360,6 +3404,8 @@ int main(int argc, char **argv) {
     mustersSeen, oathsOffered, hostCount());
   printf("  swords sworn   %d took the purse, %d fell, %d still behind you\n",
     sworeIn, hostLost, hostCount());
+  printf("  swords in front %d times the list was opened, %d sent in to fight\n",
+    swordsSeen, swordsOut);
   printf("  the free cities %d sellsword halls walked into, %d companies taken on\n",
     hiresSeen, companiesHired);
   printf("  the watch      %d taken, %d handed in\n", rangesTaken, you.rangings);

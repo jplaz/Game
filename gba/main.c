@@ -1222,6 +1222,29 @@ static void placeBeast(int slot, int x, int y, int tile, int bank) {
   oam[slot * 4 + 2] = (u16)(tile | (1 << 10) | (bank << 12));
 }
 
+/* A sworn sword, standing where the animal stands.
+ *
+ * Six men can follow you about and all six were a number added to your blows -
+ * you could not see them, send them anywhere, or lose one on purpose. The
+ * machinery for somebody of yours standing in front of you already existed for
+ * the animals; what was missing was a picture and a set of blows, and both had
+ * been sitting on the roamer he turns out to have been since the day he swore.
+ *
+ * Eight frames of a person is sixty-four tiles, which is exactly the room the
+ * animal uses - the player's walking steps, empty while nobody is walking - so
+ * they share it. Only one of the two can be out at a time, which is the rule
+ * anyway. */
+static void loadSwornArt(int kind) {
+  const Actor *a = &actors[swornKinds[kind].actor];
+  volatile u32 *dst = VRAM_OBJ + MY_BEAST_TILE * 8;
+  int d, w;
+  for (d = 0; d < 4; d++) {
+    const u32 *from = a->tiles + (d * 4) * ACTOR_FRAME_TILES * 8;
+    for (w = 0; w < 2 * ACTOR_FRAME_TILES * 8; w++) *dst++ = from[w];
+  }
+  for (w = 0; w < 16; w++) PAL_OBJ[MY_BEAST_BANK * 16 + w] = a->pal[w];
+}
+
 static void loadBeastArt(int which, int tile, int bank) {
   volatile u32 *dst = VRAM_OBJ + tile * 8;
   const u32 *src = beasts[which].tiles;
@@ -2858,7 +2881,11 @@ static int beastOut;             /* an animal of yours is standing the fight */
 /* Whoever is on your side of the yard this moment: you, or what you sent out.
    Every plate, bar and menu on the near side goes through here, so there is
    exactly one place that decides it. */
-static Fighter *nearSide(void) { return beastOut ? &yours : &mine; }
+/* Whoever of yours is standing in front: your animal, a sworn sword, or you. */
+static int swordOut, swordAt;
+static int swordFell(void);
+static int hostHave(void);
+static Fighter *nearSide(void) { return (beastOut || swordOut) ? &yours : &mine; }
 static const Duellist *foeDef;
 static int foeSlot;              /* which of the crowd is being fought, or -1 */
 static int foeBank;              /* which resident appearance they wear */
@@ -3055,7 +3082,7 @@ static void paintDuelBars(void) {
   if (what) drawText(TXT_W - 6 - textWidth(what), 2, what, C_HURT);
   what = ailment(nearSide());
   if (what) {
-    copyString(scratch, beastOut ? "it " : "you ", sizeof scratch);
+    copyString(scratch, beastOut ? "it " : swordOut ? "he " : "you ", sizeof scratch);
     appendString(scratch, what, sizeof scratch);
     drawText(TXT_W - 6 - textWidth(scratch), 12, scratch, C_HURT);
   }
@@ -3103,7 +3130,7 @@ static int topPick;
  * word on the menu where the fight is, it says what it needs when you cannot
  * use it, and it says where purses are sold when you have none. */
 static const char *const DUEL_TOP_ITEMS[6] = {
-  "Fight", "Pouch", "Guard", "Offer", "Flee", ""
+  "Fight", "Pouch", "Guard", "Swords", "Offer", "Flee"
 };
 
 /* Whether the man in front of you is somebody who could swear at all. */
@@ -3116,10 +3143,20 @@ static int bestPurse(void);
    pack instead, once you have a pack: who comes out, who goes back, and who is
    still standing. */
 static int packHave(void);
+static int hostHave(void);
 static const char *topItem(int i) {
-  if (i != 2) return DUEL_TOP_ITEMS[i];
-  if (beastOut) return "Call back";
-  return packHave() ? "Beasts" : DUEL_TOP_ITEMS[2];
+  if (i == 2) {
+    if (beastOut) return "Call back";
+    return packHave() ? "Beasts" : DUEL_TOP_ITEMS[2];
+  }
+  /* And the same word for the men. A sworn sword out in front is called back
+     the way an animal is; with nobody sworn to you the slot says so rather
+     than sitting there blank. */
+  if (i == 3) {
+    if (swordOut) return "Call back";
+    return hostHave() ? "Swords" : "-";
+  }
+  return DUEL_TOP_ITEMS[i];
 }
 
 static void paintFrameOnly(void) {
@@ -3129,12 +3166,12 @@ static void paintFrameOnly(void) {
 
 /* Two rows of three instead of two of two, because the window is five rows
    deep and a third row of writing would be drawn under the bottom of it. */
-#define TOP_ITEMS 5
+#define TOP_ITEMS 6
 /* Which square each word sits in. Written down rather than worked out, for the
    same reason the pack list wraps its cursor by hand: dividing by three on
    this machine is a call into a library that is not there. */
-static const u8 TOP_ROW[TOP_ITEMS] = { 0, 0, 0, 1, 1 };
-static const u8 TOP_COL[TOP_ITEMS] = { 0, 1, 2, 0, 1 };
+static const u8 TOP_ROW[TOP_ITEMS] = { 0, 0, 0, 1, 1, 1 };
+static const u8 TOP_COL[TOP_ITEMS] = { 0, 1, 2, 0, 1, 2 };
 
 static void paintDuelTop(void) {
   int i;
@@ -3144,7 +3181,9 @@ static void paintDuelTop(void) {
     int y = DUEL_WINDOW_TOP + 10 + TOP_ROW[i] * 16;
     /* Greyed rather than hidden. A word that is there and will not work tells
        you the rule; a word that is not there tells you nothing at all. */
-    u8 ink = i == topPick ? C_GOLD : (i == 3 && !canBeSworn() ? C_DIM : C_INK);
+    u8 ink = i == topPick ? C_GOLD
+           : ((i == 4 && !canBeSworn()) || (i == 3 && !swordOut && !hostHave())
+              ? C_DIM : C_INK);
     if (i == topPick) drawCursor(x - 11, y + 1, C_GOLD);
     drawText(x, y, topItem(i), ink);
   }
@@ -3160,6 +3199,59 @@ static int packHave(void) {
   int i, n = 0;
   for (i = 0; i < PARTY_MAX; i++) if (you.party[i].kind != 255) n++;
   return n;
+}
+
+/* Who is sworn to you, laid out the way the pack is: six slots in two columns,
+   a name cut to its column, a level, what is left of him and a rail. */
+static int hostPickAt;
+
+static int hostHave(void) {
+  int i, n = 0;
+  for (i = 0; i < HOST_MAX; i++) if (you.host[i].kind != 255) n++;
+  return n;
+}
+
+static int firstSword(void) {
+  int i;
+  for (i = 0; i < HOST_MAX; i++) if (you.host[i].kind != 255 && you.host[i].hp > 0) return i;
+  for (i = 0; i < HOST_MAX; i++) if (you.host[i].kind != 255) return i;
+  return 0;
+}
+
+static void paintDuelHost(void) {
+  int i;
+  paintFrameOnly();
+  for (i = 0; i < HOST_MAX; i++) {
+    const Kept *h = &you.host[i];
+    int x = 22 + (i & 1) * 110;
+    int y = DUEL_WINDOW_TOP + 3 + (i >> 1) * 13;
+    int full, now, filled;
+    u16 tint, bar;
+    if (i == hostPickAt) drawCursor(x - 10, y + 1, C_GOLD);
+    if (h->kind == 255) { drawText(x, y, "-", C_DIM); continue; }
+    tint = h->hp <= 0 ? C_HURT
+         : (swordOut && i == swordAt) ? C_WELL
+         : i == hostPickAt ? C_GOLD : C_INK;
+    full = swornVigour(h->kind, h->level);
+    now = h->hp < 0 ? 0 : (h->hp > full ? full : h->hp);
+    /* Six pixels more than the animals get: "Clansman" came out "Clansma",
+       and a list whose whole job is telling you who is who should not eat the
+       last letter of half the names in it. */
+    drawTextIn(x, y, swornKinds[h->kind].name, tint, 48);
+    copyString(scratch, "", sizeof scratch);
+    appendNumber(scratch, h->level, sizeof scratch);
+    drawText(x + 52, y, scratch, tint);
+    copyString(scratch, "", sizeof scratch);
+    appendNumber(scratch, now, sizeof scratch);
+    appendString(scratch, "/", sizeof scratch);
+    appendNumber(scratch, full, sizeof scratch);
+    drawText(x + 104 - textWidth(scratch), y, scratch, h->hp <= 0 ? C_HURT : C_DIM);
+    if (full < 1) full = 1;
+    filled = (int)udiv((u32)(now * 100), (u32)full);
+    bar = now * 4 <= full ? C_DYING : (now * 2 <= full ? C_HURT : C_WELL);
+    fillRect(x, y + 9, 100, 2, C_EDGE);
+    if (filled) fillRect(x, y + 9, filled, 2, bar);
+  }
 }
 
 static void paintDuelPack(void) {
@@ -3421,6 +3513,7 @@ static void openTheDuel(const char *intro) {
   snareEdge = 0;
   theyBalk = 0;
   swearOffered = 0;
+  swordOut = 0;
   mySureShots = 0;
   duelOver = 0;
   duelMenu = 0;
@@ -6621,6 +6714,28 @@ static int useInDuel(int at) {
     paintDuelPlates();
     return 1;
   }
+  /* And to the man in front of you, for the same reason it goes to the animal:
+     the bar coming down on the plate is his, so a flask that quietly healed
+     you behind him would look like a flask that did nothing at all. */
+  if (swordOut && wares[at].kind == WARE_POTION && you.bag[at]
+      && yours.hp < swornVigour(you.host[swordAt].kind, you.host[swordAt].level)) {
+    int full = swornVigour(you.host[swordAt].kind, you.host[swordAt].level);
+    int heal = wares[at].heal >= 9999 ? full : wares[at].heal;
+    int before = yours.hp;
+    you.bag[at]--;
+    yours.hp += heal;
+    if (yours.hp > full) yours.hp = full;
+    you.host[swordAt].hp = yours.hp;
+    yours.bleeding = 0;
+    yours.burning = 0;
+    copyString(itemSaid, "You put it in his hand and he drinks it standing. ",
+      sizeof itemSaid);
+    appendNumber(itemSaid, yours.hp - before, sizeof itemSaid);
+    appendString(itemSaid, " back.", sizeof itemSaid);
+    snareSaid = itemSaid;
+    paintDuelPlates();
+    return 1;
+  }
   if (!useWare(at)) return 0;
   mine.hp = you.hp;
   /* Say what actually happened, with the numbers. With an animal out in front
@@ -8052,6 +8167,7 @@ static int scene;
 #define DUEL_END 4
 #define DUEL_TOP 5
 #define DUEL_SPOILS 6            /* won, and the rail filling up for it */
+#define DUEL_HOST 8              /* which of your swords steps in front */
 #define DUEL_PACK 7              /* choosing which of yours stands the fight */
 
 static void enterWorld(int map, int x, int y, int dir) {
@@ -8791,9 +8907,11 @@ static int roundEnds(void) {
       if (f->hp < 0) f->hp = 0;
       appendString(scratch,
         f->burning ? (i ? "They are still burning: "
-                        : beastOut ? "It is still burning: " : "You are still burning: ")
+                        : beastOut ? "It is still burning: "
+                        : swordOut ? "He is still burning: " : "You are still burning: ")
                    : (i ? "They are still bleeding: "
-                        : beastOut ? "It is still bleeding: " : "You are still bleeding: "),
+                        : beastOut ? "It is still bleeding: "
+                        : swordOut ? "He is still bleeding: " : "You are still bleeding: "),
         sizeof scratch);
       appendNumber(scratch, lost, sizeof scratch);
       appendString(scratch, ".  ", sizeof scratch);
@@ -8873,11 +8991,12 @@ static int halfRound(int mineFirst, int myTech) {
   int tech = mineFirst ? myTech : theirs.tech[roll(4)];
   int fell = swing(a, d, tech, mineFirst);
   if (beastOut) MY_BEAST.hp = yours.hp;
+  if (swordOut) you.host[swordAt].hp = yours.hp;
   if (!fell) return 0;
   if (d == &theirs) { duelPhase = DUEL_END; duelOver = 1; return 1; }
   if (d == &mine) { duelPhase = DUEL_END; duelOver = 2; return 1; }
-  /* It was the animal. The fight goes on and you are back in it. */
-  beastFell();
+  /* It was the animal, or the man. The fight goes on and you are back in it. */
+  if (!swordFell()) beastFell();
   return 0;
 }
 
@@ -8913,6 +9032,95 @@ static void sendBeastOut(int at) {
   duelSay(0, scratch);
   roundFirst = 1;                            /* your half is spent on the change */
   duelPhase = DUEL_THEIRS;
+}
+
+/* ------------------------------------------------------ a sworn sword out --
+   The same three things the animal needed: his numbers in the fighter that
+   stands in front, a way to send him, and a way to whistle him back. */
+static void readySword(int at) {
+  const Kept *h = &you.host[at];
+  int k = h->kind, lv = h->level;
+  yours.name = swornKinds[k].name;
+  yours.level = lv;
+  yours.maxHp = swornVigour(k, lv);
+  yours.hp = h->hp > yours.maxHp ? yours.maxHp : h->hp;
+  yours.might = swornMight(k, lv);
+  yours.guard = swornGuard(k, lv);
+  yours.swiftness = swornStat(swornKinds[k].swiftness10, swornKinds[k].swiftness40, lv);
+  yours.tech = swornKinds[k].tech;
+  yours.defending = 0;
+  yours.maxWind = yours.wind =
+    swornStat(swornKinds[k].wind10, swornKinds[k].wind40, lv);
+  yours.stagger = 0;
+  yours.broken = 0;
+  yours.bleeding = 0;
+  yours.burning = 0;
+  /* A man with a sword is not obsidian and is not dead. He will hold a wight
+     off and he will not put one down, the same as your animal. */
+  yours.dead = 0;
+  yours.obsidian = 0;
+}
+
+static void sendSwordOut(int at) {
+  const Kept *h;
+  if (at < 0 || at >= HOST_MAX) return;
+  h = &you.host[at];
+  if (h->kind == 255) { sfxPick(); return; }
+  if (h->hp <= 0) {
+    duelSay(0, "He is in no state to stand anything.");
+    duelPhase = DUEL_TOP;
+    return;
+  }
+  if (swordOut && at == swordAt) {
+    duelSay(0, "He is already out in front of you.");
+    duelPhase = DUEL_TOP;
+    return;
+  }
+  if (swordOut) you.host[swordAt].hp = yours.hp;   /* whoever was out keeps his hurts */
+  if (beastOut) { MY_BEAST.hp = yours.hp; beastOut = 0; }
+  swordAt = at;
+  readySword(at);
+  swordOut = 1;
+  loadSwornArt(h->kind);
+  shownMine = yours.hp;
+  mine.defending = 0;
+  paintDuelPlates();
+  copyString(scratch, yours.name, sizeof scratch);
+  appendString(scratch, ", forward. He steps in front of you and sets himself.",
+    sizeof scratch);
+  duelSay(0, scratch);
+  roundFirst = 1;                            /* your half is spent on the change */
+  duelPhase = DUEL_THEIRS;
+}
+
+static void callSwordBack(void) {
+  if (!swordOut) return;
+  you.host[swordAt].hp = yours.hp;
+  swordOut = 0;
+  shownMine = mine.hp;
+  mine.defending = 0;
+  paintDuelPlates();
+  copyString(scratch, "You call ", sizeof scratch);
+  appendString(scratch, swornKinds[you.host[swordAt].kind].name, sizeof scratch);
+  appendString(scratch, " back and step into the gap yourself.", sizeof scratch);
+  duelSay(0, scratch);
+  roundFirst = 1;
+  duelPhase = DUEL_THEIRS;
+}
+
+/* One of yours going down is not the end of the duel, whether it walked on
+   four legs or swore to you. He is dragged back and you step in. */
+static int swordFell(void) {
+  if (!swordOut || yours.hp > 0) return 0;
+  you.host[swordAt].hp = 0;
+  swordOut = 0;
+  shownMine = mine.hp;
+  copyString(scratch, swornKinds[you.host[swordAt].kind].name, sizeof scratch);
+  appendString(scratch, " goes down on one knee and stays there. You step over "
+    "him and take the ground back.", sizeof scratch);
+  duelSay(0, scratch);
+  paintDuelPlates();
+  return 1;
 }
 
 static void callBeastBack(void) {
@@ -8963,7 +9171,8 @@ static void duelTurn(void) {
     if (!halfRound(mineFirst, myTech)) {
       if (!roundEnds()) duelPhase = DUEL_TOP;
       if (beastOut) MY_BEAST.hp = yours.hp;
-      beastFell();
+      if (swordOut) you.host[swordAt].hp = yours.hp;
+      if (!swordFell()) beastFell();
     }
   }
 }
@@ -11453,7 +11662,18 @@ int main(void) {
             mine.defending = 0;
             duelPhase = DUEL_MINE;
             duelTurn();
+          } else if (topPick == 3 && swordOut) {
+            /* Called back behind you, the same as an animal, and the round is
+               spent on it. */
+            callSwordBack();
+          } else if (topPick == 3 && hostHave()) {
+            hostPickAt = swordOut ? swordAt : firstSword();
+            duelPhase = DUEL_HOST;
+            paintDuelHost();
           } else if (topPick == 3) {
+            duelSay(0, "Nobody has sworn to you yet. Beat a man down to a "
+                       "third of himself and offer him a purse.");
+          } else if (topPick == 4) {
             /* The purse. Everything this needs is said out loud, because none
                of it could be guessed: who will swear, how beaten they have to
                be, that a purse is the thing that does it, and where purses are
@@ -11487,6 +11707,15 @@ int main(void) {
             }
           }
         }
+      } else if (duelPhase == DUEL_HOST) {
+        int was = hostPickAt;
+        if (hit(KEY_LEFT) && (hostPickAt & 1)) hostPickAt--;
+        if (hit(KEY_RIGHT) && !(hostPickAt & 1)) hostPickAt++;
+        if (hit(KEY_UP) && hostPickAt > 1) hostPickAt -= 2;
+        if (hit(KEY_DOWN) && hostPickAt < HOST_MAX - 2) hostPickAt += 2;
+        if (hostPickAt != was) { sfxPick(); paintDuelHost(); }
+        if (hit(KEY_B)) { duelPhase = DUEL_TOP; paintDuelTop(); }
+        else if (hit(KEY_A)) sendSwordOut(hostPickAt);
       } else if (duelPhase == DUEL_PACK) {
         int was = packPick;
         if (hit(KEY_LEFT) && (packPick & 1)) packPick--;
@@ -11864,14 +12093,20 @@ int main(void) {
         }
       }
       if (!fxHidden(1) && sinkMine < 70) {
-        placeBigObject(2, beastOut ? myX - 20 : myX, 32 + sinkMine,
+        placeBigObject(2, (beastOut || swordOut) ? myX - 20 : myX, 32 + sinkMine,
           PLAYER_TILE_BASE + (1 * 4) * ACTOR_FRAME_TILES, 0);
       }
       /* At your heel a pace behind your shoulder - or out in front of you,
          with you stood back behind it, once you have sent it in. */
-      if (MY_BEAST.kind != 255 && sinkMine < 70) {
+      if (MY_BEAST.kind != 255 && !swordOut && sinkMine < 70) {
         placeBeast(3, beastOut ? myX + 14 : myX - 44, (beastOut ? 34 : 44) + sinkMine,
           MY_BEAST_TILE, MY_BEAST_BANK);
+      }
+      /* And a man who has sworn to you, drawn from the same room the animal
+         uses, facing the way you face because you are both looking at them. */
+      if (swordOut && sinkMine < 70) {
+        placeBigObject(3, myX + 20, 32 + sinkMine,
+          MY_BEAST_TILE + (1 * 2) * ACTOR_FRAME_TILES, MY_BEAST_BANK);
       }
     }
 

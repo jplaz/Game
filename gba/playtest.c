@@ -393,6 +393,8 @@ static int oathTrips;
    was, so a two-map circle can be broken where it is made. */
 static int doorsSinceWork, wasTalked, wasSigns, lastDoorMap = -1, lastDoorIndex = -1;
 static int circlesBroken;
+/* How much of the world had been walked when the last circle was broken. */
+static int circleMaps;
 /* How many times each map has been left by the door at the hero's feet
    because no door leading anywhere unfinished could be walked to. */
 static unsigned char pocketOuts[MAP_COUNT];
@@ -449,15 +451,26 @@ static unsigned tap(unsigned key) {
 
 /* Whether a map still owes the tester anything. */
 /* Stop this run asking that map for anything ever again. */
+/* Maps this run has stopped asking anything of. Kept apart from the people and
+   the signs on them, because a map that has never been walked into is "not
+   done" whatever you do to its contents - `mapDone` asks whether it was seen
+   before it asks anything else - so writing one off had no effect at all and
+   every router went on aiming at it. Two sweeps circled between Dragonstone
+   and Blackwater Bay for the rest of a playthrough over a sea map they had no
+   hull to cross. */
+static unsigned char writtenOff[MAP_COUNT];
+
 static void giveUpOnMap(int m) {
   int i;
   if (m < 0 || m >= MAP_COUNT) return;
+  writtenOff[m] = 1;
   for (i = 0; i < maps[m].npcCount && i < MAX_CROWD; i++) npcStuck[m][i] = 1;
   for (i = 0; i < maps[m].signCount && i < 8; i++) signRead[m][i] = 1;
 }
 
 static int mapDone(int m) {
   int i;
+  if (writtenOff[m]) return 1;
   /* The Red Keep is shut until nine seats have bent to you, and the two white
      cloaks on the stair will say so all day. Counting it as unfinished sent the
      tester to that door and left it there: two and a half million frames stood
@@ -527,8 +540,8 @@ static unsigned char warpStuck[MAP_COUNT][MAX_WARP_MARK];
 
 static int canWalkTo(int gx, int gy);
 
-/* Which map the last search was aiming at, and the one being walked to now. */
-static int workTarget = -1, workWant = -1;
+/* Which map the last search was aiming at. */
+static int workTarget = -1;
 
 static int warpTowardWork(void) {
   int from[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, i;
@@ -2439,9 +2452,28 @@ void hostFrame(void) {
              one finding, not two hundred: the count is what matters, and a
              fresh sentence per circle filled the report with the same fault
              written out again and again. */
-          if (++circlesBroken == 3) {
-            finding("two-map circles: the run keeps walking between the same "
-                    "pair, %s and %s", maps[m2].name, world->name);
+          /* A circle that costs the run nothing is the detector doing its
+             job and the sweep carrying on. A circle that leads nowhere is the
+             fault, so the thing to count is not circles - it is circles with
+             no new ground walked between them. A run can break out of a dozen
+             and still walk two hundred maps; a run that breaks out of eight
+             and has not stood anywhere new is going round and round. */
+          {
+            int walked = 0, k3;
+            for (k3 = 0; k3 < MAP_COUNT; k3++) if (mapSeen[k3]) walked++;
+            if (walked > circleMaps) { circleMaps = walked; circlesBroken = 0; }
+            /* Twenty-five, chosen from what the real faults measured rather
+               than from what sounds tidy. A septa standing on the one tile
+               that led to Lannisport's north gate cost four hundred and
+               seventy-two; a ranging that could not be handed in, a hundred
+               and four; a pair of sea maps with no hull to cross, seven
+               hundred and twenty-one. A run that recovers and goes on to walk
+               a hundred and ninety maps burns eight, and once twenty-three.
+               There is a great deal of daylight between those two sets. */
+            else if (++circlesBroken == 25) {
+              finding("twenty-five circles between %s and %s and not one new "
+                      "map walked in any of them", maps[m2].name, world->name);
+            }
           }
           /* And nail the door it just came through. Writing the two maps off
              is not enough on its own: the router is walking towards some third
@@ -2453,6 +2485,10 @@ void hostFrame(void) {
               && lastDoorIndex < MAX_WARP_MARK) {
             warpStuck[lastDoorMap][lastDoorIndex] = WARP_GIVE_UP;
           }
+          /* And whatever the walk was actually aiming at, which is neither of
+             these two maps: crossing back and forth between a pair is what
+             wanting an unreachable third looks like from in here. */
+          if (workTarget >= 0 && workTarget < MAP_COUNT) giveUpOnMap(workTarget);
         }
         giveUpOnMap(worldId);
         if (lastDoorMap >= 0 && lastDoorMap < MAP_COUNT) giveUpOnMap(lastDoorMap);

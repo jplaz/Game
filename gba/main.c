@@ -4401,7 +4401,7 @@ static void paintStatus(void) {
       appendNumber(scratch, courtCount(), sizeof scratch);
       appendString(scratch, " of ", sizeof scratch);
       appendNumber(scratch, PETITION_COUNT, sizeof scratch);
-      appendString(scratch, " heard. Sit the chair in the Red Keep.", sizeof scratch);
+      appendString(scratch, " heard. Sit the chair.", sizeof scratch);
       drawText(16, 96, scratch, C_GOLD);
     } else if (at < 0) {
       drawText(16, 96, "Every sigil taken. The Red Keep is open.", C_GOLD);
@@ -6065,8 +6065,9 @@ static void paintYard(void) {
     if (yardPick == HULL_COUNT) drawCursor(14, y + 1, C_GOLD);
     copyString(scratch, "Put her right - she is ", sizeof scratch);
     appendString(scratch, soundWord(), sizeof scratch);
-    drawText(24, y, scratch,
-      !due || you.gold < due ? C_DIM : (yardPick == HULL_COUNT ? C_GOLD : C_INK));
+    drawTextIn(24, y, scratch,
+      !due || you.gold < due ? C_DIM : (yardPick == HULL_COUNT ? C_GOLD : C_INK),
+      TXT_W - 56 - 24);
     copyString(scratch, "", sizeof scratch);
     appendNumber(scratch, due, sizeof scratch);
     drawText(TXT_W - 24 - textWidth(scratch), y, scratch,

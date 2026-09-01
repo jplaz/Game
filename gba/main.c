@@ -5408,14 +5408,32 @@ static int useWare(int at) {
      whole. Five of the ten things on this shelf are cures rather than draughts
      and until now none of them was a ware at all, so nothing in the game ever
      stopped a wound bleeding except the end of the fight. */
-  if (you.hp >= max && !mine.bleeding && !mine.burning) {
-    wareBalked = "There is nothing wrong with you. Keep it for when there is.";
-    return 0;
+  /* And it is the health you are actually standing on that decides, not the
+     one you walked in with.
+   *
+   * `you.hp` is what you had before the fight started; the bar coming down on
+   * the plate in front of you is `mine.hp`, and the two are only ever put back
+   * together when the fight ends. So every remedy drunk in a duel was judged
+   * against your health from before the first blow: beaten to half and reaching
+   * for the flask that is there for exactly this, the game said "there is
+   * nothing wrong with you" and gave the turn away. Which is the whole of "let
+   * me use a potion in battle". */
+  {
+    /* The pouch is the only way to drink in a duel, and it sets this when it
+       is opened from one. */
+    int fighting = bagInDuel;
+    int now = fighting ? mine.hp : you.hp;
+    if (now >= max && !mine.bleeding && !mine.burning) {
+      wareBalked = "There is nothing wrong with you. Keep it for when there is.";
+      return 0;
+    }
+    mine.bleeding = 0;
+    mine.burning = 0;
+    now += heal;
+    if (now > max) now = max;
+    you.hp = now;
+    if (fighting) mine.hp = now;
   }
-  mine.bleeding = 0;
-  mine.burning = 0;
-  you.hp += heal;
-  if (you.hp > max) you.hp = max;
   you.bag[at]--;
   return 1;
 }
@@ -9143,8 +9161,11 @@ static void paintHost(void) {
   drawText(TXT_W - 14 - textWidth(scratch), 6, scratch, C_DIM);
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
 
+  /* Ten apart, not twelve. Six swords at twelve start at twenty-four and
+     reach eighty-four, and the line underneath that adds their blows up is
+     drawn at eighty. */
   for (i = 0; i < HOST_MAX; i++) {
-    int y = 24 + shown * 12;
+    int y = 22 + shown * 10;
     const Kept *h = &you.host[i];
     if (h->kind == 255) continue;
     if (i == hostPick) drawCursor(14, y + 1, C_GOLD);
@@ -11234,7 +11255,13 @@ int main(void) {
         if (hit(KEY_LEFT) && (topPick % 3)) topPick--;
         if (hit(KEY_RIGHT) && topPick % 3 < 2 && topPick + 1 < TOP_ITEMS) topPick++;
         if (hit(KEY_UP) && topPick > 2) topPick -= 3;
-        if (hit(KEY_DOWN) && topPick + 3 < TOP_ITEMS) topPick += 3;
+        /* Down from the third column lands on the last word rather than
+           nowhere. Five items in six squares means the bottom right is empty,
+           and "there is nothing directly below you" left the cursor stuck on
+           Guard with no way down to Offer or Flee at all. */
+        if (hit(KEY_DOWN) && topPick < 3) {
+          topPick = topPick + 3 < TOP_ITEMS ? topPick + 3 : TOP_ITEMS - 1;
+        }
         if (topPick != was) { sfxPick(); paintDuelTop(); }
         if (hit(KEY_A)) {
           if (topPick == 0) { duelPhase = DUEL_MENU; paintDuelMenu(); }

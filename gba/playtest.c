@@ -189,6 +189,8 @@ static void checkSound(void) {
   }
 }
 
+static int windowSays(const char *what);
+
 static void checkFrame(void) {
   int i;
   checkSound();
@@ -253,6 +255,25 @@ static void checkFrame(void) {
   if (windowOpen) {
     if (lineCount < 1 || lineCount > MAX_LINES) finding("a window with %d lines", lineCount);
     if (lineAt < 0 || lineAt > lineCount) finding("a window paged to %d of %d", lineAt, lineCount);
+  }
+  if (scene == SCENE_DUEL || (scene == SCENE_BAG && bagInDuel)) {
+    /* A remedy refused to somebody who is bleeding on the floor.
+     *
+     * The counter sells ten of them and the whole point of every one is the
+     * moment you are losing. The check that decides whether you need one read
+     * the health you walked into the fight with rather than the bar coming
+     * down in front of you, so a man beaten to half was told there was nothing
+     * wrong with him and lost the turn as well. Nothing here would have caught
+     * it either, because the tester asked the same wrong question. */
+    /* Watched at the decision rather than at the window it is printed in: the
+       balk string is set the moment the game says no, whatever it does with it
+       afterwards. */
+    if (wareBalked && !strcmp(wareBalked,
+          "There is nothing wrong with you. Keep it for when there is.")
+        && mine.hp < vigourFor(you.level)) {
+      finding("a remedy was refused at %d of %d health: \"nothing wrong with you\"",
+        mine.hp, vigourFor(you.level));
+    }
   }
   if (scene == SCENE_DUEL) {
     if (mine.hp > mine.maxHp || theirs.hp > theirs.maxHp) {
@@ -644,6 +665,8 @@ static int grindQuiet;
  * was the count being made, and the only thing that ever let a *grind* go was
  * no fight starting at all. Fights were starting. They were just not the dead. */
 static int rangeQuiet, rangeWas = -1;
+/* How many walks across the world this run has made to report one ranging. */
+static int handinTrips, handinFor = -1;
 static unsigned char coldTried[MAP_COUNT];
 
 /* An edge in the pouch that will mark the dead, when what is in your hand
@@ -1204,15 +1227,31 @@ static void pickGoal(void) {
        made and never reported is worse than never having gone. */
     {
       int m, want = -1, k;
-      for (m = 0; m < MAP_COUNT && want < 0; m++) {
+      /* The nearest man in black who is not already written off, and only for
+         as long as walking to him is getting anywhere.
+       *
+       * It used to take the first seen map with a ranger on it, with no budget
+       * and no regard for whether that ranger could be reached. Wanting one on
+       * Winterfell while Winterfell wanted a door back to the Wolfswood is a
+       * two-map circle that nothing in here could break, because the errand
+       * does not care whether a map is finished: a sweep spent six hundred
+       * thousand frames walking between two maps a hundred and four times and
+       * finished thirty-seven of two hundred and thirty-one. */
+      if (rangingsDone != handinFor) { handinFor = rangingsDone; handinTrips = 0; }
+      for (m = 0; m < MAP_COUNT; m++) {
         if (!mapSeen[m]) continue;
-        for (k = 0; k < maps[m].npcCount; k++) {
-          if (maps[m].npcs[k].ranges) { want = m; break; }
+        for (k = 0; k < maps[m].npcCount && k < MAX_CROWD; k++) {
+          if (!maps[m].npcs[k].ranges || npcStuck[m][k]) continue;
+          if (want < 0 || hopsBetween(worldId, m) < hopsBetween(worldId, want)) want = m;
+          break;
         }
       }
-      if (want >= 0 && want != worldId) {
+      if (want >= 0 && want != worldId && handinTrips < 25) {
         i = warpTowardMap(want);
-        if (i >= 0) { goalWhy = "handin-far"; goalKind = GOAL_WARP; goalIndex = i; return; }
+        if (i >= 0) {
+          handinTrips++;
+          goalWhy = "handin-far"; goalKind = GOAL_WARP; goalIndex = i; return;
+        }
       }
     }
   }
@@ -2266,14 +2305,17 @@ void hostFrame(void) {
            && theirs.hp * 4 < theirs.maxHp) ? 3
         : (foeBeast >= 0 && beasts[foeBeast].tame && haveNet
            && theirs.hp * 3 < theirs.maxHp) ? 1
-        : (you.hp * 3 < vigourFor(you.level) && haveCure ? 1 : 0);
+        : (mine.hp * 3 < vigourFor(you.level) && haveCure ? 1 : 0);
       /* And send one of yours out when there is one to send, or whistle it
          back once it has taken enough. */
       if (want == 0 && beastOut && yours.hp * 3 < yours.maxHp) want = 2;
       else if (want == 0 && !beastOut && packHave() && (roll(3) == 0)) want = 2;
-      /* Two rows of three: along first, then down. */
-      if (want / 3 != topPick / 3) keys = tap(want / 3 > topPick / 3 ? KEY_DOWN : KEY_UP);
-      else if (want % 3 != topPick % 3) keys = tap(want % 3 > topPick % 3 ? KEY_RIGHT : KEY_LEFT);
+      /* Two rows of three: get to the right row first, then along it. One
+         step a frame, and A only once the cursor is actually on the word -
+         pressing towards a square that does not exist is how a run spends a
+         whole fight holding down. */
+      if (topPick / 3 != want / 3) keys = tap(want / 3 > topPick / 3 ? KEY_DOWN : KEY_UP);
+      else if (topPick % 3 != want % 3) keys = tap(want % 3 > topPick % 3 ? KEY_RIGHT : KEY_LEFT);
       else keys = tap(KEY_A);
       if (++duelTries > 900) { finding("a duel that would not end"); duelTries = 0; }
     }

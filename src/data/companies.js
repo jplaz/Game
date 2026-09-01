@@ -107,7 +107,7 @@ export const COMPANIES = {
   crossroadsSwords: {
     name: 'The Crossroads Men',
     where: 'The Crossroads',
-    kind: 'sellsword',
+    kind: 'hedgeKnight',
     level: 8,
     price: 700,
     pitch: 'Hedge Knight: There are four of us drinking here and none of us has '
@@ -123,7 +123,7 @@ export const COMPANIES = {
   riverSpears: {
     name: 'The Tumblestone Spears',
     where: 'Riverrun',
-    kind: 'sellsword',
+    kind: 'manAtArms',
     level: 14,
     price: 1500,
     pitch: 'Serjeant of Spears: River levies, and better than that sounds. Half '
@@ -139,7 +139,7 @@ export const COMPANIES = {
   stormRiders: {
     name: 'The Rainwood Riders',
     where: "Storm's End",
-    kind: 'knight',
+    kind: 'hedgeKnight',
     level: 20,
     price: 2800,
     pitch: 'Master-at-Arms: Landless knights, most of them second sons out of '
@@ -156,7 +156,7 @@ export const COMPANIES = {
   sandSteeds: {
     name: 'The Sand Steeds',
     where: 'Sunspear',
-    kind: 'knight',
+    kind: 'dornishOutrider',
     level: 26,
     price: 4200,
     pitch: 'Captain of the Sands: Light horse. They will not stand in your line '

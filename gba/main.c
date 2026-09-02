@@ -737,15 +737,29 @@ void hostTextDrawn(int x, int y, int w, int h, const char *s);
 void hostAreaCleared(int x, int y, int w, int h);
 void hostTextPixel(int x, int y);
 void hostFrameDrawn(int x, int y, int w, int h);
+void hostFillDrawn(int x, int y, int w, int h);
 #define TEXT_DRAWN(x, y, w, h, s) hostTextDrawn((x), (y), (w), (h), (s))
 #define AREA_CLEARED(x, y, w, h)  hostAreaCleared((x), (y), (w), (h))
 #define TEXT_PIXEL(x, y)          hostTextPixel((x), (y))
 #define FRAME_DRAWN(x, y, w, h)   hostFrameDrawn((x), (y), (w), (h))
+#define FILL_DRAWN(x, y, w, h)    hostFillDrawn((x), (y), (w), (h))
+/* A frame is four nested fills, and one box drawn inside another - which is
+   how the deeper windows in this game are built - lands the inner one's fills
+   squarely on the outer one's border. That is composition, not a fault, so a
+   frame's own fills are not asked the question. */
+static int hostFraming;
+#define FRAMING_IN   (hostFraming++)
+#define FRAMING_OUT  (hostFraming--)
+#define IS_FRAMING   hostFraming
 #else
 #define TEXT_DRAWN(x, y, w, h, s) ((void)0)
 #define AREA_CLEARED(x, y, w, h)  ((void)0)
 #define TEXT_PIXEL(x, y)          ((void)0)
 #define FRAME_DRAWN(x, y, w, h)   ((void)0)
+#define FILL_DRAWN(x, y, w, h)    ((void)0)
+#define FRAMING_IN   ((void)0)
+#define FRAMING_OUT  ((void)0)
+#define IS_FRAMING   0
 #endif
 
 static void fillRect(int x, int y, int w, int h, u8 colour) {
@@ -758,6 +772,11 @@ static void fillRect(int x, int y, int w, int h, u8 colour) {
   if (x1 > TXT_W) x1 = TXT_W;
   if (y1 > TXT_H) y1 = TXT_H;
   if (x >= x1 || y >= y1) return;
+  /* A block of colour laid on somebody's border is the same fault as a letter
+     on one - the page-turn wedge on the status card had its point drawn a
+     column into the frame - so coloured fills are asked the same question.
+     A wipe is not: clearing is how a border is legitimately taken away. */
+  if (colour != C_CLEAR && !IS_FRAMING) FILL_DRAWN(x, y, x1 - x, y1 - y);
   AREA_CLEARED(x, y, x1 - x, y1 - y);
   pair = (u8)(colour | (colour << 4));
   tyEnd = (y1 - 1) >> 3;
@@ -924,6 +943,7 @@ static void centreText(int y, const char *s, u8 ink) {
    band, a second keyline, then the panel — and the corners knocked off so it
    does not read as a rectangle drawn over the world. */
 static void drawFrame(int x, int y, int w, int h) {
+  FRAMING_IN;
   fillRect(x, y, w, h, C_DEEP);
   fillRect(x + 1, y + 1, w - 2, h - 2, C_EDGE);
   fillRect(x + 3, y + 3, w - 6, h - 6, C_DEEP);
@@ -932,6 +952,7 @@ static void drawFrame(int x, int y, int w, int h) {
   plot(x, y + h - 1, C_CLEAR); plot(x + w - 1, y + h - 1, C_CLEAR);
   plot(x + 1, y + 1, C_DEEP); plot(x + w - 2, y + 1, C_DEEP);
   plot(x + 1, y + h - 2, C_DEEP); plot(x + w - 2, y + h - 2, C_DEEP);
+  FRAMING_OUT;
   /* Four pixels of border on every side, and everything inside them is the
      page. Said after the drawing so the corner plots above are counted as
      border rather than as somebody's letters. */
@@ -4628,6 +4649,13 @@ static const char *const sayings[SAYING_COUNT] = {
    there is no divide anywhere in here and no rounding to argue with. */
 static const u8 SHIELD_HALF[16] = { 8,8,8,8,8,8,8,8,8,8,8,8,7,6,4,2 };
 
+/* Where a shield's field starts on a card. The rim is drawn a row above the
+   field and a half-width outside it on each side, so a shield placed at the
+   first row of the page has its rim on the border above - which is where both
+   of the small ones sat, on the status card and on the house card, a single
+   row of dark red laid along the top of the box. */
+#define SHIELD_TOP 7
+
 static void paintShield(int x, int y, int scale, int which, int tint) {
   const Charge *c = &charges[which % CHARGE_COUNT];
   int i, j;
@@ -4751,13 +4779,31 @@ static int statusPage;
 #define STAND_COL 102          /* the whole column: name, then word */
 #define STAND_WORD 58          /* where the word starts, clear of the longest name */
 
+/* The wedge at the edge of the status card that says there is another page
+ * that way: pointing right on the sigil, pointing left on the nine houses.
+ *
+ * One element, and it was written out twice with different numbers. The
+ * right-hand one was centred on the card and the left-hand one sat six pixels
+ * below the middle, so the arrow jumped as you turned the page; and the
+ * right-hand one's point was drawn at two hundred and thirty, which is the
+ * first column of the frame's own border, so it read as poking out through
+ * the side of the box rather than sitting inside it. The page runs from ten
+ * to two hundred and twenty-nine, and the two wedges now start and end on
+ * exactly those columns. */
+#define TURN_MID 54                    /* the middle of the card, both pages */
+static void drawTurnWedge(int right) {
+  int i;
+  for (i = 0; i < 5; i++) {
+    fillRect(right ? TXT_W - 15 + i : 14 - i, TURN_MID - 4 + i, 1, 9 - i * 2, C_GOLD);
+  }
+}
+
 static void paintStanding(void) {
   int i;
   clearRows(0, TXT_H);
   drawFrame(6, 2, TXT_W - 12, TXT_H - 6);
   drawText(16, 6, "WHERE YOU STAND", C_GOLD);
-  { int i;
-    for (i = 0; i < 5; i++) fillRect(10 - i + 4, 60 - 4 + i, 1, 9 - i * 2, C_GOLD); }
+  drawTurnWedge(0);
   fillRect(16, 18, TXT_W - 32, 1, C_EDGE);
   /* Two columns of nine houses, and the word each of them has for you.
    *
@@ -4832,7 +4878,7 @@ static void paintStatus(void) {
      sword of anybody any more, and the top of their own card should not still
      be reading out somebody else's motto. */
   if (you.arms) {
-    paintShield(TXT_W - 34, 6, 1, you.charge, you.tincture);
+    paintShield(TXT_W - 34, SHIELD_TOP, 1, you.charge, you.tincture);
     drawText(16, 6, houseCalled(), C_HOUSE);
     drawText(16, 17, sayings[you.saying % SAYING_COUNT], C_DIM);
   } else {
@@ -4877,8 +4923,7 @@ static void paintStatus(void) {
   drawText(16, 66, scratch, C_DIM);
   /* A chevron at the edge rather than a sentence: the card is full, and the
      shield in the corner is already sitting where a sentence would go. */
-  { int i;
-    for (i = 0; i < 5; i++) fillRect(TXT_W - 14 + i, 54 - 4 + i, 1, 9 - i * 2, C_GOLD); }
+  drawTurnWedge(1);
 
   copyString(scratch, "Sigils ", sizeof scratch);
   appendNumber(scratch, countSigils(), sizeof scratch);
@@ -7820,7 +7865,7 @@ static void paintHouse(void) {
   clearRows(0, TXT_H);
   drawFrame(4, 2, TXT_W - 8, TXT_H - 6);
 
-  paintShield(11, 6, 1, you.charge, you.tincture);
+  paintShield(11, SHIELD_TOP, 1, you.charge, you.tincture);
   wearYourColours();
 
   drawText(34, 6, houseCalled(), C_HOUSE);
@@ -8590,7 +8635,10 @@ static int worstHouse(void) {
 static void paintCourtChoice(void) {
   const Petition *p = &petitions[courtAt];
   int i;
-  fillRect(4, TXT_H - 44, TXT_W - 8, 40, C_FILL);
+  /* No fill of our own first. drawFrame's outermost pass covers every pixel
+     this used to paint, so all it ever did was lay a block of colour over the
+     two inside columns of the window's border on its way past - which is the
+     window this question is drawn over, and is replaced a line later. */
   drawFrame(2, TXT_H - 46, TXT_W - 4, 44);
   for (i = 0; i < p->count; i++) {
     int y = TXT_H - 40 + i * 12;
@@ -9098,6 +9146,24 @@ static void youFell(void) {
   openWindow(0, scratch);
 }
 
+/* A list of things written the way somebody would say it: commas between them
+ * and "and" before the last, with nothing at all in front of the first.
+ *
+ * Which name is the last one is not known until the list has ended, so this
+ * cannot be done while the list is being gathered - and it was. The rule
+ * there was "a comma before the second, and before every one after that",
+ * which is right for two and wrong for everything above: four pieces of a
+ * dead man's kit came out as "Oaken Cudgel, Hide Jerkin, and Leather Cap, and
+ * Wool Mitts". It is in the reference picture of that screen and has been for
+ * as long as anybody has been stripping bodies. */
+static void appendList(char *dst, const char *const *names, int n, int cap) {
+  int i;
+  for (i = 0; i < n; i++) {
+    if (i) appendString(dst, i == n - 1 ? " and " : ", ", cap);
+    appendString(dst, names[i], cap);
+  }
+}
+
 /* What you strip off somebody who has gone down, appended to the line that is
    already being read out. A remedy goes in the pouch; the gear goes in the
    pouch too, and onto you if it is dearer than what you had, because nobody
@@ -9105,6 +9171,7 @@ static void youFell(void) {
 static void takeTheirKit(void) {
   Kit k = kitOf(foeId, foeLevel);
   u8 piece[5];
+  const char *tookName[5];
   int i, took = 0, worn = 0, scrap = 0;
 
   piece[0] = k.arm; piece[1] = k.mail; piece[2] = k.shield;
@@ -9121,13 +9188,20 @@ static void takeTheirKit(void) {
     w = &wares[piece[i]];
     how = takeWare(piece[i]);
     if (how == TOOK_SOLD) { scrap += w->price >> 4; continue; }
-    if (took) appendString(scratch, took > 1 ? ", and " : ", ", sizeof scratch);
-    else appendString(scratch, "  Off them you take ", sizeof scratch);
-    appendString(scratch, w->name, sizeof scratch);
+    tookName[took++] = w->name;
     if (how == TOOK_WORN) worn = 1;
-    took++;
   }
-  if (took) appendString(scratch, worn ? ", and put on what is better." : ".", sizeof scratch);
+  /* The names are written out after the loop rather than during it, because
+     which one is last is not known until the loop has ended and that is the
+     only one the "and" belongs in front of. Joining as it went, the rule was
+     "comma for the second, and for every one after" - so four pieces came out
+     as "Oaken Cudgel, Hide Jerkin, and Leather Cap, and Wool Mitts", which is
+     what the reference picture of this screen has always shown. */
+  if (took) {
+    appendString(scratch, "  Off them you take ", sizeof scratch);
+    appendList(scratch, tookName, took, sizeof scratch);
+    appendString(scratch, worn ? ". What is better goes on." : ".", sizeof scratch);
+  }
   if (scrap) {
     appendString(scratch, took ? "  The rest is scrap: " : "  All they had was scrap: ", sizeof scratch);
     appendNumber(scratch, scrap, sizeof scratch);
@@ -10603,7 +10677,10 @@ static void endCut(void) {
 static void paintCutChoice(void) {
   const Choice *c = &choices[beats[cuts[cutAt].first + cutBeat].a];
   int i;
-  fillRect(4, TXT_H - 44, TXT_W - 8, 40, C_FILL);
+  /* No fill of our own first. drawFrame's outermost pass covers every pixel
+     this used to paint, so all it ever did was lay a block of colour over the
+     two inside columns of the window's border on its way past - which is the
+     window this question is drawn over, and is replaced a line later. */
   drawFrame(2, TXT_H - 46, TXT_W - 4, 44);
   for (i = 0; i < c->count; i++) {
     int y = TXT_H - 40 + i * 12;

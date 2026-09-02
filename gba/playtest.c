@@ -111,6 +111,24 @@ void hostFrameDrawn(int x, int y, int w, int h) {
   }
 }
 
+/* The same question asked of a block of colour rather than a letter. Reported
+   at once with its own rectangle, since a fill has no string to be named by. */
+void hostFillDrawn(int x, int y, int w, int h) {
+  int px, py, hit = 0, hx = 0, hy = 0;
+  for (py = y; py < y + h && py < TXT_H; py++) {
+    if (py < 0) continue;
+    for (px = x; px < x + w && px < TXT_W; px++) {
+      if (px < 0 || !frameAt[py][px]) continue;
+      if (!hit) { hx = px; hy = py; }
+      hit++;
+    }
+  }
+  if (hit) {
+    finding("a block of colour %dx%d at %d,%d puts %d pixels through the "
+            "border of its panel, first at %d,%d", w, h, x, y, hit, hx, hy);
+  }
+}
+
 void hostTextPixel(int x, int y) {
   if (x < 0 || y < 0 || x >= TXT_W || y >= TXT_H) return;
   if (!frameAt[y][x]) return;

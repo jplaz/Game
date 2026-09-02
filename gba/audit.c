@@ -965,6 +965,31 @@ static void checkSharedRoom(void) {
   swordOut = beastOut = 0;
 }
 
+/* Lists read the way somebody would say them.
+ *
+ * One "and", in front of the last name and nowhere else, and a comma between
+ * every pair before it. Asked of one name up to five, because the fault this
+ * is here for only shows from three onwards: joining the list as it was
+ * gathered gave "A, B, and C, and D", and two names came out right, which is
+ * the length everything anybody looked at happened to be. */
+static void checkLists(void) {
+  static const char *const NAME[5] = { "Cudgel", "Jerkin", "Cap", "Mitts", "Boots" };
+  static const char *const WANT[5] = {
+    "Cudgel",
+    "Cudgel and Jerkin",
+    "Cudgel, Jerkin and Cap",
+    "Cudgel, Jerkin, Cap and Mitts",
+    "Cudgel, Jerkin, Cap, Mitts and Boots" };
+  int n;
+  for (n = 1; n <= 5; n++) {
+    char out[128];
+    copyString(out, "", sizeof out);
+    appendList(out, NAME, n, sizeof out);
+    if (!strcmp(out, WANT[n - 1])) continue;
+    bad("%d names read \"%s\" and should read \"%s\"", n, out, WANT[n - 1]);
+  }
+}
+
 int main(void) {
   int m, i, j, seen[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, reached = 0, wayIn = -1;
   int totalNpc = 0, totalSign = 0, totalWarp = 0;
@@ -1079,6 +1104,7 @@ int main(void) {
   checkNobodyBlocks();
   checkHouseholdFits();
   checkSharedRoom();
+  checkLists();
 
   /* Where you stand: nine names and the five words the nine can have for you.
    *

@@ -1807,10 +1807,21 @@ void hostFrame(void) {
       else if (beastOut && !windowOpen) catchOnce(30, "09c-yours-out-in-front");
       else if (duelPhase == DUEL_TOP) catchOnce(7, "09-what-to-do");
       else if (duelPhase == DUEL_MENU) catchOnce(8, "10-which-blow");
-      else if (windowOpen && !typeDone) catchOnce(9, "08-the-duel-opens");
+      /* Once the screen is back, not on the frame the scene changes.
+         The transition sets the duel up behind a full fade to black and the
+         scene flips while it is still black, so this caught the darkest frame
+         of it - and got away with that for as long as the renderer ignored the
+         fade registers. The moment it drew them, this picture was a black
+         rectangle. */
+      else if (windowOpen && !typeDone && !shift) catchOnce(9, "08-the-duel-opens");
     } else if (scene == SCENE_WORLD) {
       if (shift > 40) catchOnce(10, "13-the-flash");
-      else if (shift > 20 && shift < 30) catchOnce(11, "14-going-dark");
+      /* Late in the ramp, not at the top of it. The fade to black runs sixteen
+         steps and catchOnce takes the first frame that matches, so a window of
+         shift 21 to 29 caught step two of sixteen - which, now that the fade is
+         actually drawn, is a picture of an ordinary afternoon. This window
+         catches step eleven or so, which looks like what it is called. */
+      else if (shift > 16 && shift < 21) catchOnce(11, "14-going-dark");
       else if (spotted >= 0 && spotTimer > 20) catchOnce(12, "15-spotted");
       else if (windowOpen && !typeDone && frameNo > 400) catchOnce(13, "04-mid-sentence");
       else if (hopping && hero.walk > 8 && hero.walk < 26) catchOnce(16, "17-over-the-ledge");

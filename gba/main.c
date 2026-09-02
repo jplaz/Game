@@ -3411,12 +3411,11 @@ static const char *topItem(int i) {
     return packHave() ? "Beasts" : DUEL_TOP_ITEMS[2];
   }
   /* And the same word for the men. A sworn sword out in front is called back
-     the way an animal is; with nobody sworn to you the slot says so rather
-     than sitting there blank. */
-  if (i == 3) {
-    if (swordOut) return "Call back";
-    return hostHave() ? "Swords" : "-";
-  }
+     the way an animal is.
+     With nobody sworn to you it still says Swords, greyed - which is the rule
+     the line below states and this line used to break: it drew a dash, and a
+     dash is exactly the word that is not there and tells you nothing. */
+  if (i == 3) return swordOut ? "Call back" : "Swords";
   return DUEL_TOP_ITEMS[i];
 }
 

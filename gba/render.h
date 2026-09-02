@@ -12,8 +12,25 @@ static const char *outDir = ".";
 
 /* ------------------------------------------------------- the picture ----- */
 
+/* The last thing the hardware does to a colour: the brightness blend.
+ *
+ * BLDCNT selects it and BLDY says how far, nought to sixteen. Mode two lifts
+ * every channel toward white by BLDY sixteenths of what is left in it; mode
+ * three takes that fraction away. It is the whole of every fade in this game -
+ * the white flash and the darkness a duel opens through, the screen going out
+ * when you are put down - and this renderer had never drawn a frame of any of
+ * it. The two pictures of a duel opening were pictures of an ordinary snowy
+ * morning, and had been for as long as there had been duels. */
 static void toRgb(unsigned short c, unsigned char *out) {
   int r = c & 31, g = (c >> 5) & 31, b = (c >> 10) & 31;
+  unsigned mode = (REG_BLDCNT >> 6) & 3;
+  int y = REG_BLDY & 31;
+  if (y > 16) y = 16;
+  if (mode == 2 && y) {
+    r += (31 - r) * y / 16; g += (31 - g) * y / 16; b += (31 - b) * y / 16;
+  } else if (mode == 3 && y) {
+    r -= r * y / 16; g -= g * y / 16; b -= b * y / 16;
+  }
   out[0] = (unsigned char)((r << 3) | (r >> 2));
   out[1] = (unsigned char)((g << 3) | (g >> 2));
   out[2] = (unsigned char)((b << 3) | (b >> 2));

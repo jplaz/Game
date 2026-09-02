@@ -1337,7 +1337,9 @@ static void buildBubble(void) {
 
 /* The star that breaks over somebody the moment a blow lands. Four frames,
    built rather than drawn out: a diamond core that grows and then blows open,
-   with four rays off it, in the bubble's own white and a gold added beside it. */
+   with four rays off it, in white and gold. Those two colours are written when
+   a duel opens rather than here - see sparkPalette - because the bank they go
+   in belongs to the grass for as long as there is a world on the screen. */
 #define SPARK_TILE 912
 #define SPARK_FRAMES 4
 #define SPARK_SIDE 32            /* four frames of sixteen tiles apiece */
@@ -1371,7 +1373,6 @@ static void buildSpark(void) {
     }
   }
   blitStage(SPARK_TILE, 32 * wide * wide * SPARK_FRAMES);
-  spotPalette();
 }
 
 /* Weather. One eight by eight tile with a two by two dot in the middle of it,
@@ -1446,6 +1447,36 @@ static const char *const GRASS_ART[2][16] = {
   },
 };
 
+/* Grass grows in the world and never on a yard, and the star breaks on a yard
+   and never in the world, so the two of them share this bank and hand it back
+   and forth. Both halves are named for the same reason spotPalette is: the
+   handing back is the part that gets forgotten. */
+static void grassPalette(void) {
+  PAL_OBJ[GRASS_BANK * 16 + 1] = RGB15(5, 11, 5);
+  PAL_OBJ[GRASS_BANK * 16 + 2] = RGB15(7, 15, 6);
+  PAL_OBJ[GRASS_BANK * 16 + 3] = RGB15(11, 20, 9);
+  PAL_OBJ[GRASS_BANK * 16 + 4] = RGB15(14, 24, 11);
+  /* The same blades under snow, for everything north of the Neck. Nothing in a
+     duel draws from this one, so it is only here to be set once. */
+  PAL_OBJ[FROST_BANK * 16 + 1] = RGB15(10, 14, 13);
+  PAL_OBJ[FROST_BANK * 16 + 2] = RGB15(14, 18, 16);
+  PAL_OBJ[FROST_BANK * 16 + 3] = RGB15(18, 22, 20);
+  PAL_OBJ[FROST_BANK * 16 + 4] = RGB15(24, 28, 26);
+}
+
+/* The star's white core and gold arms.
+ *
+ * The star used to be drawn out of the bubble's bank, which a duel gives to
+ * whatever of yours is stood in front of you - and readyYourself loads that
+ * animal's colours whenever you have one at all, sent out or not. So from the
+ * first animal you kept to the end of the game, every blow you landed broke in
+ * that animal's greys instead of in gold, and it read as part of the man you
+ * hit rather than as a blow at all. */
+static void sparkPalette(void) {
+  PAL_OBJ[GRASS_BANK * 16 + 2] = RGB15(31, 31, 31);
+  PAL_OBJ[GRASS_BANK * 16 + 3] = RGB15(31, 27, 12);
+}
+
 static void buildGrass(void) {
   int f, y, x;
   for (f = 0; f < 2; f++) {
@@ -1464,15 +1495,7 @@ static void buildGrass(void) {
     }
     blitStage(GRASS_TILE + f * 4, 32 * 4);
   }
-  PAL_OBJ[GRASS_BANK * 16 + 1] = RGB15(5, 11, 5);
-  PAL_OBJ[GRASS_BANK * 16 + 2] = RGB15(7, 15, 6);
-  PAL_OBJ[GRASS_BANK * 16 + 3] = RGB15(11, 20, 9);
-  PAL_OBJ[GRASS_BANK * 16 + 4] = RGB15(14, 24, 11);
-  /* The same blades under snow, for everything north of the Neck. */
-  PAL_OBJ[FROST_BANK * 16 + 1] = RGB15(10, 14, 13);
-  PAL_OBJ[FROST_BANK * 16 + 2] = RGB15(14, 18, 16);
-  PAL_OBJ[FROST_BANK * 16 + 3] = RGB15(18, 22, 20);
-  PAL_OBJ[FROST_BANK * 16 + 4] = RGB15(24, 28, 26);
+  grassPalette();
 }
 
 static void placeGrass(int slot, int x, int y, int frame, int bank) {
@@ -1493,7 +1516,7 @@ static void placeSpark(int slot, int x, int y, int frame) {
   if (x < -32 || x > SCREEN_W || y < -32 || y > SCREEN_H) { oam[slot * 4] = 0x0200; return; }
   oam[slot * 4 + 0] = (u16)(y & 0xFF);                      /* square */
   oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0x8000);          /* size 2 => 32x32 */
-  oam[slot * 4 + 2] = (u16)((SPARK_TILE + frame * 16) | (SPOT_BANK << 12));
+  oam[slot * 4 + 2] = (u16)((SPARK_TILE + frame * 16) | (GRASS_BANK << 12));
 }
 
 static void placeBubble(int slot, int x, int y) {
@@ -3784,6 +3807,11 @@ static void openTheDuel(const char *intro) {
   fxLeft = 0;
   beastOut = 0;
   sinkMine = sinkTheirs = 0;
+  /* The grass keeps its bank until there is a yard, and then the star has it.
+     Nothing on a yard is drawn out of the grass's colours, and nothing in the
+     world is drawn out of the star's, so this is the one place they change
+     hands - and endDuel is the other. */
+  sparkPalette();
   shownMine = mine.hp;
   shownTheirs = theirs.hp;
   shownExp = you.exp;
@@ -8818,6 +8846,18 @@ static void endDuel(void) {
      a duel out on open water today, but leaving the world half-restored is how
      that stops being true quietly. */
   if (you.aboard) loadHullArt();
+  /* And the bubble's own bank, which the yard borrows for your animal.
+   *
+   * The bubble that pops over somebody who has seen you, the snow and the
+   * leaves, and the star that breaks over a landed blow are all drawn out of
+   * bank thirteen, and so is whatever of yours is stood in front of you - a
+   * duel writes the animal's colours over all sixteen entries and nothing
+   * wrote them back. So one fight with anything at your heel and every "!"
+   * in the world, and every flake of snow, was drawn in that animal's greys
+   * for the rest of the game. spotPalette was written to be the thing that
+   * put them back and was only ever called on the way up. */
+  spotPalette();
+  grassPalette();                /* and the blades get their bank back */
   PAL_BG[0] = bg_pal[0];
   REG_DISPCNT = (u16)(0x0040 | 0x0100 | 0x0200 | 0x1000);
   /* Anything the story wanted to say about that fight says it now, with the
@@ -11896,14 +11936,15 @@ int main(void) {
       }
       if (hit(KEY_A)) {
         int moved = holdSide ? fetchBeast(holdPick) : boardBeast(partyPick);
-        if (moved) {
-          sfxRank();
-          /* Whatever is out in front is the art that is loaded, so moving one
-             across can change what is walking behind you on the map. */
-          if (MY_BEAST.kind != 255) {
-            loadBeastArt(MY_BEAST.kind, MY_BEAST_TILE, MY_BEAST_BANK);
-          }
-        }
+        /* Nothing is loaded here.
+         *
+         * This used to load the new lead's art, because an animal once walked
+         * behind you on the map and the picture had to follow what you moved.
+         * It does not any more - the only thing that ever draws it is a duel,
+         * and every duel loads it at the yard - so all this did was write an
+         * animal's sixteen colours over bank thirteen, which is the bank the
+         * "!" bubble and the snow are drawn in, in a menu. */
+        if (moved) sfxRank();
         paintHoldfast();
       }
       if (hit(KEY_B)) {
@@ -11925,9 +11966,8 @@ int main(void) {
                  && partyPick != you.lead) {
         you.lead = (u8)partyPick;
         sfxRank();
-        /* The one out in front is the one drawn walking behind you, so its art
-           has to be the art that is resident. */
-        loadBeastArt(MY_BEAST.kind, MY_BEAST_TILE, MY_BEAST_BANK);
+        /* And nothing is loaded here either, for the same reason as in the
+           holdfast: the yard loads whoever leads when the yard opens. */
         paintParty();
       }
     } else if (scene == SCENE_BAG) {

@@ -1629,6 +1629,22 @@ static int windowSays(const char *what) {
   return 0;
 }
 
+/* Is a bank holding what the function that owns it would put there?
+ *
+ * Asked by calling the owner over a saved copy and putting the copy straight
+ * again, so nothing is written down here that could go stale the day somebody
+ * warms the bubble up or picks a greener green - and so the tester cannot
+ * quietly repair the very thing it is here to find. */
+static int bankIsNot(int bank, int first, int last, void (*owner)(void)) {
+  u16 was[16];
+  int k, differs = 0;
+  for (k = first; k <= last; k++) was[k] = PAL_OBJ[bank * 16 + k];
+  owner();
+  for (k = first; k <= last; k++) if (PAL_OBJ[bank * 16 + k] != was[k]) differs = 1;
+  for (k = first; k <= last; k++) PAL_OBJ[bank * 16 + k] = was[k];
+  return differs;
+}
+
 static void catchOnce(const char *name) {
   int i;
   if (!name) return;
@@ -1710,6 +1726,45 @@ void hostFrame(void) {
      actually did. */
   if (swordOut && beastOut)
     finding("a sworn sword and an animal are both out in front of you at once");
+
+  /* And off the yard, bank thirteen belongs to the bubble again.
+   *
+   * The "!" over somebody who has seen you, the snow and the leaves, and the
+   * star over a landed blow are all drawn out of bank thirteen, and so is
+   * whatever of yours stands in front of you in a duel. A duel writes an
+   * animal's colours over the whole bank; so did changing your lead in the
+   * party list, for a picture nothing has drawn on the map in a long time.
+   * Neither put it back, so one fight was enough to make every "!" and every
+   * flake of snow in the world that animal's greys - and it is the kind of
+   * wrongness you look straight past, because the shape is still right.
+   *
+   * The pouch is the one screen that is not the yard and is still the yard:
+   * it opens over a duel and goes back to it, so the animal's colours are
+   * where they belong there.
+   *
+   * What the three colours should be is not written down here. Three numbers
+   * copied out of spotPalette would be three numbers that go stale the day
+   * somebody warms the bubble up, and a check that fires on every frame of a
+   * correct game is worse than no check. So the game's own function is asked:
+   * called over a saved copy, read back, and the copy put straight again, so
+   * nothing is left changed and the tester cannot quietly repair the fault it
+   * is here to find. */
+  { int onYard = scene == SCENE_DUEL || (scene == SCENE_BAG && bagInDuel);
+    if (!onYard) {
+      if (bankIsNot(SPOT_BANK, 1, 3, spotPalette))
+        finding("off the yard, the bubble and the snow are drawn in somebody "
+                "else's colours");
+      if (bankIsNot(GRASS_BANK, 1, 4, grassPalette))
+        finding("off the yard, the grass is drawn in the star's colours");
+    } else {
+      /* And the other way about. The star is the only thing on a yard drawn
+         out of this bank, and it is drawn for twelve frames of a swing, so a
+         yard that never handed the bank over would look right for the whole
+         fight until the one moment it mattered. */
+      if (bankIsNot(GRASS_BANK, 2, 3, sparkPalette))
+        finding("on the yard, a landed blow is drawn in the grass's colours");
+    }
+  }
 
   if (scene == SCENE_WORLD && world && seat.has && worldId == seat.map && seat.wed) {
     int k, home = 1;                              /* whoever you married */

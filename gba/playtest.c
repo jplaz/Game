@@ -82,8 +82,63 @@ static int textBoxes;
 
 static void finding(const char *fmt, ...);
 
+/* Which pixels of the page are somebody's border.
+ *
+ * A frame is four pixels of edge on every side and page inside that, and it is
+ * painted with the same fillRect a wipe uses - so as far as the watch above is
+ * concerned, drawing a box wipes the ground it stands on and anything written
+ * over it afterwards is written on a clean page. Letters through a border are
+ * therefore the one collision that watch is blind to by construction, and the
+ * masons' panel had been doing it since the day it was written.
+ *
+ * So the frame says where it put its edge, every letter says where it put ink,
+ * and the two meet here. A pixel at a time, because four pixels of a
+ * descender is exactly the size of the thing being looked for. */
+static unsigned char frameAt[TXT_H][TXT_W];
+static int borderHits, borderX, borderY;
+
+void hostFrameDrawn(int x, int y, int w, int h) {
+  int px, py;
+  for (py = y; py < y + h; py++) {
+    if (py < 0 || py >= TXT_H) continue;
+    for (px = x; px < x + w; px++) {
+      if (px < 0 || px >= TXT_W) continue;
+      /* Inside the four-pixel edge is page, and page is not border - a panel
+         drawn over an older one has to give those pixels back. */
+      frameAt[py][px] = (unsigned char)!(px >= x + 4 && px < x + w - 4
+                                      && py >= y + 4 && py < y + h - 4);
+    }
+  }
+}
+
+void hostTextPixel(int x, int y) {
+  if (x < 0 || y < 0 || x >= TXT_W || y >= TXT_H) return;
+  if (!frameAt[y][x]) return;
+  if (!borderHits) { borderX = x; borderY = y; }
+  borderHits++;
+}
+
+/* Whatever the last string put on a border, said once, with the string named.
+   Called when a string is finished, and again whenever the page is wiped, so
+   letters typed one at a time into a window are not lost. */
+static void sayBorderHits(const char *s, int atX, int atY) {
+  if (!borderHits) return;
+  finding("\"%s\" drawn at %d,%d puts %d pixels through the border of its "
+          "panel, first at %d,%d", s, atX, atY, borderHits, borderX, borderY);
+  borderHits = 0;
+}
+
 void hostAreaCleared(int x, int y, int w, int h) {
   int i, k = 0;
+  /* A window types its text a letter at a time, so nothing calls the finish of
+     a string for it. Anything it left on a border is said when the page next
+     moves under it. */
+  sayBorderHits("a letter typed into a window", x, y);
+  { int px, py;                       /* and a wipe takes the border with it */
+    for (py = y; py < y + h && py < TXT_H; py++) {
+      if (py < 0) continue;
+      for (px = x; px < x + w && px < TXT_W; px++) if (px >= 0) frameAt[py][px] = 0;
+    } }
   if (getenv("WHYTEXT")) printf("      [clear] %d,%d %dx%d (boxes %d)\n", x, y, w, h, textBoxes);
   for (i = 0; i < textBoxes; i++) {
     int bx = textBox[i].x, by = textBox[i].y;
@@ -112,6 +167,7 @@ void hostAreaCleared(int x, int y, int w, int h) {
 
 void hostTextDrawn(int x, int y, int w, int h, const char *s) {
   int i;
+  sayBorderHits(s, x, y);
   if (w <= 1) return;                               /* an empty string */
   /* A line too long for the glass. The page clips it, so the last words are
      simply not there - the house card's hint line ran forty pixels past the

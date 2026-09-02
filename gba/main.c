@@ -593,6 +593,57 @@ static void soundClock(void) {
 #define TXT_ROWS 14
 #define TXT_W (TXT_COLS * 8)
 #define TXT_H (TXT_ROWS * 8)
+
+/* The footer three panels share: a rule, a line about whatever the cursor is
+ * on with the purse beside it, and up to two lines of description under that.
+ *
+ * A full-page frame is drawn at 4,2 and is four pixels of border on every
+ * side, so the page inside it stops at row a hundred and one. A line of this
+ * font inks eight rows and drops a shadow into a ninth. The body used to sit
+ * at eighty-five and ninety-five, which puts the second line's descenders and
+ * their shadows on a hundred and three - through the bottom of the box, on the
+ * lands panel and the masons' panel both. Two pixels up all the way down ends
+ * it on a hundred and one, which is the last row there is.
+ *
+ * Written down here once because three panels were each carrying their own
+ * copy of the same four numbers, and a fault in the arithmetic was therefore
+ * a fault in all three. */
+#define PANEL_RULE (TXT_H - 41)
+#define PANEL_SAID (TXT_H - 39)
+#define PANEL_BODY (TXT_H - 29)
+
+/* And the line of button words along the bottom of a panel. Ninety-four put
+   its shadow one row into the border on every screen that has one; ninety-
+   three is the last row it can start on and still be inside the box. */
+#define PANEL_FOOT (TXT_H - 19)
+
+/* The ladder card's frame is two rows deeper than the rest, so its own foot
+   sits two rows lower - and its last line was a row past even that. */
+#define LADDER_FOOT 95
+
+/* The build stamp is not in the title's box at all. It was drawn at ninety-
+   eight, which is four rows into the bottom of a frame that ends at ninety-
+   nine, so the words and the border were the same pixels. Below it entirely
+   is where it was always meant to be: small, in the corner, out of the way. */
+#define TITLE_STAMP 101
+
+/* The shipwright's panel is the fullest in the game: four hulls, a line for
+   mending, a rule, two lines about whichever is under the cursor, and the
+   buttons along the bottom. Eleven apart the rows alone reached seventy-four
+   and there was nowhere left to put the rest, which is how the buttons ended
+   up drawn through the foot of the box. Ten apart it all fits, with the last
+   line of description ending one row above the buttons. */
+#define YARD_PITCH 10
+#define YARD_RULE  72
+#define YARD_BODY  74
+
+/* The box a question is asked in, shared by the court and the cutscenes. The
+   frame runs from two to two hundred and thirty-seven, so its page is six to
+   two hundred and thirty-three, and the longest answer in the story tables is
+   two hundred and fifteen wide. */
+#define ASK_CURSOR 10
+#define ASK_TEXT   18
+#define ASK_ROOM   (TXT_W - 6 - ASK_TEXT)
 #define TXT_TILES (TXT_COLS * TXT_ROWS)
 
 /* ------------------------------------------------------- where things live --
@@ -671,14 +722,30 @@ static void plot(int x, int y, u8 colour) {
  * either. So the check goes where every piece of text in the game must pass -
  * here - and the tester, which opens every screen, watches for one box of
  * letters landing on another that has not been painted over first. */
+/* And for letters drawn through a border, which is a different fault and one
+ * this watch cannot see: a frame is painted with fillRect, so drawing one
+ * tells the watch above that the region has been wiped, and any letter put on
+ * top of it afterwards is a letter on a clean page as far as it knows.
+ *
+ * The masons' panel was doing it - the tail of the g in "gate" and its shadow
+ * crossing the bottom of the box - and there is nothing in a picture that
+ * makes four pixels of a descender look like anything but a descender. So the
+ * frame says where its border went, every letter says where it put ink, and
+ * the two are compared a pixel at a time. */
 #ifdef WATCH_TEXT
 void hostTextDrawn(int x, int y, int w, int h, const char *s);
 void hostAreaCleared(int x, int y, int w, int h);
+void hostTextPixel(int x, int y);
+void hostFrameDrawn(int x, int y, int w, int h);
 #define TEXT_DRAWN(x, y, w, h, s) hostTextDrawn((x), (y), (w), (h), (s))
 #define AREA_CLEARED(x, y, w, h)  hostAreaCleared((x), (y), (w), (h))
+#define TEXT_PIXEL(x, y)          hostTextPixel((x), (y))
+#define FRAME_DRAWN(x, y, w, h)   hostFrameDrawn((x), (y), (w), (h))
 #else
 #define TEXT_DRAWN(x, y, w, h, s) ((void)0)
 #define AREA_CLEARED(x, y, w, h)  ((void)0)
+#define TEXT_PIXEL(x, y)          ((void)0)
+#define FRAME_DRAWN(x, y, w, h)   ((void)0)
 #endif
 
 static void fillRect(int x, int y, int w, int h, u8 colour) {
@@ -788,8 +855,11 @@ static void drawText(int x, int y, const char *s, u8 ink) {
         u16 bits = font_rows[g][row];
         for (col = 0; bits >> col; col++) {
           if (!((bits >> col) & 1)) continue;
-          if (pass) plot(at + col, y + row, ink);
-          else plot(at + col + 1, y + row + 1, C_SHADE);
+          if (pass) { plot(at + col, y + row, ink); TEXT_PIXEL(at + col, y + row); }
+          else {
+            plot(at + col + 1, y + row + 1, C_SHADE);
+            TEXT_PIXEL(at + col + 1, y + row + 1);
+          }
           if (row < hi) hi = row;
           if (row > lo) lo = row;
         }
@@ -814,8 +884,11 @@ static int drawGlyph(int x, int y, char c, u8 ink) {
       u16 bits = font_rows[g][row];
       for (col = 0; bits >> col; col++) {
         if (!((bits >> col) & 1)) continue;
-        if (pass) plot(x + col, y + row, ink);
-        else plot(x + col + 1, y + row + 1, C_SHADE);
+        if (pass) { plot(x + col, y + row, ink); TEXT_PIXEL(x + col, y + row); }
+        else {
+          plot(x + col + 1, y + row + 1, C_SHADE);
+          TEXT_PIXEL(x + col + 1, y + row + 1);
+        }
       }
     }
   }
@@ -859,6 +932,10 @@ static void drawFrame(int x, int y, int w, int h) {
   plot(x, y + h - 1, C_CLEAR); plot(x + w - 1, y + h - 1, C_CLEAR);
   plot(x + 1, y + 1, C_DEEP); plot(x + w - 2, y + 1, C_DEEP);
   plot(x + 1, y + h - 2, C_DEEP); plot(x + w - 2, y + h - 2, C_DEEP);
+  /* Four pixels of border on every side, and everything inside them is the
+     page. Said after the drawing so the corner plots above are counted as
+     border rather than as somebody's letters. */
+  FRAME_DRAWN(x, y, w, h);
 }
 
 /* Which screen rows the fourteen page rows are shown on. */
@@ -3403,6 +3480,38 @@ static void paintDuelPlates(void) {
 #define DUEL_WINDOW_TOP 56
 #define DUEL_WINDOW_ROWS 5
 
+/* Where the six slots of the beasts list and the swords list go, worked out
+ * rather than guessed, because guessing put the top row through the top of the
+ * box it is in.
+ *
+ * The frame is drawn at DUEL_WINDOW_TOP + 1 and is four pixels of border on
+ * every side, so the page inside it is rows 61 to 90 - thirty of them. A line
+ * of this font inks eight rows and drops a shadow into a ninth, and each slot
+ * carries a rail under its name, so a slot is ten rows and three slots are
+ * exactly the thirty there are. They fit with nothing to spare, which is why
+ * the numbers are named here and not written into two painters.
+ *
+ * The rows used to start two pixels above the page and stand thirteen apart:
+ * the first slot's letters were drawn through the top border and the third
+ * slot's rail through the bottom one. The window cannot be made taller in
+ * either direction - your own plate is hard against the top of it and the
+ * bottom of it is the bottom of the screen - so the rail is one pixel now
+ * rather than two, which is the pixel the arithmetic was short. */
+#define DUEL_LIST_TOP   (DUEL_WINDOW_TOP + 5)     /* the first row of the page */
+#define DUEL_LIST_PITCH 10
+#define DUEL_LIST_RAIL  9                         /* under the writing, 1 deep */
+
+/* And across. The frame's four pixels of border leave the page running from
+   seven to two hundred and thirty-two, and a slot is a hundred and four wide
+   with its health written back from its own right edge. Two columns at
+   twenty-two and a hundred and thirty-two put that right edge at two hundred
+   and thirty-six - four pixels into the border - so every health number in
+   the right-hand column of both lists was written through the side of the
+   box. Eighteen and a hundred and twenty-six put it at two hundred and
+   thirty, with the cursor still clear of the left border. */
+#define DUEL_LIST_LEFT  18
+#define DUEL_LIST_COL   108
+
 /* Two menus, one inside the other, the way the handhelds do it: what kind of
    thing you are about to do, and then which one. */
 static int topPick;
@@ -3508,8 +3617,8 @@ static void paintDuelHost(void) {
   paintFrameOnly();
   for (i = 0; i < HOST_MAX; i++) {
     const Kept *h = &you.host[i];
-    int x = 22 + (i & 1) * 110;
-    int y = DUEL_WINDOW_TOP + 3 + (i >> 1) * 13;
+    int x = DUEL_LIST_LEFT + (i & 1) * DUEL_LIST_COL;
+    int y = DUEL_LIST_TOP + (i >> 1) * DUEL_LIST_PITCH;
     int full, now, filled;
     u16 tint, bar;
     if (i == hostPickAt) drawCursor(x - 10, y + 1, C_GOLD);
@@ -3534,8 +3643,8 @@ static void paintDuelHost(void) {
     if (full < 1) full = 1;
     filled = (int)udiv((u32)(now * 100), (u32)full);
     bar = now * 4 <= full ? C_DYING : (now * 2 <= full ? C_HURT : C_WELL);
-    fillRect(x, y + 9, 100, 2, C_EDGE);
-    if (filled) fillRect(x, y + 9, filled, 2, bar);
+    fillRect(x, y + DUEL_LIST_RAIL, 100, 1, C_EDGE);
+    if (filled) fillRect(x, y + DUEL_LIST_RAIL, filled, 1, bar);
   }
 }
 
@@ -3544,8 +3653,8 @@ static void paintDuelPack(void) {
   paintFrameOnly();
   for (i = 0; i < PARTY_MAX; i++) {
     const Kept *k = &you.party[i];
-    int x = 22 + (i & 1) * 110;
-    int y = DUEL_WINDOW_TOP + 3 + (i >> 1) * 13;
+    int x = DUEL_LIST_LEFT + (i & 1) * DUEL_LIST_COL;
+    int y = DUEL_LIST_TOP + (i >> 1) * DUEL_LIST_PITCH;
     int full, now, filled;
     u16 tint, bar;
     if (i == packPick) drawCursor(x - 10, y + 1, C_GOLD);
@@ -3585,8 +3694,8 @@ static void paintDuelPack(void) {
     if (full < 1) full = 1;
     filled = (int)udiv((u32)(now * 100), (u32)full);
     bar = now * 4 <= full ? C_DYING : (now * 2 <= full ? C_HURT : C_WELL);
-    fillRect(x, y + 9, 100, 2, C_BACK);
-    if (filled) fillRect(x, y + 9, filled, 2, bar);
+    fillRect(x, y + DUEL_LIST_RAIL, 100, 1, C_BACK);
+    if (filled) fillRect(x, y + DUEL_LIST_RAIL, filled, 1, bar);
   }
 }
 
@@ -4412,7 +4521,7 @@ static void paintHousePicker(void) {
   int i, x, mid = TXT_W >> 1;
   clearPage();
   drawFrame(4, 2, TXT_W - 8, TXT_H - 6);
-  centreText(5, "SWEAR YOUR SWORD", C_GOLD);
+  centreText(6, "SWEAR YOUR SWORD", C_GOLD);
   fillRect(60, 17, TXT_W - 120, 1, C_EDGE);
 
   /* The house's own colours, hung as its banner. */
@@ -4608,9 +4717,15 @@ static void paintArms(void) {
     }
   }
 
-  centreText(88, armsOpening ? "LEFT RIGHT change   A name   START begin"
-                             : you.arms ? "LEFT RIGHT change   A name   START done"
-                                        : "LEFT RIGHT change   A name   START take them", C_DIM);
+  /* Centred on the page, which is not the same as centred in the box: this
+     frame's border runs from six to nine and the longest of these three was
+     two hundred and twenty-eight wide, so it began at six and its first four
+     columns of letters were drawn on the border itself. The other two fitted,
+     which is why it read as fine on every screen but one. Two spaces rather
+     than three, and "take" rather than "take them", puts all three inside. */
+  centreText(88, armsOpening ? "LEFT RIGHT change  A name  START begin"
+                             : you.arms ? "LEFT RIGHT change  A name  START done"
+                                        : "LEFT RIGHT change  A name  START take", C_DIM);
 }
 
 
@@ -4679,16 +4794,22 @@ static void paintStanding(void) {
       copyString(scratch, "A dragon is over ", sizeof scratch);
       appendString(scratch, maps[you.swoopMap].name, sizeof scratch);
       appendString(scratch, ".", sizeof scratch);
-      drawText(16, 75, scratch, C_HURT);
+      drawTextIn(16, 75, scratch, C_HURT, TXT_W - 32);
     } else if (you.story >= 3) {
-      drawText(16, 75, steadyWord(), crown.steady < 0 ? C_HURT : C_GOLD);
+      drawTextIn(16, 75, steadyWord(), crown.steady < 0 ? C_HURT : C_GOLD, TXT_W - 32);
     } else {
-      copyString(scratch, "Cheapest in ", sizeof scratch);
+      /* "Cheap", not "cheapest". Two of the nine names are long enough that
+         the longer sentence ran twelve pixels into the right-hand border of
+         this card - Baratheon against Baratheon is two hundred and twenty of
+         it in two hundred and eight of room - and which two houses end up in
+         it depends on how the game has gone, so eight runs out of nine never
+         saw it. Every one of the eighty-one pairings fits this one. */
+      copyString(scratch, "Cheap in ", sizeof scratch);
       appendString(scratch, houses[best].name, sizeof scratch);
       appendString(scratch, "; dear in ", sizeof scratch);
       appendString(scratch, houses[worst].name, sizeof scratch);
       appendString(scratch, ".", sizeof scratch);
-      drawText(16, 75, scratch, C_GOLD);
+      drawTextIn(16, 75, scratch, C_GOLD, TXT_W - 32);
     }
   }
   /* And where you stand with the winter, which is the one power in this world
@@ -4699,7 +4820,7 @@ static void paintStanding(void) {
     copyString(scratch, "The season: ", sizeof scratch);
     appendString(scratch, seasonWord(), sizeof scratch);
     drawText(16, 88, scratch, ink);
-    drawTextIn(16, 97, deadReachWord(), ink, TXT_W - 32);
+    drawTextIn(16, LADDER_FOOT, deadReachWord(), ink, TXT_W - 32);
   }
 }
 
@@ -4827,8 +4948,8 @@ static void paintStatus(void) {
         appendString(scratch, ", ", sizeof scratch);
         appendString(scratch, l->seat, sizeof scratch);
       }
-      drawText(16, 96, scratch, C_GOLD);
-      drawText(TXT_W - 16 - textWidth(tag), 96, tag, C_DIM);
+      drawText(16, LADDER_FOOT, scratch, C_GOLD);
+      drawText(TXT_W - 16 - textWidth(tag), LADDER_FOOT, tag, C_DIM);
     }
   }
 }
@@ -6029,7 +6150,7 @@ static void paintCraft(void) {
         drawText(14, TXT_H - 42 + k * 10, lines[k], C_INK);
       }
     }
-    drawText(14, TXT_H - 18, craftAt ? "A: forge it   SELECT: counter   B: go"
+    drawText(14, PANEL_FOOT, craftAt ? "A: forge it   SELECT: counter   B: go"
                                      : "A: brew it   SELECT: counter   B: go", C_DIM);
   }
 }
@@ -6196,7 +6317,7 @@ static void paintPort(void) {
     }
     row++;
   }
-  drawText(14, TXT_H - 18, "A: sail    B: stay ashore", C_DIM);
+  drawText(14, PANEL_FOOT, "A: sail    B: stay ashore", C_DIM);
 }
 
 /* ------------------------------------------------------ the shipwright's --
@@ -6267,7 +6388,7 @@ static void paintLand(void) {
   drawText(TXT_W - 14 - textWidth(scratch), 6, scratch, C_DIM);
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
   for (i = 0; i < DEED_COUNT; i++) drawLandRow(i, 22 + i * 10);
-  fillRect(14, TXT_H - 40, TXT_W - 28, 1, C_EDGE);
+  fillRect(14, PANEL_RULE, TXT_W - 28, 1, C_EDGE);
   /* Underneath, whichever one the cursor is on: where it is, and either what
      it is or what it has made you. */
   {
@@ -6282,11 +6403,11 @@ static void paintLand(void) {
     } else if (landPick != landSeller) {
       appendString(scratch, "  -  ask for it there", sizeof scratch);
     }
-    drawTextIn(14, TXT_H - 37, scratch, C_DIM, goldLeftEdge() - 8 - 14);
-    showGold(TXT_H - 37);
+    drawTextIn(14, PANEL_SAID, scratch, C_DIM, goldLeftEdge() - 8 - 14);
+    showGold(PANEL_SAID);
     wrapText(deeds[landPick].summary, TXT_W - 28);
     for (k = 0; k <= lineCount && k < 2; k++) {
-      drawText(14, TXT_H - 27 + k * 10, lines[k], C_DIM);
+      drawText(14, PANEL_BODY + k * 10, lines[k], C_DIM);
     }
   }
 }
@@ -6343,21 +6464,21 @@ static void paintHire(void) {
       if (top + HIRE_ROWS < COMPANY_COUNT) drawChevronUp(TXT_W - 20, 60, 0, C_DIM);
     }
   }
-  fillRect(14, TXT_H - 40, TXT_W - 28, 1, C_EDGE);
+  fillRect(14, PANEL_RULE, TXT_W - 28, 1, C_EDGE);
   {
     copyString(scratch, companies[hirePick].where, sizeof scratch);
     appendString(scratch, "  -  ", sizeof scratch);
     appendString(scratch, swornKinds[companies[hirePick].kind].name, sizeof scratch);
     appendString(scratch, ", level ", sizeof scratch);
     appendNumber(scratch, companies[hirePick].level, sizeof scratch);
-    drawTextIn(14, TXT_H - 37, scratch, C_DIM, goldLeftEdge() - 8 - 14);
-    showGold(TXT_H - 37);
+    drawTextIn(14, PANEL_SAID, scratch, C_DIM, goldLeftEdge() - 8 - 14);
+    showGold(PANEL_SAID);
     copyString(scratch, "", sizeof scratch);
     appendNumber(scratch, hostCount(), sizeof scratch);
     appendString(scratch, " of ", sizeof scratch);
     appendNumber(scratch, HOST_MAX, sizeof scratch);
     appendString(scratch, " swords behind you", sizeof scratch);
-    drawText(14, TXT_H - 25, scratch, C_DIM);
+    drawText(14, PANEL_BODY, scratch, C_DIM);
   }
 }
 
@@ -6463,7 +6584,7 @@ static void paintYard(void) {
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
 
   for (i = 0; i < HULL_COUNT; i++) {
-    int y = 22 + i * 11, owed = (int)hulls[i].price - (i == you.shipKind ? 0 : tradeIn());
+    int y = 22 + i * YARD_PITCH, owed = (int)hulls[i].price - (i == you.shipKind ? 0 : tradeIn());
     int able = i != you.shipKind && you.gold >= owed;
     if (owed < 0) owed = 0;
     if (i == yardPick) drawCursor(14, y + 1, C_GOLD);
@@ -6477,7 +6598,7 @@ static void paintYard(void) {
     }
   }
   if (ownShip()) {
-    int y = 22 + HULL_COUNT * 11, due = mendCost();
+    int y = 22 + HULL_COUNT * YARD_PITCH, due = mendCost();
     if (yardPick == HULL_COUNT) drawCursor(14, y + 1, C_GOLD);
     copyString(scratch, "Put her right - she is ", sizeof scratch);
     appendString(scratch, soundWord(), sizeof scratch);
@@ -6489,15 +6610,15 @@ static void paintYard(void) {
     drawText(TXT_W - 24 - textWidth(scratch), y, scratch,
       due && you.gold >= due ? C_GOLD : C_DIM);
   }
-  fillRect(14, TXT_H - 42, TXT_W - 28, 1, C_EDGE);
+  fillRect(14, YARD_RULE, TXT_W - 28, 1, C_EDGE);
   if (yardPick < HULL_COUNT) {
     int k;
     wrapText(hulls[yardPick].summary, TXT_W - 28);
     for (k = 0; k <= lineCount && k < 2; k++) {
-      drawText(14, TXT_H - 36 + k * 10, lines[k], C_DIM);
+      drawText(14, YARD_BODY + k * 10, lines[k], C_DIM);
     }
   }
-  drawText(14, TXT_H - 14, "A: take her    B: another day", C_DIM);
+  drawText(14, PANEL_FOOT, "A: take her    B: another day", C_DIM);
   (void)rows;
 }
 
@@ -6582,11 +6703,15 @@ static void paintSeaFight(void) {
   }
   /* Three lines of it began at ninety-four and the third one was written two
      rows below the bottom of the page, on top of the button. Two lines, and
-     the button up beside the title where there is room for it. */
+     the button up beside the title where there is room for it.
+     Cut back to two it still started three rows too low: the second line's
+     shadow was drawn on the bottom of the box, which is the sort of thing you
+     have to be counting pixels to see. Eighty-three ends it on a hundred and
+     one, which is the last row inside this frame. */
   if (seaSaid) {
     int k;
     wrapText(seaSaid, TXT_W - 28);
-    for (k = 0; k <= lineCount && k < 2; k++) drawText(14, 86 + k * 10, lines[k], C_INK);
+    for (k = 0; k <= lineCount && k < 2; k++) drawText(14, 83 + k * 10, lines[k], C_INK);
   }
 }
 
@@ -7670,6 +7795,23 @@ static int mapCleared(int id) {
    at all is for sale. */
 #define HROW_LANDS  6
 
+/* Where the seven rows go, worked out rather than guessed.
+ *
+ * The frame here is drawn at 4,2 two hundred and thirty-two by a hundred and
+ * six, so its four pixels of border leave the page running from row six to row
+ * a hundred and three. A line of this font inks eight rows and drops a shadow
+ * into a ninth. Seven rows eleven apart starting at thirty-seven put the last
+ * one - Lands, the row that tells a player anything is for sale at all - at a
+ * hundred and three, so it was drawn through the bottom of the box and out on
+ * to the wall behind it, cut in half. It is in the reference picture of this
+ * card, and has been since the seventh row was added.
+ *
+ * Ten apart from thirty-three ends the seventh row's shadow on a hundred and
+ * one, two clear of the border, and the rule moves up two to keep its gap. */
+#define HOUSE_RULE  31
+#define HOUSE_TOP   33
+#define HOUSE_PITCH 10
+
 static int housePick, officeShown;
 static const char *houseSaid;         /* one line of feedback under the heading */
 
@@ -7712,10 +7854,10 @@ static void paintHouse(void) {
     drawTextIn(34, 20, hint, raidedMap() >= 0 && !houseSaid ? C_HURT : C_WELL, TXT_W - 48);
   }
 
-  fillRect(10, 33, TXT_W - 20, 1, C_EDGE);
+  fillRect(10, HOUSE_RULE, TXT_W - 20, 1, C_EDGE);
 
   for (i = 0; i < HOUSE_ROWS; i++) {
-    int y = 37 + i * 11;
+    int y = HOUSE_TOP + i * HOUSE_PITCH;
     const char *what = "", *side = 0;
     if (i == HROW_ARMS) {
       what = "Arms";
@@ -8262,7 +8404,7 @@ static void paintWorks(void) {
   drawText(TXT_W - 14 - textWidth(scratch), 6, scratch, C_DIM);
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
   for (i = 0; i < WORKS_ROWS; i++) drawWorksRow(i, 22 + i * 10);
-  fillRect(14, TXT_H - 40, TXT_W - 28, 1, C_EDGE);
+  fillRect(14, PANEL_RULE, TXT_W - 28, 1, C_EDGE);
   {
     int k;
     const char *body;
@@ -8292,15 +8434,15 @@ static void paintWorks(void) {
     } else {
       copyString(scratch, "You have no hall to build on.", sizeof scratch);
     }
-    drawTextIn(14, TXT_H - 37, scratch, C_DIM, goldLeftEdge() - 8 - 14);
-    showGold(TXT_H - 37);
+    drawTextIn(14, PANEL_SAID, scratch, C_DIM, goldLeftEdge() - 8 - 14);
+    showGold(PANEL_SAID);
     body = worksPick == WORKS_FEAST
       ? "A night of it for everyone under your roof. Your whole company wakes "
         "whole, and your wife's people hear that you kept a good table."
       : (worksPick <= seat.grade ? GRADE_IS[worksPick] : GRADE_GIVES[worksPick]);
     wrapText(body, TXT_W - 28);
     for (k = 0; k <= lineCount && k < 2; k++) {
-      drawText(14, TXT_H - 27 + k * 10, lines[k], C_DIM);
+      drawText(14, PANEL_BODY + k * 10, lines[k], C_DIM);
     }
   }
 }
@@ -8448,12 +8590,25 @@ static int worstHouse(void) {
 static void paintCourtChoice(void) {
   const Petition *p = &petitions[courtAt];
   int i;
-  fillRect(6, TXT_H - 44, TXT_W - 12, 40, C_FILL);
-  drawFrame(4, TXT_H - 46, TXT_W - 8, 44);
+  fillRect(4, TXT_H - 44, TXT_W - 8, 40, C_FILL);
+  drawFrame(2, TXT_H - 46, TXT_W - 4, 44);
   for (i = 0; i < p->count; i++) {
     int y = TXT_H - 40 + i * 12;
-    if (i == courtPick) drawCursor(12, y + 1, C_GOLD);
-    drawText(22, y, answers[p->first + i].label, i == courtPick ? C_GOLD : C_INK);
+    if (i == courtPick) drawCursor(ASK_CURSOR, y + 1, C_GOLD);
+  /* Wide enough for the longest answer in the game, and clipped anyway.
+   *
+     These lines come out of the story tables, so their length is not something
+     this painter chooses. Two of them - "I went north because the letter was
+     true" and "Keep it, and show every lord in the realm" - are wider than the
+     page inside this frame was, by five pixels and by one, so both were drawn
+     into the right-hand border. Trimming them was the wrong answer: an answer
+     with its last word missing is worse than a name with its tail off, because
+     the player is being asked to choose between them. So the box is four
+     pixels wider, the writing starts four pixels further left, and the two of
+     them fit with a pixel to spare. The trim stays as the backstop for
+     whatever the story tables say next. */
+    drawTextIn(ASK_TEXT, y, answers[p->first + i].label,
+      i == courtPick ? C_GOLD : C_INK, ASK_ROOM);
   }
 }
 
@@ -8627,7 +8782,8 @@ static void paintRide(void) {
 
   if (!have) {
     drawText(14, 34, "No other maester's hall found yet.", C_DIM);
-    drawText(14, 48, "Walk somewhere first, and he can send you.", C_DIM);
+    drawTextIn(14, 48, "Walk somewhere first, and he can send you.", C_DIM,
+      TXT_W - 8 - 4 - 14);
   }
   for (i = 0; i < LIST_ROWS && i + rideTop < have; i++) {
     int m = nthRide(i + rideTop), y = 24 + i * 12;
@@ -8643,9 +8799,9 @@ static void paintRide(void) {
     copyString(scratch, "A: ride for ", sizeof scratch);
     appendNumber(scratch, rideCost(), sizeof scratch);
     appendString(scratch, " gold   B: stay", sizeof scratch);
-    drawText(14, TXT_H - 18, scratch, you.gold >= rideCost() ? C_DIM : C_HURT);
+    drawText(14, PANEL_FOOT, scratch, you.gold >= rideCost() ? C_DIM : C_HURT);
   } else {
-    drawText(14, TXT_H - 18, "B: go", C_DIM);
+    drawText(14, PANEL_FOOT, "B: go", C_DIM);
   }
 }
 
@@ -8716,7 +8872,7 @@ static void paintTitle(void) {
   }
   /* Which cartridge this is. Small, in the corner, and the first thing to ask
      for when somebody says the game did something it should not. */
-  drawText(22, TXT_H - 14, BUILD_STAMP, C_DIM);
+  drawText(22, TITLE_STAMP, BUILD_STAMP, C_DIM);
 }
 
 /* ------------------------------------------------------------ the status --- */
@@ -10030,7 +10186,7 @@ static void paintParty(void) {
       }
     }
   }
-  drawText(14, TXT_H - 18, "A: send it out    B: go", C_DIM);
+  drawText(14, PANEL_FOOT, "A: send it out    B: go", C_DIM);
 }
 
 /* Moves the cursor to the next one that is actually there. */
@@ -10095,7 +10251,7 @@ static void paintHoldfast(void) {
     appendNumber(scratch, k->level, sizeof scratch);
     drawText(TXT_W - 20 - textWidth(scratch), y, scratch, C_DIM);
   }
-  drawText(14, TXT_H - 18,
+  drawText(14, PANEL_FOOT,
     holdSide ? "A: take it out    B: go" : "A: board it    B: go", C_DIM);
 }
 
@@ -10173,7 +10329,7 @@ static void paintHost(void) {
     appendString(scratch, " to every blow you land.", sizeof scratch);
     drawText(14, TXT_H - 32, scratch, C_WELL);
   }
-  drawText(14, TXT_H - 18, "B: go", C_DIM);
+  drawText(14, PANEL_FOOT, "B: go", C_DIM);
 }
 
 /* --------------------------------------------------------------- the log ---
@@ -10206,7 +10362,7 @@ static void paintDeeds(void) {
     drawText(TXT_W - 76, y, seen ? "settled" : "not yet", seen ? C_WELL : C_DIM);
     shown++;
   }
-  drawText(14, TXT_H - 18, "Places you stopped, and what you said.", C_DIM);
+  drawText(14, PANEL_FOOT, "Places you stopped, and what you said.", C_DIM);
 }
 
 /* ---------------------------------------------------------- the last act --
@@ -10447,12 +10603,24 @@ static void endCut(void) {
 static void paintCutChoice(void) {
   const Choice *c = &choices[beats[cuts[cutAt].first + cutBeat].a];
   int i;
-  fillRect(6, TXT_H - 44, TXT_W - 12, 40, C_FILL);
-  drawFrame(4, TXT_H - 46, TXT_W - 8, 44);
+  fillRect(4, TXT_H - 44, TXT_W - 8, 40, C_FILL);
+  drawFrame(2, TXT_H - 46, TXT_W - 4, 44);
   for (i = 0; i < c->count; i++) {
     int y = TXT_H - 40 + i * 12;
-    if (i == cutPick) drawCursor(12, y + 1, C_GOLD);
-    drawText(22, y, c->opt[i], i == cutPick ? C_GOLD : C_INK);
+    if (i == cutPick) drawCursor(ASK_CURSOR, y + 1, C_GOLD);
+  /* Wide enough for the longest answer in the game, and clipped anyway.
+   *
+     These lines come out of the story tables, so their length is not something
+     this painter chooses. Two of them - "I went north because the letter was
+     true" and "Keep it, and show every lord in the realm" - are wider than the
+     page inside this frame was, by five pixels and by one, so both were drawn
+     into the right-hand border. Trimming them was the wrong answer: an answer
+     with its last word missing is worse than a name with its tail off, because
+     the player is being asked to choose between them. So the box is four
+     pixels wider, the writing starts four pixels further left, and the two of
+     them fit with a pixel to spare. The trim stays as the backstop for
+     whatever the story tables say next. */
+    drawTextIn(ASK_TEXT, y, c->opt[i], i == cutPick ? C_GOLD : C_INK, ASK_ROOM);
   }
 }
 

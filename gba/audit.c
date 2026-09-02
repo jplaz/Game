@@ -874,6 +874,97 @@ static void checkHouseholdFits(void) {
   seat = keptSeat;
 }
 
+/* -------------------------------------------- one room, two things in it --
+ *
+ * Your animal and your sworn sword are drawn out of the same sixty-four tiles
+ * and the same palette bank - there is no second sixty-four square anywhere in
+ * object memory to give them - so whichever of the two is sent out paints over
+ * the other. That is fine as long as only one of them is ever out and whatever
+ * takes one off the yard puts the other's picture back. Neither held.
+ *
+ * Sending an animal out did not take a man who was already out off the yard:
+ * he stayed flagged as standing there, so the animal was never drawn, he was
+ * drawn out of the animal's tiles, and the hurts he had taken were thrown
+ * away. And calling a man back, or watching him go down, left his picture in
+ * the room, so what stood at your heel for the rest of the fight was a man's
+ * tiles in a man's colours, sixty-four pixels square.
+ *
+ * Both are reachable from the duel menu in three presses. Neither could be
+ * seen in a reference picture, because a picture is only taken of the screens
+ * a run happens to walk through and no run had ever sent both out in one
+ * fight. So it is asked here instead, of the game's own functions. */
+static void sameAs(const char *what, const u32 *want) {
+  int i;
+  for (i = 0; i < BEAST_TILES * 8; i++) {
+    if (VRAM_OBJ[MY_BEAST_TILE * 8 + i] == want[i]) continue;
+    bad("%s leaves a man's picture where your animal is drawn from", what);
+    return;
+  }
+  for (i = 0; i < 16; i++) {
+    if (PAL_OBJ[MY_BEAST_BANK * 16 + i] == (u16)want[BEAST_TILES * 8 + i]) continue;
+    bad("%s leaves a man's colours in the bank your animal is drawn in", what);
+    return;
+  }
+}
+
+static void checkSharedRoom(void) {
+  u32 want[BEAST_TILES * 8 + 16];
+  int i, differs = 0;
+
+  newGameState();
+  you.party[0].kind = 0; you.party[0].level = 5; you.party[0].hp = beastVigour(0, 5);
+  you.party[1].kind = 1; you.party[1].level = 5; you.party[1].hp = beastVigour(1, 5);
+  you.lead = 0;
+  you.host[0].kind = 0; you.host[0].level = 5; you.host[0].hp = swornVigour(0, 5);
+  /* Enough of a duel for the plates to be drawable. They are redrawn by every
+     one of the three functions below, and a plate with no name on it reads a
+     null pointer a character at a time. */
+  mine.name = "You";      mine.level = 5;   mine.hp = mine.maxHp = 40;
+  theirs.name = "A foe";  theirs.level = 5; theirs.hp = theirs.maxHp = 40;
+
+  /* What the animal's room is supposed to hold, and proof that a man in it
+     looks different - a check that cannot tell the two apart proves nothing. */
+  loadBeastArt(0, MY_BEAST_TILE, MY_BEAST_BANK);
+  for (i = 0; i < BEAST_TILES * 8; i++) want[i] = VRAM_OBJ[MY_BEAST_TILE * 8 + i];
+  for (i = 0; i < 16; i++) want[BEAST_TILES * 8 + i] = PAL_OBJ[MY_BEAST_BANK * 16 + i];
+  loadSwornArt(0);
+  for (i = 0; i < BEAST_TILES * 8; i++)
+    if (VRAM_OBJ[MY_BEAST_TILE * 8 + i] != want[i]) { differs = 1; break; }
+  if (!differs) {
+    bad("a sworn sword and an animal draw the same tiles, so this check is blind");
+    return;
+  }
+
+  /* Called back off the yard. */
+  swordAt = 0; swordOut = 1; beastOut = 0; readySword(0);
+  callSwordBack();
+  sameAs("calling a sworn sword back", want);
+
+  /* Cut down on it. */
+  loadSwornArt(0);
+  swordAt = 0; swordOut = 1; beastOut = 0; readySword(0);
+  yours.hp = 0;
+  if (!swordFell()) bad("a sworn sword on nought vigour is not counted as down");
+  sameAs("a sworn sword going down", want);
+
+  /* And an animal sent out over the top of him. This one is about state as
+     much as pictures: the man has to come off the yard, and keep his hurts. */
+  loadSwornArt(0);
+  swordAt = 0; swordOut = 1; beastOut = 0; readySword(0);
+  yours.hp = 3;
+  sendBeastOut(1);
+  if (swordOut)
+    bad("sending an animal out leaves a sworn sword still stood in front of you");
+  if (you.host[0].hp != 3)
+    bad("a sworn sword taken off the yard for an animal loses the hurts he took "
+        "(kept %d of 3)", you.host[0].hp);
+  if (!beastOut || you.lead != 1)
+    bad("an animal sent out over a sworn sword does not take the ground");
+
+  newGameState();
+  swordOut = beastOut = 0;
+}
+
 int main(void) {
   int m, i, j, seen[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, reached = 0, wayIn = -1;
   int totalNpc = 0, totalSign = 0, totalWarp = 0;
@@ -987,6 +1078,41 @@ int main(void) {
   checkNoWayBack();
   checkNobodyBlocks();
   checkHouseholdFits();
+  checkSharedRoom();
+
+  /* Where you stand: nine names and the five words the nine can have for you.
+   *
+   * Every pairing, rather than the one pairing a playthrough happened to draw.
+   * This card was shipped with "Baratheon" two pixels into "friendly" and
+   * "Lannister" meeting "neutral" exactly, and nothing found it: the overdraw
+   * watch sees ink and the letters stop just short of their boxes, and the one
+   * picture ever taken of the card was of a run where all nine were neutral.
+   * Forty-five measurements and a name for the numbers is the whole fix. */
+  {
+    static const char *const BANDS[5] =
+      { "sworn", "friendly", "neutral", "wary", "hostile" };
+    int h, b, said = 0;
+    for (h = 0; h < HOUSE_COUNT; h++) {
+      int nameW = textWidth(houses[h].name);
+      if (nameW > STAND_WORD - 4) {
+        bad("\"%s\" is %d wide and the name column on the standing card is %d",
+          houses[h].name, nameW, STAND_WORD - 4);
+      }
+      for (b = 0; b < 5; b++) {
+        int wordW = textWidth(BANDS[b]);
+        if (wordW <= STAND_COL - STAND_WORD) continue;
+        if (said++ < 6) {
+          bad("\"%s\" is %d wide and the word column on the standing card is %d, "
+              "so it would be cut beside %s",
+            BANDS[b], wordW, STAND_COL - STAND_WORD, houses[h].name);
+        }
+      }
+    }
+    /* And that two columns of it fit the frame they are drawn in. */
+    if (16 + STAND_COL + 10 + STAND_COL > TXT_W - 10) {
+      bad("two columns of %d do not fit the standing card", STAND_COL);
+    }
+  }
 
   /* The masons' panel. Four names on rows sixty pixels wide, and two
      paragraphs under a rule with room for two lines apiece - so the names have
@@ -3519,8 +3645,14 @@ int main(void) {
       bad("%s starts at level %d; every house starts at five", h->name, h->startLevel);
     }
     note("%s begins at %s, on %s", h->name, h->seat, maps[h->startMap].name);
+    /* Nobody starts standing in a doorway. Asked of each house's own start,
+       which is what the game reads - this was map nought, tile twelve twelve,
+       written down when there was one starting place, and it has been checking
+       Stark's doorstep on behalf of all nine ever since. */
+    if (warpOn(&maps[h->startMap], h->startX, h->startY)) {
+      bad("%s starts standing on a doorway at %s", h->name, maps[h->startMap].name);
+    }
   }
-  if (warpOn(&maps[0], 12, 12)) bad("the game starts you on a doorway");
 
   printf("\n  %d maps (%d reachable), %d people, %d signs, %d doors\n",
     MAP_COUNT, reached, totalNpc, totalSign, totalWarp);

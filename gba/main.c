@@ -1232,8 +1232,10 @@ static void placeBeast(int slot, int x, int y, int tile, int bank) {
  *
  * Eight frames of a person is sixty-four tiles, which is exactly the room the
  * animal uses - the player's walking steps, empty while nobody is walking - so
- * they share it. Only one of the two can be out at a time, which is the rule
- * anyway. */
+ * they share it. That only works while one of the two is out at a time and
+ * whatever takes one off the yard puts the other's picture back, and neither
+ * held: see sendBeastOut and restoreBeastArt, and checkSharedRoom in the
+ * audit, which asks the three of them directly. */
 static void loadSwornArt(int kind) {
   const Actor *a = &actors[swornKinds[kind].actor];
   volatile u32 *dst = VRAM_OBJ + MY_BEAST_TILE * 8;
@@ -4598,6 +4600,14 @@ static const char *steadyWord(void);
    anywhere in the game. */
 static int statusPage;
 
+/* How wide a house's column is on that card, and where the word for you starts
+   inside it. Named rather than written into the drawing twice, because the
+   audit measures every house name and every word against them - the fault they
+   are here to prevent is one nothing could see in a picture unless the run
+   happened to have made somebody friendly. */
+#define STAND_COL 102          /* the whole column: name, then word */
+#define STAND_WORD 58          /* where the word starts, clear of the longest name */
+
 static void paintStanding(void) {
   int i;
   clearRows(0, TXT_H);
@@ -4606,12 +4616,26 @@ static void paintStanding(void) {
   { int i;
     for (i = 0; i < 5; i++) fillRect(10 - i + 4, 60 - 4 + i, 1, 9 - i * 2, C_GOLD); }
   fillRect(16, 18, TXT_W - 32, 1, C_EDGE);
+  /* Two columns of nine houses, and the word each of them has for you.
+   *
+   * The word used to be right-aligned in a column ninety-six wide, and the
+   * longest name and the longest word do not both fit in ninety-six:
+   * "Baratheon" is fifty-four and "friendly" is forty-four, so the two were
+   * drawn two pixels into each other, and "Lannister neutral" met exactly.
+   * The letters never quite overlapped - the ink stops short of the box - so
+   * the overdraw watch had nothing to report and the card simply read as one
+   * long word.
+   *
+   * So the words start at a column of their own instead, clear of the longest
+   * name in the game, and are clipped to what is left rather than allowed to
+   * grow back into it. It scans better as well: nine words in a line rather
+   * than nine ragged right edges. */
   for (i = 0; i < HOUSE_COUNT; i++) {
-    int y = 22 + (i >> 1) * 10, x = (i & 1) ? (TXT_W >> 1) + 4 : 16;
+    int y = 22 + (i >> 1) * 10, x = (i & 1) ? 16 + STAND_COL + 10 : 16;
     const char *word = bandWord(i);
     u8 ink = favour[i] >= 25 ? C_WELL : favour[i] <= -25 ? C_HURT : C_DIM;
-    drawText(x, y, houses[i].name, i == you.house ? C_HOUSE : C_INK);
-    drawText(x + 96 - textWidth(word), y, word, ink);
+    drawTextIn(x, y, houses[i].name, i == you.house ? C_HOUSE : C_INK, STAND_WORD - 4);
+    drawTextIn(x + STAND_WORD, y, word, ink, STAND_COL - STAND_WORD);
   }
   {
     /* The one line that says what any of it is for. */
@@ -5026,28 +5050,39 @@ static void takeUpRecord(void) {
   } }
   sigils = record.sigils;
   layLadder();
+  /* Nothing is taken off a record that the game could not have written.
+   *
+   * Empty is 255 in all three of these, and nought is a real animal and a real
+   * kind of sword - so any record that is short, corrupt, or simply built by
+   * something that forgot comes back as a full holdfast of beast nought and
+   * six Bandits at level nought, and the game shows them to you as if you had
+   * earned them. Nothing in this world is level nought either, so that is the
+   * second half of the test. */
   { int k;
     for (k = 0; k < PARTY_MAX; k++) {
-      you.party[k].kind = record.partyKind[k];
-      you.party[k].level = record.partyLevel[k];
-      you.party[k].exp = record.partyExp[k];
-      you.party[k].hp = record.partyKind[k] == 255
-        ? 0 : beastVigour(record.partyKind[k], record.partyLevel[k]);
+      int kind = record.partyKind[k], lv = record.partyLevel[k];
+      if (kind >= BEAST_COUNT || lv < 1) kind = 255;
+      you.party[k].kind = (u8)kind;
+      you.party[k].level = (u8)(kind == 255 ? 0 : lv);
+      you.party[k].exp = kind == 255 ? 0 : record.partyExp[k];
+      you.party[k].hp = kind == 255 ? 0 : beastVigour(kind, lv);
     }
     you.lead = record.lead < PARTY_MAX ? record.lead : 0;
     for (k = 0; k < HOLD_MAX; k++) {
-      you.holdfast[k].kind = record.holdKind[k];
-      you.holdfast[k].level = record.holdLevel[k];
-      you.holdfast[k].exp = record.holdExp[k];
-      you.holdfast[k].hp = record.holdKind[k] == 255
-        ? 0 : beastVigour(record.holdKind[k], record.holdLevel[k]);
+      int kind = record.holdKind[k], lv = record.holdLevel[k];
+      if (kind >= BEAST_COUNT || lv < 1) kind = 255;
+      you.holdfast[k].kind = (u8)kind;
+      you.holdfast[k].level = (u8)(kind == 255 ? 0 : lv);
+      you.holdfast[k].exp = kind == 255 ? 0 : record.holdExp[k];
+      you.holdfast[k].hp = kind == 255 ? 0 : beastVigour(kind, lv);
     }
     for (k = 0; k < HOST_MAX; k++) {
-      you.host[k].kind = record.hostKind[k];
-      you.host[k].level = record.hostLevel[k];
+      int kind = record.hostKind[k], lv = record.hostLevel[k];
+      if (kind >= SWORN_KINDS || lv < 1) kind = 255;
+      you.host[k].kind = (u8)kind;
+      you.host[k].level = (u8)(kind == 255 ? 0 : lv);
       you.host[k].exp = 0;
-      you.host[k].hp = record.hostKind[k] == 255
-        ? 0 : swornVigour(record.hostKind[k], record.hostLevel[k]);
+      you.host[k].hp = kind == 255 ? 0 : swornVigour(kind, lv);
     }
   }
   you.story = record.story;
@@ -9546,7 +9581,13 @@ static void sendBeastOut(int at) {
     duelPhase = DUEL_TOP;
     return;
   }
-  if (beastOut) MY_BEAST.hp = yours.hp;      /* whoever was out keeps its hurts */
+  /* Whoever was out keeps their hurts, and comes off the yard. Only one of
+     yours stands in front of you at a time, and sending the animal out had
+     been leaving a man who was already out there still flagged as standing:
+     his hurts went nowhere, the animal you had just sent was never drawn,
+     and he was drawn out of the animal's tiles for the rest of the fight. */
+  if (swordOut) { you.host[swordAt].hp = yours.hp; swordOut = 0; }
+  else if (beastOut) MY_BEAST.hp = yours.hp;
   you.lead = (u8)at;
   readyBeast();
   beastOut = 1;
@@ -9621,10 +9662,19 @@ static void sendSwordOut(int at) {
   duelPhase = DUEL_THEIRS;
 }
 
+/* The animal and the sworn sword are drawn out of the same sixty-four tiles,
+   so sending the man out paints over the animal. Taking him off the yard has
+   to put the animal back: without this, whatever is at your heel for the rest
+   of the duel is drawn out of a man, in a man's colours. */
+static void restoreBeastArt(void) {
+  if (MY_BEAST.kind != 255) loadBeastArt(MY_BEAST.kind, MY_BEAST_TILE, MY_BEAST_BANK);
+}
+
 static void callSwordBack(void) {
   if (!swordOut) return;
   you.host[swordAt].hp = yours.hp;
   swordOut = 0;
+  restoreBeastArt();
   shownMine = mine.hp;
   mine.defending = 0;
   paintDuelPlates();
@@ -9642,6 +9692,7 @@ static int swordFell(void) {
   if (!swordOut || yours.hp > 0) return 0;
   you.host[swordAt].hp = 0;
   swordOut = 0;
+  restoreBeastArt();
   shownMine = mine.hp;
   copyString(scratch, swornKinds[you.host[swordAt].kind].name, sizeof scratch);
   appendString(scratch, " goes down on one knee and stays there. You step over "

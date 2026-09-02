@@ -1600,7 +1600,23 @@ static void completeGoal(void) {
 /* Catch each interesting screen the first time the tester reaches it, so the
    pictures are of the game actually being played rather than of a route
    somebody wrote down and that the crowd has since wandered out of. */
-static int caught[48];
+/* Kept by name, not by a number somebody chose.
+ *
+ * Every picture used to carry a slot, and a slot is a lock: whoever reaches it
+ * first takes it and everybody else is silently refused. Two were shared -
+ * "02b-your-name" and Castle Black on twenty-three, the workbench and Moat
+ * Cailin on twenty-four - and because the namer and the bench come up in the
+ * first minute and the two towns come up much later, the towns simply stopped
+ * being photographed. Castle Black had not been looked at since the day the
+ * namer was added and nothing anywhere said so.
+ *
+ * Checking for the clash is not enough: it is a property of the source, and a
+ * run only sees it if it happens to reach both screens, which is exactly what
+ * these two never did. The name already says which picture this is, so the
+ * number is deleted and the clash cannot be written. */
+#define SHOT_NAMES 64
+static const char *caughtName[SHOT_NAMES];
+static int caughtCount;
 
 /* Is that phrase anywhere in the window that is open? Used to catch the screens
    that only exist for one particular thing having happened. */
@@ -1613,10 +1629,16 @@ static int windowSays(const char *what) {
   return 0;
 }
 
-static void catchOnce(int slot, const char *name) {
-  if (!shooting || caught[slot]) return;
-  caught[slot] = 1;
-  snapshot(name);
+static void catchOnce(const char *name) {
+  int i;
+  if (!name) return;
+  for (i = 0; i < caughtCount; i++) if (!strcmp(caughtName[i], name)) return;
+  if (caughtCount >= SHOT_NAMES) {
+    finding("more than %d screens want photographing", SHOT_NAMES);
+    return;
+  }
+  caughtName[caughtCount++] = name;
+  if (shooting) snapshot(name);
 }
 
 void hostFrame(void) {
@@ -1661,6 +1683,33 @@ void hostFrame(void) {
       if (you.gold >= (int)maps[worldId].seat * 100) hallsAfforded++;
     }
   }
+
+  /* Nobody in this game is level nought.
+   *
+   * The chooser drew six swords at level nought with the health of a level
+   * one, which is either somebody sworn in without a level or a level that has
+   * been zeroed since - and either way it is a number the player is shown. A
+   * beast in the holdfast has the same rule. */
+  { int k;
+    for (k = 0; k < HOST_MAX; k++) {
+      if (you.host[k].kind == 255 || you.host[k].level) continue;
+      finding("a %s has sworn to you at level nought",
+        swornKinds[you.host[k].kind].name);
+    }
+    for (k = 0; k < PARTY_MAX; k++) {
+      if (you.party[k].kind == 255 || you.party[k].level) continue;
+      finding("an animal at your heel is level nought");
+    }
+  }
+
+  /* And only one of yours stands in front of you at a time. The animal and the
+     sworn sword are drawn out of the same sixty-four tiles, so both flags up at
+     once means one of them is being drawn out of the other's picture and the
+     hurts of whoever is not the fighter are going nowhere. The audit asks this
+     of the three functions directly; this asks it of whatever the buttons
+     actually did. */
+  if (swordOut && beastOut)
+    finding("a sworn sword and an animal are both out in front of you at once");
 
   if (scene == SCENE_WORLD && world && seat.has && worldId == seat.map && seat.wed) {
     int k, home = 1;                              /* whoever you married */
@@ -1776,71 +1825,77 @@ void hostFrame(void) {
   }
 
   if (shooting) {
-    if (scene == SCENE_TITLE) catchOnce(0, getenv("SAVED") ? "01-title-with-a-record" : "01-title");
-    else if (scene == SCENE_NAME && nameLen == 3) catchOnce(23, "02b-your-name");
-    else if (scene == SCENE_HOUSE) catchOnce(1, "02-swear-your-sword");
-    else if (scene == SCENE_MENU) catchOnce(2, "05-the-menu");
-    else if (scene == SCENE_STATUS) catchOnce(statusPage ? 35 : 3,
-      statusPage ? "06b-where-you-stand" : "06-your-sigil");
-    else if (scene == SCENE_SEAT) catchOnce(27, "08-your-own-house");
-    else if (scene == SCENE_ARMS) catchOnce(26, "08b-your-own-arms");
-    else if (scene == SCENE_WORKS && seat.has) catchOnce(38, "08c-the-masons");
-    else if (scene == SCENE_BAG) catchOnce(4, "07-the-pouch");
-    else if (scene == SCENE_CRAFT) catchOnce(24, craftAt ? "12b-at-the-anvil" : "11b-at-the-bench");
+    if (scene == SCENE_TITLE) catchOnce(getenv("SAVED") ? "01-title-with-a-record" : "01-title");
+    else if (scene == SCENE_NAME && nameLen == 3) catchOnce("02b-your-name");
+    else if (scene == SCENE_HOUSE) catchOnce("02-swear-your-sword");
+    else if (scene == SCENE_MENU) catchOnce("05-the-menu");
+    else if (scene == SCENE_STATUS) catchOnce(statusPage ? "06b-where-you-stand" : "06-your-sigil");
+    else if (scene == SCENE_SEAT) catchOnce("08-your-own-house");
+    else if (scene == SCENE_ARMS) catchOnce("08b-your-own-arms");
+    else if (scene == SCENE_WORKS && seat.has) catchOnce("08c-the-masons");
+    else if (scene == SCENE_BAG) catchOnce("07-the-pouch");
+    else if (scene == SCENE_CRAFT) catchOnce(craftAt ? "12b-at-the-anvil" : "11b-at-the-bench");
     else if (scene == SCENE_SHOP) {
       static const char *const SHELF_SHOT[4] = {
         "11-remedies", "12-arms", "12c-armour", "12d-oddments" };
-      if (shopStall >= 0 && shopStall < 4) catchOnce(31 + shopStall, SHELF_SHOT[shopStall]);
+      if (shopStall >= 0 && shopStall < 4) catchOnce(SHELF_SHOT[shopStall]);
     }
     else if (scene == SCENE_DUEL) {
-      if (windowOpen && windowSays("Off them")) catchOnce(21, "21-what-they-carried");
+      if (windowOpen && windowSays("Off them")) catchOnce("21-what-they-carried");
       /* The star is up for twelve frames of a swing; catch it in the middle. */
-      if (fxStar() == 2 && !fxOnMe) catchOnce(18, "18-the-blow-lands");
-      else if (fxLean(1) > 8) catchOnce(19, "19-the-lunge");
+      if (fxStar() == 2 && !fxOnMe) catchOnce("18-the-blow-lands");
+      else if (fxLean(1) > 8) catchOnce("19-the-lunge");
       else if (duelPhase == DUEL_SPOILS && !spoilsDone() && shownExp > you.exp - 20)
-        catchOnce(20, "20-the-rail-fills");
-      else if (duelPhase == DUEL_PACK) catchOnce(28, "09b-who-comes-out");
+        catchOnce("20-the-rail-fills");
+      else if (duelPhase == DUEL_PACK) catchOnce("09b-who-comes-out");
       else if (beastOut && foeBeast >= 0 && !windowOpen)
-        catchOnce(29, "09d-yours-against-a-wild-one");
-      else if (swordOut && !windowOpen) catchOnce(36, "09e-your-sword-in-front");
-      else if (duelPhase == DUEL_HOST) catchOnce(37, "09f-which-sword");
-      else if (beastOut && !windowOpen) catchOnce(30, "09c-yours-out-in-front");
-      else if (duelPhase == DUEL_TOP) catchOnce(7, "09-what-to-do");
-      else if (duelPhase == DUEL_MENU) catchOnce(8, "10-which-blow");
+        catchOnce("09d-yours-against-a-wild-one");
+      else if (swordOut && !windowOpen) catchOnce("09e-your-sword-in-front");
+      else if (duelPhase == DUEL_HOST) catchOnce("09f-which-sword");
+      else if (beastOut && !windowOpen) catchOnce("09c-yours-out-in-front");
+      else if (duelPhase == DUEL_TOP) catchOnce("09-what-to-do");
+      else if (duelPhase == DUEL_MENU) catchOnce("10-which-blow");
       /* Once the screen is back, not on the frame the scene changes.
          The transition sets the duel up behind a full fade to black and the
          scene flips while it is still black, so this caught the darkest frame
          of it - and got away with that for as long as the renderer ignored the
          fade registers. The moment it drew them, this picture was a black
          rectangle. */
-      else if (windowOpen && !typeDone && !shift) catchOnce(9, "08-the-duel-opens");
+      else if (windowOpen && !typeDone && !shift) catchOnce("08-the-duel-opens");
     } else if (scene == SCENE_WORLD) {
-      if (shift > 40) catchOnce(10, "13-the-flash");
+      if (shift > 40) catchOnce("13-the-flash");
       /* Late in the ramp, not at the top of it. The fade to black runs sixteen
          steps and catchOnce takes the first frame that matches, so a window of
          shift 21 to 29 caught step two of sixteen - which, now that the fade is
          actually drawn, is a picture of an ordinary afternoon. This window
          catches step eleven or so, which looks like what it is called. */
-      else if (shift > 16 && shift < 21) catchOnce(11, "14-going-dark");
-      else if (spotted >= 0 && spotTimer > 20) catchOnce(12, "15-spotted");
-      else if (windowOpen && !typeDone && frameNo > 400) catchOnce(13, "04-mid-sentence");
-      else if (hopping && hero.walk > 8 && hero.walk < 26) catchOnce(16, "17-over-the-ledge");
+      else if (shift > 16 && shift < 21) catchOnce("14-going-dark");
+      else if (spotted >= 0 && spotTimer > 20) catchOnce("15-spotted");
+      else if (windowOpen && !typeDone && frameNo > 400) catchOnce("04-mid-sentence");
+      else if (hopping && hero.walk > 8 && hero.walk < 26) catchOnce("17-over-the-ledge");
       else if (!windowOpen && coverAt(hero.px >> 4, hero.py >> 4) && hero.walk)
-        catchOnce(17, "16-in-the-grass");
-      else if (windowOpen && windowSays("in the grass")) catchOnce(22, "22-lying-in-the-grass");
-      else if (!windowOpen && frameNo > 60 && frameNo < 400) catchOnce(14, "03-winterfell");
+        catchOnce("16-in-the-grass");
+      else if (windowOpen && windowSays("in the grass")) catchOnce("22-lying-in-the-grass");
+      else if (!windowOpen && frameNo > 60 && frameNo < 400) catchOnce("03-winterfell");
       /* One picture of each settlement, so the four of them can be put side by
          side and told apart, which is the whole point of building them out of
          different materials. */
       /* And your own hall with your household standing in it, which is the
          one picture that says what all of this was for. */
       else if (!windowOpen && !hero.walk && folkCount >= 2) {
-        catchOnce(39, "08d-your-household-at-home");
+        catchOnce("08d-your-household-at-home");
       }
-      else if (!windowOpen && !hero.walk) {
-        if (worldId == 7) catchOnce(23, "23-castle-black");
-        else if (worldId == 11) catchOnce(24, "24-moat-cailin");
-        else if (worldId == 15) catchOnce(25, "25-riverrun");
+      /* By name, because the numbers went stale the day the world doubled.
+         Seven was Castle Black once; it is the Crypts of Winterfell now, and
+         eleven is a maester's hall, and fifteen is Moat Cailin - so the three
+         pictures meant to show three towns side by side were of a crypt, a
+         back room, and the wrong town, and the one called Riverrun has been a
+         picture of Moat Cailin in this repository for as long as it has been
+         in it. A name does not shift when somebody adds a map. */
+      else if (!windowOpen && !hero.walk && world) {
+        if (!strcmp(world->name, "Castle Black")) catchOnce("23-castle-black");
+        else if (!strcmp(world->name, "Moat Cailin")) catchOnce("24-moat-cailin");
+        else if (!strcmp(world->name, "Riverrun")) catchOnce("25-riverrun");
       }
     }
   }
@@ -2544,8 +2599,14 @@ void hostFrame(void) {
          never being offered. */
       if (want == 0 && beastOut && yours.hp * 3 < yours.maxHp) want = 2;
       else if (want == 0 && swordOut && yours.hp * 3 < yours.maxHp) want = 3;
-      else if (want == 0 && !beastOut && !swordOut && packHave() && roll(3) == 0) want = 2;
-      else if (want == 0 && !beastOut && !swordOut && hostHave() && roll(3) == 0) want = 3;
+      /* Either list opens while the other one's man or animal is out, because
+         that is what the menu lets a player do: with a sword in front of you
+         the word Beasts is still live, and pressing it sends an animal out
+         over the top of him. The tester used to require the ground to be
+         empty before it would open either list, so the one thing that swaps
+         one of yours for the other was a press nothing ever made. */
+      else if (want == 0 && !beastOut && packHave() && roll(3) == 0) want = 2;
+      else if (want == 0 && !swordOut && hostHave() && roll(3) == 0) want = 3;
       /* Two rows of three: get to the right row first, then along it. One
          step a frame, and A only once the cursor is actually on the word -
          pressing towards a square that does not exist is how a run spends a

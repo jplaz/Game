@@ -990,6 +990,43 @@ static void checkLists(void) {
   }
 }
 
+/* Four blows, and four different blows.
+ *
+ * The first two are what you are holding, the third is what levelling taught
+ * you and the fourth is Guard, and nothing checked they were four different
+ * things. An Iron Sword at level twelve gave Riposte twice, and a hundred and
+ * thirty-one of the eighteen hundred ways a player can be armed and levelled
+ * showed some blow in two slots at once - which reads as the game repeating
+ * itself, and quietly costs the player a quarter of what they can do.
+ *
+ * Asked here rather than in a playthrough because it is a property of the
+ * tables: every weapon against every level, which no run could ever walk. */
+static void checkFourBlows(void) {
+  int w, lv, said = 0, pairs = 0;
+  You kept = you;
+  for (w = 0; w <= WARE_COUNT; w++) {
+    if (w && wares[w - 1].kind != WARE_WEAPON) continue;
+    for (lv = 1; lv <= 60; lv++) {
+      int i, j;
+      you.WORN_WEAPON = (u8)w;
+      you.level = lv;
+      reckonTechniques();
+      for (i = 0; i < 4; i++) for (j = 0; j < i; j++) {
+        if (myTechs[j] != myTechs[i]) continue;
+        pairs++;
+        if (said++ < 6) {
+          bad("%s at level %d offers %s in slots %d and %d",
+            w ? wares[w - 1].name : "bare hands", lv,
+            techniques[myTechs[i]].name, j, i);
+        }
+      }
+    }
+  }
+  if (pairs > 6) bad("...and %d more pairs of slots that are the same blow", pairs - 6);
+  you = kept;
+  reckonTechniques();
+}
+
 int main(void) {
   int m, i, j, seen[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, reached = 0, wayIn = -1;
   int totalNpc = 0, totalSign = 0, totalWarp = 0;
@@ -1105,6 +1142,7 @@ int main(void) {
   checkHouseholdFits();
   checkSharedRoom();
   checkLists();
+  checkFourBlows();
 
   /* Where you stand: nine names and the five words the nine can have for you.
    *

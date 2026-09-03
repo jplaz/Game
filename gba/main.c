@@ -2461,11 +2461,29 @@ static Kit kitOf(int who, int level) {
    which anybody can do and which always keeps the last slot. */
 static u8 myTechs[4];
 
-/* The best thing standing itself has taught you by now, or -1 if you are not
-   far enough along to have been taught anything. */
-static int learnedBy(int level) {
+/* Is that blow already one of the four? Asked of the three slots that are
+   settled before the third one is chosen. */
+static int menuHas(int t) {
+  return t == myTechs[0] || t == myTechs[1] || t == myTechs[3];
+}
+
+/* The best thing standing itself has taught you by now that is not already on
+ * the menu, or -1 if there is nothing.
+ *
+ * It used to be simply the best thing taught by now, and nothing anywhere
+ * asked whether your weapon already gave you it. An Iron Sword at level twelve
+ * put Riposte in two of the four slots: a hundred and thirty-one of the
+ * eighteen hundred ways a player can be armed and levelled - twenty-nine
+ * weapons and a bare hand, across sixty levels - showed some blow twice.
+ * Two of four choices being one choice is not a thing a player can see the
+ * cause of. It reads as the game repeating itself, and it quietly costs them
+ * a quarter of what they have to fight with. */
+static int learnedBeyond(int level) {
   int i, best = -1;
-  for (i = 0; i < LEARN_COUNT; i++) if (learned[i].level <= level) best = learned[i].tech;
+  for (i = 0; i < LEARN_COUNT; i++) {
+    if (learned[i].level > level || menuHas(learned[i].tech)) continue;
+    best = learned[i].tech;
+  }
   return best;
 }
 
@@ -2477,7 +2495,7 @@ static int learnedAt(int level) {
 }
 
 static void reckonTechniques(void) {
-  int n = 0, i, mine = learnedBy(you.level);
+  int n = 0, i, pick;
 
   /* Your weapon teaches the first two slots. What you have learned by standing
      takes the third, so climbing visibly changes how you fight instead of
@@ -2485,20 +2503,30 @@ static void reckonTechniques(void) {
   if (you.WORN_WEAPON) {
     const Ware *w = &wares[you.WORN_WEAPON - 1];
     for (i = 0; i < w->techCount && n < 2; i++) myTechs[n++] = w->tech[i];
-  } else {
-    while (n < 2) { myTechs[n] = player_techs[n]; n++; }
   }
-  if (mine >= 0) {
-    myTechs[2] = (u8)mine;
-  } else if (you.WORN_WEAPON) {
+  /* And whatever the weapon did not fill. Every weapon on the cartridge today
+     teaches two, but this array is static: a weapon added tomorrow that taught
+     one would have left the second slot holding the last weapon's blow. */
+  while (n < 2) { myTechs[n] = you.WORN_WEAPON ? armed_techs[n] : player_techs[n]; n++; }
+  myTechs[3] = player_techs[3];              /* Guard, and always the last */
+
+  /* The third, chosen against the three that are already up so that four
+     choices are always four different choices. */
+  pick = learnedBeyond(you.level);
+  if (pick < 0 && you.WORN_WEAPON) {
     const Ware *w = &wares[you.WORN_WEAPON - 1];
-    /* Nothing learned yet: a third blade technique if the weapon has one,
-       otherwise swordplay anybody picks up. */
-    myTechs[2] = (u8)(w->techCount > 2 ? w->tech[2] : armed_techs[2]);
-  } else {
-    myTechs[2] = player_techs[2];
+    /* Nothing learned yet: a third blade technique if the weapon has one. */
+    if (w->techCount > 2 && !menuHas(w->tech[2])) pick = w->tech[2];
   }
-  myTechs[3] = player_techs[3];              /* Guard */
+  if (pick < 0) {
+    /* Otherwise swordplay anybody picks up, or a bare hand. */
+    int fall = you.WORN_WEAPON ? armed_techs[2] : player_techs[2];
+    if (!menuHas(fall)) pick = fall;
+  }
+  for (i = 0; pick < 0 && i < 3; i++) {
+    if (!menuHas(player_techs[i])) pick = player_techs[i];
+  }
+  myTechs[2] = (u8)(pick < 0 ? player_techs[2] : pick);
 }
 
 /* The ladder, and what a rung costs.
@@ -6328,7 +6356,14 @@ static void paintPort(void) {
     copyString(scratch, "Take out ", sizeof scratch);
     appendString(scratch, hulls[you.shipKind].name, sizeof scratch);
     if (portPick == -1) drawCursor(14, 23, C_GOLD);
-    drawText(24, 22, scratch, portPick == -1 ? C_GOLD : C_INK);
+    /* Cut to the room left of how she is doing, the way every other list in
+       the game cuts a name to the room left of its number. "An Ironborn
+       Longship" is a hundred and eleven pixels and "sinking under you" is
+       ninety-one, and the two of them met exactly - so the one row on this
+       panel that is your own ship read as one long word at the moment the
+       thing it was telling you mattered most. */
+    drawTextIn(24, 22, scratch, portPick == -1 ? C_GOLD : C_INK,
+      TXT_W - 14 - textWidth(soundWord()) - 8 - 24);
     drawText(TXT_W - 14 - textWidth(soundWord()), 22, soundWord(), C_DIM);
     fillRect(14, 34, TXT_W - 28, 1, C_EDGE);
     row = 0;

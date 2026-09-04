@@ -1027,6 +1027,67 @@ static void checkFourBlows(void) {
   reckonTechniques();
 }
 
+/* Everybody's four blows, on the cartridge as it was built.
+ *
+ * The duel picks one of four at random when it is their turn, so a fighter
+ * with the same blow in two slots throws it twice as often as the table says -
+ * and when it is your own sworn sword out in front, the menu offers you the
+ * same word twice out of four. Five hundred and three of the five hundred and
+ * ninety-seven people you can fight had it, and all sixteen kinds of sworn
+ * sword, because the exporter appended Guard to lists that already ended in
+ * guard. Every horse had one blow four times over, because the three its
+ * archetype named were names no technique has and were dropped in silence.
+ *
+ * A beast is the one exception, and a deliberate one: three kinds of blow with
+ * the first repeated in the fourth slot, which is a fair reading of a wolf
+ * biting more than it claws. So a beast is asked for that shape exactly,
+ * rather than for four different blows. */
+static void checkEverybodysBlows(void) {
+  int i, said = 0, n;
+
+  n = 0;
+  for (i = 0; i < BEAST_COUNT; i++) {
+    const u8 *t = beasts[i].tech;
+    if (t[0] != t[1] && t[1] != t[2] && t[0] != t[2] && t[3] == t[0]) continue;
+    n++;
+    if (said++ < 5) {
+      bad("%s swings %s / %s / %s / %s, and a beast wants three blows with the "
+          "first of them again", beasts[i].name, techniques[t[0]].name,
+        techniques[t[1]].name, techniques[t[2]].name, techniques[t[3]].name);
+    }
+  }
+  if (n > 5) bad("...and %d more beasts whose blows are not three and the first again", n - 5);
+
+  n = 0; said = 0;
+  for (i = 0; i < SWORN_KINDS; i++) {
+    const u8 *t = swornKinds[i].tech;
+    int a, b, dup = 0;
+    for (a = 0; a < 4; a++) for (b = 0; b < a; b++) if (t[a] == t[b]) dup = 1;
+    if (!dup) continue;
+    n++;
+    if (said++ < 5) {
+      bad("a %s swings %s / %s / %s / %s, and you are offered that menu when "
+          "he is out in front of you", swornKinds[i].name, techniques[t[0]].name,
+        techniques[t[1]].name, techniques[t[2]].name, techniques[t[3]].name);
+    }
+  }
+  if (n > 5) bad("...and %d more kinds of sworn sword with a blow twice", n - 5);
+
+  n = 0; said = 0;
+  for (i = 0; i < DUELLIST_COUNT; i++) {
+    const u8 *t = duellists[i].tech;
+    int a, b, dup = 0;
+    for (a = 0; a < 4; a++) for (b = 0; b < a; b++) if (t[a] == t[b]) dup = 1;
+    if (!dup) continue;
+    n++;
+    if (said++ < 5) {
+      bad("%s swings %s / %s / %s / %s", duellists[i].name, techniques[t[0]].name,
+        techniques[t[1]].name, techniques[t[2]].name, techniques[t[3]].name);
+    }
+  }
+  if (n > 5) bad("...and %d more of the people you can fight with a blow twice", n - 5);
+}
+
 int main(void) {
   int m, i, j, seen[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, reached = 0, wayIn = -1;
   int totalNpc = 0, totalSign = 0, totalWarp = 0;
@@ -1143,6 +1204,7 @@ int main(void) {
   checkSharedRoom();
   checkLists();
   checkFourBlows();
+  checkEverybodysBlows();
 
   /* Where you stand: nine names and the five words the nine can have for you.
    *

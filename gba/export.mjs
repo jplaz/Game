@@ -486,10 +486,46 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     return swornOf(table[0]);
   };
 
+  /* Three blows and then Guard, and four different things.
+   *
+   * This used to map the authored list, drop anything it did not recognise,
+   * pad to three with slash, and append guard - and every one of those three
+   * steps was quietly wrong. The data writes guard at the end of the list
+   * itself, so appending it again gave forty-eight duellists and forty-six
+   * trainers Guard in two of their four slots: the duel picks one of four at
+   * random when it is their turn, so they guarded half the time instead of a
+   * quarter, and a sworn sword you sent out offered you Guard twice on a menu
+   * of four. Padding with slash gave it to fighters who already had it. And a
+   * name no technique has - the horse's 'tackle', 'lastcharge' and 'rally' -
+   * was dropped without a word, which is how every horse in the game came to
+   * fight with one blow four times over.
+   *
+   * Five hundred and three of the five hundred and ninety-seven people you can
+   * fight repeated a blow, and so did all sixteen kinds of sworn sword. Of the
+   * thirty-eight beasts only the three horses were wrong: the other
+   * thirty-five repeat their first blow in the fourth slot on purpose, which
+   * is a fair reading of a wolf biting more than it claws, and the emitter
+   * below does that deliberately. */
   function techSlots(ids) {
-    const picked = (ids ?? []).map((id) => techSlot.get(id)).filter((n) => n !== undefined);
-    while (picked.length < 3) picked.push(techSlot.get('slash'));
-    return [...picked.slice(0, 3), guardSlot];
+    const out = [];
+    const take = (n) => {
+      if (n === undefined || n === guardSlot || out.includes(n)) return false;
+      out.push(n);
+      return true;
+    };
+    for (const id of ids ?? []) {
+      if (techSlot.get(id) === undefined) {
+        throw new Error(`no technique is called ${JSON.stringify(id)}`);
+      }
+      take(techSlot.get(id));
+    }
+    /* Whatever the list did not fill, from the blows anybody can throw, and
+       never one that is already up. */
+    for (const id of ['slash', 'thrust', 'quickCut', 'cleave', 'lunge', 'sweep']) {
+      if (out.length >= 3) break;
+      take(techSlot.get(id));
+    }
+    return [...out.slice(0, 3), guardSlot];
   }
 
   /* What somebody on the road is worth in a fight. Named duellists carry their

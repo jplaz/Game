@@ -11,7 +11,11 @@
 /** How each shape of animal fights. Three techniques and no weapon. */
 export const BEAST_TECHNIQUES = {
   wolf:     ['bite', 'claw', 'savage'],
-  horse: ['tackle', 'lastcharge', 'rally'],
+  /* A horse rears, sweeps a hoof and kicks. These were 'tackle', 'lastcharge'
+     and 'rally' - three names no technique has ever had - so all three were
+     quietly dropped on the way to the cartridge and every horse in the game
+     fought with one blow, four times over. */
+  horse:    ['headbutt', 'sweep', 'gore'],
   bear:     ['gore', 'crush', 'savage'],
   dragon:   ['fireBreath', 'bite', 'claw'],
   fish:     ['coil', 'bite', 'gust'],

@@ -8,6 +8,22 @@
 set -e
 cd "$(dirname "$0")"
 
+# Nothing in the repository should have a shell metacharacter in its name.
+#
+# A file called "->kind == WARE_OATH) {|      ) {|" sat in the root for a
+# fortnight and was committed with the rest: somebody piping a grep through
+# something forgot to quote a ">", and the shell made a fifty-nine kilobyte
+# file out of a fragment of main.c and the name of the pattern. Nothing
+# referenced it and nothing would ever have noticed it. A name like that also
+# will not check out on Windows at all, so the repository was quietly broken
+# for anyone on one.
+odd=$(cd .. && git ls-files | grep -E '[|<>*?`$\\]' || true)
+if [ -n "$odd" ]; then
+  echo "  a file is committed with a shell metacharacter in its name:"
+  echo "$odd" | sed 's/^/    /'
+  exit 1
+fi
+
 CFLAGS="--target=armv4t-none-eabi -mthumb -mcpu=arm7tdmi -O2 -fno-builtin
         -ffreestanding -fomit-frame-pointer
         -Wall -Wno-unused-variable -Wno-unused-parameter -std=c99"

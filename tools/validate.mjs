@@ -9,7 +9,7 @@
 import { MAPS } from '../src/data/maps.js';
 import { SPECIES, SPECIES_IDS } from '../src/data/species.js';
 import { MOVES } from '../src/data/moves.js';
-import { ITEMS } from '../src/data/items.js';
+import { ITEMS, item } from '../src/data/items.js';
 import { TRAINERS, trainerAsDuellist } from '../src/data/trainers.js';
 import { DUELLISTS, ROAMERS, ROAMER_TABLES, makeRoamer } from '../src/data/duellists.js';
 import { HOUSES, HOUSE_IDS, SWEARABLE, SPRITE_HOUSE } from '../src/data/houses.js';
@@ -272,6 +272,16 @@ for (const [mapId, map] of Object.entries(MAPS)) {
        the player a lid and some coins. */
     if (!wareExists(it.item)) {
       fail(`map ${mapId}: ground item "${it.item}" is nothing the cartridge can hand over`);
+    }
+    /* And the same question of this build, which is not the same question.
+       wareExists asks what the cartridge can produce, and the cartridge has
+       systems the browser does not - crafting, relics, snares, a gear ladder -
+       so forty-two kinds of thing passed this check and still threw "Unknown
+       item" the moment a player opened the chest. */
+    try {
+      item(it.item);
+    } catch {
+      fail(`map ${mapId}: ground item "${it.item}" is nothing this build can name`);
     }
     if (!it.flag) fail(`map ${mapId}: ground item at ${it.x},${it.y} has no flag`);
     if (seenFlags.has(it.flag)) fail(`map ${mapId}: duplicate item flag "${it.flag}"`);

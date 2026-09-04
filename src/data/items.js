@@ -1,3 +1,6 @@
+import { MATERIALS, RELICS, SNARES, OATHS, EGG_ITEMS } from './craft.js';
+import { WEAPONS, ARMOUR, SHIELDS, HELMS, GLOVES } from './gear.js';
+
 // Bag items. `use` describes the effect declaratively so the bag menu and the
 // battle scene can share one application routine.
 
@@ -94,8 +97,29 @@ export const ITEMS = {
 export const POCKETS = ['banners', 'medicine', 'key'];
 export const POCKET_NAMES = { banners: 'BANNERS', medicine: 'REMEDIES', key: 'KEY ITEMS' };
 
+/* Everything else the world can leave lying about.
+ *
+ * maps.js is shared with the cartridge, and the cartridge has systems this
+ * build does not: crafting, relics, snares, oaths, and a gear ladder. So the
+ * maps scatter forty-two kinds of thing across the world - a Direwolf Pelt in
+ * the Weeping Barrow, a Bastard Sword in the Sealord's Palace - that are real
+ * entries in craft.js and gear.js and were never in ITEMS. Picking any of them
+ * up threw "Unknown item" out of the pickup script, and before the speech box
+ * learned to let go of an abandoned promise that took the whole game with it.
+ *
+ * They go in the bag under their own name, in the pocket that holds whatever
+ * has no pocket of its own. This build cannot forge with a pelt or swing a
+ * bastard sword, but a thing you picked up should at least be a thing you
+ * have, with the name the rest of the game calls it by. */
+const ELSEWHERE = [MATERIALS, RELICS, SNARES, OATHS, EGG_ITEMS, WEAPONS, ARMOUR,
+                   SHIELDS, HELMS, GLOVES];
+
 export function item(id) {
   const found = ITEMS[id];
-  if (!found) throw new Error(`Unknown item: ${id}`);
-  return { id, ...found };
+  if (found) return { id, ...found };
+  for (const table of ELSEWHERE) {
+    const other = table?.[id];
+    if (other) return { id, pocket: 'key', price: 0, ...other };
+  }
+  throw new Error(`Unknown item: ${id}`);
 }

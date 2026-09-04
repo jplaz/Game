@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node serve.js",
     "serve": "node serve.js",
-    "validate": "node tools/validate.mjs"
+    "validate": "node tools/validate.mjs",
+    "playtest": "node tools/playtest.mjs"
   },
   "keywords": [
     "game",

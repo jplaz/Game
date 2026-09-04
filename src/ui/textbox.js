@@ -37,7 +37,34 @@ export class Textbox {
   }
 
   /** Queues a message. Resolves once the player has read every page. */
+  /**
+   * Lets go of whoever is waiting on the box before it is taken away.
+   *
+   * The box hands out one promise and remembers one resolve. Putting a second
+   * message up over a first that nobody has answered used to overwrite that
+   * resolve and leave the first promise pending for ever - and a script is
+   * `await say(...)`, so the script never returned, `overworld.script` was
+   * never cleared, and the overworld stayed busy for the rest of the session.
+   * The player could not take a step. Talking to the miller in the house at
+   * Winterfell did it.
+   *
+   * Settling is the only recovery there is: a line that has been replaced has
+   * been read as far as the player is concerned, and a question that has been
+   * taken away is a question cancelled. Either is better than a game that
+   * stops answering the keys.
+   */
+  settle() {
+    const resolve = this.resolve;
+    const choose = this.choiceResolve;
+    const cancel = this.pendingChoice?.cancelIndex ?? -1;
+    this.resolve = null;
+    this.choiceResolve = null;
+    resolve?.();
+    choose?.(cancel);
+  }
+
   say(text, { theme = 'parchment', auto = 0 } = {}) {
+    this.settle();
     const lines = wrapText(String(text), TEXT_WIDTH);
     this.pages = [];
     for (let i = 0; i < lines.length; i += LINES_PER_PAGE) {
@@ -81,7 +108,7 @@ export class Textbox {
     this.theme = theme;
     this.choice = null;
     this.pendingChoice = null;
-    this.resolve = null;
+    this.settle();
     this.autoCloseAfter = 0;
   }
 
@@ -90,9 +117,7 @@ export class Textbox {
     this.standing = false;
     this.choice = null;
     this.pendingChoice = null;
-    const resolve = this.resolve;
-    this.resolve = null;
-    resolve?.();
+    this.settle();
   }
 
   update(dt) {

@@ -20,7 +20,7 @@
  *   node tools/playtest.mjs [frames] [seed]
  */
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { join, normalize, extname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
@@ -30,6 +30,23 @@ const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 const ROOT = resolve(process.cwd());
 const FRAMES = Number(process.argv[2] ?? 120000);
 const SEED = Number(process.argv[3] ?? 1);
+
+/* Every screen the game can put in front of you.
+ *
+ * Read out of the source rather than written down here. A run that reaches
+ * four screens out of twelve and says only "scenes reached: Title, Overworld,
+ * Duel, MainMenu" reads like a success, and the eight it never opened are
+ * exactly the ones nothing has ever pressed a key on - which is where the
+ * lock-up it did find was living. Listing what went unplayed makes that
+ * silence say something, and a screen added later joins the list on its own. */
+async function screensInSource() {
+  const dir = new URL('../src/scenes/', import.meta.url);
+  const files = (await readdir(dir)).filter((f) => f.endsWith('.js'));
+  const sources = await Promise.all(files.map((f) => readFile(new URL(f, dir), 'utf8')));
+  return sources
+    .flatMap((src) => [...src.matchAll(/^export class (\w+)/gm)].map((m) => m[1]))
+    .sort();
+}
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -49,6 +66,8 @@ const server = createServer(async (req, res) => {
     res.writeHead(404).end();
   }
 });
+const SCREENS = await screensInSource();
+
 await new Promise((r) => server.listen(0, r));
 const port = server.address().port;
 
@@ -106,21 +125,22 @@ await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
 /* The game's own singletons, by the same URLs main.js imported them from, so
    these are the very objects it is using and not a second copy. */
 await page.evaluate(async () => {
-  const [inputMod, sceneMod, stateMod, boxMod] = await Promise.all([
+  const [inputMod, sceneMod, stateMod, boxMod, mapMod] = await Promise.all([
     import('/src/engine/input.js'),
     import('/src/engine/scenes.js'),
     import('/src/game/state.js'),
     import('/src/ui/textbox.js'),
+    import('/src/data/maps.js'),
   ]);
   window.__game = {
     input: inputMod.input, scenes: sceneMod.scenes,
-    state: stateMod, dialog: boxMod.dialog,
+    state: stateMod, dialog: boxMod.dialog, MAPS: mapMod.MAPS,
   };
 });
 
 const report = await page.evaluate(
   async ({ frames, seed }) => {
-    const { input, scenes, state, dialog } = window.__game;
+    const { input, scenes, state, dialog, MAPS } = window.__game;
     const findings = [];
     const said = new Set();
     const finding = (s) => {
@@ -202,6 +222,44 @@ const report = await page.evaluate(
       return null;
     };
 
+    /* The way out of here, towards somewhere we have not been.
+     *
+     * Choosing the nearest unvisited door is how this walked sixteen maps out
+     * of two hundred and thirty-one and called it playing the game: every door
+     * on the map you are standing in leads somewhere you have already been, so
+     * it shrugs and takes one at random, and the corner of the world you
+     * started in is the only corner you ever see. Doors are not the graph. The
+     * world is: maps joined by warps. So search that, from the map underfoot
+     * outwards, and the answer is which door on THIS map takes the first step
+     * of the shortest way to ground nobody has stood on. It is the difference
+     * between a wanderer and a crawler, and it is what puts a town, a shop and
+     * a forge within reach of a run at all.
+     *
+     * Doors that did not open when aimed at - locked, conditional, or wanting
+     * something we have not got - are passed in `shut` and left out of the
+     * search, so one barred gate cannot swallow every route through it. */
+    const routeOut = (from, visited, shut) => {
+      const queue = [from];
+      const cameFrom = new Map([[from, null]]);
+      for (let head = 0; head < queue.length && head < 400; head++) {
+        const id = queue[head];
+        for (const w of MAPS[id]?.warps ?? []) {
+          if (w.to === undefined || shut.has(`${id}:${w.x},${w.y}`)) continue;
+          /* Found somewhere new. Walk the trail back to the first hop, which
+             is a door on the map we are actually standing on. */
+          if (!visited.has(w.to)) {
+            let step = { id, warp: w };
+            while (cameFrom.get(step.id)) step = cameFrom.get(step.id);
+            return step.warp;
+          }
+          if (cameFrom.has(w.to)) continue;
+          cameFrom.set(w.to, { id, warp: w });
+          queue.push(w.to);
+        }
+      }
+      return null;
+    };
+
     const seen = {
       scenes: new Set(),
       maps: new Set(),
@@ -209,6 +267,7 @@ const report = await page.evaluate(
       duels: 0,
       talks: 0,
       goals: 0,
+      counters: 0,
     };
 
     let lastScene = '';
@@ -217,6 +276,9 @@ const report = await page.evaluate(
     let stillFor = 0;
     let lastX = -1, lastY = -1;
     let goal = null, goalMap = null, goalFor = 0;
+    /* Which door we are walking at, and the ones that never let us in. */
+    let aimed = null;
+    const shut = new Set();
 
     /* Which script is running, when one is.
      *
@@ -393,11 +455,20 @@ const report = await page.evaluate(
              * frames walking in and out of the same house: you step through,
              * and the nearest door on the other side is the one you just came
              * out of. Somewhere unvisited first, anywhere second. */
+            /* A door we aimed at and never came through is a door that does
+               not open for us. Remember it, or the route keeps sending us back
+               to the same barred gate for the rest of the run. */
+            if (aimed && !changed) shut.add(aimed);
+            aimed = null;
+
+            const onward = routeOut(here2.mapId, seen.maps, shut);
             const fresh = doors.filter((d) => !seen.maps.has(d.to));
             const pool = (roll(4) === 0 && folk.length) ? folk
+              : onward ? [onward]
               : fresh.length ? fresh
               : doors.length ? doors : folk;
             goal = pool.length ? pool[roll(pool.length)] : null;
+            if (goal?.to !== undefined) aimed = `${here2.mapId}:${goal.x},${goal.y}`;
             goalMap = here2.mapId;
             goalFor = 90;
             stillFor = 0;
@@ -432,7 +503,24 @@ const report = await page.evaluate(
              hundred times a session and nothing here had ever looked at. */
           if (roll(60) === 0) { hold('start'); break; }
           const isDoor = goal.to !== undefined;
-          if (!isDoor && Math.abs(dx) + Math.abs(dy) <= 1) {
+          /* A shopkeeper stands behind his counter, which is two tiles away
+             and a wall in between. interact() knows that and reaches over a
+             counter tile to find him; this did not, and only ever pressed A at
+             arm's length. So in three hundred and eighty-six conversations
+             across two thousand steps it had never once opened a shop or a
+             forge - the two screens where you spend money, and the two the
+             buying loop lives in. It would walk up to the counter, fail to
+             arrive at a man it could not reach, give up and pick another goal.
+             Reach across the counter the way the game does. */
+          const sx = Math.sign(dx), sy = Math.sign(dy);
+          const overCounter = Math.abs(dx) + Math.abs(dy) === 2 && (dx === 0 || dy === 0)
+            && here2.map?.grid?.[y + sy]?.[x + sx] === 'K';
+          if (!isDoor && (Math.abs(dx) + Math.abs(dy) <= 1 || overCounter)) {
+            /* Talking happens down your nose: the first press of a direction
+               only turns you. Walking into the counter faces you the right way
+               already, but say it out loud rather than trust the approach. */
+            if (overCounter && roll(3) === 0) { hold(want); break; }
+            if (overCounter) seen.counters++;
             if (roll(5) === 0) { hold('challenge'); break; }
             seen.talks++;
             hold('a');
@@ -458,6 +546,7 @@ const report = await page.evaluate(
       duels: seen.duels,
       talks: seen.talks,
       goals: seen.goals,
+      counters: seen.counters,
       stacked,
       level: st?.player?.level ?? null,
       money: st?.player?.money ?? null,
@@ -480,12 +569,20 @@ say('maps walked', report.maps);
 say('battles', report.battles);
 say('duels', report.duels);
 say('people talked to', report.talks);
+say('over a counter', report.counters ?? 0);
 say('places aimed for', report.goals ?? '?');
 say('boxes replaced', report.stacked ?? 0);
 say('ended in', `${report.map ?? '(nowhere)'}, level ${report.level ?? '?'}, ${report.money ?? '?'} gold`);
 say('party', report.party ?? '?');
 say('steps walked', report.steps ?? '?');
 say('sigils', report.sigils ?? '?');
+
+/* Not a fault - one short run has no business opening every screen in the
+   game, and failing on that would only teach us to ignore the failure. It is
+   the honest other half of the line above it: here is what this run played,
+   and here is what it left shut. */
+const unplayed = SCREENS.filter((s) => !report.scenes.includes(s));
+say('never opened', unplayed.join(', ') || 'nothing - every screen was played');
 
 const all = [...report.findings, ...thrown];
 if (!all.length) {

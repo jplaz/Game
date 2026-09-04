@@ -6,6 +6,7 @@
 //
 //   node tools/validate.mjs
 
+import { readFile } from 'node:fs/promises';
 import { MAPS } from '../src/data/maps.js';
 import { SPECIES, SPECIES_IDS } from '../src/data/species.js';
 import { MOVES } from '../src/data/moves.js';
@@ -579,6 +580,64 @@ for (const id of Object.keys(DUELLISTS)) {
 console.log(`Checked ${Object.keys(MAPS).length} maps, ${SPECIES_IDS.length} species, `
   + `${Object.keys(MOVES).length} moves, ${Object.keys(TRAINERS).length} trainers, `
   + `${Object.keys(DUELLISTS).length} duellists.`);
+
+/* A script that reaches for something nobody handed it.
+ *
+ * Scripts are handed an api object and pull what they want out of it by name.
+ * Six of them asked for "battle", never used it, and then called
+ * overworld.startAmbush - so "overworld" was a free variable, the script threw
+ * a ReferenceError the moment you spoke to the man, and the fight simply never
+ * happened. Between them those six were three of the ten sigil holders and all
+ * three meetings with your rival, the last one included: the browser game could
+ * not be finished, and no table check could see it because every table was
+ * right. Only pressing A in front of the man finds it, or this.
+ *
+ * Read as text on purpose. The mistake is a name that is missing from the
+ * argument list, and by the time the module is imported that name is gone. */
+const SCRIPT_API = ['subject', 'npc', 'data', 'overworld', 'say', 'choose', 'battle',
+                    'duel', 'holdCourt', 'openShop', 'openSmithy', 'healParty',
+                    'saveGame', 'setFlag', 'flag'];
+const scriptSource = await readFile(new URL('../src/data/scripts.js', import.meta.url), 'utf8');
+
+/* Scripts are written three ways and the bug lived in two of them, so read all
+   three: named with the api picked apart in the argument list, named taking the
+   whole api and picking it apart on the first line, and the five seats built
+   from one shape by a map(). The first version of this check only knew the
+   first shape - it read 88 of the 94 scripts, said nothing, and the five seats
+   it skipped had the very fault it was written to find. The count below is what
+   made it own up, so it stays. */
+const SHAPES = [
+  /^  (?:async )?(\w+)\(\{([^}]*)\}[^)]*\) \{\n([\s\S]*?)\n  \},$/gm,
+  /^  (?:async )?(\w+)\(\w+\) \{\n\s*const \{([^}]*)\} = \w+;\n([\s\S]*?)\n  \},$/gm,
+  /\[((?:'\w+',?\s*)+)\]\n\s*\.map\(\(\w+\) => \[\w+, async function \(\{([^}]*)\}\) \{\n([\s\S]*?)\n    \}\]/gm,
+  /* Takes the whole api and never picks it apart, so every use of it is
+     "api.something" and the mistake is not available to be made. Listed last
+     and behind the already-read guard, so it claims only what the shapes above
+     did not: a script that DOES pick the api apart is theirs, not this one's,
+     and reading it here with nothing declared would fail every name it uses. */
+  /^  (?:async )?(\w+)\((\w*)\) \{\n([\s\S]*?)\n  \},$/gm,
+];
+const scriptsRead = new Set();
+for (const shape of SHAPES) {
+  for (const [, name, params, body] of scriptSource.matchAll(shape)) {
+    /* One shape can stand for several seats; the names come out of the list
+       it was built from, so the tally below counts them all. */
+    const named = name.match(/\w+/g) ?? [];
+    if (named.every((one) => scriptsRead.has(one))) continue;
+    for (const one of named) scriptsRead.add(one);
+    const given = new Set(params.split(',').map((t) => t.trim().split(/[:=]/)[0].trim()));
+    for (const key of SCRIPT_API) {
+      if (given.has(key)) continue;
+      if (!new RegExp(`(^|[^.\\w'"\`])${key}\\b`, 'm').test(body)) continue;
+      fail(`script ${name}: uses "${key}" but never takes it from the api`);
+    }
+  }
+}
+const scriptCount = Object.keys(SCRIPTS).length;
+if (scriptsRead.size < scriptCount) {
+  fail(`the script-api check read ${scriptsRead.size} of ${scriptCount} scripts: `
+    + 'a script is written in a shape it cannot see, and is going unchecked');
+}
 
 for (const w of warnings) console.log(`  warn  ${w}`);
 for (const p of problems) console.log(`  FAIL  ${p}`);

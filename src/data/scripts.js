@@ -1094,7 +1094,7 @@ export const SCRIPTS = {
     await say('Steward: Lord Rickard fights with BEAST creatures. Frost bites them hard, and so does a good wing.');
   },
 
-  async gymStark({ say, npc, battle, setFlag, flag }) {
+  async gymStark({ say, npc, overworld, setFlag, flag }) {
     const def = TRAINERS.gymStark;
     if (flag('trainer_gymStark')) {
       await say(def.after);
@@ -1123,7 +1123,7 @@ export const SCRIPTS = {
     await say('Crannogman: Water that looks like ground has drowned better travellers than you. Stay on the causeway.');
   },
 
-  async rivalMoat({ say, npc, battle, setFlag, flag }) {
+  async rivalMoat({ say, npc, overworld, setFlag, flag }) {
     const def = TRAINERS.rival1;
     if (flag('trainer_rival1')) {
       await say(def.after);
@@ -1193,7 +1193,7 @@ export const SCRIPTS = {
     await say('Steward: TIDE creatures drown a fire and crush a stone. Storms and green things undo them.');
   },
 
-  async gymTully({ say, battle, setFlag, flag }) {
+  async gymTully({ say, overworld, setFlag, flag }) {
     const def = TRAINERS.gymTully;
     if (flag('trainer_gymTully')) {
       await say(def.after);
@@ -1298,7 +1298,7 @@ export const SCRIPTS = {
     await say('Goldsmith: STEEL turns aside frost and stone alike. Fire goes straight through it.');
   },
 
-  async rivalLannisport({ say, npc, battle, setFlag, flag }) {
+  async rivalLannisport({ say, npc, overworld, setFlag, flag }) {
     const def = TRAINERS.rival2;
     if (flag('trainer_rival2')) {
       await say(def.after);
@@ -1317,7 +1317,7 @@ export const SCRIPTS = {
     await say('Steward: Ser Jaime fields BEAST and STEEL. Flame melts one; a good hard hit settles the other.');
   },
 
-  async gymLannister({ say, battle, setFlag, flag }) {
+  async gymLannister({ say, overworld, setFlag, flag }) {
     const def = TRAINERS.gymLannister;
     if (flag('trainer_gymLannister')) {
       await say(def.after);
@@ -1367,7 +1367,7 @@ export const SCRIPTS = {
     await say('Stranger: When you sit in that chair, remember who was here before you. Everyone forgets. That is how it keeps happening.');
   },
 
-  async rivalThrone({ say, npc, battle, setFlag, flag }) {
+  async rivalThrone({ say, npc, overworld, setFlag, flag }) {
     const def = TRAINERS.rival3;
     if (flag('trainer_rival3')) {
       await say(def.after);
@@ -1638,7 +1638,7 @@ export const SCRIPTS = {
   // were the name and the parting gift. One shape, nine seats: say your piece,
   // fight, hand over the sigil.
   ...Object.fromEntries(['gymArryn', 'gymTyrell', 'gymMartell', 'gymBaratheon', 'gymTargaryen']
-    .map((id) => [id, async function ({ say, setFlag, flag }) {
+    .map((id) => [id, async function ({ say, overworld, setFlag, flag }) {
       const def = TRAINERS[id];
       if (flag(`trainer_${id}`)) { await say(def.after); return; }
       await say(def.intro);

@@ -2214,6 +2214,7 @@ function pykePlan() {
   row(26, 21, 'ADAA');                       // house door at 27,21
   bridgeV(27, 15, 16);
 
+  put(14, 11, 'K');                          // the carpenter's counter, on the middle stack
   return g.map((r) => r.join(''));
 }
 
@@ -2346,6 +2347,9 @@ function highgardenCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
      a maze the player walks into once and never enters again. */
   [[10, '###.'], [12, '.###'], [14, '###.'], [16, '.###'], [18, '###.']]
     .forEach(([yy, s]) => row(18, yy, s));
+  /* Long grass in the turns of it, and something living there: a garden
+     nobody hunts in is a garden a poacher can work in peace. */
+  row(19, 11, ',,'); row(18, 15, ',,'); row(20, 17, ',,');
 
   // and the pavilions among the roses: an inn, a house, a cellar
   put(4, 19, 'n'); put(18, 19, 'n');
@@ -2353,6 +2357,7 @@ function highgardenCore({ W, g, A, M, R, t, H, Z, z, Y, y, P, V }) {
   row(16, 20, y.repeat(5)); row(16, 21, Y.repeat(5)); row(16, 22, H + 'wDw' + H);
   row(8, 21, z.repeat(4)); row(8, 22, A + A + 'D' + A);
 
+  put(12, 23, 'K'); put(13, 23, 'K');        // the fruit seller's counter on the south lawn
   return {
     tiles: done(),
     doors: {
@@ -2818,6 +2823,9 @@ function riverrunPlan() {
 
   // the inn, up under the north wall
   row(9, 6, 'yyyyy'); row(9, 7, 'YYYYY'); row(9, 8, 'HwDwH'); put(11, 5, 'n');
+  /* And the common house, down in the south ward. Riverrun was the one seat
+     with an inn and nowhere else to spend an evening. */
+  row(9, 17, 'yyyyy'); row(9, 18, 'YYYYY'); row(9, 19, 'YYYYY'); row(9, 20, 'HwDwH'); put(12, 16, 'n');
 
   /* The water gate, out at the point, where everything Riverrun eats arrives
      by boat because there is no road on this side of it. */
@@ -3701,7 +3709,19 @@ export const MAPS = {
       { x: 26, y: 24, text: 'THE WINCH HOUSE\nSix hundred steps, and a mule track before that.\nAn army has never taken the Eyrie. An army has never got up here.' },
       { x: 3, y: 13, text: "ALYSSA'S TEARS\nShe wept for her murdered children and never stopped.\nThe fall is so long the water is gone to mist before it lands." },
     ],
+    items: [
+      { x: 29, y: 23, item: 'kingsRansom', count: 1, flag: 'item_eyrie_drop' },
+      { x: 5, y: 5, item: 'frostTonic', count: 1, flag: 'item_eyrie_terrace' },
+    ],
     npcs: [
+      { x: 16, y: 5, dir: 'down', sprite: 'arryn', name: 'Ser Hugh of the Vale', script: 'duel',
+        data: { duel: 'hedgeKnight' } },
+      { x: 12, y: 6, dir: 'right', sprite: 'smallfolk', name: 'Falconer', script: 'townTalk',
+        data: { line: 'Falconer: Everything up here has wings or wishes it had. Keep back from the edge, or want them yourself.' } },
+      { x: 20, y: 13, dir: 'left', sprite: 'guard', name: 'Gaoler', script: 'townTalk',
+        data: { line: 'Gaoler: Three walls and a fourth side made of sky. Nobody has ever needed a lock on a sky cell.' } },
+      { x: 9, y: 25, dir: 'up', sprite: 'child', name: "Mule Driver's Girl", script: 'townTalk',
+        data: { line: "Mule Driver's Girl: Six hundred steps. I have counted them going up, and going down, and they are not the same number." } },
       { x: 8, y: 6, dir: 'down', sprite: 'septa', name: 'Septa of the Eyrie',
         script: 'townTalk', data: { line: 'Septa of the Eyrie: The Vale marries carefully; it has to, there are only so many roads down. Have a roof of your own first, and then we will talk about who sits under it.' } },
       { x: 7, y: 6, dir: 'down', sprite: 'arryn', name: 'Ser Vardis Egen',
@@ -3848,7 +3868,22 @@ export const MAPS = {
       { x: 10, y: 12, text: 'HIGHGARDEN\nSeat of House Tyrell.\nEvery hedge is deliberate.' },
       { x: 6, y: 12, text: 'THE WHITE WALLS\nTwo rings of it, and the gardens in between.\nNo other castle in the realm wastes that much ground on flowers.' },
     ],
+    encounters: [
+      { roamer: 'hedgeKnight', min: 18, max: 24, weight: 50 },
+      { roamer: 'poacher', min: 16, max: 22, weight: 50 },
+    ],
+    items: [
+      { x: 25, y: 1, item: 'kingsRansom', count: 1, flag: 'item_highgarden_orchard' },
+      { x: 29, y: 24, item: 'weirwoodSap', count: 1, flag: 'item_highgarden_maze' },
+    ],
     npcs: [
+      { x: 14, y: 19, dir: 'left', sprite: 'tyrell', name: 'Ser Loras', script: 'duel',
+        data: { duel: 'hedgeKnight' } },
+      { x: 12, y: 22, dir: 'down', sprite: 'merchant', name: 'Fruit Seller', script: 'shop',
+        data: { stock: ['maesterKit', 'antidote', 'wakingDraught', 'stillwater'],
+                line: 'Fruit Seller: Peaches, plums, and whatever the Reach has too much of this week, which is everything.' } },
+      { x: 4, y: 9, dir: 'right', sprite: 'goodwife', name: 'Rose Gardener', script: 'townTalk',
+        data: { line: 'Rose Gardener: Golden roses want three things. Sun, water, and somebody else to do the pruning.' } },
       { x: 13, y: 5, dir: 'down', sprite: 'septa', name: 'Septa of Highgarden',
         script: 'townTalk', data: { line: 'Septa of Highgarden: Half the Reach is somebody\u2019s cousin. Bring me a hall and a name that has bent to you, and a match is the easiest thing in the world.' } },
       { x: 12, y: 5, dir: 'down', sprite: 'tyrell', name: 'Highgarden Steward', script: 'quest',
@@ -3955,6 +3990,9 @@ export const MAPS = {
 
   sunspear: makeTown({
     outsiders: [
+      { dir: 'down', sprite: 'braavosi', name: 'Spice Seller', script: 'shop',
+        data: { stock: ['antidote', 'burnSalve', 'kissOfFire', 'poppyMilk'],
+                line: 'Spice Seller: Dragon peppers, fire plums, and a powder that will stop your heart or start it. Do not confuse them.' } },
       { dir: 'down', sprite: 'martell', name: 'Orphan of the Greenblood', script: 'townTalk',
         data: { line: 'Orphan of the Greenblood: We are called orphans because we lost the mother Rhoyne. That was a thousand years ago. Dornishmen hold a grudge.' } },
       { dir: 'down', sprite: 'merchant', name: 'A Shade Seller', script: 'townTalk',
@@ -3990,7 +4028,15 @@ export const MAPS = {
       { x: 10, y: 16, text: 'THE TOWER OF THE SUN\nSeat of House Martell.\nUnbowed. Unbent. Unbroken.' },
       { x: 12, y: 4, text: 'THE WINDING WALLS\nThree turns between walls you cannot see over.\nAn army that gets through the gate has got nowhere at all.' },
     ],
+    items: [
+      { x: 30, y: 25, item: 'kissOfFire', count: 1, flag: 'item_sunspear_shadow' },
+      { x: 8, y: 22, item: 'poppyMilk', count: 1, flag: 'item_sunspear_orchard' },
+    ],
     npcs: [
+      { x: 3, y: 22, dir: 'right', sprite: 'smallfolk', name: 'Sand Steed Dealer', script: 'townTalk',
+        data: { line: 'Sand Steed Dealer: A sand steed will run a day and a night without water. So will the man who steals one, if he knows what is good for him.' } },
+      { x: 13, y: 22, dir: 'up', sprite: 'martell', name: 'Areo Hotah', script: 'duel',
+        data: { duel: 'manAtArms' } },
       { x: 10, y: 18, dir: 'down', sprite: 'septa', name: 'Septa of Sunspear',
         script: 'townTalk', data: { line: 'Septa of Sunspear: Dorne is not troubled about who marries whom, only about whether they meant it. Buy a hall. Then come back and mean it.' } },
       { x: 14, y: 18, dir: 'down', sprite: 'sellsword', name: 'Captain of the Sands',
@@ -4108,6 +4154,9 @@ export const MAPS = {
 
   stormsEnd: makeTown({
     outsiders: [
+      { dir: 'up', sprite: 'merchant', name: 'Salvager', script: 'shop',
+        data: { stock: ['maesterKit', 'burnSalve', 'stillwater', 'warBanner'],
+                line: 'Salvager: Everything on this cloth came off the rocks. I do not ask the sea where it got it.' } },
       { dir: 'down', sprite: 'smallfolk', name: 'A Wrecker', script: 'townTalk',
         data: { line: 'A Wrecker: Everything on this shore came off a ship, including most of the people. Shipbreaker Bay is not a name somebody chose to be pretty.' } },
       { dir: 'down', sprite: 'oldman', name: 'The Bell Ringer', script: 'townTalk',
@@ -4134,7 +4183,17 @@ export const MAPS = {
       { x: 11, y: 8, text: "STORM'S END\nSeat of House Baratheon.\nNo storm has ever taken it. Many have tried." },
       { x: 4, y: 12, text: 'THE CURTAIN WALL\nOne unbroken ring, jointed so close the wind finds nothing to pull at.\nThere is no second wall. There has never needed to be.' },
     ],
+    items: [
+      { x: 27, y: 4, item: 'kingsRansom', count: 1, flag: 'item_stormsend_wreck' },
+      { x: 24, y: 23, item: 'burnSalve', count: 1, flag: 'item_stormsend_shore' },
+    ],
     npcs: [
+      { x: 12, y: 7, dir: 'down', sprite: 'baratheon', name: 'Ser Cortnay Penrose', script: 'duel',
+        data: { duel: 'hedgeKnight' } },
+      { x: 26, y: 21, dir: 'left', sprite: 'child', name: 'Stormlander Boy', script: 'townTalk',
+        data: { line: 'Stormlander Boy: When the wind comes off the bay you lean into it. When it stops, you fall over. Everybody does, once.' } },
+      { x: 12, y: 17, dir: 'right', sprite: 'smallfolk', name: "Smith's Boy", script: 'townTalk',
+        data: { line: "Smith's Boy: The walls are a hundred feet thick and the wind still gets in. My master says it comes in under the door, like everything else." } },
       { x: 7, y: 7, dir: 'down', sprite: 'redPriest', name: 'Melisandre', script: 'melisandre' },
       { x: 8, y: 7, dir: 'down', sprite: 'septa', name: "Septa of Storm's End",
         script: 'townTalk', data: { line: 'Septa of Storm\u2019s End: I have married people in this sept through three sieges. A roof and the price of the feast is all it has ever taken.' } },
@@ -4246,6 +4305,10 @@ export const MAPS = {
       { x: 12, y: 15, text: 'THE STONE DRUM\nAncient seat of House Targaryen.\nThe stone was shaped while it was still soft, and nobody will say by what.\nThe Chamber of the Painted Table is at the top of the stair inside.' },
       { x: 3, y: 4, text: 'THE DRAGONMONT\nThe mountain has never gone out and the ground stays warm in midwinter.\nThat stops being comforting once you have thought about why.' },
       { x: 12, y: 20, text: "AEGON'S GARDEN\nDark trees, brought over the water and planted before the Conquest.\nThe only thing on this island that grows." },
+    ],
+    items: [
+      { x: 24, y: 23, item: 'kingsRansom', count: 1, flag: 'item_dragonstone_strand' },
+      { x: 2, y: 15, item: 'frostTonic', count: 1, flag: 'item_dragonstone_gallery' },
     ],
     npcs: [
       { x: 8, y: 16, dir: 'down', sprite: 'unsullied', name: 'Grey Worm', script: 'duel',
@@ -4675,6 +4738,16 @@ export const MAPS = {
   // ------------------------------------------ the smithy at Riverrun -------
   // A river smithy: long, open to the water at one end, with the quenching
   // trough running the length of it.
+  riverrunHouse: makeCommonHouse({
+    town: 'riverrun', name: 'The Trout and Trident', region: 'The Riverlands',
+    madam: 'Mother Mole', madamLine: 'Mother Mole: Three rivers meet under this house and so does everybody else. Sit down.',
+    voices: [
+      { who: 'A Freyman', line: 'A Freyman: My lord counts every bridge toll twice and every wedding once. He prefers the tolls.' },
+      { who: 'A Riverlands Girl', line: 'A Riverlands Girl: Everyone here has lost somebody to somebody. Ask who and the room goes quiet.' },
+      { who: 'A Mummer', line: 'A Mummer: I know six songs and every lord of the Trident has banned one of them.' },
+    ],
+  }),
+
   riverrunForge: {
     name: 'The Tully Armoury',
     indoor: true,
@@ -4801,6 +4874,7 @@ export const MAPS = {
       { beast: 'riverfry', min: 11, max: 14, weight: 14 },
     ],
     warps: [
+      { x: 11, y: 20, to: 'riverrunHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 2, y: 0, to: 'riverlands', tx: 10, ty: 23, dir: 'up' },
       { x: 18, y: 12, to: 'maesterHallRiverrun', tx: 5, ty: 7, dir: 'up' },
       { x: 18, y: 16, to: 'riverrunForge', tx: 5, ty: 6, dir: 'up' },
@@ -4813,7 +4887,18 @@ export const MAPS = {
       { x: 29, y: 13, text: 'THE WATER GATE\nEverything this castle eats comes in on a boat.\nThere is no road on this side and there never has been.' },
       { x: 7, y: 12, text: 'THE DITCH\nOpen the sluices and the two rivers meet across it.\nRiverrun becomes an island in about an hour.' },
     ],
+    items: [
+      { x: 28, y: 13, item: 'poppyMilk', count: 1, flag: 'item_riverrun_jetty' },
+      { x: 8, y: 4, item: 'kingsRansom', count: 1, flag: 'item_riverrun_corner' },
+    ],
     npcs: [
+      { x: 12, y: 9, dir: 'down', sprite: 'tully', name: 'Ser Brynden Tully', script: 'duel',
+        data: { duel: 'hedgeKnight' } },
+      { x: 20, y: 9, dir: 'down', sprite: 'merchant', name: 'River Trader', script: 'shop',
+        data: { stock: ['maesterKit', 'antidote', 'stillwater', 'poppyMilk'],
+                line: 'River Trader: Everything on this barge came down the Red Fork, and half of it is going straight back up.' } },
+      { x: 20, y: 17, dir: 'left', sprite: 'child', name: "Ferryman's Boy", script: 'townTalk',
+        data: { line: "Ferryman's Boy: My father rows the Tumblestone. He says the Blackfish once swam it in mail, and he says it every time." } },
       { x: 9, y: 16, dir: 'down', name: 'Smallfolk Woman', sprite: 'goodwife',
         script: 'quest', data: { quest: 'hangingTree' } },
       { x: 10, y: 16, dir: 'down', sprite: 'septa', name: 'Septon of Riverrun',
@@ -6116,7 +6201,18 @@ export const MAPS = {
       { x: 12, y: 21, text: 'THE GREAT KEEP\nSeat of House Greyjoy.\nWe Do Not Sow.' },
       { x: 12, y: 3, text: 'THE BRIDGE\nThe only one joined to land, and they watch it day and night.\nEverything else here you cross over water.' },
     ],
+    items: [
+      { x: 11, y: 2, item: 'kingsRansom', count: 1, flag: 'item_pyke_seatower' },
+      { x: 30, y: 20, item: 'poppyMilk', count: 1, flag: 'item_pyke_house' },
+    ],
     npcs: [
+      { x: 5, y: 17, dir: 'right', sprite: 'ironborn', name: 'Reaver', script: 'duel',
+        data: { duel: 'ironbornReaver' } },
+      { x: 29, y: 17, dir: 'left', sprite: 'smallfolk', name: 'Thrall', script: 'townTalk',
+        data: { line: 'Thrall: I was a fisherman on the Stony Shore. Now I am a fisherman here. The fish are the same. The masters are not.' } },
+      { x: 14, y: 10, dir: 'down', sprite: 'merchant', name: "Ship's Carpenter", script: 'shop',
+        data: { stock: ['maesterKit', 'stillwater', 'antidote', 'warBanner'],
+                line: "Ship's Carpenter: Pitch, tar, oakum and a hull that was somebody else's last week. Ironborn do not buy timber. They take it." } },
       { x: 13, y: 3, dir: 'down', sprite: 'septa', name: 'Salt Septon',
         script: 'townTalk', data: { line: 'Salt Septon: They will tell you the ironborn take salt wives and do not bother with septs. They come here anyway, before the winter. Bring a hall and I will read the words.' } },
       { x: 10, y: 5, dir: 'down', sprite: 'goodwife', name: 'A Woman of Fair Isle', script: 'quest',

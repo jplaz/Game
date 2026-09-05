@@ -37,12 +37,16 @@ const MAP_IDS = [
   'castleBlackArmoury', 'castleBlackHall', 'beyondTheWall', 'moatCailin',
   'maesterHallMoat',
   'moatCailinForge',
-  'riverlands', 'riverrun', 'maesterHallRiverrun', 'riverrunForge', 'riverrunInn',
+  'riverlands', 'riverrun', 'maesterHallRiverrun', 'riverrunForge', 'riverrunInn', 'riverrunHouse',
   'riverrunKeep', 'bloodyGate',
   // The road south, so every house can begin at its own seat rather than all
   // five of them starting in the Stark yard.
   'theEyrie', 'maesterHallEyrie', 'eyrieArmoury', 'eyrieKeep',
   'goldRoad', 'lannisport', 'maesterHallLannisport', 'lannisportForge', 'casterlyRock',
+  /* The port under the Rock, drawn rather than gridded: an inn and a common
+     house where there were none, a sept, and the goldsmith's. Their upper
+     floors and cellar arrive through UPPER_FLOORS like everybody else's. */
+  'lannisportInn', 'lannisportHouse', 'lannisportSept', 'lannisportGoldsmith',
   'kingsroad', 'kingsLanding', 'maesterHallKL', 'klArmoury',
   // The capital, and the four places in it you have to go and find.
   'greatSept', 'dragonpit', 'fleaBottom', 'mudGate',

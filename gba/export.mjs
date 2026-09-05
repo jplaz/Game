@@ -1178,8 +1178,13 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         duellist: pushDuellist({ ...fighter, house: houseOfSprite(sprite) }),
         // A town is not a waxwork. Everybody has somewhere to be except the
         // people whose whole job is to stand behind something.
-        roams: n.beast ? 0
-          : /healer|merchant|shop|smith|innkeep|steward|harbour|ship|court|stable|kennel/i
+        /* Who has somewhere to be, and who is standing where they were put.
+           An animal keeps its rock; a town's outsider keeps the junction the
+           layout chose for them; nobody wanders in a cave, which is a passage
+           with rooms off it; and a bellows hand in a forge is one man in one
+           room, who by walking two paces shuts the room. */
+        roams: n.beast || n.still || map.ground === 'cave'
+          || /healer|merchant|shop|smith|bellows|innkeep|steward|harbour|ship|court|stable|kennel/i
             .test(n.script ?? '') ? 0 : 1,
         // A maester will put you back together. A maester will not fight you,
         // and neither will a child or a septa.

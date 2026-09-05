@@ -1145,7 +1145,7 @@ export class Overworld {
    * scripts rather than a block-list of the important ones.
    */
   static ROAMING_SCRIPTS = new Set([
-    'townTalk', 'bellowsHand', 'generic',
+    'townTalk', 'generic',
     'hideoutLocal', 'houseTalk', 'freeCityLocal', 'taproom',
   ]);
 
@@ -1175,6 +1175,13 @@ export class Overworld {
    * open ground next to them to step out into and back from.
    */
   canRoam(npc) {
+    /* Somebody put here on purpose, and somewhere nobody should wander.
+     *
+     * A town's outsiders are placed on a tile chosen because standing on it
+     * shuts nothing; a cave is a passage with chambers off it, and a person
+     * drifting into the passage is a cork in it. Neither moves. */
+    if (npc.still) return false;
+    if (this.map.ground === 'cave') return false;
     if (!Overworld.ROAMING_SCRIPTS.has(npc.script ?? 'generic')) return false;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const nx = npc.homeX + dx, ny = npc.homeY + dy;

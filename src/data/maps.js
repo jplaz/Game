@@ -423,7 +423,14 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
         if (taken.has(key)) continue;
         if (shutsTheWay(taken, at[0], at[1])) continue;
         taken.add(key);
-        movedNpcs.push({ ...who, x: at[0], y: at[1] });
+        /* And they stay on it.
+         *
+         * Choosing this tile was most of the work above: it is a junction, it
+         * is not a doorstep, and standing on it does not shut the district.
+         * Letting them then wander three tiles throws all of that away, which
+         * is how the Dragonstone strand ended up with a quay, a berth and a
+         * dragon behind one man having a walk. */
+        movedNpcs.push({ ...who, x: at[0], y: at[1], still: true });
         return;
       }
     });

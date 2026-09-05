@@ -82,6 +82,7 @@ export const WALKABLE = '.,S;-dso*i_=cb<%tmD/+';
 function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = '.',
                     roof = 'R', ridge = 'r', house = 'H', banner = 'V', dressing = [],
                     shut = [], quarter = 0, outskirts = null, gate = 13, outsiders = [],
+                    noStand = [],
                     core = null,
                     encounters = [], warps = [], npcs = [], signs = [], items = [] }) {
   const W = wall;
@@ -374,6 +375,12 @@ function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = 
         if (y === gate) continue;                     /* never in the gateway */
         if (!walkable.has(`${x},${y}`)) continue;
         if (doorstep.has(`${x},${y}`) || onDoor(x, y)) continue;
+        /* Ground the town says to leave clear. The check below asks whether
+           standing somewhere shuts the eastern quarter off from itself, which
+           is the wrong question where the quarter is reached through one
+           stair: the tiles past the Smoking Strand's stair foot are perfectly
+           well connected to each other and to nothing else. */
+        if (noStand.some(([nx, ny]) => nx === x && ny === y)) continue;
         /* Somewhere with room to be spoken to from, and room to get past. */
         let open = 0;
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
@@ -4322,6 +4329,9 @@ export const MAPS = {
         data: { line: 'A Sulphur Gatherer: The ground is warm here in midwinter. That is not comforting once you have thought about why.' } },
     ],
     outskirts: OUTSKIRTS.smokingStrand, gate: 16,
+    /* The stair off the castle comes down onto these two and the whole strand
+       - harbour, berth, dragon and the door at the end of it - is behind them. */
+    noStand: [[25, 19], [25, 20], [26, 19]],
     core: dragonstoneCore,
     banner: 'V',
     /* Nothing scattered on the floor any more. Ten pieces of rubble and four

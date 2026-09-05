@@ -3043,7 +3043,15 @@ function makeCave({ id, name, music = 'wild', w = 22, h = 17, chambers = 3,
     name, music, indoor: true, ground: 'cave', cold,
     tiles: g.map((r) => r.join('')),
     warps: [{ x: 2, y: h - 1, to: back, tx: backX, ty: backY, dir: 'down' }],
-    npcs: npcs.map((p, i) => ({ ...p, x: at(p.room ?? i)[0], y: at(p.room ?? i)[1] })),
+    /* `off` steps a person off the middle of their chamber. The spine of the
+       cave runs through those middles, so anybody standing on one is a cork in
+       the passage - which is exactly what the animal at the bottom of three of
+       these turned out to be. */
+    npcs: npcs.map((p, i) => ({
+      ...p,
+      x: at(p.room ?? i)[0] + (p.off?.[0] ?? 0),
+      y: at(p.room ?? i)[1] + (p.off?.[1] ?? 0),
+    })),
     items: items.map((p, i) => ({ ...p, x: at(p.room ?? i)[0], y: at(p.room ?? i)[1] - 1 })),
     /* Somebody was here before you and said so.
      *
@@ -4467,7 +4475,7 @@ export const MAPS = {
         + 'with the same jaw.',
     back: 'dragonmont', backX: 8, backY: 2,
     npcs: [
-      { dir: 'down', room: 2, sprite: 'smallfolk', name: 'The Cannibal',
+      { dir: 'down', room: 2, off: [0, 1], sprite: 'smallfolk', name: 'The Cannibal',
         script: 'wildBeast', beast: 'cannibal', huge: true,
         hideIfFlag: 'cannibal_taken',
         data: { species: 'cannibal', level: 48,
@@ -5872,7 +5880,7 @@ export const MAPS = {
       { roamer: 'bandit', min: 9, max: 13, weight: 40 },
     ],
     npcs: [
-      { room: 3, dir: 'down', sprite: 'smallfolk', name: 'The Thing in the Bilges',
+      { room: 3, off: [0, 1], dir: 'down', sprite: 'smallfolk', name: 'The Thing in the Bilges',
         script: 'wildBeast', beast: 'crabcrag', huge: true,
         hideIfFlag: 'smugglersCave_taken',
         data: { species: 'crabcrag', level: 16, met: 'smugglersCave_met', taken: 'smugglersCave_taken',
@@ -5903,7 +5911,7 @@ export const MAPS = {
       { roamer: 'sellsword', min: 15, max: 19, weight: 38 },
     ],
     npcs: [
-      { room: 3, dir: 'down', sprite: 'smallfolk', name: 'The Bell of Shipbreaker',
+      { room: 3, off: [0, 1], dir: 'down', sprite: 'smallfolk', name: 'The Bell of Shipbreaker',
         script: 'wildBeast', beast: 'deepmaw', huge: true,
         hideIfFlag: 'wreckersCave_taken',
         data: { species: 'deepmaw', level: 22, met: 'wreckersCave_met', taken: 'wreckersCave_taken',
@@ -5929,7 +5937,7 @@ export const MAPS = {
       { roamer: 'ironbornReaver', min: 20, max: 25, weight: 40 },
     ],
     npcs: [
-      { room: 3, dir: 'down', sprite: 'smallfolk', name: 'The Drowned God\u2019s Own',
+      { room: 3, off: [0, 1], dir: 'down', sprite: 'smallfolk', name: 'The Drowned God\u2019s Own',
         script: 'wildBeast', beast: 'krakenling', huge: true,
         hideIfFlag: 'drownedCave_taken',
         data: { species: 'krakenling', level: 26, met: 'drownedCave_met', taken: 'drownedCave_taken',
@@ -5955,7 +5963,7 @@ export const MAPS = {
       { roamer: 'sellsword', min: 25, max: 30, weight: 44 },
     ],
     npcs: [
-      { room: 3, dir: 'down', sprite: 'smallfolk', name: 'What the Stepstones Keep',
+      { room: 3, off: [0, 1], dir: 'down', sprite: 'smallfolk', name: 'What the Stepstones Keep',
         script: 'wildBeast', beast: 'deepmaw', huge: true,
         hideIfFlag: 'pirateCave_taken',
         data: { species: 'deepmaw', level: 30, met: 'pirateCave_met', taken: 'pirateCave_taken',
@@ -5985,7 +5993,7 @@ export const MAPS = {
       { roamer: 'wildlingRaider', min: 30, max: 35, weight: 34 },
     ],
     npcs: [
-      { room: 3, dir: 'down', sprite: 'smallfolk', name: 'What Waited for the Ice',
+      { room: 3, off: [0, 1], dir: 'down', sprite: 'smallfolk', name: 'What Waited for the Ice',
         script: 'wildBeast', beast: 'palewalker', huge: true,
         hideIfFlag: 'iceCave_taken',
         data: { species: 'palewalker', level: 40, met: 'iceCave_met', taken: 'iceCave_taken',
@@ -6367,7 +6375,7 @@ export const MAPS = {
     npcs: [
       { x: 5, y: 17, dir: 'right', sprite: 'ironborn', name: 'Reaver', script: 'duel',
         data: { duel: 'ironbornReaver' } },
-      { x: 29, y: 14, dir: 'down', sprite: 'smallfolk', name: 'Thrall', script: 'townTalk',
+      { x: 30, y: 22, dir: 'left', sprite: 'smallfolk', name: 'Thrall', script: 'townTalk',
         data: { line: 'Thrall: I was a fisherman on the Stony Shore. Now I am a fisherman here. The fish are the same. The masters are not.' } },
       { x: 14, y: 10, dir: 'down', sprite: 'merchant', name: "Ship's Carpenter", script: 'shop',
         data: { stock: ['maesterKit', 'stillwater', 'antidote', 'warBanner'],
@@ -9221,7 +9229,7 @@ export const CAVE_IDS = [];
     npcs: [
       ...(who ? [{ room: 1, dir: 'down', sprite, name: who, script: 'townTalk', data: { line } }] : []),
       ...(deep ? [{
-        room: 3, dir: 'down', sprite: 'smallfolk', name: deep.name,
+        room: 3, off: [0, 1], dir: 'down', sprite: 'smallfolk', name: deep.name,
         script: 'wildBeast', beast: deep.beast, huge: true,
         hideIfFlag: `${id}_taken`,
         data: {

@@ -1322,11 +1322,17 @@ int main(void) {
         if (nearWarpOn(map, x, y) || ledgeGateOn(map, x, y)
             || gateOn(map, x, y)) continue;
         /* Nobody roams more than three tiles from where they belong, so a tile
-           no NPC can get to cannot be blocked by one. */
+           no NPC can get to cannot be blocked by one.
+           And somebody who does not roam at all can only be blamed for the one
+           tile they are standing on. A harbourmaster keeps his quay, a smith
+           keeps his anvil and an animal keeps its rock: none of the three has
+           ever taken a step, and holding them answerable for a chokepoint three
+           tiles away is asking them about somewhere they will never be. */
         for (k = 0; k < map->npcCount; k++) {
           int dx = map->npcs[k].x - x, dy = map->npcs[k].y - y;
           if (dx < 0) dx = -dx;
           if (dy < 0) dy = -dy;
+          if (!map->npcs[k].roams) { if (!dx && !dy) { reachedFrom = k; break; } continue; }
           if (dx <= 3 && dy <= 3) { reachedFrom = k; break; }
         }
         if (reachedFrom < 0) continue;

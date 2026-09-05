@@ -6983,8 +6983,11 @@ export const MAPS = {
       { x: 14, y: 18, dir: 'left', sprite: 'ironborn', name: 'The Damphair', script: 'trainer',
         data: { trainer: 'drownedPriest' } },
       { x: 6, y: 25, dir: 'right', sprite: 'smallfolk', name: 'Salt Wife', script: 'shoreHint' },
-          { x: 4, y: 9, dir: 'down', sprite: 'goodwife', name: 'A Salt Wife',
-        script: 'townTalk',
+      /* And she stays by her own door: wandering, she reaches 3,6 and shuts
+         two hundred and seventy-two tiles of the Stony Shore off behind her,
+         a road out among them. */
+      { x: 4, y: 9, dir: 'down', sprite: 'goodwife', name: 'A Salt Wife',
+        still: true, script: 'townTalk',
         data: { line: 'A Salt Wife: He took me off a beach in the Reach and called it paying '
                 + 'the iron price. He has been at sea nine years. I have the house and I '
                 + 'have the keys, so ask me who paid.' } },
@@ -8929,8 +8932,10 @@ export const MAPS = {
           { x: 6, y: 10, text: 'THE GIFT\nTwenty-five leagues, deeded to the Night’s Watch in perpetuity.\nWorked by nobody. Raided by everybody.' },
 ],
     npcs: [
+      /* He keeps his post. Left to wander he ends up at 6,11, which is the
+         one gap the north of the Gift is reached through. */
       { x: 7, y: 12, dir: 'right', sprite: 'nightswatch', name: 'Ranger of the Gift',
-        script: 'duel', data: { duel: 'deserter' } },
+        still: true, script: 'duel', data: { duel: 'deserter' } },
       { x: 15, y: 8, dir: 'left', sprite: 'smallfolk', name: 'Last Farmer',
         script: 'hideoutLocal',
         data: { line: 'Last Farmer: Eleven families on this stretch when I was a boy. '

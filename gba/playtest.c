@@ -696,6 +696,9 @@ static int warpTowardWork(void) {
 /* Somewhere in the grass, for when the tester is meant to be levelling rather
    than sightseeing. */
 static int grindMode, grindX, grindY;
+/* Which snow the ranging is walking towards, and how many times it has said
+   so without ever getting there. */
+static int rangeAsked = -1, rangeAsks;
 
 /* ------------------------------------------------------------- the ladder --
    LADDER=1 plays the game the way somebody trying to finish it would, instead
@@ -1523,7 +1526,22 @@ static void pickGoal(void) {
       }
       if (want >= 0 && want != worldId) {
         i = warpTowardMap(want);
-        if (i >= 0) { goalWhy = "ranging-north"; goalKind = GOAL_WARP; goalIndex = i; return; }
+        /* A cold map the run cannot actually walk to is not a place to range
+           in. The circle-breaker nails a door shut to stop a bounce, and the
+           route that opens instead can point back the way you came: Moat
+           Cailin and the Riverlands each sent a Tully sweep to the other for
+           a whole playthrough, both of them meaning Riverrun, and the run
+           finished at level fifty having walked 118 of 241 maps. Ask for the
+           same snow six hundred times and then write it off, the way the
+           grind writes off ground that will not fight. */
+        if (want != rangeAsked) { rangeAsked = want; rangeAsks = 0; }
+        if (++rangeAsks > 600) {
+          coldTried[want] = 1;
+          rangeAsked = -1;
+          rangeAsks = 0;
+        } else if (i >= 0) {
+          goalWhy = "ranging-north"; goalKind = GOAL_WARP; goalIndex = i; return;
+        }
       }
     }
   }
@@ -1617,6 +1635,14 @@ static void standTile(int gx, int gy, int *sx, int *sy) {
 }
 
 static void goalTile(int *gx, int *gy) {
+  /* Grinding borrows the sign goal to mean "walk to that tile", and the tile
+     it means is the cover the grind picked, not a sign. The grind branch sets
+     both and then walks there itself - but the frame that PICKS a grind falls
+     through to here first, and on a road with no signs on it at all that read
+     signs[0] off the end of the table and handed the router a tile at
+     255,255. The Kingsroad North has no signs; a Tully sweep spent its
+     playthrough failing to walk to one. */
+  if (grindMode) { *gx = grindX; *gy = grindY; return; }
   if (goalKind == GOAL_NPC) { *gx = crowd[goalIndex].px >> 4; *gy = crowd[goalIndex].py >> 4; }
   else if (goalKind == GOAL_SIGN) { *gx = world->signs[goalIndex].x; *gy = world->signs[goalIndex].y; }
   else if (goalKind == GOAL_CHAIR) { *gx = world->courtX; *gy = world->courtY; }
@@ -3264,7 +3290,8 @@ void hostFrame(void) {
                 printf("      never got to: %s %d,%d, which has open ground "
                        "beside it\n", world->name, gx, gy);
               } else {
-                finding("%s: no way through to %d,%d", world->name, gx, gy);
+                finding("%s: no way through to %d,%d (goal %d/%d, %s)",
+                  world->name, gx, gy, goalKind, goalIndex, goalWhy);
               }
             }
             if (goalKind == GOAL_NPC) npcStuck[worldId][goalIndex] = 1;

@@ -639,10 +639,14 @@ export class Overworld {
     audio.sfx('cursor');
 
     try {
-      for (const beat of scene.beats) {
-        const [kind, ...args] = beat;
-        await this.playBeat(kind, args, scene);
+      /* Stepped rather than iterated, because an answer can now refuse what
+         comes next instead of only being written down. */
+      let at = 0;
+      while (at < scene.beats.length) {
+        const [kind, ...args] = scene.beats[at];
+        const skip = await this.playBeat(kind, args, scene);
         if (!this.cutscene) return;   // a fight or a warp ended it early
+        at += 1 + (skip ?? 0);
       }
     } finally {
       // Anyone the scene brought on goes away with it.
@@ -715,14 +719,57 @@ export class Overworld {
         const [text, options, opts] = args;
         const picked = await dialog.choose(text, options);
         if (opts?.record) recordChoice(opts.record, options[picked] ?? options[0]);
+        /* An answer that changes what happens next rather than only what is
+           remembered: the refusing option steps over the beats it refused, so
+           a scene can offer a fight you are allowed to walk away from. */
+        /* One skip for the refusing option, or one per option when the answer
+           opens more than two roads. */
+        if (Array.isArray(opts?.skips)) return opts.skips[picked] ?? 0;
+        if (opts?.skip && picked === (opts.skipOn ?? options.length - 1)) return opts.skip;
         break;
       }
+      /* Step over the beats belonging to the road not taken. */
+      case 'skip':
+        return args[0];
+      /* A scene that stops being a conversation.
+       *
+       * This beat existed and ended the scene the moment it fired, so nothing
+       * could ever follow a fight and no scene in the game had ever used one:
+       * every story beat in Westeros was somebody walking up to you and
+       * talking. The scene now waits for the duel and carries on, and what
+       * happened is on the scene for the beats after it to read - which is
+       * the whole difference between a story with a fight in it and a fight
+       * with some words in front of it. */
       case 'fight': {
-        const foe = args[0];
-        this.cutscene = null;
-        await this.startAmbush(typeof foe === 'string' ? getDuellist(foe) : foe);
+        const [foe, opts] = args;
+        const was = this.mapId;
+        /* Named, or a kind of person.
+         *
+         * This only ever knew the thirty-one duellists by name, so a scene
+         * that wanted a hedge knight - which is a sort of man rather than a
+         * man - threw on the beat and left the scene half-played with the
+         * cast still standing on the map. A roadside archetype is built at a
+         * level near yours, the same way one out of the long grass is. */
+        const def = typeof foe !== 'string' ? foe
+          : ROAMERS[foe]
+            ? makeRoamer(foe, Math.max(3, game.state.player.level + rng.int(-1, 2)),
+                         (list) => rng.pick(list))
+            : getDuellist(foe);
+        const outcome = await this.startAmbush(def);
+        /* Losing carries you off to whoever will have you, and a scene cannot
+           go on playing on a map you are no longer standing on. */
+        if (!this.cutscene || this.mapId !== was) { this.cutscene = null; return; }
+        this.cutscene.outcome = outcome;
+        if (opts?.record) recordChoice(opts.record, outcome);
         break;
       }
+      /* Said only if the last fight went that way. */
+      case 'won':
+        if (this.cutscene.outcome === 'won') await dialog.say(args[0]);
+        break;
+      case 'lost':
+        if (this.cutscene.outcome && this.cutscene.outcome !== 'won') await dialog.say(args[0]);
+        break;
       default:
         console.warn(`Cutscene "${scene.id}" has an unknown beat "${kind}"`);
     }

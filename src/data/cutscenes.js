@@ -16,8 +16,14 @@
 //   ['despawn', id]               take them off again
 //   ['sky']                       send a dragon over, now
 //   ['flag', name]                set a story flag
-//   ['choose', text, [labels], { record }]  a decision, remembered
-//   ['fight', duellistOrRoamer]   it turns into a fight
+//   ['choose', text, [labels], { record, skip, skipOn }]
+//                                 a decision. `record` remembers it; `skip`
+//                                 steps over that many beats when the last
+//                                 option (or `skipOn`) is picked, which is how
+//                                 a scene offers something you may refuse
+//   ['fight', who, { record }]    it turns into a fight, and the scene goes on
+//   ['won', text]                 said only if the last fight was won
+//   ['lost', text]                said only if it was not
 //
 // 'player' is a valid id for walk and face.
 
@@ -35,6 +41,118 @@ export const CUTSCENES = {
    * The thread: a raven comes south, nobody who matters will hear it, and every
    * league you walk to take a seat is a league the thing behind it walks too.
    */
+
+  /* ------------------------------------------------------- things that happen --
+   *
+   * Every scene above this line is somebody walking up to you and talking.
+   * That is a story told at you. These three are things you are standing in
+   * the middle of: you may refuse each of them and walk on, and if you do not,
+   * you are the one holding the sword when it is decided.
+   */
+
+  /** A melee in a burned yard, three bouts deep, for a purse and a name. */
+  theMeleeAtHarrenhal: {
+    map: 'harrenhal', x: 11, y: 18, flag: 'cs_melee', name: 'The Melee',
+    beats: [
+      ['say', 'There are horses picketed under the burned towers and a rope ring '
+            + 'pegged out in the middle of the yard, and about two hundred people '
+            + 'making the noise of a much larger crowd.'],
+      ['spawn', 'herald', { x: 11, y: 20, dir: 'up', sprite: 'noble', name: 'A Herald' }],
+      ['walk', 'herald', 'up', 1],
+      ['say', 'A Herald: Melee, on the hour, in the ruin, as it has been every year '
+            + 'since the dragons burned it. No horses, no points, and no quarter '
+            + 'asked that is not given.'],
+      ['say', 'A Herald: Entry is free. Everything after that is not.'],
+      ['choose', 'The rope is a step away and the crowd has noticed you looking at it.',
+        ['Give him your name', 'Watch from the rail'],
+        { record: 'theMeleeAtHarrenhal', skip: 13 }],
+      ['say', 'A Herald: Then stand in the ring and we shall find out what the name '
+            + 'is worth.'],
+      ['despawn', 'herald'],
+      ['say', 'First: a hedge knight with a shield he has repainted so often the '
+            + 'boss has gone soft.'],
+      ['fight', 'hedgeKnight'],
+      ['won', 'The crowd makes the noise crowds make when somebody they had not '
+            + 'heard of is still standing.'],
+      ['say', 'Second: a man-at-arms out of the Riverlands who has done this every '
+            + 'year for eleven years and finished second in four of them.'],
+      ['fight', 'manAtArms'],
+      ['won', 'He gets up on his own, which he will tell you about later, at length.'],
+      ['say', 'Last: a sellsword nobody announces, because the men who know the name '
+            + 'do not need to hear it and the rest are about to.'],
+      ['fight', 'sellsword', { record: 'theMeleeLast' }],
+      ['won', 'Somebody in the crowd is shouting your name, and getting it slightly '
+            + 'wrong, and shouting it anyway. That is how it starts.'],
+      ['lost', 'You come to on your back looking at the burned rafters, with somebody '
+            + 'pouring water on you and somebody else arguing about whether it counted.'],
+      ['flag', 'foughtTheMelee'],
+    ],
+  },
+
+  /** The Vale settles a question the way the Vale has always settled it. */
+  theTrialAtTheEyrie: {
+    map: 'eyrieKeep', x: 8, y: 8, flag: 'cs_trial', name: 'Trial by Combat',
+    beats: [
+      ['say', 'The high hall has been cleared to the walls and there is a hole in '
+            + 'the floor at the far end of it with the sky underneath.'],
+      ['spawn', 'accused', { x: 6, y: 8, dir: 'right', sprite: 'smallfolk',
+        name: 'A Man of the Gates' }],
+      ['say', 'A Man of the Gates: I did not do it. I have said so eleven times and '
+            + 'the eleventh time was worth exactly what the first was.'],
+      ['spawn', 'knight', { x: 10, y: 8, dir: 'left', sprite: 'arryn',
+        name: 'The Accuser\u2019s Champion' }],
+      ['say', 'The Accuser\u2019s Champion: He may have a champion. That is the law. '
+            + 'It is generally a formality.'],
+      ['say', 'A Man of the Gates: I do not know you and you do not know me and I '
+            + 'have nothing to give you. I am asking anyway, because there is a '
+            + 'door in the floor.'],
+      ['choose', 'The hall is waiting to see whether anybody steps forward.',
+        ['Stand for him', 'Let the law have him'],
+        { record: 'theTrialAtTheEyrie', skip: 5 }],
+      ['face', 'knight', 'left'],
+      ['fight', 'manAtArms'],
+      ['won', 'The champion yields on his knees, which is not something anybody in '
+            + 'this hall has watched happen before. The man from the gates sits down '
+            + 'very suddenly on the flagstones.'],
+      ['lost', 'You are carried out. Behind you the hall makes one short sound and '
+            + 'then a much longer silence.'],
+      ['flag', 'stoodTheTrial'],
+    ],
+  },
+
+  /** The Freys weigh everything that crosses, including you. */
+  theCrossingAtTheTwins: {
+    map: 'theTwins', x: 8, y: 13, flag: 'cs_crossing', name: 'The Crossing',
+    beats: [
+      ['say', 'The bridge is a hundred paces of wet stone between two castles owned '
+            + 'by the same family, and there is a table set up at this end of it.'],
+      ['spawn', 'clerk', { x: 8, y: 15, dir: 'up', sprite: 'noble', name: 'A Frey Clerk' }],
+      ['walk', 'clerk', 'up', 1],
+      ['say', 'A Frey Clerk: Toll. Everything crossing pays, and everything crossing '
+            + 'has an opinion about it, and the toll has never once changed on '
+            + 'account of the opinion.'],
+      ['spawn', 'guard', { x: 10, y: 14, dir: 'left', sprite: 'guard',
+        name: 'A Bridge Serjeant' }],
+      ['choose', 'He has written a number down without showing it to you.',
+        ['Pay whatever it is', 'Ask to see the number', 'Go round by the fords'],
+        { record: 'theCrossingAtTheTwins', skips: [0, 5, 12] }],
+      ['say', 'A Frey Clerk: A sensible traveller. Rarer than you would think on a '
+            + 'bridge with only one of it.'],
+      ['despawn', 'clerk'],
+      ['despawn', 'guard'],
+      ['flag', 'paidTheFreys'],
+      ['skip', 7],
+      ['say', 'A Frey Clerk: The number is not for showing. The number is for paying.'],
+      ['shake', 0.5],
+      ['say', 'A Bridge Serjeant: He said pay.'],
+      ['fight', 'manAtArms', { record: 'theCrossingFight' }],
+      ['won', 'The clerk has not moved from behind his table and has not stopped '
+            + 'writing. He turns the ledger round. The number was four coppers.'],
+      ['lost', 'They take the toll off you where you are lying, and they take it '
+            + 'twice, and the ledger says four coppers.'],
+      ['flag', 'crossedTheTwins'],
+    ],
+  },
 
   /* ----------------------------------------------------- one place each ---
    *

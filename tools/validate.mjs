@@ -388,7 +388,7 @@ for (const [sprite, houseId] of Object.entries(SPRITE_HOUSE)) {
 
 // ------------------------------------------------------------- cutscenes --
 const BEATS = new Set(['say', 'wait', 'shake', 'flash', 'spawn', 'walk', 'face',
-  'despawn', 'sky', 'flag', 'choose', 'fight']);
+  'despawn', 'sky', 'flag', 'choose', 'fight', 'won', 'lost', 'skip']);
 
 for (const [id, def] of Object.entries(CUTSCENES)) {
   const map = MAPS[def.map];

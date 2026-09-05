@@ -3960,6 +3960,10 @@ static int snareEdge;            /* a doused net, worth this much more */
 static int theyBalk;             /* they lose their next go */
 static int mySureShots;          /* this many of your blows cannot miss */
 static int wildWanted = -1, wildLevel;   /* the animal a shift is carrying in */
+/* And which body on this map that animal IS, when the fight came from walking
+   up to something rather than out of the grass. A beast standing in the world
+   has to leave it when it is beaten, and be gone for good when it is taken. */
+static int wildSlot = -1;
 
 /* The screen the fight is fought on, once both sides are built. */
 static int swearOffered;
@@ -9491,6 +9495,15 @@ static void tookAlive(const char *said) {
     slain[worldId][foeSlot] = 1;
     crowdAlive[foeSlot] = 0;
   }
+  /* And an animal that was standing on the map rather than hiding in it is
+     gone from that map for good once it is yours, because it is behind you
+     now. This is the only way any of the three wild dragons leaves its rock. */
+  if (foeBeast >= 0 && wildSlot >= 0 && wildSlot < crowdCount) {
+    beaten[worldId][wildSlot] = 1;
+    slain[worldId][wildSlot] = 1;
+    crowdAlive[wildSlot] = 0;
+    wildSlot = -1;
+  }
   duelPhase = DUEL_SPOILS;
   copyString(scratch, said ? said : "It stops fighting.", sizeof scratch);
   appendString(scratch, "  ", sizeof scratch);
@@ -9564,6 +9577,13 @@ static void theyFell(void) {
   dragonAfterWin();
   bastardAfterWin();
   if (foeSlot >= 0) beaten[worldId][foeSlot] = 1;
+  /* Beating an animal that was standing there does not kill it: it breaks off
+     and climbs, and it is lying on the same rock the next time you walk in.
+     Nothing is written down, so re-entering the map brings it back. */
+  if (foeBeast >= 0 && wildSlot >= 0 && wildSlot < crowdCount) {
+    crowdAlive[wildSlot] = 0;
+    wildSlot = -1;
+  }
   /* The one man who can get you off this rock does not die.
    *
    * Every port in the world has exactly one person who sells passage, and
@@ -10830,6 +10850,26 @@ static int openBeat(void) {
       cutAsking = 1;
       cutPainted = 0;
       break;
+    /* A scene that stops being a conversation.
+     *
+     * The scene ends here and the fight begins, which is what cutFight has
+     * always been for. The two lines that read what came of it are exported so
+     * that both builds hold the same scenes, and they are stepped over here
+     * because there is nothing left of the scene by the time they would be
+     * reached. */
+    case BEAT_FIGHT:
+      /* Set and left. The tick that follows sees a fight pending with no
+         window open, sets the scene's flag, clears the cast and calls it -
+         which is the road a choice that ends in steel has always taken. */
+      cutFight = b->a | (b->b << 8);
+      break;
+    case BEAT_WON:
+    case BEAT_LOST:
+      break;
+    /* Over the road not taken. */
+    case BEAT_SKIP:
+      cutBeat += b->a;
+      break;
     default:
       break;
   }
@@ -10905,6 +10945,9 @@ static void tickCut(void) {
         if (you.gold < 0) you.gold = 0;
       }
       cutBeat++;
+      /* Where this answer goes. Without it the cartridge played the road the
+         player refused directly after the one they took. */
+      cutBeat += c->skip[said];
       if (c->said[said]) {
         cutSaid = c->said[said];
         cutFight = c->duel[said];
@@ -11142,6 +11185,25 @@ static void tryTalk(void) {
       crowd[who].walk = 0;
     }
     crowd[who].dir = (u8)(hero.dir ^ 1);
+    /* An animal, not a person.
+     *
+     * Speaking to one is the fight. It is at the level the map names rather
+     * than the level the road would give it, because these are put in one
+     * place each and the whole point of them is that they are too big for the
+     * ground they are standing on. */
+    if (npc->wild) {
+      if (!packHave()) {
+        openWindow(0, "You have nothing on its feet to put between you and "
+                      "that. Whatever this is going to be, it is not going to "
+                      "be today.");
+        return;
+      }
+      wildWanted = npc->wild - 1;
+      wildLevel = npc->wildAt;
+      wildSlot = who;
+      callToArms(-1, 0, -1);
+      return;
+    }
     if (npc->heals) {
       /* And this is where they will carry you if you go down somewhere else. */
       you.haven = worldId;
@@ -11481,6 +11543,7 @@ static void ambush(void) {
        * of it, is still the worst thing on any road in the game. */
       if (lift - 6 > 5) lift = 11;
       wildWanted = deep ? BEAST_WALKER : (stage >= 4 ? BEAST_RISEN : BEAST_WIGHT);
+      wildSlot = -1;
       wildLevel = nearYou(you.level + lift - 6, -1, 5);
       callToArms(-1, 0, -1);
       return;
@@ -11497,6 +11560,7 @@ static void ambush(void) {
     int over = you.swoopMap != NO_MAP && worldId == you.swoopMap;
     if (over || (int)roll(100) < 4) {
       wildWanted = over ? BEAST_WYRM : BEAST_DRAKE;
+      wildSlot = -1;
       wildLevel = nearYou(you.level + (over ? 6 : 2), -1, over ? 8 : 4);
       callToArms(-1, 0, -1);
       return;
@@ -11510,6 +11574,7 @@ static void ambush(void) {
        on the road does. A wolf four levels over you is a fight; a wolf twenty
        over you is a wall you walked into by turning left. */
     wildWanted = w->beast;
+    wildSlot = -1;
     wildLevel = nearYou((int)w->level + shiftHere(), -1, 4);
     callToArms(-1, 0, -1);
     return;

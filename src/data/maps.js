@@ -3395,6 +3395,10 @@ export const MAPS = {
       { x: 11, y: 29, to: 'winterfell', tx: 12, ty: 1, dir: 'down' },
     ],
     npcs: [
+      /* Jory Cassel, who has been in the duellist table since the cast was
+         written and had never once stood anywhere in the world. */
+      { x: 8, y: 11, dir: 'down', sprite: 'stark', name: 'Jory Cassel', script: 'duel',
+        data: { duel: 'joryCassel' } },
       { x: 6, y: 8, dir: 'right', sprite: 'nightswatch', name: 'Ranger', script: 'trainer',
         data: { trainer: 'northRanger' } },
       { x: 14, y: 17, dir: 'left', sprite: 'wildling', name: 'Ygritte', script: 'duel',
@@ -3919,7 +3923,7 @@ export const MAPS = {
     npcs: [
       { x: 14, y: 19, dir: 'left', sprite: 'tyrell', name: 'Ser Loras', script: 'duel',
         data: { duel: 'hedgeKnight' } },
-      { x: 12, y: 22, dir: 'down', sprite: 'merchant', name: 'Fruit Seller', script: 'shop',
+      { x: 12, y: 18, dir: 'down', sprite: 'merchant', name: 'Fruit Seller', script: 'shop',
         data: { stock: ['maesterKit', 'antidote', 'wakingDraught', 'stillwater'],
                 line: 'Fruit Seller: Peaches, plums, and whatever the Reach has too much of this week, which is everything.' } },
       { x: 4, y: 9, dir: 'right', sprite: 'goodwife', name: 'Rose Gardener', script: 'townTalk',
@@ -4347,7 +4351,7 @@ export const MAPS = {
       { x: 12, y: 20, text: "AEGON'S GARDEN\nDark trees, brought over the water and planted before the Conquest.\nThe only thing on this island that grows." },
     ],
     items: [
-      { x: 24, y: 23, item: 'kingsRansom', count: 1, flag: 'item_dragonstone_strand' },
+      { x: 28, y: 23, item: 'kingsRansom', count: 1, flag: 'item_dragonstone_strand' },
       { x: 2, y: 15, item: 'frostTonic', count: 1, flag: 'item_dragonstone_gallery' },
     ],
     npcs: [
@@ -4970,7 +4974,7 @@ export const MAPS = {
       { x: 7, y: 12, text: 'THE DITCH\nOpen the sluices and the two rivers meet across it.\nRiverrun becomes an island in about an hour.' },
     ],
     items: [
-      { x: 28, y: 13, item: 'poppyMilk', count: 1, flag: 'item_riverrun_jetty' },
+      { x: 25, y: 13, item: 'poppyMilk', count: 1, flag: 'item_riverrun_jetty' },
       { x: 8, y: 4, item: 'kingsRansom', count: 1, flag: 'item_riverrun_corner' },
     ],
     npcs: [
@@ -6363,12 +6367,12 @@ export const MAPS = {
     npcs: [
       { x: 5, y: 17, dir: 'right', sprite: 'ironborn', name: 'Reaver', script: 'duel',
         data: { duel: 'ironbornReaver' } },
-      { x: 29, y: 17, dir: 'left', sprite: 'smallfolk', name: 'Thrall', script: 'townTalk',
+      { x: 29, y: 14, dir: 'down', sprite: 'smallfolk', name: 'Thrall', script: 'townTalk',
         data: { line: 'Thrall: I was a fisherman on the Stony Shore. Now I am a fisherman here. The fish are the same. The masters are not.' } },
       { x: 14, y: 10, dir: 'down', sprite: 'merchant', name: "Ship's Carpenter", script: 'shop',
         data: { stock: ['maesterKit', 'stillwater', 'antidote', 'warBanner'],
                 line: "Ship's Carpenter: Pitch, tar, oakum and a hull that was somebody else's last week. Ironborn do not buy timber. They take it." } },
-      { x: 13, y: 3, dir: 'down', sprite: 'septa', name: 'Salt Septon',
+      { x: 11, y: 3, dir: 'right', sprite: 'septa', name: 'Salt Septon',
         script: 'townTalk', data: { line: 'Salt Septon: They will tell you the ironborn take salt wives and do not bother with septs. They come here anyway, before the winter. Bring a hall and I will read the words.' } },
       { x: 10, y: 5, dir: 'down', sprite: 'goodwife', name: 'A Woman of Fair Isle', script: 'quest',
         data: { quest: 'saltWivesOfPyke' } },

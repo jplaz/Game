@@ -112,6 +112,9 @@ const MAP_IDS = [
   /* And a cave under every one of them, which is most of the reason to cross
      one: you run the keel up a beach under a cliff and walk in. */
   'smugglersCave', 'wreckersCave', 'drownedCave', 'pirateCave', 'iceCave',
+  /* And the one under the Dragonmont, which is not off a road: it is only
+     ever entered on purpose, and the animal at the bottom of it is why. */
+  'cannibalLair',
   /* And one off every road you can walk, cut into an outcrop that is cut into
      the road for the purpose. Named by the map file, not here, because the map
      file is what decides how many there are. */
@@ -1175,8 +1178,9 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         duellist: pushDuellist({ ...fighter, house: houseOfSprite(sprite) }),
         // A town is not a waxwork. Everybody has somewhere to be except the
         // people whose whole job is to stand behind something.
-        roams: /healer|merchant|shop|smith|innkeep|steward|harbour|ship|court|stable|kennel/i
-          .test(n.script ?? '') ? 0 : 1,
+        roams: n.beast ? 0
+          : /healer|merchant|shop|smith|innkeep|steward|harbour|ship|court|stable|kennel/i
+            .test(n.script ?? '') ? 0 : 1,
         // A maester will put you back together. A maester will not fight you,
         // and neither will a child or a septa.
         heals: /healer|maester/i.test(n.script ?? '') || /Maester/.test(n.name ?? '') ? 1 : 0,
@@ -1190,8 +1194,15 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
            cannot be reached, and the same goes for every port east of the
            Narrow Sea. They will not draw on you and you cannot draw on them.
            Matched exactly, not by prefix, for the same reason `sails` is. */
-        fights: ['child', 'girl', 'septa', 'maester'].includes(sprite)
+        fights: n.beast ? 0
+          : ['child', 'girl', 'septa', 'maester'].includes(sprite)
              || /^(ship|harbour|harbourmaster|ferry|shipwright)$/i.test(n.script ?? '') ? 0 : 1,
+        /* An animal standing in the world, rather than somebody standing in it.
+           Speaking to one is not a conversation: it is the fight, at the level
+           the map says, and the animal is the one on the far side of it. Which
+           beast, plus one, because nobody is 0. */
+        wild: n.beast ? (beastSlot.get(n.beast) ?? -1) + 1 : 0,
+        wildAt: Math.max(2, Math.min(100, n.data?.level ?? 2)),
         // Somebody whose whole purpose is to fight you draws when you speak to
         // them. Challenging was bound to SELECT, which is not a button anybody
         // presses at a lord standing in his own hall: a house leader would say
@@ -1388,7 +1399,11 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
      road they are on is the reason walking it feels like nothing but fighting.
      A scene is a run of beats; the cartridge steps them one at a time. */
   const BEAT = { say: 0, wait: 1, shake: 2, flash: 3, spawn: 4, walk: 5,
-                 face: 6, despawn: 7, sky: 8, flag: 9, choose: 10 };
+                 face: 6, despawn: 7, sky: 8, flag: 9, choose: 10,
+                 /* A scene that stops being a conversation, the two lines that
+                    read what came of it, and the step over the road not
+                    taken. */
+                 fight: 11, won: 12, lost: 13, skip: 14 };
   const sceneFlags = [];
   const flagAt = (name) => {
     let at = sceneFlags.indexOf(name);
@@ -1445,6 +1460,33 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       const row = { kind: BEAT[kind], slot: 0, a: 0, b: 0, c: 0, d: 0, text: '' };
       if (BEAT[kind] === undefined) throw new Error(`${id} has a beat called ${kind}`);
       if (kind === 'say') row.text = beat[1];
+      /* Somebody named, or a kind of person off this road. A scene that wants
+         a hedge knight wants a hedge knight, not one of the thirty-one people
+         in the realm who have a name. */
+      else if (kind === 'fight') {
+        const who = beat[1];
+        const made = ROAMERS[who]
+          ? makeRoamer(who, Math.max(3, groundBy[0][mapIds.indexOf(cs.map)] ?? 12),
+                      (list) => list[0])
+          : { ...DUELLISTS[who], name: DUELLISTS[who]?.name };
+        if (!made?.name) throw new Error(`${id} fights ${who}, who is nobody`);
+        const at = pushDuellist({
+          name: made.name, level: made.level, vigour: made.vigour,
+          might: made.might, guard: made.guard, swiftness: made.swiftness,
+          wind: made.wind, techniques: made.techniques, reward: made.reward,
+          exp: made.exp, canYield: made.canYield, loot: made.loot,
+          house: made.house, mortal: made.mortal, beast: made.beast,
+        });
+        /* Every field on a beat is a byte and there are more duellists in the
+           world than a byte holds, so this one goes across two. */
+        row.a = at & 255;
+        row.b = (at >> 8) & 255;
+      }
+      /* Said only if the last fight went that way. The cartridge ends a scene
+         at the fight, so these never come up there - but they are exported so
+         the two builds hold the same scenes rather than two versions of them. */
+      else if (kind === 'won' || kind === 'lost') row.text = beat[1];
+      else if (kind === 'skip') row.a = Math.min(255, beat[1]);
       else if (kind === 'wait' || kind === 'shake' || kind === 'flash') {
         row.a = Math.min(255, Math.round(beat[1] * 60));
       } else if (kind === 'spawn') {
@@ -1507,6 +1549,12 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
               b: moves[1] ? moves[1][0] : 255, db: moves[1] ? moves[1][1] : 0,
             };
           }),
+          /* Where each answer goes next. The browser steps over the beats
+             an answer refused; without this the cartridge would play the road
+             not taken straight after the road taken, and a player who paid the
+             toll would then be made to fight about it. */
+          skip: opts.map((_, i) => Math.min(255, (how.skips ?? [])[i]
+            ?? (how.skip && i === (how.skipOn ?? opts.length - 1) ? how.skip : 0))),
           duel: opts.map(() => 0xFFFF) });
       }
       beats.push(row);
@@ -2315,6 +2363,10 @@ L.push('#define BEAT_DESPAWN 7');
 L.push('#define BEAT_SKY     8');
 L.push('#define BEAT_FLAG    9');
 L.push('#define BEAT_CHOOSE 10');
+L.push('#define BEAT_FIGHT  11');
+L.push('#define BEAT_WON    12');
+L.push('#define BEAT_LOST   13');
+L.push('#define BEAT_SKIP   14');
 L.push('#define CUT_PEOPLE   3   /* how many a scene may put on the map at once */');
 L.push('typedef struct {');
 L.push('  u8 kind, slot, a, b, c, bank;');
@@ -2336,11 +2388,14 @@ L.push('  /* Who is pleased and who is not, per answer. Two houses is as many as
 L.push('     one sentence can honestly move. 255 is nobody. */');
 L.push('  u8 houseA[3], houseB[3];');
 L.push('  s8 shiftA[3], shiftB[3];');
+/* How many beats an answer steps over, so a scene can offer a road you
+   are allowed not to take. */
+L.push('  u8 skip[3];');
 L.push('} Choice;');
 L.push('static const Choice choices[CHOICE_COUNT] = {');
 if (!harvest.choices.length) {
   L.push('  { 0, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 65535, 65535, 65535 }, 0, { 0, 0, 0 },'
-       + ' { 255, 255, 255 }, { 255, 255, 255 }, { 0, 0, 0 }, { 0, 0, 0 } },');
+       + ' { 255, 255, 255 }, { 255, 255, 255 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 } },');
 }
 for (const c of harvest.choices) {
   const opts = [0, 1, 2].map((i) => (c.opts[i] ? cstr(c.opts[i]) : '0')).join(', ');
@@ -2355,7 +2410,8 @@ for (const c of harvest.choices) {
   const sB = [0, 1, 2].map((i) => fv(i).db).join(', ');
   L.push(`  { ${cstr(c.ask)}, { ${opts} }, { ${said} }, { ${gold} }, { ${duel} }, `
     + `${c.opts.length}, { ${flags} },`);
-  L.push(`    { ${hA} }, { ${hB} }, { ${sA} }, { ${sB} } },`);
+  L.push(`    { ${hA} }, { ${hB} }, { ${sA} }, { ${sB} }, `
+    + `{ ${[0, 1, 2].map((i) => c.skip?.[i] ?? 0).join(', ')} } },`);
 }
 L.push('};');
 L.push('typedef struct {');
@@ -2593,6 +2649,8 @@ L.push('typedef struct { u8 beast, level; } Wild;');
 L.push('typedef struct { u8 x, y, ware; u16 gold; } Chest;');
 L.push('typedef struct {');
 L.push('  u8 x, y, dir, bank, roams, heals, fights, trade, sight, challenges, sails, holds, weds, ranges, evening, gate, builds;');
+/* Which animal this one is, plus one, and how big it is. */
+L.push('  u8 wild, wildAt;');
 /* Which deed this one sells, and whose bed this one keeps: the property
    index plus one, and nobody is 0. */
 L.push('  u8 deed, bed;');
@@ -2702,14 +2760,14 @@ harvest.maps.forEach((map, i) => {
       name = n.name.startsWith(spoken[1]) ? n.name : spoken[1];
       line = spoken[2];
     }
-    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.ranges}, ${n.evening}, ${n.gate}, ${n.builds}, ${n.deed}, ${n.bed}, ${n.hires}, ${n.duellist},`);
+    L.push(`  { ${n.x}, ${n.y}, ${n.dir < 0 ? 0 : n.dir}, ${n.bank}, ${n.roams}, ${n.heals}, ${n.fights}, ${n.trade}, ${n.sight}, ${n.challenges}, ${n.sails}, ${n.holds}, ${n.weds}, ${n.ranges}, ${n.evening}, ${n.gate}, ${n.builds}, ${n.wild}, ${n.wildAt}, ${n.deed}, ${n.bed}, ${n.hires}, ${n.duellist},`);
     L.push(`    ${cstr(name)}, ${cstr(line.trim())} },`);
   }
   /* One row of nothing, so an empty table is still a legal array. Every number
      the struct declares, spelt out: it used to carry twelve for eighteen
      fields, which quietly slid the two strings onto `weds` and `ranges`. */
   if (!map.npcs.length) {
-    L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');
+    L.push('  { 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "" },');
   }
   L.push('};');
   L.push('');

@@ -1488,21 +1488,28 @@ export const SCRIPTS = {
     }
   },
 
-  /* ------------------------------------------------------ the wild three --
+  /* --------------------------------------------------- something living --
    *
-   * One script for all three dragons, because everything that differs between
-   * them is written on the map: which animal, how big, and what it says.
+   * One script for every animal that stands in the world and waits: the three
+   * wild dragons, the sea dragon on her beach, and whatever is at the bottom
+   * of each cave. Everything that differs between them is written on the map -
+   * which animal, how big, and what it says - and a cave that has nothing
+   * particular to say falls through to lines that suit anything with teeth.
    *
    * Beating one does not kill it. It breaks off, climbs, and is back on the
    * same rock the next time you walk in - so the fight can be lost, learnt
    * from and come back to, and taking one alive is a thing you choose to do
    * rather than a roll you get one of. Only catching it empties the place.
    */
-  async wildDragon({ say, choose, npc, battle, setFlag, flag }) {
+  async wildBeast({ say, choose, npc, battle, setFlag, flag }) {
     const d = npc.data;
     if (flag(d.taken)) { npc.hidden = true; return; }
 
-    for (const line of d.waking) await say(line);
+    const waking = d.waking ?? [
+      'Something at the back of the chamber moves, and goes on moving for '
+      + 'longer than a thing that size ought to need.',
+    ];
+    for (const line of waking) await say(line);
     /* Nothing at heel that can stand up is not a hard fight, it is a battle
        screen with nobody on your side of it: the drawing reaches for a
        creature that is not there and the game stops. Every other way into a
@@ -1520,7 +1527,8 @@ export const SCRIPTS = {
       ['Stand your ground', 'Back away slowly'],
     );
     if (pick === 1) {
-      await say(d.spared);
+      await say(d.spared ?? 'You go back the way you came, slowly. It lets you, '
+        + 'which is an answer of a kind.');
       return;
     }
     setFlag(d.met);
@@ -1529,16 +1537,18 @@ export const SCRIPTS = {
     if (outcome === 'caught') {
       setFlag(d.taken);
       npc.hidden = true;
-      await say(d.taking);
+      await say(d.taking ?? `${npc.name} comes with you, which is not something `
+        + 'anybody who knows this place would have believed.');
       return;
     }
     if (outcome === 'won') {
       // Driven off, not killed, and only until you leave and come back.
       npc.hidden = true;
-      await say(d.driven);
+      await say(d.driven ?? 'It breaks off and goes deeper, and the dark closes '
+        + 'over the sound of it. It will be here again.');
       return;
     }
-    await say(d.lost);
+    await say(d.lost ?? 'It does not follow you out. It does not need to.');
   },
 
   // =========================================================================

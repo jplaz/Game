@@ -3005,7 +3005,7 @@ function eyriePlan() {
  */
 function makeCave({ id, name, music = 'wild', w = 22, h = 17, chambers = 3,
                     back, backX, backY, npcs = [], items = [], signs = [],
-                    encounters = [], cold = 0 }) {
+                    encounters = [], cold = 0, note = null }) {
   let n = 0;
   for (const ch of id) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
   const rnd = () => { n = (n * 1103515245 + 12345) >>> 0; return (n >>> 16) / 65536; };
@@ -3045,7 +3045,13 @@ function makeCave({ id, name, music = 'wild', w = 22, h = 17, chambers = 3,
     warps: [{ x: 2, y: h - 1, to: back, tx: backX, ty: backY, dir: 'down' }],
     npcs: npcs.map((p, i) => ({ ...p, x: at(p.room ?? i)[0], y: at(p.room ?? i)[1] })),
     items: items.map((p, i) => ({ ...p, x: at(p.room ?? i)[0], y: at(p.room ?? i)[1] - 1 })),
-    signs, encounters,
+    /* Somebody was here before you and said so.
+     *
+     * On the wall beside the entrance, read by facing it on the way in, which
+     * is the only thing in a cave that tells you what the cave is before you
+     * have walked to the end of it. */
+    signs: note ? [...signs, { x: 1, y: h - 2, text: note }] : signs,
+    encounters,
   };
 }
 
@@ -3830,7 +3836,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 14, y: 21, dir: 'down', sprite: 'smallfolk', name: 'Silverwing',
-        script: 'wildDragon', beast: 'silverwing', huge: true,
+        script: 'wildBeast', beast: 'silverwing', huge: true,
         hideIfFlag: 'silverwing_taken',
         data: { species: 'silverwing', level: 36,
           met: 'silverwing_met', taken: 'silverwing_taken',
@@ -4452,10 +4458,13 @@ export const MAPS = {
      animal at the bottom of it is. */
   cannibalLair: makeCave({
     id: 'cannibalLair', name: "The Cannibal's Deep", w: 20, h: 15, chambers: 3,
+    note: 'The bones on this floor have all been cracked the same way, for the marrow.\n'
+        + 'The largest of them are dragon bones, and they were cracked by something '
+        + 'with the same jaw.',
     back: 'dragonmont', backX: 8, backY: 2,
     npcs: [
       { dir: 'down', room: 2, sprite: 'smallfolk', name: 'The Cannibal',
-        script: 'wildDragon', beast: 'cannibal', huge: true,
+        script: 'wildBeast', beast: 'cannibal', huge: true,
         hideIfFlag: 'cannibal_taken',
         data: { species: 'cannibal', level: 48,
           met: 'cannibal_met', taken: 'cannibal_taken',
@@ -4476,7 +4485,7 @@ export const MAPS = {
     ],
     items: [
       { room: 0, item: 'dragonglass', count: 2, flag: 'item_cannibal_glass' },
-      { room: 1, item: 'kingsRansom', count: 1, flag: 'item_cannibal_ransom' },
+      { room: 2, item: 'kingsRansom', count: 3, flag: 'hoard_cannibalLair' },
     ],
     encounters: [
       { beast: 'emberwisp', min: 36, max: 44, weight: 40 },
@@ -5850,7 +5859,8 @@ export const MAPS = {
      name, so no two are the same shape, and what is at the back of one is
      worth more the further from the capital it lies. */
   smugglersCave: makeCave({
-    id: 'smugglersCave', name: "The Smugglers' Cave",
+    id: 'smugglersCave', chambers: 4, note: 'Barrels are stacked to the roof and every one of them is stencilled with a different house.\nNone of the stencils are real.',
+    name: "The Smugglers' Cave",
     back: 'blackwaterBay', backX: 20, backY: 8,
     encounters: [
       { beast: 'crabcrag', min: 8, max: 12, weight: 34 },
@@ -5858,10 +5868,16 @@ export const MAPS = {
       { roamer: 'bandit', min: 9, max: 13, weight: 40 },
     ],
     npcs: [
+      { room: 3, dir: 'down', sprite: 'smallfolk', name: 'The Thing in the Bilges',
+        script: 'wildBeast', beast: 'crabcrag', huge: true,
+        hideIfFlag: 'smugglersCave_taken',
+        data: { species: 'crabcrag', level: 16, met: 'smugglersCave_met', taken: 'smugglersCave_taken',
+          waking: ['Something has been living on what the smugglers spill, and it has been living on it for a very long time.'] } },
       { room: 1, dir: 'down', sprite: 'smallfolk', name: 'A Hull Smuggler', script: 'townTalk',
         data: { line: 'A Hull Smuggler: Half of what King\'s Landing drinks comes through this hole in the rock, and the crown has been taxing the other half for three hundred years.' } },
     ],
     items: [
+      { room: 3, item: 'kingsRansom', count: 1, flag: 'hoard_smugglersCave' },
       { room: 0, item: 'maesterKit', count: 1, flag: 'item_smug_kit' },
       { room: 2, item: 'poppyMilk', count: 1, flag: 'item_smug_poppy' },
     ],
@@ -5869,7 +5885,8 @@ export const MAPS = {
   }),
 
   wreckersCave: makeCave({
-    id: 'wreckersCave', name: "The Wreckers' Cave",
+    id: 'wreckersCave', chambers: 4, note: 'A ship\u2019s bell hangs by the door, green with salt.\nSomebody rings it when a hull goes on the rocks, and somebody has rung it a great many times.',
+    name: "The Wreckers' Cave",
     /* Out onto the beach that rings the islet, not into the middle of it. The
        mouth is cut in the cliff's top face and this used to put you down on
        the far side of it, on two tiles of sand walled in by rock, where the
@@ -5882,10 +5899,16 @@ export const MAPS = {
       { roamer: 'sellsword', min: 15, max: 19, weight: 38 },
     ],
     npcs: [
+      { room: 3, dir: 'down', sprite: 'smallfolk', name: 'The Bell of Shipbreaker',
+        script: 'wildBeast', beast: 'deepmaw', huge: true,
+        hideIfFlag: 'wreckersCave_taken',
+        data: { species: 'deepmaw', level: 22, met: 'wreckersCave_met', taken: 'wreckersCave_taken',
+          waking: ['The wreckers did not put the bell here to warn ships off. They put it here to tell whatever is at the back of this cave that supper has arrived.'] } },
       { room: 1, dir: 'down', sprite: 'sellsword', name: 'A Wrecker', script: 'duel',
         data: { duel: 'sellsword' } },
     ],
     items: [
+      { room: 3, item: 'kingsRansom', count: 2, flag: 'hoard_wreckersCave' },
       { room: 0, item: 'warhorn', count: 1, flag: 'item_wreck_horn' },
       { room: 2, item: 'weirwoodSap', count: 1, flag: 'item_wreck_sap' },
     ],
@@ -5893,7 +5916,8 @@ export const MAPS = {
   }),
 
   drownedCave: makeCave({
-    id: 'drownedCave', name: 'The Drowned Cave',
+    id: 'drownedCave', chambers: 4, note: 'What is dead may never die, cut into the rock in the old script and then again underneath it in the common tongue.\nThe second carving is much less patient.',
+    name: 'The Drowned Cave',
     back: 'sunsetSea', backX: 4, backY: 8,
     encounters: [
       { beast: 'deepmaw', min: 20, max: 24, weight: 28 },
@@ -5901,10 +5925,16 @@ export const MAPS = {
       { roamer: 'ironbornReaver', min: 20, max: 25, weight: 40 },
     ],
     npcs: [
+      { room: 3, dir: 'down', sprite: 'smallfolk', name: 'The Drowned God\u2019s Own',
+        script: 'wildBeast', beast: 'krakenling', huge: true,
+        hideIfFlag: 'drownedCave_taken',
+        data: { species: 'krakenling', level: 26, met: 'drownedCave_met', taken: 'drownedCave_taken',
+          waking: ['The water at the back of the chamber goes down further than the chamber does, and something is coming up it.'] } },
       { room: 1, dir: 'down', sprite: 'ironborn', name: 'A Drowned Man', script: 'townTalk',
         data: { line: 'A Drowned Man: What is dead may never die. He rises harder and stronger, and he rises in here, out of the water, in the dark, every tide.' } },
     ],
     items: [
+      { room: 3, item: 'kingsRansom', count: 2, flag: 'hoard_drownedCave' },
       { room: 0, item: 'frostTonic', count: 2, flag: 'item_drowned_tonic' },
       { room: 2, item: 'valyrianMesh', count: 1, flag: 'item_drowned_mesh' },
     ],
@@ -5912,7 +5942,8 @@ export const MAPS = {
   }),
 
   pirateCave: makeCave({
-    id: 'pirateCave', name: 'A Pirate Hold', w: 24, h: 18, chambers: 4,
+    id: 'pirateCave', chambers: 4, note: 'Four flags are nailed up by the door, all of them cut down from something larger.\nNone of them belong to any kingdom that still exists.',
+    name: 'A Pirate Hold', w: 24, h: 18,
     back: 'stepstones', backX: 4, backY: 6,
     encounters: [
       { beast: 'sandviper', min: 24, max: 28, weight: 28 },
@@ -5920,12 +5951,18 @@ export const MAPS = {
       { roamer: 'sellsword', min: 25, max: 30, weight: 44 },
     ],
     npcs: [
+      { room: 3, dir: 'down', sprite: 'smallfolk', name: 'What the Stepstones Keep',
+        script: 'wildBeast', beast: 'deepmaw', huge: true,
+        hideIfFlag: 'pirateCave_taken',
+        data: { species: 'deepmaw', level: 30, met: 'pirateCave_met', taken: 'pirateCave_taken',
+          waking: ['The pirates have been feeding it for three generations, and it has stopped being able to tell the difference between them and you.'] } },
       { room: 1, dir: 'down', sprite: 'sellsword', name: 'A Stepstones Captain', script: 'duel',
         data: { duel: 'sellsword' } },
-      { room: 3, dir: 'down', sprite: 'merchant', name: 'A Chained Factor', script: 'townTalk',
+      { room: 2, dir: 'down', sprite: 'merchant', name: 'A Chained Factor', script: 'townTalk',
         data: { line: 'A Chained Factor: Volantis bought me, the Stepstones took me, and neither of them has decided yet whose I am. Cut this and I will remember it.' } },
     ],
     items: [
+      { room: 3, item: 'kingsRansom', count: 3, flag: 'hoard_pirateCave' },
       { room: 0, item: 'kissOfFire', count: 1, flag: 'item_pirate_fire' },
       { room: 2, item: 'kingsRansom', count: 1, flag: 'item_pirate_ransom' },
     ],
@@ -5933,7 +5970,8 @@ export const MAPS = {
   }),
 
   iceCave: makeCave({
-    id: 'iceCave', name: 'The Ice Caves', w: 24, h: 18, chambers: 4, cold: 5,
+    id: 'iceCave', chambers: 4, note: 'The ice on the wall is clear as glass for a foot and a half, and there are things standing in it.\nThey are standing the right way up.',
+    name: 'The Ice Caves', w: 24, h: 18, cold: 5,
     /* The beach north of the mouth, not the one tile of sand that used to be
        cut into the cliff top behind it. See the Wreckers' Cave. */
     back: 'shiveringSea', backX: 12, backY: 9,
@@ -5943,10 +5981,16 @@ export const MAPS = {
       { roamer: 'wildlingRaider', min: 30, max: 35, weight: 34 },
     ],
     npcs: [
+      { room: 3, dir: 'down', sprite: 'smallfolk', name: 'What Waited for the Ice',
+        script: 'wildBeast', beast: 'palewalker', huge: true,
+        hideIfFlag: 'iceCave_taken',
+        data: { species: 'palewalker', level: 40, met: 'iceCave_met', taken: 'iceCave_taken',
+          waking: ['It has been in the ice long enough for the ice to have formed around it, and it is not in the ice any more.'] } },
       { room: 2, dir: 'down', sprite: 'wildling', name: 'A Frozen Watchman', script: 'townTalk',
         data: { line: 'A Frozen Watchman: Do not go deeper than the third chamber. Whatever is down there was walking before the Wall was raised and it has not stopped since.' } },
     ],
     items: [
+      { room: 3, item: 'dragonglass', count: 3, flag: 'hoard_iceCave' },
       { room: 0, item: 'weirwoodSap', count: 1, flag: 'item_ice_sap' },
       { room: 1, item: 'dragonglass', count: 3, flag: 'item_ice_glass' },
       { room: 3, item: 'kingsRansom', count: 1, flag: 'item_ice_ransom' },
@@ -6038,7 +6082,7 @@ export const MAPS = {
       /* And the beach with the ribs on it. Forty feet of them, and the thing
          that is still using them comes back with the tide. */
       soul(30, 13, { sprite: 'smallfolk', name: 'Nagga',
-        script: 'wildDragon', beast: 'nagga', huge: true,
+        script: 'wildBeast', beast: 'nagga', huge: true,
         hideIfFlag: 'nagga_taken',
         data: { species: 'nagga', level: 44,
           met: 'nagga_met', taken: 'nagga_taken',
@@ -7215,7 +7259,7 @@ export const MAPS = {
     ],
     npcs: [
       { x: 8, y: 5, dir: 'down', sprite: 'smallfolk', name: 'Sheepstealer',
-        script: 'wildDragon', beast: 'sheepstealer', huge: true,
+        script: 'wildBeast', beast: 'sheepstealer', huge: true,
         hideIfFlag: 'sheepstealer_taken',
         data: { species: 'sheepstealer', level: 40,
           met: 'sheepstealer_met', taken: 'sheepstealer_taken',
@@ -9152,74 +9196,170 @@ export const CAVE_IDS = [];
     CAVE_IDS.push(cave.id);
   };
 
-  const den = (id, name, beasts, roamer, lvl, loot, line, who, sprite, cold = 0, h = 17) => ({
-    id, name, h, cold,
+  /* A cave with a bottom to it.
+   *
+   * Fourteen of these used to be the same room fourteen times: three chambers,
+   * one person with a line, two potions, and a way back out. Nothing at the far
+   * end of any of them was worth the walk to the far end, so there was no
+   * reason to go past the first chamber and no reason to remember which cave
+   * was which. Each has four chambers now; the deepest holds the animal the
+   * place belongs to and the hoard it has been lying on, and the wall by the
+   * door says what happened here. */
+  const den = (id, name, beasts, roamer, lvl, loot, line, who, sprite, cold = 0, h = 17,
+               deep = null) => ({
+    id, name, h, cold, chambers: 4,
+    note: deep?.note,
     encounters: [
       { beast: beasts[0], min: lvl - 2, max: lvl + 2, weight: 30 },
       { beast: beasts[1], min: lvl - 1, max: lvl + 3, weight: 24 },
       { roamer, min: lvl, max: lvl + 4, weight: 36 },
     ],
-    npcs: who ? [{ room: 1, dir: 'down', sprite, name: who, script: 'townTalk', data: { line } }] : [],
-    items: loot.map((item, i) => ({ room: i === 0 ? 0 : 2, item, count: 1, flag: `item_${id}_${i}` })),
+    npcs: [
+      ...(who ? [{ room: 1, dir: 'down', sprite, name: who, script: 'townTalk', data: { line } }] : []),
+      ...(deep ? [{
+        room: 3, dir: 'down', sprite: 'smallfolk', name: deep.name,
+        script: 'wildBeast', beast: deep.beast, huge: true,
+        hideIfFlag: `${id}_taken`,
+        data: {
+          species: deep.beast, level: deep.level,
+          met: `${id}_met`, taken: `${id}_taken`,
+          waking: deep.waking ? [deep.waking] : undefined,
+        },
+      }] : []),
+    ],
+    items: [
+      ...loot.map((item, i) => ({ room: i === 0 ? 0 : 2, item, count: 1, flag: `item_${id}_${i}` })),
+      ...(deep ? [{ room: 3, item: deep.hoard, count: deep.count ?? 1, flag: `hoard_${id}` }] : []),
+    ],
     signs: [],
   });
 
   hang('wolfswood', den('wolfsDen', "A Wolf's Den", ['snowpup', 'direwolf'], 'poacher', 8,
     ['antidote', 'huntersDraught'],
     'A Poacher: There was a she-wolf in here with six of them. I took nothing and I left quickly, and I would advise the same.',
-    'A Poacher', 'smallfolk', 4));
+    'A Poacher', 'smallfolk', 4, 17, {
+    name: 'The She-Wolf', beast: 'direwolf', level: 14, hoard: 'kingsRansom',
+    note: 'Somebody has scratched a count into the rock beside the door.\nSix strokes, '
+        + 'and then a seventh cut much deeper than the others.',
+    waking: 'The six pups are the reason she is still here. She is the reason nothing '
+          + 'else is.' }));
   hang('weepingWater', den('weepingBarrow', 'A Barrow on the Weeping Water', ['wightling', 'barrowlord'], 'gravedigger', 16,
     ['dragonglass', 'frostTonic'],
     'A Gravedigger: First Men laid their kings under this hill and put a stone door on it. Somebody has taken the door off.',
-    'A Gravedigger', 'oldman', 4));
+    'A Gravedigger', 'oldman', 4, 17, {
+    name: 'The King in the Barrow', beast: 'barrowlord', level: 22, hoard: 'kingsRansom', count: 2,
+    note: 'The lintel is carved in a script nobody has read for six thousand years.\n'
+        + 'Underneath it, in charcoal and much more recently: TOOK THE DOOR. SORRY.',
+    waking: 'There is a crown on it. That is the part nobody who tells this story is '
+          + 'ever believed about.' }));
   hang('kingsroadNorth', den('giantsBones', 'The Bones of a Giant', ['boartusk', 'snowpup'], 'bandit', 10,
     ['burnSalve', 'maesterKit'],
     'A Carter: That is a ribcage, not a cave. Whatever it was walked down out of the north and lay down here, and nobody has moved it since.',
-    'A Carter', 'smallfolk', 4));
+    'A Carter', 'smallfolk', 4, 17, {
+    name: 'What Lives in the Ribs', beast: 'tuskrend', level: 16, hoard: 'valyrianMesh',
+    note: 'A drover has cut his name and a year into the third rib along.\n'
+        + 'The year is ninety-one years ago.',
+    waking: 'Something has made a nest of the ribcage, and it did not have to kill the '
+          + 'giant to get it.' }));
   hang('moatCailin', den('bogHollow', 'A Crannog Hollow', ['riverfry', 'ravenling'], 'poacher', 13,
     ['maesterKit', 'antidote'],
     'A Crannogman: Walk where I walk. The Neck has swallowed three armies and it was not in a hurry about any of them.',
-    'A Crannogman', 'smallfolk', 3));
+    'A Crannogman', 'smallfolk', 3, 17, {
+    name: 'The Thing in the Peat', beast: 'tridentide', level: 19, hoard: 'kingsRansom',
+    note: 'Three shields are nailed to the wall by the door, all of them southern, '
+        + 'all of them holed.\nThe Neck keeps what it takes.',
+    waking: 'The water in the bottom chamber is not still. It has not been still since '
+          + 'you came in and you have only just noticed.' }));
   hang('riverlands', den('whisperingCave', 'The Whispering Cave', ['ravenling', 'silverfin'], 'brotherhoodBowman', 15,
     ['netTrap', 'poppyMilk'],
     'A Brotherhood Bowman: We hang men in here where the rain cannot wash them. It is not a nice room and we are not nice men, but we are the only law left on this road.',
-    'A Bowman of the Brotherhood', 'brotherhood', 3));
+    'A Bowman of the Brotherhood', 'brotherhood', 3, 17, {
+    name: 'The Roost', beast: 'corvarch', level: 21, hoard: 'kingsRansom',
+    note: 'A tally of hangings, cut one stroke at a time over what must be years.\n'
+        + 'Beneath the last of them: NO MORE. HE WAS A BOY.',
+    waking: 'The whispering was never the cave. It is a thousand birds, and something '
+          + 'they all answer to.' }));
   hang('goldRoad', den('goldMine', 'A Lannister Goldmine', ['cubmane', 'goldmane'], 'goldCloak', 18,
     ['kingsRansom', 'maesterKit'],
     'A Mine Overseer: Three miles of it under the Rock, and every foot of it Lannister. The last seam ran dry forty years ago. We have not told anybody.',
-    'A Mine Overseer', 'lannister', 2));
+    'A Mine Overseer', 'lannister', 2, 17, {
+    name: 'What the Rock Keeps', beast: 'goldmane', level: 24, hoard: 'kingsRansom', count: 3,
+    note: 'A pay list, chalked and re-chalked and finally crossed through.\n'
+        + 'The last line reads: SEAM DRY. SAY NOTHING. LORD TYWIN\u2019S ORDER.',
+    waking: 'The seam was not dry. It was occupied, and the men who found that out are '
+          + 'the reason nobody was told.' }));
   hang('kingsroad', den('roadsideCave', "A Robbers' Hole", ['ravenling', 'boartusk'], 'bandit', 12,
     ['poppyMilk', 'burnSalve'],
     'A Roadside Thief: Everything in here came off somebody on that road. Take what you like. I am past caring and so are they.',
-    'A Roadside Thief', 'smallfolk', 2));
+    'A Roadside Thief', 'smallfolk', 2, 17, {
+    name: 'The Old Boar', beast: 'tuskrend', level: 18, hoard: 'valyrianMesh',
+    note: 'Names, thirty or forty of them, scratched by different hands at '
+        + 'different heights.\nNone of them are signatures. They are a list of the dead.',
+    waking: 'It came in out of the kingswood one winter and it has been eating whatever '
+          + 'the road sends down here ever since.' }));
   hang('bloodyGate', den('clansmenCave', "A Clansmen's Cave", ['falconet', 'skytalon'], 'clansman', 17,
     ['huntersDraught', 'frostTonic'],
     'A Man of the Burned Men: The Vale is ours. The knights say otherwise and the knights stay behind their gate, so on the whole the argument is going our way.',
-    'A Man of the Burned Men', 'wildling', 3));
+    'A Man of the Burned Men', 'wildling', 3, 17, {
+    name: 'The Bird of the Gate', beast: 'skytalon', level: 23, hoard: 'kingsRansom',
+    note: 'A knight\u2019s helm is wedged into a crack in the wall, crest downward.\n'
+        + 'Somebody has driven a nail through it to hold it there.',
+    waking: 'It nests where the shaft opens on the sky, and everything the clans leave '
+          + 'out for it, it takes.' }));
   hang('roseroad', den('honeycombCave', 'The Honeycomb Caves', ['sapling', 'heartwarden'], 'hedgeKnight', 20,
     ['poppyMilk', 'maesterKit'],
     'A Beekeeper: Six hundred years of hives and the whole hill is hollow with them. Mind the third chamber. They have not been told about you.',
-    'A Beekeeper', 'goodwife', 2));
+    'A Beekeeper', 'goodwife', 2, 17, {
+    name: 'The Heart of the Hive', beast: 'heartwarden', level: 26, hoard: 'kingsRansom', count: 2,
+    note: 'Six hundred years of soot and hand-prints, layered over each other.\n'
+        + 'The oldest of them are the size of a child\u2019s.',
+    waking: 'The hill is not hollow with hives. The hill is hollow with one thing, and '
+          + 'the hives are how it eats.' }));
   hang('princesPass', den('dornishCistern', 'A Dornish Cistern', ['sandviper', 'dornspine'], 'dornishOutrider', 23,
     ['weirwoodSap', 'antidote'],
     'A Water-Keeper: Dorne is not short of water. Dorne is short of people who know where it is kept, and I am one of four.',
-    'A Water-Keeper', 'martell', 1));
+    'A Water-Keeper', 'martell', 1, 17, {
+    name: 'The Keeper of the Water', beast: 'dornspine', level: 29, hoard: 'kingsRansom', count: 2,
+    note: 'A Rhoynish water-mark, cut level with your shoulder.\n'
+        + 'The water has not been that high since before there were Martells.',
+    waking: 'There are four people who know where Dorne keeps its water. There is one '
+          + 'thing down here that has never had to be told.' }));
   hang('stormlands', den('stormCave', 'A Cave under Shipbreaker Bay', ['crabcrag', 'krakenling'], 'sellsword', 21,
     ['shadeOfTheEvening', 'burnSalve'],
     'A Wrecker: The bay does the work. We only carry it up the beach, and we have been carrying it up the beach since before there was a castle on that headland.',
-    'A Wrecker', 'sellsword', 2));
+    'A Wrecker', 'sellsword', 2, 17, {
+    name: 'What the Bay Sends Up', beast: 'deepmaw', level: 27, hoard: 'kingsRansom', count: 2,
+    note: 'Ships\u2019 names, burned into the rock with a brand, one under another.\n'
+        + 'There is no room left on this wall and they have started on the next.',
+    waking: 'The bay does the work, the wreckers said. Something in the bay does the '
+          + 'work, and the wreckers carry it up the beach.' }));
   hang('theGift', den('molesTown', "Mole's Town, Below", ['ravenling', 'wightling'], 'deserter', 19,
     ['frostTonic', 'poppyMilk'],
     'A Moles Town Girl: Everything worth having in the Gift is underground, including most of the people. The Watch pretends not to know and we pretend to believe them.',
-    'A Girl of Mole\'s Town', 'goodwife', 5));
+    'A Girl of Mole\'s Town', 'goodwife', 5, 17, {
+    name: 'What Came Up the Tunnel', beast: 'barrowlord', level: 25, hoard: 'kissOfFire', count: 2,
+    note: 'A brothel\u2019s tally board, brought down here and re-used for something else.\n'
+        + 'The last dozen marks are dated and there is nothing beside them.',
+    waking: 'Everything worth having in the Gift is underground. So is this, and it '
+          + 'did not come from the Gift.' }));
   hang('hauntedForest', den('childrensCave', 'A Cave of the Children', ['sapling', 'heartwarden'], 'wildlingRaider', 28,
     ['weirwoodSap', 'dragonglass'],
     'A Child of the Forest: We were here when the First Men came with their bronze, and we are here now, and there are two hundred of us left in the world. Do not tell them where.',
-    'A Child of the Forest', 'child', 6, 18));
+    'A Child of the Forest', 'child', 6, 18, {
+    name: 'The Last Greenseer', beast: 'heartwarden', level: 34, hoard: 'weirwoodSap', count: 3,
+    note: 'The walls are cut with faces. Not carved: cut, the way the weirwoods are, '
+        + 'and weeping the same red.\nThey are all looking at the same doorway.',
+    waking: 'The roots at the back of this chamber are not roots, and they have been '
+          + 'waiting a very long time for somebody to come this far in.' }));
   hang('frostfangs', den('frostfangCave', 'A Frostfang Deep', ['palewalker', 'barrowlord'], 'wildlingRaider', 32,
     ['kissOfFire', 'kingsRansom'],
     'A Frozen Ranger: Do not light anything. The cold in here is not weather and it notices fire.',
-    'A Frozen Ranger', 'nightswatch', 6, 18));
+    'A Frozen Ranger', 'nightswatch', 6, 18, {
+    name: 'The Cold That Notices', beast: 'palewalker', level: 38, hoard: 'dragonglass', count: 3,
+    note: 'A ranger\u2019s cloak is frozen to the wall beside the door, still pinned '
+        + 'at the shoulder.\nThere is no ranger in it and no sign that there was.',
+    waking: 'The cold in here is not weather and it notices fire. You are carrying '
+          + 'fire. It has noticed.' }));
 }
 
 /* ------------------------------------------------------ upstairs and down --

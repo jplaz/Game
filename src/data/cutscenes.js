@@ -475,7 +475,7 @@ export const CUTSCENES = {
        the whole story from them. Two sigils is sequence enough, and this sets
        the same flag, so whichever of the two you meet first opens the road to
        the rest. */
-    map: 'riverlands', x: 10, y: 14, flag: 'cs_crowsCall', name: "A Crow's Call",
+    map: 'riverlands', x: 10, y: 13, flag: 'cs_crowsCall', name: "A Crow's Call",
     sigils: 2,
     beats: [
       ['say', 'There is a black heap at the side of the road that turns out, '
@@ -625,7 +625,7 @@ export const CUTSCENES = {
   /** Somebody has been following you, and stops bothering to hide it. */
   theFollower: {
     anywhere: true,
-    map: 'kingsroad', x: 10, y: 16, flag: 'cs_follower',
+    map: 'kingsroad', x: 12, y: 16, flag: 'cs_follower',
     beats: [
       ['say', 'A twig goes, somewhere behind and to the left. Then nothing, which is worse.'],
       ['wait', 0.9],
@@ -646,7 +646,7 @@ export const CUTSCENES = {
       ['say', 'The smell reaches you before the turn in the road does.'],
       ['wait', 0.7],
       ['say', 'Eleven houses. Nine of them still standing, in the sense that walls are standing.'],
-      ['spawn', 'left', { x: 10, y: 11, dir: 'up', sprite: 'goodwife', name: 'Somebody Left Behind' }],
+      ['spawn', 'left', { x: 10, y: 9, dir: 'up', sprite: 'goodwife', name: 'Somebody Left Behind' }],
       ['say', 'Whoever did it went through in a morning and was somewhere else by evening. '
             + 'They took the grain and left the people.'],
       ['flag', 'sawTheBurning'],

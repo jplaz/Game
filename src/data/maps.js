@@ -1414,7 +1414,7 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
                      grass = ',', road = 11, width = 24, height = 30, seed = 1,
                      river = 0, spurs = 4, indoor = false,
                      features = [], landmarks = [], encounters = [], warps = [], npcs = [],
-                     signs = [], items = [] }) {
+                     signs = [], items = [], opens = [] }) {
   const CHAR = {
     grass, trees: wall, water: '~', cliff: 'C', ledge: 'L',
     flowers: '*', sand: 's', rubble: 'U', ice: 'i', snow: 'S', sign: '!',
@@ -1575,6 +1575,51 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
     }
   }
 
+  /* Open the shortest line from one tile to ground the road can reach, and
+     let that be the track up to it. Used by a landmark whose yard was carved
+     out of a wood, and by a door that has to stay exactly where the caller
+     put it. */
+  const roadReach = () => {
+    const OPEN = new Set([floor, grass, 'd', 't', ...STANDABLE]);
+    const seen = new Array(width * height).fill(false);
+    const flood = [[road, 1]];
+    seen[width + road] = true;
+    for (let head = 0; head < flood.length; head++) {
+      const [qx, qy] = flood[head];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = qx + dx, ny = qy + dy;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        if (seen[ny * width + nx] || !OPEN.has(g[ny][nx])) continue;
+        seen[ny * width + nx] = true;
+        flood.push([nx, ny]);
+      }
+    }
+    return [seen, OPEN];
+  };
+  /* Breadth-first from the tile to the road, through open ground and through
+     trees - but never through anything else solid, or the track would be
+     carved up to a wall and stop there. */
+  const trackTo = (start, reached, OPEN) => {
+    const from = new Map([[`${start[0]},${start[1]}`, null]]);
+    const walk = [start];
+    let landed = null;
+    for (let head = 0; head < walk.length && !landed; head++) {
+      const [qx, qy] = walk[head];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = qx + dx, ny = qy + dy;
+        if (nx < 1 || ny < 1 || nx >= width - 1 || ny >= height - 1) continue;
+        if (from.has(`${nx},${ny}`)) continue;
+        if (g[ny][nx] !== wall && !OPEN.has(g[ny][nx])) continue;
+        from.set(`${nx},${ny}`, [qx, qy]);
+        if (reached[ny * width + nx]) { landed = [nx, ny]; break; }
+        walk.push([nx, ny]);
+      }
+    }
+    for (let step = landed; step; step = from.get(`${step[0]},${step[1]}`)) {
+      if (g[step[1]][step[0]] === wall) g[step[1]][step[0]] = floor;
+    }
+  };
+
   // ---- landmarks, stamped on the shoulder --------------------------------
   for (const spot of landmarks) {
     const art = LANDMARKS[spot.kind];
@@ -1654,27 +1699,33 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
       }
     }
     if (mine.some(([x, yy]) => reached[yy * width + x])) continue;
-    /* Breadth-first from the yard to the road, through open ground and
-       through trees - but never through the landmark's own stones, or the
-       track would be carved up to a wall and stop there. */
-    const from = new Map([[`${mine[0][0]},${mine[0][1]}`, null]]);
-    const walk = [mine[0]];
-    let landed = null;
-    for (let head = 0; head < walk.length && !landed; head++) {
-      const [qx, qy] = walk[head];
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const nx = qx + dx, ny = qy + dy;
-        if (nx < 1 || ny < 1 || nx >= width - 1 || ny >= height - 1) continue;
-        if (from.has(`${nx},${ny}`)) continue;
-        if (g[ny][nx] !== wall && !OPEN.has(g[ny][nx])) continue;
-        from.set(`${nx},${ny}`, [qx, qy]);
-        if (reached[ny * width + nx]) { landed = [nx, ny]; break; }
-        walk.push([nx, ny]);
-      }
-    }
-    for (let step = landed; step; step = from.get(`${step[0]},${step[1]}`)) {
-      if (g[step[1]][step[0]] === wall) g[step[1]][step[0]] = floor;
-    }
+    trackTo(mine[0], reached, OPEN);
+  }
+
+
+  /* Doors that may not be moved.
+     A route relocates everything to meet the ground it carved, which is right
+     for a door the route itself owns - but a cave mouth has a matching door
+     inside the cave that comes back out at a tile written down in another map
+     entirely. Move one of those and you come out of a wolf's den into a pine
+     tree. So these stay where the caller put them, and the ground comes to
+     them instead. */
+  for (const w of warps) {
+    if (!w.keep) continue;
+    if (w.x < 0 || w.y < 0 || w.x >= width || w.y >= height) continue;
+    g[w.y][w.x] = w.cave ? '%' : floor;
+    const [reached, OPEN] = roadReach();
+    if (!reached[w.y * width + w.x]) trackTo([w.x, w.y], reached, OPEN);
+  }
+  /* And the tiles somebody arrives on. A door out of the Bloody Gate says
+     which tile of the Riverlands you step onto, and it says it in the Bloody
+     Gate's own map: recarve the Riverlands and that tile can become a tree,
+     which is a road you can walk out of and never walk back into. */
+  for (const [x, yy] of opens) {
+    if (x < 0 || yy < 0 || x >= width || yy >= height) continue;
+    if (!STANDABLE.has(g[yy][x]) && g[yy][x] !== floor && g[yy][x] !== grass) g[yy][x] = floor;
+    const [reached, OPEN] = roadReach();
+    if (!reached[yy * width + x]) trackTo([x, yy], reached, OPEN);
   }
 
   // ---- everything must join up -------------------------------------------
@@ -1729,22 +1780,39 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
   const walkable = (x, yy) => WALKABLE.has(g[yy][x]);
   const shoulder = (x, yy) => walkable(x, yy) && g[yy][x] !== 'd' && g[yy][x] !== 't';
 
+  /* Nobody stands where somebody already is, and nobody stands on the tile a
+     door puts you down on.
+     Each of these used to search on its own, so two people written three tiles
+     apart in a wood both walked to the same patch of open ground and one of
+     them vanished under the other; and the Hollow Hill's door came out of the
+     hill onto a hedge knight's head. */
+  const taken = new Set(opens.map(([x, yy]) => `${x},${yy}`));
+  for (const w of warps) taken.add(`${w.x},${w.y}`);
   // People stand at the side of the road, never in the middle of it: a person
   // on the centre line of a three-wide corridor is a toll gate. A warden is a
   // toll gate on purpose — that is the entire job — so they keep the tile they
   // were given and everybody else gets moved to the shoulder.
   const placedNpcs = npcs.map((p) => {
-    if (p.warden) return p;
-    const at = nearest(p.x, p.y, shoulder) ?? nearest(p.x, p.y, walkable);
-    return at ? { ...p, x: at[0], y: at[1] } : p;
+    if (p.warden) { taken.add(`${p.x},${p.y}`); return p; }
+    const free = (x, yy) => !taken.has(`${x},${yy}`);
+    const at = nearest(p.x, p.y, (x, yy) => shoulder(x, yy) && free(x, yy))
+      ?? nearest(p.x, p.y, (x, yy) => walkable(x, yy) && free(x, yy))
+      ?? nearest(p.x, p.y, shoulder) ?? nearest(p.x, p.y, walkable);
+    if (!at) return p;
+    taken.add(`${at[0]},${at[1]}`);
+    return { ...p, x: at[0], y: at[1] };
   });
 
   // A sign is read by facing it, so it wants to be a solid tile with open
   // ground beside it.
   const placedSigns = signs.map((s) => {
-    const at = nearest(s.x, s.y, (x, yy) => g[yy][x] === wall
+    /* Beside it, and not under somebody: the Rosewell's board went up on the
+       one wall of the well whose only open side a pedlar was standing on. */
+    const readable = (x, yy) => g[yy][x] === wall
       && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) =>
-        inside(x + dx, yy + dy) && walkable(x + dx, yy + dy)));
+        inside(x + dx, yy + dy) && walkable(x + dx, yy + dy)
+        && !taken.has(`${x + dx},${yy + dy}`));
+    const at = nearest(s.x, s.y, readable);
     if (!at) return s;
     g[at[1]][at[0]] = '!';
     return { ...s, x: at[0], y: at[1] };
@@ -1756,9 +1824,11 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
   const placedItems = items.map((it, i) => {
     const aim = pockets[i % Math.max(1, pockets.length)] ?? [it.x, it.y];
     const at = nearest(aim[0], aim[1], (x, yy) => walkable(x, yy) && g[yy][x] !== 'd'
+      && !taken.has(`${x},${yy}`)
       && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) =>
         inside(x + dx, yy + dy) && walkable(x + dx, yy + dy) && g[yy + dy][x + dx] !== 'j'));
     if (!at) return it;
+    taken.add(`${at[0]},${at[1]}`);
     g[at[1]][at[0]] = 'j';
     return { ...it, x: at[0], y: at[1] };
   });
@@ -1767,7 +1837,7 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
   // caller says "a cave, about here", and here is wherever the carving left
   // ground. The two gates are fixed; everything else moves to meet the road.
   const placedWarps = warps.map((w) => {
-    if (w.y === 0 || w.y === height - 1) return w;
+    if (w.y === 0 || w.y === height - 1 || w.keep) return w;
     const at = nearest(w.x, w.y, shoulder) ?? nearest(w.x, w.y, walkable);
     if (!at) return w;
     if (w.cave) g[at[1]][at[0]] = '%';
@@ -4993,43 +5063,34 @@ export const MAPS = {
   },
 
   // ============================================ route 1: the Wolfswood road ==
-  wolfswood: {
-    name: 'The Wolfswood',
+  /* The Wolfswood: a straight road down the middle of a rectangle with the
+     same patch of long grass mirrored on both sides of it, eleven times over.
+     Carved now, like every other road, and given the two things anybody from
+     Winterfell would use to tell you where they meant. */
+  wolfswood: makeRoute({
+    seed: 0x51F3, spurs: 5, width: 20, height: 26, road: 10,
+    name: 'The Wolfswood', ground: 'grass', wall: 'P', floor: 'S', grass: ';',
     music: 'route',
-    ground: 'grass',
-    tiles: [
-      'PPPPPPPPPPdPPPPPPPPP',
-      'PSSSSSSSSSdS!SSSSSSP',
-      'PSS;;;SSSSdSSS;;;SSP',
-      'PSS;;;SSSSdSSS;;;SSP',
-      'PSSSSSSSSSdSSSSSSSSP',
-      'PSSSSSPPSSdSSPPSSSSP',
-      'PSSSSSSSSSdSSSSSSSSP',
-      'PSS;;;;;;SdS;;;;;SSP',
-      'PSS;;;;;;SdS;;;;;SSP',
-      'PSSSSSSSSSdSSSSSSSSP',
-      'PSSSSSSSSSdSSSSSSSSP',
-      'P.........d........P',
-      'P#........d.......#P',
-      'P.,,,,....d...,,,,.P',
-      'P.,,,,....d...,,,,.P',
-      'P.........d........P',
-      'P..##.....d....##..P',
-      'P.......!.d........P',
-      'PLLLLLLLLLdLLLLLLLLP',
-      'P.........d........P',
-      'P.,,,,,,..d..,,,,,.P',
-      'P.,,,,,,..d..,,,,,.P',
-      'P.........d........P',
-      'P#..##....d...##..#P',
-      'P.........d........P',
-      '##########d#########',
+    features: [
+      { type: 'grass', x: 2, y: 2, w: 5, h: 3 },
+      { type: 'grass', x: 13, y: 3, w: 5, h: 3 },
+      { type: 'trees', x: 3, y: 9, w: 3, h: 2 },
+      { type: 'grass', x: 2, y: 13, w: 6, h: 3 },
+      { type: 'ledge', x: 3, y: 18, w: 6, h: 1 },
+      { type: 'ledge', x: 12, y: 18, w: 5, h: 1 },
+      { type: 'grass', x: 12, y: 20, w: 6, h: 3 },
+      { type: 'flowers', x: 3, y: 22, w: 4, h: 2 },
+    ],
+    /* A den in a bank of earth, and the tree the Starks hold court under. */
+    landmarks: [
+      { kind: 'grove', x: 13, y: 7 },
+      { kind: 'wagon', x: 4, y: 20 },
     ],
     encounters: [
       { roamer: 'bandit', min: 3, max: 6, weight: 34 },
       { roamer: 'poacher', min: 3, max: 7, weight: 34 },
       { roamer: 'deserter', min: 4, max: 7, weight: 32 },
-          { beast: 'snowpup', min: 3, max: 6, weight: 18 },
+      { beast: 'snowpup', min: 3, max: 6, weight: 18 },
       { beast: 'bearcub', min: 4, max: 7, weight: 14 },
       { beast: 'sapling', min: 3, max: 6, weight: 12 },
     ],
@@ -5037,26 +5098,34 @@ export const MAPS = {
       { x: 10, y: 0, to: 'winterfell', tx: 12, ty: 30, dir: 'up' },
       { x: 10, y: 25, to: 'moatCailin', tx: 9, ty: 2, dir: 'down' },
     ],
+    opens: [[10, 1], [10, 24]],
     signs: [
       { x: 12, y: 1, text: 'THE WOLFSWOOD\nSouth to Moat Cailin.\nStay on the road after dark.' },
       { x: 8, y: 17, text: 'A drop, not a climb. You can jump down, but not back up.' },
+      { x: 14, y: 9, text: 'A weirwood with a face in it, and a ring of smaller ones around it.\nSomebody keeps the moss off the eyes. Nobody will say who.' },
     ],
     npcs: [
       { x: 8, y: 6, dir: 'down', name: 'Villager', sprite: 'smallfolk',
         script: 'quest', data: { quest: 'brokenTower' } },
-      { x: 6, y: 6, dir: 'right', sprite: 'smallfolk', name: 'Forager', script: 'trainer',
+      { x: 6, y: 8, dir: 'down', sprite: 'smallfolk', name: 'Forager', script: 'trainer',
         data: { trainer: 'forager' } },
       { x: 14, y: 12, dir: 'left', sprite: 'nightswatch', name: 'Ranger Jon', script: 'trainer',
         data: { trainer: 'ranger' } },
       { x: 5, y: 22, dir: 'up', sprite: 'wildlingWoman', name: 'Wildling', script: 'trainer',
         data: { trainer: 'wildling1' } },
       { x: 16, y: 20, dir: 'left', sprite: 'oldman', name: 'Woodsman', script: 'wolfswoodHint' },
+      { x: 14, y: 10, dir: 'down', sprite: 'septa', name: 'A Woman Who Keeps the Grove',
+        script: 'townTalk',
+        data: { line: 'A Woman Who Keeps the Grove: The old gods have no septs and no '
+          + 'septons, so they have me instead, and I was not asked either. '
+          + 'Sit down. Say nothing. That is the whole of the service.' } },
     ],
     items: [
       { x: 3, y: 3, item: 'snare', count: 2, flag: 'item_wolfswood_snare' },
       { x: 13, y: 16, item: 'maesterKit', count: 1, flag: 'item_wolfswood_kit' },
+      { x: 5, y: 21, item: 'ashHaft', count: 1, flag: 'item_wolfswood_haft' },
     ],
-  },
+  }),
 
   // ============================================================ MOAT CAILIN ==
   moatCailin: {
@@ -5215,73 +5284,76 @@ export const MAPS = {
   }),
 
   // =================================================== route 2: Riverlands ==
-  riverlands: {
-    name: 'The Riverlands',
-    music: 'route',
-    ground: 'grass',
-    tiles: [
-      '##########d#########',
-      '#........!d*.......#',
-      '#..,,,,...d...,,,,.#',
-      '#..,,,,...d...,,,,.#',
-      '#.........d........#',
-      '#..~~~~~..d..~~~~..#',
-      '#..~~~~~..d..~~~~..#',
-      '#..~~~~~..d..~~~~..#',
-      '#.........d........#',
-      '#....##...d...##...#',
-      '#.........d........#',
-      '#LLLLLLLLLdLLLLLLLL#',
-      'd.........d........d',
-      '#..,,,,,,.d.,,,,,,.#',
-      '#..,,,,,,.d.,,,,,,.#',
-      '#.........d........#',
-      '#..~~~~...d...~~~~.#',
-      '#..~~~~...d...~~~~.#',
-      '#.........d........#',
-      '#...**....d....**..#',
-      '#.........d........#',
-      '#..,,,,,..d..,,,,,.#',
-      '#..,,,,,..d..,,,,,.#',
-      '#.........d........#',
-      '##########d#########',
+  /* The Riverlands were a straight road down a rectangle with the same field
+     mirrored either side of it. Carved, forded, and given the two things the
+     Riverlands are actually about: a holding somebody burnt, and a well the
+     next village along still walks to. */
+  riverlands: makeRoute({
+    seed: 0x2B41, spurs: 5, width: 20, height: 25, road: 10, river: 16,
+    name: 'The Riverlands', ground: 'grass', music: 'route',
+    features: [
+      { type: 'grass', x: 2, y: 3, w: 6, h: 3 },
+      { type: 'grass', x: 12, y: 4, w: 5, h: 3 },
+      { type: 'water', x: 2, y: 8, w: 4, h: 2 },
+      { type: 'grass', x: 13, y: 9, w: 5, h: 3 },
+      { type: 'flowers', x: 3, y: 13, w: 4, h: 2 },
+      { type: 'grass', x: 3, y: 20, w: 6, h: 3 },
+      { type: 'trees', x: 14, y: 21, w: 4, h: 2 },
+    ],
+    landmarks: [
+      { kind: 'burntFarm', x: 3, y: 5 },
+      { kind: 'well', x: 14, y: 13 },
     ],
     encounters: [
       { roamer: 'bandit', min: 8, max: 12, weight: 28 },
       { roamer: 'brotherhoodBowman', min: 9, max: 13, weight: 24 },
       { roamer: 'sellsword', min: 9, max: 12, weight: 24 },
       { roamer: 'manAtArms', min: 8, max: 12, weight: 24 },
-          { beast: 'riverfry', min: 8, max: 12, weight: 16 },
-          { beast: 'palfrey', min: 8, max: 12, weight: 16 },
+      { beast: 'riverfry', min: 8, max: 12, weight: 16 },
+      { beast: 'palfrey', min: 8, max: 12, weight: 16 },
       { beast: 'ravenling', min: 8, max: 12, weight: 12 },
       { beast: 'boartusk', min: 9, max: 13, weight: 12 },
     ],
     warps: [
       { x: 10, y: 0, to: 'moatCailin', tx: 11, ty: 18, dir: 'up' },
       { x: 10, y: 24, to: 'riverrun', tx: 2, ty: 1, dir: 'down' },
-      { x: 19, y: 12, to: 'bloodyGate', tx: 11, ty: 28, dir: 'right' },
-      { x: 18, y: 20, to: 'theGreenFork', tx: 11, ty: 28, dir: 'right' },
-      { x: 0, y: 12, to: 'ironCoast', tx: 11, ty: 1, dir: 'left' },
+      { x: 19, y: 12, to: 'bloodyGate', tx: 11, ty: 28, dir: 'right', keep: true },
+      { x: 18, y: 20, to: 'theGreenFork', tx: 11, ty: 28, dir: 'right', keep: true },
+      { x: 0, y: 12, to: 'ironCoast', tx: 11, ty: 1, dir: 'left', keep: true },
     ],
+    opens: [[10, 1], [10, 23], [18, 12], [18, 21], [1, 12]],
     signs: [
       { x: 9, y: 1, text: 'THE RIVERLANDS\nSouth to Riverrun.\nMind the fords.' },
+      { x: 4, y: 6, text: 'A holding burnt down to the sill, and not lately.\n'
+        + 'Whoever did it took the doors as well, which takes a cart and a day.' },
+      { x: 15, y: 14, text: 'A well, and the path to it worn a foot deep.\n'
+        + 'The village that dug it is not here any more. The path still is.' },
     ],
     npcs: [
       { x: 12, y: 10, dir: 'down', name: 'Bronn', sprite: 'sellsword',
         script: 'recruit', data: { companion: 'bronn' } },
-      { x: 5, y: 10, dir: 'right', sprite: 'tully', name: 'Fisher Edd', script: 'trainer',
+      /* By the water, and off the one tile the west of the map is reached
+         through: a still body in a gap that narrow is a wall. */
+      { x: 6, y: 8, dir: 'left', sprite: 'tully', name: 'Fisher Edd', script: 'trainer',
         data: { trainer: 'fisher' } },
       { x: 15, y: 15, dir: 'left', sprite: 'merchant', name: 'Pedlar', script: 'trainer',
         data: { trainer: 'pedlar' } },
       { x: 6, y: 20, dir: 'up', sprite: 'guard', name: 'Freerider', script: 'trainer',
         data: { trainer: 'freerider' } },
-      { x: 14, y: 4, dir: 'down', sprite: 'girl', name: 'Traveller\u2019s Daughter', script: 'riverlandsHint' },
+      { x: 14, y: 4, dir: 'down', sprite: 'girl', name: 'Traveller\u2019s Daughter',
+        script: 'riverlandsHint' },
+      { x: 4, y: 8, dir: 'down', sprite: 'goodwife', name: 'A Woman Come Back',
+        script: 'townTalk',
+        data: { line: 'A Woman Come Back: We were told to go to Riverrun and we went. '
+          + 'Now we are told it is safe and we can come home. This is home. '
+          + 'You are standing in the hall.' } },
     ],
     items: [
       { x: 3, y: 19, item: 'warhorn', count: 1, flag: 'item_riverlands_horn' },
       { x: 17, y: 8, item: 'kissOfFire', count: 1, flag: 'item_riverlands_revive' },
+      { x: 5, y: 7, item: 'ironScrap', count: 1, flag: 'item_riverlands_scrap' },
     ],
-  },
+  }),
 
   // ============================================================== RIVERRUN ==
   riverrun: {
@@ -5405,52 +5477,45 @@ export const MAPS = {
   },
 
   // ==================================================== route 3: Gold Road ==
-  goldRoad: {
-    name: 'The Gold Road',
-    music: 'route',
-    ground: 'grass',
-    tiles: [
-      '##########d#########',
-      '#........!ds.......#',
-      '#..,,,,...d...,,,,.#',
-      '#..,,,,...d...,,,,.#',
-      '#.........d........#',
-      '#..CC.....d.....CC.#',
-      '#..CC.....d.....CC.#',
-      '#.........d........#',
-      '#....,,,,.d.,,,,...#',
-      '#....,,,,.d.,,,,...#',
-      '#.........d........#',
-      '#LLLLLLLLLdLLLLLLLL#',
-      '#.........d........#',
-      '#..CCCC...d...CCCC.#',
-      '#..CCCC...d...CCCC.#',
-      '#.........d........#',
-      '#..,,,,,,.d.,,,,,,.#',
-      '#..,,,,,,.d.,,,,,,.#',
-      '#.........d........#',
-      '#...%%....d....%%..#',
-      '#.........d........#',
-      '#..,,,,,..d..,,,,,.#',
-      '#.........d........#',
-      '##########d#########',
+  /* The Gold Road: what the gold actually costs, laid out along the way to
+     the people who have it. Carved rather than typed, and given the hill the
+     Westerlands have been taking the insides out of for three hundred years. */
+  goldRoad: makeRoute({
+    seed: 0x4D77, spurs: 5, width: 20, height: 24, road: 10,
+    name: 'The Gold Road', ground: 'grass', music: 'route',
+    features: [
+      { type: 'grass', x: 2, y: 6, w: 6, h: 3 },
+      { type: 'grass', x: 13, y: 7, w: 5, h: 3 },
+      { type: 'cliff', x: 2, y: 11, w: 3, h: 2 },
+      { type: 'grass', x: 12, y: 13, w: 5, h: 3 },
+      { type: 'grass', x: 3, y: 17, w: 5, h: 3 },
+      { type: 'flowers', x: 13, y: 20, w: 4, h: 2 },
+    ],
+    landmarks: [
+      { kind: 'quarry', x: 3, y: 3 },
+      { kind: 'wagon', x: 15, y: 16 },
     ],
     encounters: [
       { roamer: 'sellsword', min: 14, max: 18, weight: 30 },
       { roamer: 'manAtArms', min: 15, max: 19, weight: 28 },
       { roamer: 'bandit', min: 14, max: 18, weight: 24 },
       { roamer: 'gravedigger', min: 16, max: 19, weight: 18 },
-          { beast: 'cubmane', min: 14, max: 18, weight: 16 },
-          { beast: 'palfrey', min: 14, max: 18, weight: 16 },
+      { beast: 'cubmane', min: 14, max: 18, weight: 16 },
+      { beast: 'palfrey', min: 14, max: 18, weight: 16 },
       { beast: 'boartusk', min: 15, max: 19, weight: 14 },
     ],
     warps: [
       { x: 10, y: 0, to: 'riverrun', tx: 2, ty: 25, dir: 'up' },
       { x: 10, y: 23, to: 'lannisport', tx: 8, ty: 1, dir: 'down' },
-      { x: 5, y: 19, to: 'barrowCave', tx: 8, ty: 14, dir: 'up' },
+      { x: 5, y: 19, to: 'barrowCave', tx: 8, ty: 14, dir: 'up', keep: true },
     ],
+    opens: [[10, 1], [10, 22], [5, 20]],
     signs: [
       { x: 9, y: 1, text: 'THE GOLD ROAD\nSouth to Lannisport.\nA dark opening gapes to the west.' },
+      { x: 4, y: 4, text: 'A working, cut back into the hill and abandoned at the cut.\n'
+        + 'The spoil heap outside it is bigger than the hill it came out of was.' },
+      { x: 16, y: 17, text: 'A wagon with its axle broken and its load gone.\n'
+        + 'Somebody has taken the wheels, the tilt, the harness and the horse.' },
     ],
     npcs: [
       { x: 14, y: 6, dir: 'left', sprite: 'lannister', name: 'Guardsman', script: 'trainer',
@@ -5460,12 +5525,23 @@ export const MAPS = {
       { x: 15, y: 20, dir: 'up', sprite: 'merchant', name: 'Caravanner', script: 'trainer',
         data: { trainer: 'caravanner' } },
       { x: 4, y: 4, dir: 'down', sprite: 'oldman', name: 'Miner', script: 'goldRoadHint' },
+      { x: 6, y: 5, dir: 'down', sprite: 'child', name: 'A Pit Boy',
+        script: 'townTalk',
+        data: { line: 'A Pit Boy: I go down where the props are too close together '
+          + 'for my father. He gets the wage. I get the seam. That is the '
+          + 'arrangement and nobody wrote it down.' } },
+      { x: 16, y: 18, dir: 'left', sprite: 'smallfolk', name: 'A Carter With No Cart',
+        script: 'townTalk',
+        data: { line: 'A Carter With No Cart: Fourteen years on this road and not one '
+          + 'day of trouble, and then a broken axle four leagues from Lannisport '
+          + 'and everything I own is walking west without me.' } },
     ],
     items: [
       { x: 18, y: 12, item: 'greatNet', count: 1, flag: 'item_goldroad_net' },
       { x: 3, y: 8, item: 'weirwoodSap', count: 1, flag: 'item_goldroad_sap' },
+      { x: 4, y: 5, item: 'ironScrap', count: 2, flag: 'item_goldroad_scrap' },
     ],
-  },
+  }),
 
   // ----------------------------------------- optional cave: the Barrowlands --
   barrowCave: {
@@ -5759,53 +5835,47 @@ export const MAPS = {
   },
 
   // =================================================== route 4: Kingsroad ==
-  kingsroad: {
-    name: 'The Kingsroad',
-    music: 'route',
-    ground: 'grass',
-    tiles: [
-      '##########d#########',
-      '#........!ds.......#',
-      '#..,,,,,..d..,,,,,.#',
-      '#..,,,,,..d..,,,,,.#',
-      '#.........d........#',
-      '#..##.....d.....##.#',
-      '#.........d........#',
-      '#....~~~..d..~~~...#',
-      '#....~~~..d..~~~...#',
-      '#.........d........#',
-      '#LLLLLLLLLdLLLLLLLL#',
-      '#.........d........#',
-      '#..,,,,,,.d.,,,,,,.#',
-      '#..,,,,,,.d.,,,,,,.#',
-      '#.........d........d',
-      '#...%C....d....CC..#',
-      '#.........d........#',
-      '#..,,,,,..d..,,,,,.#',
-      '#..,,,,,..d..,,,,,.#',
-      '#.........d........#',
-      '#...**....d....**..#',
-      '#.........d........#',
-      '##########d#########',
+  /* The last road, and the one every playthrough walks twice. It was a
+     straight line down the middle of a rectangle. It is a road now, with a
+     sept at the top of it and a milestone that tells you how far is left. */
+  kingsroad: makeRoute({
+    seed: 0x6C15, spurs: 5, width: 20, height: 23, road: 10,
+    name: 'The Kingsroad', ground: 'grass', music: 'route',
+    features: [
+      { type: 'grass', x: 2, y: 8, w: 6, h: 3 },
+      { type: 'grass', x: 13, y: 9, w: 5, h: 3 },
+      { type: 'trees', x: 3, y: 12, w: 3, h: 2 },
+      { type: 'grass', x: 12, y: 15, w: 5, h: 3 },
+      { type: 'flowers', x: 3, y: 17, w: 4, h: 2 },
+      { type: 'grass', x: 2, y: 20, w: 6, h: 2 },
+    ],
+    landmarks: [
+      { kind: 'shrine', x: 3, y: 3 },
+      { kind: 'cairn', x: 15, y: 18 },
     ],
     encounters: [
       { roamer: 'goldCloak', min: 20, max: 25, weight: 28 },
       { roamer: 'sellsword', min: 20, max: 26, weight: 26 },
       { roamer: 'bandit', min: 20, max: 24, weight: 24 },
       { roamer: 'brotherhoodBowman', min: 21, max: 26, weight: 22 },
-          { beast: 'fawnhart', min: 20, max: 25, weight: 14 },
-          { beast: 'palfrey', min: 20, max: 25, weight: 16 },
+      { beast: 'fawnhart', min: 20, max: 25, weight: 14 },
+      { beast: 'palfrey', min: 20, max: 25, weight: 16 },
       { beast: 'falconet', min: 21, max: 26, weight: 12 },
       { beast: 'boartusk', min: 20, max: 24, weight: 12 },
     ],
     warps: [
       { x: 10, y: 0, to: 'lannisport', tx: 8, ty: 25, dir: 'up' },
       { x: 10, y: 22, to: 'kingsLanding', tx: 16, ty: 30, dir: 'up' },
-      { x: 19, y: 14, to: 'stormlands', tx: 11, ty: 1, dir: 'right' },
-      { x: 4, y: 15, to: 'hollowHill', tx: 8, ty: 15, dir: 'up' },
+      { x: 19, y: 14, to: 'stormlands', tx: 11, ty: 1, dir: 'right', keep: true },
+      { x: 4, y: 15, to: 'hollowHill', tx: 8, ty: 15, dir: 'up', keep: true },
     ],
+    opens: [[10, 1], [10, 21], [18, 14], [4, 16]],
     signs: [
       { x: 9, y: 1, text: "THE KINGSROAD\nSouth to King's Landing.\nThe end of the road, one way or another." },
+      { x: 4, y: 4, text: 'A sept the size of a cart, kept swept.\n'
+        + 'Somebody has left bread on the Mother and it has not been taken.' },
+      { x: 16, y: 19, text: 'A milestone under a heap of stones that have been added to it.\n'
+        + 'The number is worn off. The heap is the answer now.' },
     ],
     npcs: [
       { x: 8, y: 14, dir: 'down', name: 'Samwell Tarly', sprite: 'nightswatch',
@@ -5823,8 +5893,9 @@ export const MAPS = {
     items: [
       { x: 2, y: 16, item: 'kingsRansom', count: 1, flag: 'item_kingsroad_ransom' },
       { x: 18, y: 4, item: 'weirwoodPaste', count: 1, flag: 'item_kingsroad_paste' },
+      { x: 6, y: 5, item: 'poppyMilk', count: 2, flag: 'item_kingsroad_milk' },
     ],
-  },
+  }),
 
   // ======================================================== KING'S LANDING ==
   /**

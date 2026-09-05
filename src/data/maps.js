@@ -2836,47 +2836,49 @@ function riverrunPlan() {
    the harbour takes the south-east, and the town is the dense red-roofed grid
    that fits in between, which is the only shape it could ever have been. */
 function lannisportPlan() {
-  const W = 32, H = 27;
-  const G = [];
-  for (let yy = 0; yy < H; yy++) G.push(new Array(W).fill('.'));
-  const put = (x, yy, c) => { if (G[yy] && G[yy][x] !== undefined) G[yy][x] = c; };
-  const row = (x, yy, s) => [...s].forEach((c, i) => put(x + i, yy, c));
-  const span = (x, yy, w, h, c) => {
-    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, yy + j, c);
-  };
-
-  span(1, 4, 30, 22, 'o');                       // the town, paved throughout
-  span(17, 0, 15, 9, 'C');                       // the Rock, standing over it
-  put(24, 8, 'D');                               // and the Lion's Mouth in it
-
-  span(23, 12, 9, 15, '~');                      // the harbour
-  for (const yy of [14, 19, 24]) span(23, yy, 3, 1, 't');
-  put(24, 16, 'U'); put(24, 21, 'U');
-
-  // the landward wall, and the woods the gold road comes down through
-  span(0, 0, 17, 3, '#');
-  span(8, 0, 1, 3, '-');
-  span(0, 3, 17, 1, 'A'); put(8, 3, 'o');
-  span(0, 3, 1, 24, 'A');
-  span(0, 26, 23, 1, 'A'); put(8, 26, 'o');
-  span(31, 9, 1, 3, 'A'); put(31, 10, 'o');      // and the gate onto the roseroad
-
-  // the maester and the forge, up against the north wall
-  row(2, 5, 'rrrrr'); row(2, 6, 'RRRRR'); row(2, 7, 'pwDwp');
-  row(9, 5, 'zzzzz'); row(9, 6, 'ZZZZZ'); row(9, 7, 'AwDwA');
-  put(4, 4, 'n'); put(11, 4, 'n');
-
-  /* Nine blocks of red tile on a grid of streets. Lannisport is the only place
-     in Westeros anybody has ever bothered to lay out on purpose, and it shows
-     from above more than it does from the ground. */
-  for (const yy of [11, 17, 22]) {
-    for (const x of [2, 9, 16]) {
-      row(x, yy, 'rrrrr'); row(x, yy + 1, 'RRRRR'); row(x, yy + 2, 'HwHwH');
-      put(x + 1, yy - 1, 'n');
-    }
-  }
-
-  return G.map((r) => r.join(''));
+  /* Lannisport, drawn rather than gridded.
+   *
+   * The old plan was nine identical blocks of red tile on a grid of streets,
+   * eleven drawn doors that opened on nothing, six people, one line, and a
+   * blank cliff over a blank harbour: the thinnest of the nine seats, and the
+   * one a Lannister starts a whole game in. This is the port under the Rock:
+   * the Lion's Mouth in the cliff and a walled garden at its foot, a market
+   * square with two stalls under the Rock's shadow, the inn and the common
+   * house facing each other across the street from the maester and the
+   * forge, a sept and a goldsmith's on the way down to the quay, a stable and
+   * a paddock by the south gate, and three jetties with the Sunset Sea off
+   * the end of them. Every door with a D in it opens. The gates, the Rock's
+   * door, the sea and the two old buildings are exactly where they were, so
+   * nothing that walks into this map from outside has to be told. */
+  return [
+    '########-########CCCCCCCCCCCCCCC',
+    '########-########CCCCCCCCCCCCCCC',
+    '########-########CCCCCCCCCCCCCCC',
+    'AAAAAAA!oAAAAAAAACCCCCCCCCCCCCCC',
+    'AooonoooooonoooooCCCCCCCCCCCCCCC',
+    'AorrrrroozzzzzoooCCCCCCCCCCCCCCC',
+    'AoRRRRRooZZZZZoooCCCCCCCCCCCCCCC',
+    'AopwDwpooAwDwAoooCCCCCCCCCCCCCCC',
+    'AooooooooooooooooCCCCCC!DCCCCCCC',
+    'Aoonoooooonooooooooooooooo,,,,,A',
+    'Aorrrrrooyyyyyoooooooooooo,#,#oo',
+    'AoRRRRRooYYYYYoKK!oKKooooo,,*,,A',
+    'AoRRRRRooYYYYYoooooooo!~~~~~~~~~',
+    'AoHwDwHooHwDwHooooooooo~~~~~~~~~',
+    'Aoonooooooooonooooooooottt~~~~~~',
+    'AozzzzzooorrrrroMMMMMoo~~~~~~~~~',
+    'AoZZZZZoooRRRRRoAAAAAoo~U~~~~~~~',
+    'AoZZZZZoooRRRRRoAVAVAoo~~~~~~~~~',
+    'AoAwDwAoooHwHwHoApDpAoo~~~~~~~~~',
+    'Aoooooooooooooooooooooottt~~~~~~',
+    'Aoyyyooooooooooooonoooo~~~~~~~~~',
+    'AoYYYoffffffooooorrrrro~U~~~~~~~',
+    'AoYYYof.....oooooRRRRRo~~~~~~~~~',
+    'AoHwHof....foooooRRRRRo~~~~~~~~~',
+    'AoooooffffffoooooHwHwHottt~~~~~~',
+    'Aoooooooooooooooooooooo~~~~~~~~~',
+    'AAAAAAAAoAAAAAAAAAAAAAA~~~~~~~~~',
+  ];
 }
 
 // The Eyrie: four terraces cut into the Giant's Lance, each one cut back from
@@ -5007,12 +5009,15 @@ export const MAPS = {
   lannisport: {
     name: 'Lannisport',
     music: 'town',
-    /* Paved, not grass. A chimney draws the ground out from under itself, and
-       on a map that still called itself grass every chimney in the city stood
-       on its own little lawn. */
     ground: 'stone',
     get tiles() { return lannisportPlan(); },
-    encounters: [],
+    /* The walled garden under the Rock is the one soft ground in the city,
+       and what waits in it is the city's own: a cutpurse, a poacher come down
+       off the Rock's slopes, and a gold cloak who would rather draw than ask. */
+    encounters: [
+      { roamer: 'bandit', min: 2, max: 4, weight: 60 },
+      { roamer: 'goldCloak', min: 3, max: 5, weight: 40 },
+    ],
     warps: [
       { x: 22, y: 18, to: 'sunsetSea', tx: 25, ty: 12, dir: 'right' },
       { x: 8, y: 0, to: 'goldRoad', tx: 10, ty: 22, dir: 'up' },
@@ -5021,22 +5026,134 @@ export const MAPS = {
       { x: 24, y: 8, to: 'casterlyRock', tx: 12, ty: 24, dir: 'up' },
       { x: 8, y: 26, to: 'kingsroad', tx: 10, ty: 1, dir: 'down' },
       { x: 31, y: 10, to: 'roseroad', tx: 11, ty: 1, dir: 'right' },
+      { x: 4, y: 13, to: 'lannisportInn', tx: 6, ty: 10, dir: 'up' },
+      { x: 11, y: 13, to: 'lannisportHouse', tx: 6, ty: 10, dir: 'up' },
+      { x: 4, y: 18, to: 'lannisportGoldsmith', tx: 5, ty: 6, dir: 'up' },
+      { x: 18, y: 18, to: 'lannisportSept', tx: 5, ty: 6, dir: 'up' },
     ],
     signs: [
       { x: 7, y: 3, text: 'LANNISPORT\nBeneath Casterly Rock.\nSigil-holder: SER JAIME.' },
       { x: 23, y: 8, text: "THE LION'S MOUTH\nThe tunnel up into the Rock.\nNobody has ever come down it uninvited." },
-      { x: 18, y: 11, text: 'THE HARBOUR\nHalf the gold of the west leaves from these three jetties.\nThe other half never leaves at all.' },
+      { x: 17, y: 11, text: "THE LION'S MARKET\nRemedies on the left, dyes and banners on the right.\nEverything is weighed. Everything." },
+      { x: 22, y: 12, text: 'THE HARBOUR\nHalf the gold of the west leaves from these three jetties.\nThe other half never leaves at all.' },
+    ],
+    items: [
+      { x: 26, y: 11, item: 'kingsRansom', count: 1, flag: 'item_lannisport_garden' },
+      { x: 25, y: 24, item: 'poppyMilk', count: 1, flag: 'item_lannisport_jetty' },
     ],
     npcs: [
       { x: 21, y: 20, dir: 'left', sprite: 'merchant', name: 'Shipwright', script: 'shipwright',
         data: { berth: { map: 'sunsetSea', x: 25, y: 12 }, where: 'the Lannisport quay' } },
       { x: 21, y: 14, dir: 'left', sprite: 'oldman', name: 'Harbourmaster', script: 'harbourmaster' },
       { x: 7, y: 4, dir: 'down', sprite: 'lannister', name: 'Gold Cloak', script: 'lannisportGuard' },
-      { x: 13, y: 4, dir: 'down', sprite: 'septa', name: 'Septa of Lannisport',
-        script: 'townTalk', data: { line: 'Septa of Lannisport: A match costs what your name is worth, and in this city that is a number somebody has written down. Have a hall first.' } },
-      { x: 22, y: 16, dir: 'left', sprite: 'goodwife', name: 'Goldsmith', script: 'lannisportHint' },
       { x: 15, y: 21, dir: 'right', sprite: 'rival', name: 'Joffrey', script: 'rivalLannisport',
         hideIfFlag: 'trainer_rival2' },
+      /* The market. Two stalls, talked to across their counters. */
+      { x: 15, y: 10, dir: 'down', sprite: 'merchant', name: 'Pedlar', script: 'shop',
+        data: { stock: ['maesterKit', 'poppyMilk', 'antidote', 'burnSalve', 'wakingDraught'],
+                line: 'Pedlar: Everything on this cloth came off a ship this morning, and I would not swear to which one.' } },
+      { x: 19, y: 10, dir: 'down', sprite: 'braavosi', name: 'Tyroshi Trader', script: 'shop',
+        data: { stock: ['sigilBanner', 'warBanner', 'kingsguardBanner', 'kissOfFire'],
+                line: 'Tyroshi Trader: Banners, dyes, and a thing from Qarth I am not allowed to name. You have the look of somebody who pays.' } },
+      /* Somebody to fight. Object memory holds twelve drawings on one map,
+         counting each kind of roamer, and a town with fourteen names on it
+         was seventeen: so the serjeant wears the gold cloaks' look, the
+         septon is in his sept, the singer is in the taproom, and the dock
+         thief is the cutpurse in the garden. */
+      { x: 12, y: 19, dir: 'left', sprite: 'sellsword', name: 'Ser Lyle Crakehall', script: 'duel',
+        data: { duel: 'hedgeKnight' } },
+      /* And the city going about its day. */
+      { x: 20, y: 25, dir: 'up', sprite: 'goodwife', name: 'Fishwife', script: 'townTalk',
+        data: { line: 'Fishwife: The Lannisters get the gold. We get the herring, and we get told to be grateful for the herring.' } },
+      { x: 5, y: 22, dir: 'right', sprite: 'smallfolk', name: 'Stable Hand', script: 'townTalk',
+        data: { line: "Stable Hand: Hold B as you walk and you will move a good deal faster. Lord Tywin's horses are not for hire, and the Rock's are not for looking at." } },
+      { x: 12, y: 25, dir: 'up', sprite: 'lannister', name: 'Gold Cloak', script: 'townTalk',
+        data: { line: "Gold Cloak: Every third man on this quay is somebody's spy. Every second one is ours." } },
+      { x: 28, y: 11, dir: 'down', sprite: 'child', name: 'Tommen', script: 'townTalk',
+        data: { line: 'Tommen: I have three kittens. Ser Pounce, Lady Whiskers and Boots. Joffrey says he will skin them, and he says it like a joke.' } },
+    ],
+  },
+
+  lannisportInn: (() => {
+    const inn = makeInn({
+      town: 'lannisport', name: "The Lion's Paw", region: 'The Westerlands',
+      keeper: 'Goodwife Hilde',
+      keeperLine: "Goodwife Hilde: Gold pays for the room and gold pays for the quiet. The Rock's men drink upstairs and I do not ask them what about.",
+      drinkerLine: 'Signed on with a Lannister company. Marched to the Riverlands. Marched back. Nobody told me why either time.',
+      fighter: 'A Drunk Sellsword', fighterLine: 'sellsword',
+      stock: ['maesterKit', 'poppyMilk', 'kingsRansom', 'warBanner'],
+    });
+    inn.npcs.push({ x: 8, y: 6, dir: 'left', sprite: 'smallfolk', name: 'Street Singer', script: 'taproom',
+      data: { line: "Street Singer: I know 'The Rains of Castamere' and I know better than to sing it in here. Ask me for 'The Bear and the Maiden Fair'." } });
+    return inn;
+  })(),
+
+  lannisportHouse: makeCommonHouse({
+    town: 'lannisport', name: 'The Gilded Cage', region: 'The Westerlands',
+    madam: 'Sallei', madamLine: 'Sallei: Lannisport trade is gold trade. Everything in this house is priced in it, including the silence.',
+    voices: [
+      { who: "A Goldsmith's Boy", line: "A Goldsmith's Boy: My master sweeps his own floor at the end of the day and weighs the dust. Every day." },
+      { who: 'A Sailor', line: "A Sailor: Three jetties, and the Rock's own ships take two of them. The rest of us queue." },
+      { who: 'A Red Cloak', line: 'A Red Cloak: Ser Jaime gives the Lion Sigil to nobody. He has said so. He says it smiling.' },
+    ],
+  }),
+
+  lannisportSept: {
+    name: 'The Sept of Lannisport',
+    indoor: true,
+    music: 'town',
+    tiles: [
+      'IIIIIIIIIIII',
+      'I=F=cccc=F=I',
+      'I=B=cccc=B=I',
+      'I=B=cccc=B=I',
+      'I===cccc===I',
+      'I===TTTT===I',
+      'I==========I',
+      'IIIII__IIIII',
+    ],
+    warps: [
+      { x: 5, y: 7, to: 'lannisport', tx: 18, ty: 19, dir: 'down' },
+      { x: 6, y: 7, to: 'lannisport', tx: 18, ty: 19, dir: 'down' },
+    ],
+    signs: [
+      { x: 5, y: 5, text: 'THE SEPT OF LANNISPORT\nSeven altars and one ledger.\nThe Septa arranges matches, for those who can afford them.' },
+    ],
+    npcs: [
+      { x: 5, y: 1, dir: 'down', sprite: 'septa', name: 'Septa of Lannisport', script: 'townTalk',
+        data: { line: 'Septa of Lannisport: A match costs what your name is worth, and in this city that is a number somebody has written down.' } },
+      { x: 2, y: 4, dir: 'right', sprite: 'goodwife', name: 'A Woman at Prayer', script: 'townTalk',
+        data: { line: "A Woman at Prayer: She does not look up. 'The Mother's mercy on you. You will need it, in this city.'" } },
+      { x: 9, y: 4, dir: 'left', sprite: 'oldman', name: 'Septon Ollidor', script: 'townTalk',
+        data: { line: 'Septon Ollidor: The Seven keep a sept in every town. In this one they keep a ledger as well.' } },
+    ],
+  },
+
+  lannisportGoldsmith: {
+    name: "The Goldsmith's",
+    indoor: true,
+    music: 'town',
+    tiles: [
+      'IIIIIIIIIIII',
+      'I=B======B=I',
+      'I===KKKK===I',
+      'I==========I',
+      'I=T======T=I',
+      'I==========I',
+      'I=F======F=I',
+      'IIIII__IIIII',
+    ],
+    warps: [
+      { x: 5, y: 7, to: 'lannisport', tx: 4, ty: 19, dir: 'down' },
+      { x: 6, y: 7, to: 'lannisport', tx: 4, ty: 19, dir: 'down' },
+    ],
+    signs: [],
+    npcs: [
+      { x: 5, y: 1, dir: 'down', sprite: 'goodwife', name: 'Goldsmith', script: 'shop',
+        data: { stock: ['kingsRansom', 'kingsguardBanner', 'warBanner', 'sigilBanner'],
+                line: 'Goldsmith: Everything here is weighed twice. Once by me, once by the Rock.' } },
+      { x: 8, y: 4, dir: 'left', sprite: 'smallfolk', name: 'Apprentice', script: 'townTalk',
+        data: { line: 'Apprentice: STEEL turns aside frost and stone alike. Fire goes straight through it. My master says the same about gold.' } },
     ],
   },
 
@@ -8634,6 +8751,7 @@ export const REGIONS = {
   maesterHallEyrie: 'The Vale',
   goldRoad: 'The Westerlands', barrowCave: 'The Westerlands',
   lannisport: 'The Westerlands', lannisportForge: 'The Westerlands',
+  lannisportSept: 'The Westerlands', lannisportGoldsmith: 'The Westerlands',
   casterlyRock: 'The Westerlands', maesterHallLannisport: 'The Westerlands',
   roseroad: 'The Reach', highgarden: 'The Reach', highgardenArmoury: 'The Reach',
   highgardenKeep: 'The Reach',

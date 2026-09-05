@@ -207,7 +207,7 @@ export const CUTSCENES = {
       ['shake', 1.1],
       ['say', 'The rain arrives sideways and all at once, and somewhere behind '
             + 'it the sea is making a sound you can feel in your teeth.'],
-      ['spawn', 'rider', { x: 8, y: 16, dir: 'right', sprite: 'baratheon', name: 'A Storm Rider' }],
+      ['spawn', 'rider', { x: 9, y: 16, dir: 'right', sprite: 'baratheon', name: 'A Storm Rider' }],
       ['say', 'They build the walls round here forty feet thick and curved, so '
             + 'the weather has nothing flat to push against. Now you know why.'],
       ['flag', 'sawTheStorm'],

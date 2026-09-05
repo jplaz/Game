@@ -1293,10 +1293,127 @@ export const TOWN = {
  * makes sense, because a coordinate written for a rectangle is meaningless once
  * the rectangle has a forest in it.
  */
+/* Something built, at the side of a road.
+ *
+ * A route is carved out of trees and then speckled with long grass, and that
+ * is all any of them were: thirteen green corridors, each seven hundred tiles
+ * of the same two drawings, with four people standing in them. Nothing on a
+ * road was ever a PLACE - somewhere you would say "the one with the burnt
+ * farm on it" about - so every road in the game was the same road wearing a
+ * different palette, and walking one was waiting to be somewhere else.
+ *
+ * These are small arrangements of tiles the game already draws, stamped onto
+ * the shoulder: a ring of standing stones, a wayside sept, a holding burnt to
+ * its chimney, a watchpost, a well, a field of graves. They go over open
+ * ground and over trees, never over the road itself or its water, and the
+ * flood that guarantees a route joins up runs afterwards - so a landmark can
+ * carve its own clearing out of the forest and cannot cut the road in half.
+ *
+ * A landmark's words go on the sign beside it and its people stand around it,
+ * both written by the road: the shape is shared, what happened here is not.
+ *
+ *   '.'  leave whatever is there
+ *   '?'  this route's wall (pines in the north, oaks in the Reach)
+ *   '_'  this route's floor
+ *   '"'  this route's long grass
+ * anything else is the tile character itself.
+ */
+const LANDMARKS = {
+  /** Stones piled over somebody nobody now remembers. */
+  cairn: [
+    '.U.',
+    'UUU',
+    '.U.',
+  ],
+  /** Stood on end by the First Men, in a ring you can walk into. */
+  ringOfStones: [
+    'C_C_C',
+    '__*__',
+    'C_C_C',
+  ],
+  /** A wayside sept: three walls, two braziers, and a banner nobody replaces. */
+  shrine: [
+    '.AAA.',
+    'A_V_A',
+    'A___A',
+    '.F_F.',
+  ],
+  /** Somebody's holding. The chimney is always the last thing standing. */
+  burntFarm: [
+    '?UUn.',
+    'U___U',
+    '.U__U',
+    'f_f_f',
+  ],
+  /** A camp somebody left this morning, or is coming back to tonight. */
+  camp: [
+    'f_f_f',
+    '__F__',
+    '_T___',
+    'f_f_f',
+  ],
+  /** Four courses of battlement, a banner, and a fire kept in all weathers. */
+  watchpost: [
+    'MMMM',
+    'MVFM',
+    'M__M',
+    '.__.',
+  ],
+  /** A gibbet at a crossing, and whatever is left hanging in it. */
+  gibbet: [
+    '.W.',
+    'UWU',
+    '._.',
+  ],
+  /** The reason a village was ever here, kerbed in stone. */
+  well: [
+    '.o.',
+    'oUo',
+    '.o.',
+  ],
+  /** A field of markers, all of them cut with the same year. */
+  graves: [
+    'U_U_U',
+    '_____',
+    'U_U_U',
+  ],
+  /** Where a hill has had its insides taken out and left in heaps. */
+  quarry: [
+    'CCU..',
+    'Cd_dU',
+    '.dU_d',
+    '..UdC',
+  ],
+  /** A grove with a face cut into the biggest of them. */
+  grove: [
+    '.W_W.',
+    'W*_*W',
+    '_____',
+    'W*_*W',
+    '.W_W.',
+  ],
+  /** A post the ravens use, and a step to sit on while you wait. */
+  ravenPost: [
+    '.u.',
+    'o_o',
+  ],
+  /** A wagon that is not going anywhere else. */
+  wagon: [
+    'UU_',
+    'f_U',
+  ],
+  /** Laid ready on the headland years ago, and never once lit. */
+  beacon: [
+    '.M.',
+    'MFM',
+    '._.',
+  ],
+};
+
 function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor = '.',
                      grass = ',', road = 11, width = 24, height = 30, seed = 1,
                      river = 0, spurs = 4, indoor = false,
-                     features = [], encounters = [], warps = [], npcs = [],
+                     features = [], landmarks = [], encounters = [], warps = [], npcs = [],
                      signs = [], items = [] }) {
   const CHAR = {
     grass, trees: wall, water: '~', cliff: 'C', ledge: 'L',
@@ -1455,6 +1572,108 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
         }
         g[yy][x] = char;
       }
+    }
+  }
+
+  // ---- landmarks, stamped on the shoulder --------------------------------
+  for (const spot of landmarks) {
+    const art = LANDMARKS[spot.kind];
+    if (!art) throw new Error(`${name}: there is no landmark called "${spot.kind}"`);
+    const SUB = { '?': wall, _: floor, '"': grass };
+    const mine = [];
+    /* Never over the road itself, its bridge or its water. A landmark is
+       something BESIDE the road; one laid across it is a roadblock, and the
+       flood below would then either grow the far half over or refuse to build
+       the map at all. So a cell that would land on the road is skipped - and a
+       landmark with half its cells skipped is not a burnt holding any more, it
+       is four heaps of rubble in a hedge. The caller says roughly where,
+       because the caller cannot know where the carving put the road; this
+       looks around that spot for the nearest place the whole thing fits. */
+    const kept = (ox, oy) => {
+      let n = 0;
+      for (let j = 0; j < art.length; j++) {
+        for (let i = 0; i < art[j].length; i++) {
+          if (art[j][i] === '.') continue;
+          const x = ox + i, yy = oy + j;
+          if (x <= 0 || x >= width - 1 || yy <= 0 || yy >= height - 1) continue;
+          const at = g[yy][x];
+          if (at === 'd' || at === 't' || at === '~') continue;
+          n++;
+        }
+      }
+      return n;
+    };
+    const whole = art.join('').replace(/\./g, '').length;
+    let best = [spot.x, spot.y], bestKept = kept(spot.x, spot.y);
+    for (let r = 1; r <= 5 && bestKept < whole; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const n = kept(spot.x + dx, spot.y + dy);
+          if (n > bestKept) { bestKept = n; best = [spot.x + dx, spot.y + dy]; }
+        }
+      }
+    }
+    for (let j = 0; j < art.length; j++) {
+      for (let i = 0; i < art[j].length; i++) {
+        const ch = art[j][i];
+        if (ch === '.') continue;
+        const x = best[0] + i, yy = best[1] + j;
+        if (x <= 0 || x >= width - 1 || yy <= 0 || yy >= height - 1) continue;
+        const at = g[yy][x];
+        if (at === 'd' || at === 't' || at === '~') continue;
+        const put = SUB[ch] ?? ch;
+        g[yy][x] = put;
+        if (put === floor || put === grass) mine.push([x, yy]);
+      }
+    }
+    /* And a way in to it.
+     *
+     * A landmark laid against a treeline carves its own ground out of the
+     * trees, and ground the road cannot reach is ground the flood below grows
+     * back over: the burnt holding on the kingsroad north came out as four
+     * heaps of rubble in a wood, walled in on all four sides, with its yard
+     * quietly turned back into pines. So if nothing inside it can be walked
+     * to, open the shortest line from it to the road and let that be the
+     * track up to the door. */
+    if (!mine.length) continue;
+    const OPEN = new Set([floor, grass, 'd', 't', ...STANDABLE]);
+    const reached = new Array(width * height).fill(false);
+    {
+      const flood = [[road, 1]];
+      reached[width + road] = true;
+      for (let head = 0; head < flood.length; head++) {
+        const [qx, qy] = flood[head];
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = qx + dx, ny = qy + dy;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          if (reached[ny * width + nx] || !OPEN.has(g[ny][nx])) continue;
+          reached[ny * width + nx] = true;
+          flood.push([nx, ny]);
+        }
+      }
+    }
+    if (mine.some(([x, yy]) => reached[yy * width + x])) continue;
+    /* Breadth-first from the yard to the road, through open ground and
+       through trees - but never through the landmark's own stones, or the
+       track would be carved up to a wall and stop there. */
+    const from = new Map([[`${mine[0][0]},${mine[0][1]}`, null]]);
+    const walk = [mine[0]];
+    let landed = null;
+    for (let head = 0; head < walk.length && !landed; head++) {
+      const [qx, qy] = walk[head];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = qx + dx, ny = qy + dy;
+        if (nx < 1 || ny < 1 || nx >= width - 1 || ny >= height - 1) continue;
+        if (from.has(`${nx},${ny}`)) continue;
+        if (g[ny][nx] !== wall && !OPEN.has(g[ny][nx])) continue;
+        from.set(`${nx},${ny}`, [qx, qy]);
+        if (reached[ny * width + nx]) { landed = [nx, ny]; break; }
+        walk.push([nx, ny]);
+      }
+    }
+    for (let step = landed; step; step = from.get(`${step[0]},${step[1]}`)) {
+      if (g[step[1]][step[0]] === wall) g[step[1]][step[0]] = floor;
     }
   }
 
@@ -3403,6 +3622,15 @@ export const MAPS = {
       { type: 'ice', x: 4, y: 19, w: 5, h: 2 },
       { type: 'ice', x: 13, y: 19, w: 4, h: 2 },
     ],
+    /* The road south from the Wall, and the two things on it that anybody out of Winterfell could describe with their eyes shut. */
+    landmarks: [
+      { kind: 'burntFarm', x: 3, y: 12 },
+      { kind: 'cairn', x: 13, y: 16 },
+    ],
+    signs: [
+      { x: 5, y: 12, text: 'What is left of a holding. The chimney is standing, because a chimney\nalways is.\nSomebody has scratched a flayed man into it, badly, with a knife.' },
+      { x: 14, y: 17, text: 'A heap of stones with no name cut anywhere on it.\nThe custom on this road is to add one and say nothing.' },
+    ],
     encounters: [
       { roamer: 'deserter', min: 12, max: 17, weight: 30 },
       { roamer: 'bandit', min: 12, max: 18, weight: 26 },
@@ -3426,10 +3654,18 @@ export const MAPS = {
       { x: 14, y: 17, dir: 'left', sprite: 'wildling', name: 'Ygritte', script: 'duel',
         data: { duel: 'ygritte' } },
       { x: 4, y: 21, dir: 'down', sprite: 'goodwife', name: 'Carter', script: 'northRoadHint' },
-    ],
+          { x: 5, y: 13, dir: 'down', sprite: 'goodwife', name: 'A Widow',
+        script: 'townTalk',
+        data: { line: 'A Widow: They came at night and they were not quiet about it. They '
+                + 'wanted somebody to hear. Do not tell me it was wolves. Wolves do not '
+                + 'carry a torch.' } },
+      { x: 14, y: 18, dir: 'left', sprite: 'bolton', name: 'A Rider in Pink',
+        script: 'duel', data: { duel: 'manAtArms' } },
+],
     items: [
       { x: 16, y: 3, item: 'weirwoodSap', count: 1, flag: 'item_kroadnorth_sap' },
-    ],
+          { x: 4, y: 13, item: 'frostTonic', count: 1, flag: 'item_kroadnorth_tonic' },
+],
   }),
 
   // Castle Black is not a town with snow on it. It is a huddle of black timber
@@ -3647,6 +3883,11 @@ export const MAPS = {
       { type: 'grass', x: 3, y: 16, w: 6, h: 4 },
       { type: 'grass', x: 12, y: 16, w: 6, h: 4 },
     ],
+    /* Two things out here that were made by hands, and one of them very long ago. */
+    landmarks: [
+      { kind: 'ringOfStones', x: 4, y: 8 },
+      { kind: 'camp', x: 14, y: 19 },
+    ],
     encounters: [
       { roamer: 'deserter', min: 32, max: 40, weight: 18 },
       { roamer: 'wildlingRaider', min: 26, max: 34, weight: 32 },
@@ -3662,7 +3903,8 @@ export const MAPS = {
     ],
     signs: [
       { x: 8, y: 21, text: 'Somebody has driven a spear into the ice here.\nThere is no message. The message is the spear.' },
-    ],
+          { x: 6, y: 9, text: 'Stones stood on end in a ring, taller than a man and older than the Wall.\nThe snow inside the ring is thinner than the snow outside it.' },
+],
     npcs: [
       { x: 8, y: 10, dir: 'down', name: 'Ygritte', sprite: 'wildling',
         script: 'recruit', data: { companion: 'ygritte' } },
@@ -3670,10 +3912,17 @@ export const MAPS = {
         hideIfFlag: 'ghostfang_done' },
       { x: 6, y: 14, dir: 'right', sprite: 'wildling', name: 'Free Folk', script: 'trainer',
         data: { trainer: 'freeFolk' } },
-    ],
+          { x: 6, y: 10, dir: 'down', sprite: 'child', name: 'A Free Folk Girl',
+        script: 'townTalk',
+        data: { line: 'A Free Folk Girl: Do not sleep in the ring. My mother slept in the ring. '
+                + 'She came out and she was still my mother, mostly.' } },
+      { x: 15, y: 20, dir: 'left', sprite: 'wildling', name: 'A Thenn',
+        script: 'duel', data: { duel: 'wildlingRaider' } },
+],
     items: [
       { x: 15, y: 20, item: 'dragonglass', count: 1, flag: 'item_beyond_glass' },
-    ],
+          { x: 5, y: 9, item: 'dragonglass', count: 1, flag: 'item_beyond_glass_ring' },
+],
   }),
 
   // =========================================================================
@@ -3695,6 +3944,11 @@ export const MAPS = {
       { type: 'grass', x: 3, y: 17, w: 6, h: 3 },
       { type: 'grass', x: 12, y: 17, w: 6, h: 3 },
     ],
+    /* The gate is not the only thing in the Vale watching this road. */
+    landmarks: [
+      { kind: 'watchpost', x: 4, y: 7 },
+      { kind: 'cairn', x: 15, y: 19 },
+    ],
     encounters: [
       { roamer: 'clansman', min: 21, max: 27, weight: 36 },
       { roamer: 'hedgeKnight', min: 23, max: 30, weight: 32 },
@@ -3709,7 +3963,8 @@ export const MAPS = {
     ],
     signs: [
       { x: 8, y: 21, text: 'THE BLOODY GATE\n"You may not pass."\nSomeone has scratched: "unless"' },
-    ],
+          { x: 6, y: 8, text: 'THE WATCH ABOVE THE GATE\nManned in every generation since the Andals came.\nManned tonight by two men and a dog.' },
+],
     npcs: [
       { x: 11, y: 27, dir: 'down', sprite: 'arryn', name: "Knight of the Gate", warden: 3,
         script: 'warden',
@@ -3727,10 +3982,17 @@ export const MAPS = {
         data: { trainer: 'valeKnight' } },
       { x: 13, y: 19, dir: 'left', sprite: 'brienne', name: 'Brienne of Tarth', script: 'duel',
         data: { duel: 'brienne' } },
-    ],
+          { x: 6, y: 9, dir: 'down', sprite: 'child', name: 'A Gate Boy',
+        script: 'townTalk',
+        data: { line: 'A Gate Boy: My father says nobody has ever taken the Bloody Gate. My '
+                + 'uncle says nobody has ever tried it properly. They do not speak now.' } },
+      { x: 16, y: 20, dir: 'left', sprite: 'arryn', name: 'A Knight of the Gate',
+        script: 'duel', data: { duel: 'hedgeKnight' } },
+],
     items: [
       { x: 3, y: 20, item: 'kingsRansom', count: 1, flag: 'item_vale_ransom' },
-    ],
+          { x: 5, y: 8, item: 'huntersDraught', count: 1, flag: 'item_bloodygate_draught' },
+],
   }),
 
   theEyrie: {
@@ -3843,6 +4105,11 @@ export const MAPS = {
       { type: 'flowers', x: 4, y: 18, w: 4, h: 2 },
       { type: 'water', x: 13, y: 18, w: 5, h: 3 },
     ],
+    /* The Reach keeps its road tidy, and charges for the rope. */
+    landmarks: [
+      { kind: 'shrine', x: 3, y: 12 },
+      { kind: 'well', x: 15, y: 12 },
+    ],
     encounters: [
       { roamer: 'hedgeKnight', min: 26, max: 33, weight: 34 },
       { roamer: 'manAtArms', min: 26, max: 34, weight: 34 },
@@ -3859,7 +4126,9 @@ export const MAPS = {
     ],
     signs: [
       { x: 8, y: 2, text: 'THE ROSEROAD\nSouth to Highgarden, and on to Dorne.\nGrowing strong.' },
-    ],
+          { x: 2, y: 13, text: 'A wayside sept the size of a cart. Seven faces cut into the lintel,\nthree of them worn back to stone.' },
+      { x: 14, y: 12, text: 'THE ROSEWELL\nDrink, water your horse, leave a copper.\nThe Tyrells pay for the rope.' },
+],
     npcs: [
       { x: 14, y: 21, dir: 'down', sprite: 'smallfolk', name: 'Silverwing',
         script: 'wildBeast', beast: 'silverwing', huge: true,
@@ -3899,10 +4168,20 @@ export const MAPS = {
         data: { trainer: 'reachKnight' } },
       { x: 14, y: 16, dir: 'left', sprite: 'sellsword', name: 'Bronn', script: 'duel',
         data: { duel: 'bronn' } },
-    ],
+          { x: 7, y: 15, dir: 'left', sprite: 'septa', name: 'A Wandering Septon',
+        script: 'townTalk',
+        data: { line: 'A Wandering Septon: I walk from Oldtown to the Blackwater and back, and '
+                + 'I have never once been robbed. There is nothing on me. That is the whole '
+                + 'trick of it.' } },
+      { x: 16, y: 14, dir: 'left', sprite: 'girl', name: 'The Well Girl',
+        script: 'townTalk',
+        data: { line: 'The Well Girl: A copper for the bucket, not for the water. Anyone may '
+                + 'have the water. It is the rope that costs.' } },
+],
     items: [
       { x: 3, y: 21, item: 'maestersSalts', count: 1, flag: 'item_roseroad_salts' },
-    ],
+          { x: 4, y: 13, item: 'weirwoodSap', count: 1, flag: 'item_roseroad_sap' },
+],
   }),
 
   highgarden: makeTown({
@@ -4017,6 +4296,11 @@ export const MAPS = {
       { type: 'grass', x: 12, y: 15, w: 6, h: 3 },
       { type: 'water', x: 5, y: 20, w: 4, h: 2 },
     ],
+    /* Nothing in the Pass is new, and nothing in it is unattended. */
+    landmarks: [
+      { kind: 'watchpost', x: 4, y: 9 },
+      { kind: 'ringOfStones', x: 14, y: 18 },
+    ],
     encounters: [
       { roamer: 'dornishOutrider', min: 30, max: 36, weight: 40 },
       { roamer: 'sellsword', min: 30, max: 35, weight: 30 },
@@ -4032,7 +4316,8 @@ export const MAPS = {
     ],
     signs: [
       { x: 8, y: 2, text: "THE PRINCE'S PASS\nThe only easy road into Dorne.\nIt is not easy." },
-    ],
+          { x: 6, y: 10, text: 'A tower of dry stone with a fire on the top of it.\nOne man, one horse, and a view of forty leagues of nothing.' },
+],
     npcs: [
       { x: 11, y: 2, dir: 'down', sprite: 'martell', name: "Watcher of the Pass", warden: 5,
         script: 'warden',
@@ -4048,10 +4333,22 @@ export const MAPS = {
                 hint: "Watcher of the Pass: Five. Highgarden is the one you want next, and it is at your back." } },
       { x: 6, y: 10, dir: 'right', sprite: 'martell', name: 'Sand Steed Rider', script: 'trainer',
         data: { trainer: 'dorneRider' } },
-    ],
+          { x: 6, y: 11, dir: 'down', sprite: 'martell', name: 'An Outrider of the Pass',
+        script: 'duel', data: { duel: 'dornishOutrider' } },
+      { x: 15, y: 19, dir: 'left', sprite: 'merchant', name: 'A Water Seller',
+        script: 'townTalk',
+        data: { line: 'A Water Seller: In Dorne a man who sells water is either a friend or a '
+                + 'murderer, and you find out which at about the third mouthful.' } },
+      { x: 13, y: 19, dir: 'right', sprite: 'child', name: 'An Orphan of the Greenblood',
+        script: 'townTalk',
+        data: { line: 'An Orphan of the Greenblood: We poled up as far as the Pass because my '
+                + 'grandmother wanted to see the stones once more. She has seen them. Now '
+                + 'she will not leave.' } },
+],
     items: [
       { x: 16, y: 19, item: 'kingsRansom', count: 1, flag: 'item_dorne_ransom' },
-    ],
+          { x: 5, y: 10, item: 'burnSalve', count: 1, flag: 'item_princespass_salve' },
+],
   }),
 
   sunspear: makeTown({
@@ -4177,6 +4474,11 @@ export const MAPS = {
       { type: 'grass', x: 12, y: 15, w: 6, h: 3 },
       { type: 'water', x: 12, y: 19, w: 6, h: 3 },
     ],
+    /* A coast that eats ships, and a hillside full of the men who sailed them. */
+    landmarks: [
+      { kind: 'beacon', x: 5, y: 6 },
+      { kind: 'graves', x: 13, y: 17 },
+    ],
     encounters: [
       { roamer: 'manAtArms', min: 28, max: 34, weight: 34 },
       { roamer: 'hedgeKnight', min: 29, max: 35, weight: 33 },
@@ -4192,7 +4494,9 @@ export const MAPS = {
     ],
     signs: [
       { x: 8, y: 2, text: 'THE STORMLANDS\nSouth to Storm\u2019s End.\nThe weather here has opinions.' },
-    ],
+          { x: 6, y: 7, text: 'A beacon laid ready: brush, pitch, and a barrel of oil under a tarred cover.\nIt has been ready for eleven years.' },
+      { x: 14, y: 18, text: 'Markers in rows, every one of them cut with the same year.\nNo names on any. The sea does not give the names back.' },
+],
     npcs: [
       { x: 11, y: 2, dir: 'down', sprite: 'baratheon', name: "Storm Lord's Outrider", warden: 7,
         script: 'warden',
@@ -4212,10 +4516,18 @@ export const MAPS = {
         data: { duel: 'beric' } },
       { x: 14, y: 17, dir: 'left', sprite: 'baratheon', name: 'Storm Knight', script: 'trainer',
         data: { trainer: 'stormKnight3' } },
-    ],
+          { x: 6, y: 10, dir: 'left', sprite: 'oldman', name: 'The Beacon Keeper',
+        script: 'townTalk',
+        data: { line: 'The Beacon Keeper: I light it if the fleet comes. I have not lit it. '
+                + 'Sixty-one years, and the proudest thing I can tell you is that I have '
+                + 'never lit it.' } },
+      { x: 14, y: 19, dir: 'left', sprite: 'smallfolk', name: 'A Wrecker',
+        script: 'duel', data: { duel: 'bandit' } },
+],
     items: [
       { x: 16, y: 3, item: 'kissOfFire', count: 2, flag: 'item_storm_revive' },
-    ],
+          { x: 5, y: 7, item: 'maestersSalts', count: 1, flag: 'item_stormlands_salts' },
+],
   }),
 
   stormsEnd: makeTown({
@@ -4321,7 +4633,7 @@ export const MAPS = {
          An outsider rather than one of the town's own, because Dragonstone's
          berth is out on the Smoking Strand and the core's coordinates do not
          reach it - written into `npcs` he ended up halfway up the castle. */
-      { dir: 'down', sprite: 'ironborn', name: 'The Harbourmaster', script: 'ship',
+      { dir: 'left', sprite: 'ironborn', name: 'The Harbourmaster', script: 'ship',
         data: { line: 'The Harbourmaster: The Strand, and the whole world off the end of it. Say a name and a price and I will find you a hull going that way.' } },
       { dir: 'down', sprite: 'targaryen', name: 'A Stone Cutter', script: 'townTalk',
         data: { line: 'A Stone Cutter: Nobody cut this castle. It was raised out of the rock while it was still soft, and nobody will say by what.' } },
@@ -5567,7 +5879,7 @@ export const MAPS = {
     // about Braavos and makes it read as somewhere else at a glance.
     name: 'Braavos', music: 'town', ground: 'stone', wall: '~', floor: 'o',
     npcs: [
-      { x: 12, y: 17, dir: 'down', sprite: 'sellsword', name: 'Sellsword Captain',
+      { x: 12, y: 17, dir: 'up', sprite: 'sellsword', name: 'Sellsword Captain',
         script: 'sellswords', data: { company: 'purpleHarbour' } },
       { x: 12, y: 18, dir: 'left', sprite: 'braavosi', name: 'The Harbourmaster',
         script: 'ship',
@@ -5649,7 +5961,7 @@ export const MAPS = {
     dressing: [[9, 16, 'F'], [14, 16, 'F'], [8, 24, 'U'], [15, 24, 'U'], [11, 7, 'F']],
     name: 'Pentos', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
-      { x: 12, y: 17, dir: 'down', sprite: 'sellsword', name: 'Sellsword Captain',
+      { x: 12, y: 17, dir: 'left', sprite: 'sellsword', name: 'Sellsword Captain',
         script: 'sellswords', data: { company: 'secondSons' } },
       { x: 12, y: 18, dir: 'left', name: 'A Pentoshi Captain', sprite: 'merchant',
         script: 'ship',
@@ -5692,7 +6004,7 @@ export const MAPS = {
     dressing: [[6, 8, 'F'], [17, 8, 'F'], [7, 22, 'F'], [16, 22, 'F'], [3, 20, 'U'], [21, 20, 'U']],
     name: 'Volantis', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     npcs: [
-      { x: 15, y: 7, dir: 'down', sprite: 'redPriest', name: 'Priest of the Red Temple',
+      { x: 15, y: 7, dir: 'left', sprite: 'redPriest', name: 'Priest of the Red Temple',
         script: 'sellswords', data: { company: 'fieryHand' } },
       { x: 15, y: 8, dir: 'right', name: 'A Volantene Captain', sprite: 'braavosi',
         script: 'ship',
@@ -5739,7 +6051,7 @@ export const MAPS = {
     npcs: [
       { x: 11, y: 6, dir: 'down', name: 'Daenerys Targaryen', sprite: 'targaryen',
         script: 'duel', data: { duel: 'daenerys' } },
-      { x: 12, y: 17, dir: 'down', sprite: 'sellsword', name: 'Pit Master',
+      { x: 12, y: 17, dir: 'left', sprite: 'sellsword', name: 'Pit Master',
         script: 'sellswords', data: { company: 'pitFighters' } },
       { x: 12, y: 18, dir: 'left', name: 'A Ghiscari Captain', sprite: 'braavosi',
         script: 'ship',
@@ -6232,6 +6544,11 @@ export const MAPS = {
       { type: 'sand', x: 3, y: 24, w: 6, h: 3 },
       { type: 'water', x: 18, y: 25, w: 4, h: 3 },
     ],
+    /* What the ironborn build on land, they build for looking out to sea. */
+    landmarks: [
+      { kind: 'beacon', x: 5, y: 7 },
+      { kind: 'cairn', x: 15, y: 18 },
+    ],
     encounters: [
       { roamer: 'ironbornReaver', min: 22, max: 27, weight: 34 },
       { roamer: 'bandit', min: 21, max: 26, weight: 24 },
@@ -6247,18 +6564,29 @@ export const MAPS = {
     ],
     signs: [
       { x: 9, y: 3, text: 'THE STONY SHORE\nWest to Pyke over the bridges.\nA sea cave gapes somewhere off the path.' },
-    ],
+          { x: 16, y: 19, text: 'A cairn of black stones above the tideline.\nThe drowned are not buried. This is for the ones the sea would not take.' },
+],
     npcs: [
       { x: 8, y: 9, dir: 'down', sprite: 'ironborn', name: 'Reaver Dagmer', script: 'trainer',
         data: { trainer: 'ironReaver' } },
       { x: 14, y: 18, dir: 'left', sprite: 'ironborn', name: 'The Damphair', script: 'trainer',
         data: { trainer: 'drownedPriest' } },
       { x: 6, y: 25, dir: 'right', sprite: 'smallfolk', name: 'Salt Wife', script: 'shoreHint' },
-    ],
+          { x: 6, y: 8, dir: 'down', sprite: 'goodwife', name: 'A Salt Wife',
+        script: 'townTalk',
+        data: { line: 'A Salt Wife: He took me off a beach in the Reach and called it paying '
+                + 'the iron price. He has been at sea nine years. I have the house and I '
+                + 'have the keys, so ask me who paid.' } },
+      { x: 16, y: 19, dir: 'left', sprite: 'ironborn', name: 'A Drowned Man',
+        script: 'townTalk',
+        data: { line: 'A Drowned Man: What is dead may never die. It is a comfort at a funeral '
+                + 'and a nuisance in a fight, and I have said it at both this week.' } },
+],
     items: [
       { x: 4, y: 8, item: 'dragonglass', count: 2, flag: 'item_ironcoast_glass' },
       { x: 16, y: 22, item: 'weirwoodSap', count: 1, flag: 'item_ironcoast_sap' },
-    ],
+          { x: 6, y: 8, item: 'netTrap', count: 1, flag: 'item_ironcoast_net' },
+],
   }),
 
   // A smugglers' hole in the cliff, full of somebody else's cargo.
@@ -6562,6 +6890,11 @@ export const MAPS = {
       { type: 'ice', x: 15, y: 23, w: 5, h: 2 },
       { type: 'rubble', x: 17, y: 8, w: 3, h: 2 },
     ],
+    /* Bolton country, which the road tells you before anybody does. */
+    landmarks: [
+      { kind: 'gibbet', x: 5, y: 8 },
+      { kind: 'quarry', x: 14, y: 17 },
+    ],
     encounters: [
       { roamer: 'manAtArms', min: 24, max: 29, weight: 30 },
       { roamer: 'deserter', min: 23, max: 28, weight: 26 },
@@ -6575,7 +6908,8 @@ export const MAPS = {
     ],
     signs: [
       { x: 9, y: 4, text: 'THE WEEPING WATER\nNorth-east to the Dreadfort.\nSomebody has crossed out "welcome".' },
-    ],
+          { x: 6, y: 9, text: 'A gibbet at the roadside with the cage still on its chain.\nIt is not empty, and it has not been empty in a long time.' },
+],
     npcs: [
       { x: 11, y: 5, dir: 'down', sprite: 'maester', name: 'Frightened Maester', script: 'quest',
         data: { quest: 'theBastardsLetter' } },
@@ -6583,10 +6917,18 @@ export const MAPS = {
         data: { trainer: 'boltonSteward' } },
       { x: 14, y: 22, dir: 'left', sprite: 'bolton', name: 'Kennelmaster', script: 'duel',
         data: { duel: 'reek' } },
-    ],
+          { x: 6, y: 10, dir: 'down', sprite: 'bolton', name: 'A Huntsman of the Dreadfort',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 15, y: 18, dir: 'left', sprite: 'child', name: 'A Kennel Boy',
+        script: 'townTalk',
+        data: { line: 'A Kennel Boy: The girls are fed the day before, never the day of. My '
+                + 'lord says a hungry dog hunts and a starving dog eats what it finds. I '
+                + 'feed them and I do not ask what.' } },
+],
     items: [
       { x: 5, y: 9, item: 'direwolfPelt', count: 2, flag: 'item_weeping_pelt' },
-    ],
+      { x: 5, y: 9, item: 'boarTusk', count: 1, flag: 'item_weeping_tusk' },
+],
   }),
 
   dreadfort: makeTown({
@@ -6720,6 +7062,11 @@ export const MAPS = {
       { type: 'ice', x: 14, y: 19, w: 5, h: 3 },
       { type: 'rubble', x: 6, y: 24, w: 4, h: 2 },
     ],
+    /* The forest keeps two kinds of ground: the kind that was sacred, and the kind that is full. */
+    landmarks: [
+      { kind: 'grove', x: 4, y: 8 },
+      { kind: 'graves', x: 14, y: 19 },
+    ],
     encounters: [
       { roamer: 'wildlingRaider', min: 28, max: 33, weight: 30 },
       { roamer: 'spearwife', min: 28, max: 33, weight: 26 },
@@ -6734,7 +7081,8 @@ export const MAPS = {
     ],
     signs: [
       { x: 9, y: 26, text: 'A weirwood with a face cut into it.\nThe eyes have run, and not with sap.' },
-    ],
+          { x: 6, y: 10, text: 'A face is cut into the biggest of the weirwoods, and the sap in the cuts\nhas not dried. It is looking at the path, not at you.' },
+],
     npcs: [
       { x: 8, y: 8, dir: 'right', sprite: 'wildlingWoman', name: 'Val', script: 'trainer',
         data: { trainer: 'spearwifeVal' } },
@@ -6742,11 +7090,19 @@ export const MAPS = {
         data: { trainer: 'thennMagnar' } },
       { x: 10, y: 22, dir: 'down', sprite: 'wildling', name: 'Mance Rayder', script: 'duel',
         data: { duel: 'mance' } },
-    ],
+          { x: 6, y: 11, dir: 'down', sprite: 'nightswatch', name: 'A Ranger Long Overdue',
+        script: 'townTalk',
+        data: { line: 'A Ranger Long Overdue: Went out with eleven. Came back with a story '
+                + 'nobody at Castle Black would write down. So I did not go back. I stayed '
+                + 'where the story is true.' } },
+      { x: 15, y: 20, dir: 'left', sprite: 'wildlingWoman', name: 'A Spearwife',
+        script: 'duel', data: { duel: 'spearwife' } },
+],
     items: [
       { x: 5, y: 12, item: 'dragonglass', count: 4, flag: 'item_haunted_glass' },
       { x: 16, y: 20, item: 'direwolfPelt', count: 3, flag: 'item_haunted_pelt' },
-    ],
+          { x: 5, y: 10, item: 'warhorn', count: 1, flag: 'item_haunted_horn' },
+],
   }),
 
   fistOfTheFirstMen: {
@@ -7307,7 +7663,7 @@ export const MAPS = {
           taking: 'It walks over, sniffs at you once and settles, and you have the distinct '
             + 'sense of having been chosen rather than caught.',
           lost: 'It watches you climb out of the pit and goes back to the bones.' } },
-      { x: 8, y: 4, dir: 'down', sprite: 'redPriest', name: 'Pit Watcher', script: 'bellowsHand',
+      { x: 8, y: 4, dir: 'left', sprite: 'redPriest', name: 'Pit Watcher', script: 'bellowsHand',
         data: { line: 'They said the last of them died the size of a cat. They lied about a great deal.' } },
     ],
   },
@@ -7823,6 +8179,11 @@ export const MAPS = {
       { type: 'flowers', x: 15, y: 10, w: 4, h: 2 },
       { type: 'rubble', x: 5, y: 22, w: 4, h: 2 },
     ],
+    /* A battlefield that has been tidied, and an army that has not left yet. */
+    landmarks: [
+      { kind: 'graves', x: 4, y: 9 },
+      { kind: 'camp', x: 14, y: 18 },
+    ],
     encounters: [
       { roamer: 'bandit', min: 10, max: 15, weight: 30 },
       { roamer: 'brotherhoodBowman', min: 11, max: 16, weight: 26 },
@@ -7836,7 +8197,8 @@ export const MAPS = {
     ],
     signs: [
       { x: 9, y: 6, text: 'THE GREEN FORK\nNorth to the Twins.\nThe crossing is not free and never has been.' },
-    ],
+          { x: 6, y: 10, text: 'THE GREEN FORK\nFought over in the year you were born, and tidied afterwards.\nThe tidying took longer than the battle.' },
+],
     npcs: [
       { x: 8, y: 14, dir: 'right', sprite: 'tully', name: 'River Serjeant',
         script: 'duel', data: { duel: 'manAtArms' } },
@@ -7844,11 +8206,22 @@ export const MAPS = {
         script: 'hideoutLocal',
         data: { line: 'Ferryman: I would row you across for a copper, but the Freys '
           + 'own the water as well as the bridge, and they count boats.' } },
-    ],
+          { x: 6, y: 11, dir: 'down', sprite: 'oldman', name: 'A Gravedigger',
+        script: 'townTalk',
+        data: { line: 'A Gravedigger: Four thousand, they say. I dug about six hundred of them, '
+                + 'and I can tell you nobody counted. A count is a thing you do to sheep.' } },
+      { x: 12, y: 21, dir: 'left', sprite: 'sellsword', name: 'A Serjeant of the Twins',
+        script: 'duel', data: { duel: 'manAtArms' } },
+      { x: 13, y: 19, dir: 'right', sprite: 'goodwife', name: 'A Camp Follower',
+        script: 'townTalk',
+        data: { line: 'A Camp Follower: I follow the host, I sell them bread, and I bury the '
+                + 'ones who bought it. There is no third part to the trade.' } },
+],
     items: [
       { x: 6, y: 11, item: 'greenbriar', count: 3, flag: 'item_greenfork_briar' },
       { x: 16, y: 25, item: 'huntersDraught', count: 1, flag: 'item_greenfork_draught' },
-    ],
+          { x: 5, y: 10, item: 'ironScrap', count: 1, flag: 'item_greenfork_scrap' },
+],
   }),
 
   /* The Twins. Two castles and the only bridge for a hundred leagues, and a
@@ -7963,6 +8336,11 @@ export const MAPS = {
       { type: 'water', x: 16, y: 18, w: 4, h: 3 },
       { type: 'rubble', x: 6, y: 24, w: 3, h: 2 },
     ],
+    /* Every road in the realm meets here, and so does everything on them. */
+    landmarks: [
+      { kind: 'gibbet', x: 5, y: 10 },
+      { kind: 'well', x: 14, y: 18 },
+    ],
     encounters: [
       { roamer: 'sellsword', min: 12, max: 18, weight: 30 },
       { roamer: 'bandit', min: 12, max: 17, weight: 26 },
@@ -7977,7 +8355,8 @@ export const MAPS = {
     ],
     signs: [
       { x: 9, y: 8, text: 'THE CROSSROADS\nEvery road in the realm goes through here.\nSo does everybody on them.' },
-    ],
+          { x: 15, y: 19, text: 'THE CROSSROADS WELL\nDeeper than the inn is tall, and cold in high summer.\nSomebody has thrown a sword down it, and nobody will say whose.' },
+],
     npcs: [
       { x: 11, y: 4, dir: 'down', sprite: 'goodwife', name: 'Widow Heddle', script: 'deedBroker',
         data: { property: 'riverCottage' } },
@@ -7985,15 +8364,24 @@ export const MAPS = {
         script: 'duel', data: { duel: 'brotherhoodBowman' } },
       { x: 13, y: 24, dir: 'down', sprite: 'sellsword', name: 'Hedge Knight',
         script: 'sellswords', data: { company: 'crossroadsSwords' } },
-      { x: 14, y: 24, dir: 'left', sprite: 'smallfolk', name: 'Beggar',
+      { x: 14, y: 24, dir: 'right', sprite: 'smallfolk', name: 'Beggar',
         script: 'hideoutLocal',
         data: { line: 'Beggar: I have sat here eleven years. '
           + 'Everyone in the songs has walked past me and not one of them looked down.' } },
-    ],
+          { x: 6, y: 11, dir: 'down', sprite: 'goodwife', name: 'A Hanged Man’s Wife',
+        script: 'townTalk',
+        data: { line: 'A Hanged Man’s Wife: They hanged him for a deer. He never caught the '
+                + 'deer. I would mind it less if he had ever once caught the deer.' } },
+      { x: 15, y: 19, dir: 'left', sprite: 'septa', name: 'A Pilgrim',
+        script: 'townTalk',
+        data: { line: 'A Pilgrim: Four roads meet here, and I have come down all four this '
+                + 'year. It is the same well every time, and I am not the same woman.' } },
+],
     items: [
       { x: 5, y: 15, item: 'stillwater', count: 2, flag: 'item_crossroads_water' },
       { x: 18, y: 6, item: 'ashHaft', count: 2, flag: 'item_crossroads_haft' },
-    ],
+          { x: 6, y: 11, item: 'poppySeed', count: 1, flag: 'item_crossroads_seed' },
+],
   }),
 
   crossroadsInn: makeInn({
@@ -8032,7 +8420,7 @@ export const MAPS = {
         script: 'duel', data: { duel: 'sellsword' } },
       { x: 14, y: 15, dir: 'up', roams: true, sprite: 'guard', name: 'Garrison Man',
         script: 'duel', data: { duel: 'manAtArms' } },
-      { x: 18, y: 13, dir: 'left', sprite: 'child', name: 'Cupbearer',
+      { x: 18, y: 13, dir: 'right', sprite: 'child', name: 'Cupbearer',
         script: 'hideoutLocal',
         data: { line: 'Cupbearer: I pour for whoever is holding it this month. '
           + 'I have poured for three. I am very good at not being looked at.' } },
@@ -8093,6 +8481,11 @@ export const MAPS = {
       { type: 'ice', x: 16, y: 12, w: 5, h: 3 },
       { type: 'rubble', x: 15, y: 22, w: 4, h: 2 },
     ],
+    /* Land the Watch was given, and never once had the men to farm. */
+    landmarks: [
+      { kind: 'burntFarm', x: 4, y: 9 },
+      { kind: 'ringOfStones', x: 14, y: 18 },
+    ],
     encounters: [
       { roamer: 'deserter', min: 16, max: 21, weight: 30 },
       { roamer: 'wildlingRaider', min: 17, max: 22, weight: 26 },
@@ -8107,7 +8500,8 @@ export const MAPS = {
     signs: [
       { x: 9, y: 5, text: 'THE GIFT\nTwenty-five leagues the Watch was given to farm.\nNobody farms it now.' },
       { x: 13, y: 20, text: 'A holdfast, roofless.\nThe hearth is cold and has been for a long time.' },
-    ],
+          { x: 6, y: 10, text: 'THE GIFT\nTwenty-five leagues, deeded to the Night’s Watch in perpetuity.\nWorked by nobody. Raided by everybody.' },
+],
     npcs: [
       { x: 7, y: 12, dir: 'right', sprite: 'nightswatch', name: 'Ranger of the Gift',
         script: 'duel', data: { duel: 'deserter' } },
@@ -8115,11 +8509,24 @@ export const MAPS = {
         script: 'hideoutLocal',
         data: { line: 'Last Farmer: Eleven families on this stretch when I was a boy. '
           + 'Now it is me, and I am only here because I have nowhere southward to be.' } },
-    ],
+          { x: 6, y: 11, dir: 'down', sprite: 'nightswatch', name: 'A Steward of the Gift',
+        script: 'townTalk',
+        data: { line: 'A Steward of the Gift: On the books this is the richest land the Watch '
+                + 'owns. On the ground it is four families, and two of those are the same '
+                + 'family twice.' } },
+      { x: 15, y: 19, dir: 'left', sprite: 'smallfolk', name: 'A Squatter',
+        script: 'townTalk',
+        data: { line: 'A Squatter: The Watch says the land is theirs. The Watch is fifty '
+                + 'leagues north with eight hundred men for three hundred miles of ice. I '
+                + 'have a plough.' } },
+      { x: 9, y: 21, dir: 'right', sprite: 'nightswatch', name: 'A Crow Who Kept Walking',
+        script: 'duel', data: { duel: 'deserter' } },
+],
     items: [
       { x: 6, y: 18, item: 'frostTonic', count: 1, flag: 'item_gift_tonic' },
       { x: 17, y: 25, item: 'ironScrap', count: 2, flag: 'item_gift_scrap' },
-    ],
+          { x: 5, y: 10, item: 'boiledHide', count: 1, flag: 'item_gift_hide' },
+],
   }),
 
   eastwatch: makeTown({
@@ -8179,6 +8586,11 @@ export const MAPS = {
       { type: 'rubble', x: 16, y: 6, w: 3, h: 2 },
       { type: 'cliff', x: 4, y: 20, w: 4, h: 3 },
     ],
+    /* Two camps on this mountain: one that gave up, and one still climbing. */
+    landmarks: [
+      { kind: 'cairn', x: 5, y: 9 },
+      { kind: 'camp', x: 14, y: 18 },
+    ],
     encounters: [
       { roamer: 'wildlingRaider', min: 28, max: 34, weight: 30 },
       { roamer: 'spearwife', min: 28, max: 34, weight: 26 },
@@ -8192,15 +8604,28 @@ export const MAPS = {
     ],
     signs: [
       { x: 10, y: 6, text: 'THE FROSTFANGS\nThere is no road. There is a way people have gone,\nand a great many who did not come back down it.' },
-    ],
+          { x: 6, y: 10, text: 'A cairn on a shoulder of the mountain, built of stones nobody carried up here.\nSomething cleared this ground and stacked what it found.' },
+],
     npcs: [
       { x: 14, y: 12, dir: 'left', sprite: 'wildling', name: 'Thenn Scout',
         script: 'duel', data: { duel: 'wildlingRaider' } },
-    ],
+          { x: 9, y: 12, dir: 'down', sprite: 'wildling', name: 'A Climber',
+        script: 'townTalk',
+        data: { line: 'A Climber: Up is easy. Everybody can do up. The mountain does not start '
+                + 'charging you until you turn round.' } },
+      { x: 15, y: 19, dir: 'left', sprite: 'wildling', name: 'A Giant’s Get',
+        script: 'duel', data: { duel: 'wildlingRaider' } },
+      { x: 13, y: 19, dir: 'right', sprite: 'nightswatch', name: 'A Watcher on the Ice',
+        script: 'townTalk',
+        data: { line: 'A Watcher on the Ice: We count what comes down. Nine days ago it was '
+                + 'thirty a day. Yesterday it was none. I would rather it was three '
+                + 'hundred.' } },
+],
     items: [
       { x: 6, y: 9, item: 'dragonglass', count: 2, flag: 'item_frostfangs_glass' },
       { x: 16, y: 22, item: 'maestersSalts', count: 1, flag: 'item_frostfangs_salts' },
-    ],
+          { x: 6, y: 11, item: 'greenbriar', count: 1, flag: 'item_frostfangs_briar' },
+],
   }),
 
   crastersKeep: makeHold({
@@ -8640,7 +9065,7 @@ export const MAPS = {
         script: 'duel', data: { duel: 'sellsword' } },
       { x: 14, y: 15, dir: 'up', roams: true, sprite: 'merchant', name: 'A Hired Blade',
         script: 'duel', data: { duel: 'sellsword' } },
-      { x: 18, y: 13, dir: 'left', sprite: 'smallfolk', name: 'Freed Man',
+      { x: 18, y: 13, dir: 'right', sprite: 'smallfolk', name: 'Freed Man',
         script: 'hideoutLocal', data: { line: 'There is a ledger in the back with names in it. Mine is in it. Take the ledger and I do not care what else you take.' } },
     ],
     items: [

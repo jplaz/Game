@@ -405,6 +405,30 @@ for (const [id, map] of Object.entries(MAPS)) {
   }
 }
 
+/* Nobody stands nose to nose with anybody.
+ *
+ * You may speak to a person from any side of them, but the side they are
+ * looking at is the one you walk to, and a second person standing on it is a
+ * wall that never moves. Dragonstone's harbourmaster looked straight into a
+ * stone cutter on a two-wide stair: an Arryn playthrough spent twelve hundred
+ * frames trying to buy passage and then wrote him off. Nine pairs across the
+ * world were doing it, in Braavos, Pentos, Volantis, Meereen, the Dragonpit,
+ * the Crossroads, Harrenhal and a Pentoshi hold. Turn one of them. */
+{
+  const STEP = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  for (const [id, map] of Object.entries(MAPS)) {
+    const standing = new Map();
+    for (const n of map.npcs ?? []) standing.set(`${n.x},${n.y}`, n);
+    for (const n of map.npcs ?? []) {
+      const [dx, dy] = STEP[n.dir ?? 'down'];
+      const other = standing.get(`${n.x + dx},${n.y + dy}`);
+      if (!other) continue;
+      say(`${id}: ${n.name ?? n.script} at ${n.x},${n.y} faces ${n.dir ?? 'down'} `
+        + `into ${other.name ?? other.script}, so nobody can stand where you talk to them`);
+    }
+  }
+}
+
 /* The two lists of what a person can stand on, held side by side.
  *
  * src/data/maps.js has to know which tile characters are walkable while it is

@@ -3568,6 +3568,11 @@ export const MAPS = {
       { x: 16, y: 20, text: 'THE GLASS GARDENS\nHot springs run under this ground.\nIt is the only place in the North where anything is green.' },
       { x: 17, y: 28, text: 'THE FIRST KEEP\nNobody has lived in it for six hundred years.\nThey cut the water round it before that, and never filled it in.\nThe stair down goes to the crypt.' },
     ],
+    items: [
+      { x: 5, y: 24, item: 'frostTonic', count: 2, flag: 'item_winterfell_tonic' },
+      { x: 7, y: 24, item: 'boiledHide', count: 1, flag: 'item_winterfell_hide' },
+      { x: 26, y: 26, item: 'kingsRansom', count: 1, flag: 'item_winterfell_ransom' },
+    ],
     npcs: [
       { x: 7, y: 16, dir: 'down', name: 'Landless Knight', sprite: 'noble',
         script: 'claimHoldfast', data: {} },
@@ -3779,6 +3784,10 @@ export const MAPS = {
     ],
     signs: [
       { x: 13, y: 10, text: 'CASTLE BLACK\nSeat of the Night\u2019s Watch.\nNorth of here the maps stop.' },
+    ],
+    items: [
+      { x: 17, y: 3, item: 'dragonglass', count: 1, flag: 'item_castleblack_glass' },
+      { x: 18, y: 4, item: 'frostTonic', count: 1, flag: 'item_castleblack_tonic' },
     ],
     npcs: [
       { x: 11, y: 5, dir: 'down', sprite: 'nightswatch', name: 'Watch of the Gate', abroad: 'night',
@@ -5949,6 +5958,10 @@ export const MAPS = {
     // Canals rather than walls, which is the one thing everybody knows
     // about Braavos and makes it read as somewhere else at a glance.
     name: 'Braavos', music: 'town', ground: 'stone', wall: '~', floor: 'o',
+    items: [
+      { x: 4, y: 8, item: 'maestersSalts', count: 1, flag: 'item_braavos_salts' },
+      { x: 29, y: 22, item: 'silverPurse', count: 1, flag: 'item_braavos_purse' },
+    ],
     npcs: [
       { x: 12, y: 17, dir: 'up', sprite: 'sellsword', name: 'Sellsword Captain',
         script: 'sellswords', data: { company: 'purpleHarbour' } },
@@ -6031,6 +6044,10 @@ export const MAPS = {
     roof: 'Q', ridge: 'q',
     dressing: [[9, 16, 'F'], [14, 16, 'F'], [8, 24, 'U'], [15, 24, 'U'], [11, 7, 'F']],
     name: 'Pentos', music: 'town', ground: 'sand', wall: 'C', floor: 's',
+    items: [
+      { x: 29, y: 7, item: 'shadeOfTheEvening', count: 1, flag: 'item_pentos_shade' },
+      { x: 28, y: 6, item: 'kissOfFire', count: 1, flag: 'item_pentos_revive' },
+    ],
     npcs: [
       { x: 12, y: 17, dir: 'left', sprite: 'sellsword', name: 'Sellsword Captain',
         script: 'sellswords', data: { company: 'secondSons' } },
@@ -6074,6 +6091,10 @@ export const MAPS = {
     roof: 'Q', ridge: 'q',
     dressing: [[6, 8, 'F'], [17, 8, 'F'], [7, 22, 'F'], [16, 22, 'F'], [3, 20, 'U'], [21, 20, 'U']],
     name: 'Volantis', music: 'town', ground: 'sand', wall: 'C', floor: 's',
+    items: [
+      { x: 24, y: 13, item: 'fireblood', count: 1, flag: 'item_volantis_blood' },
+      { x: 29, y: 12, item: 'burnSalve', count: 2, flag: 'item_volantis_salve' },
+    ],
     npcs: [
       { x: 15, y: 7, dir: 'left', sprite: 'redPriest', name: 'Priest of the Red Temple',
         script: 'sellswords', data: { company: 'fieryHand' } },
@@ -6119,6 +6140,10 @@ export const MAPS = {
     roof: 'Q', ridge: 'q',
     dressing: [[4, 18, 'F'], [19, 18, 'F'], [8, 24, 'U'], [15, 24, 'U'], [3, 3, 'U'], [20, 3, 'U']],
     name: 'Meereen', music: 'town', ground: 'sand', wall: 'C', floor: 's',
+    items: [
+      { x: 21, y: 3, item: 'valyrianShard', count: 1, flag: 'item_meereen_shard' },
+      { x: 23, y: 18, item: 'antidote', count: 2, flag: 'item_meereen_antidote' },
+    ],
     npcs: [
       { x: 11, y: 6, dir: 'down', name: 'Daenerys Targaryen', sprite: 'targaryen',
         script: 'duel', data: { duel: 'daenerys' } },
@@ -6586,6 +6611,10 @@ export const MAPS = {
       '~~~~~~~~~~~~~~~~~~~~~~~~',
       '~~~~~~~~~~~~~~~~~~~~~~~~',
     ],
+    items: [
+      { x: 19, y: 9, item: 'seaChest', count: 1, flag: 'item_narrowsea_chest' },
+      { x: 17, y: 11, item: 'stillwater', count: 2, flag: 'item_narrowsea_water' },
+    ],
     npcs: [
       { x: 9, y: 5, dir: 'down', name: 'Ship\'s Captain', sprite: 'braavosi',
         script: 'ship', data: { line: "Ship's Captain: I sail where the money is. Name a port." } },
@@ -7017,6 +7046,11 @@ export const MAPS = {
       [3, 2, 'f'], [4, 2, 'f'], [19, 2, 'f'], [20, 2, 'f'],
       [3, 17, 'U'], [20, 17, 'U'], [2, 9, 'F'], [21, 9, 'F'],
     ],
+    items: [
+      { x: 2, y: 2, item: 'direwolfPelt', count: 1, flag: 'item_dreadfort_pelt' },
+      { x: 21, y: 2, item: 'poppyMilk', count: 2, flag: 'item_dreadfort_milk' },
+      { x: 18, y: 2, item: 'ironScrap', count: 2, flag: 'item_dreadfort_scrap' },
+    ],
     npcs: [
       { x: 11, y: 11, dir: 'down', sprite: 'bolton', name: 'Roose Bolton', script: 'trainer',
         data: { trainer: 'rooseBolton' } },
@@ -7369,6 +7403,11 @@ export const MAPS = {
       { x: 18, y: 20, text: 'THE HARBOUR ROAD\nThe Blackwater, and every hull on it.\nA captain will name you a price for Braavos.' },
       { x: 23, y: 27, text: 'THE DRAGONPIT\nForty years shut. The roof came down on the last of them.\nSomething still nests in it.' },
     ],
+    items: [
+      { x: 4, y: 28, item: 'kingsRansom', count: 1, flag: 'item_kl_ransom' },
+      { x: 8, y: 24, item: 'silverPurse', count: 1, flag: 'item_kl_purse' },
+      { x: 2, y: 27, item: 'poppyMilk', count: 2, flag: 'item_kl_milk' },
+    ],
     npcs: [
       { x: 13, y: 11, dir: 'down', sprite: 'guard', name: 'Gold Cloak Serjeant', script: 'klHint',
         data: { line: 'Keep to the main ways and you will keep your purse. Go down the Hook and you are on your own.' } },
@@ -7472,6 +7511,11 @@ export const MAPS = {
       { x: 12, y: 0, text: 'Somebody has scratched an arrow into the daub, and then scratched three more pointing other ways.' },
       { x: 19, y: 7, text: 'A pot the size of a bathtub, and nobody will say what went into it.\nA bowl is a copper. Nobody asks twice.' },
       { x: 12, y: 10, text: 'THE FLEA-CHANNEL\nEverything the city is finished with comes down here on its way to the bay.\nThere is one plank over it. Mind where you put your feet.' },
+    ],
+    items: [
+      { x: 16, y: 13, item: 'poppySeed', count: 2, flag: 'item_flea_seed' },
+      { x: 22, y: 9, item: 'ironScrap', count: 2, flag: 'item_flea_scrap' },
+      { x: 7, y: 5, item: 'stillwater', count: 2, flag: 'item_flea_water' },
     ],
     npcs: [
       /* Likewise. A red priest preaching fire and blood belongs in Flea Bottom. */
@@ -8629,6 +8673,10 @@ export const MAPS = {
     signs: [
       { x: 22, y: 12, text: 'THE ICE SHORE\nThe sea freezes here from the shore outward.\nWhat is on it in winter is not always ice.' },
       { x: 13, y: 10, text: 'EASTWATCH-BY-THE-SEA\nThe eastern end of the Wall.\nShips leave from here and some of them come back.' },
+    ],
+    items: [
+      { x: 20, y: 14, item: 'boiledHide', count: 2, flag: 'item_eastwatch_hide' },
+      { x: 23, y: 2, item: 'kissOfFire', count: 1, flag: 'item_eastwatch_revive' },
     ],
     npcs: [
       { x: 9, y: 9, dir: 'down', sprite: 'nightswatch', name: 'Cotter Pyke',

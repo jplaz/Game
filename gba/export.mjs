@@ -157,6 +157,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const { MAPS, REGIONS } = await import('/src/data/maps.js');
   const { DUELLISTS, ROAMERS, ROAMER_TABLES, makeRoamer } = await import('/src/data/duellists.js');
   const { TRAINERS, trainerAsDuellist } = await import('/src/data/trainers.js');
+  const { MATCHES } = await import('/src/data/matches.js');
   const { ITEMS } = await import('/src/data/items.js');
   const { WEAPONS, ARMOUR, SHIELDS, HELMS, GLOVES } = await import('/src/data/gear.js');
   const { HOUSES, SWEARABLE, SPRITE_HOUSE, REGION_HOUSE } = await import('/src/data/houses.js');
@@ -1130,6 +1131,11 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       // lines in an array, so ask in that order before falling back.
       const said = (n.data?.duel && DUELLISTS[n.data.duel]?.intro)
         || (n.data?.trainer && TRAINERS[n.data.trainer]?.intro)
+        /* A match speaks the opening line from the match table, the way a
+           duellist speaks their intro. Eight of them used to carry an earlier
+           draft of that line in the map, which the browser never spoke and
+           this did; the draft is gone and both builds say the same thing. */
+        || (n.data?.match && MATCHES[n.data.match]?.open)
         || n.data?.line
         || null;
       // Who trades, and who watches the road. A trainer in the browser game has

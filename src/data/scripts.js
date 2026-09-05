@@ -122,6 +122,15 @@ async function rentRoom({ say, healParty }) {
   await say('You slept until the noise downstairs became unbearable. Everyone is rested.');
 }
 
+/** What somebody was written to say, with their name on it if the author
+    left it off. Six people had a line of their own in the map and a script
+    that spoke as somebody else. */
+function spoken(npc) {
+  const line = npc?.data?.line;
+  if (!line) return null;
+  return /^[A-Z][^:]{0,40}: /.test(line) ? line : `${npc?.name ?? 'Someone'}: ${line}`;
+}
+
 export const SCRIPTS = {
   /**
    * A shipwright. Sells hulls, takes your old one in trade at half what he
@@ -132,6 +141,7 @@ export const SCRIPTS = {
     /* Where she is tied up when you buy her. A ship berthed nowhere is a ship
        you can never board, so the man who sells her says where she is. */
     const home = npc?.data?.berth;
+    if (npc?.data?.line) await say(npc.data.line);
     for (;;) {
       const have = ship();
       const bill = repairCost();
@@ -1007,15 +1017,20 @@ export const SCRIPTS = {
    * Passage across the Narrow Sea. The captain will take you anywhere he has a
    * price for, and the price is the same in both directions.
    */
-  async ship({ say, choose, overworld }) {
+  async ship({ say, choose, npc, overworld }) {
     const here = overworld.map.id;
     const ports = PORTS.filter((p) => p.map !== here);
+    const who = npc?.name ?? "Ship's Captain";
 
-    await say("Ship's Captain: I sail where the money is. Name a port.");
+    /* Eleven harbours wrote their own captain and the script spoke over all of
+       them with the same line, and then went on as "Ship's Captain" to a man
+       the map calls The Harbourmaster. Their line first, and their name on
+       everything after it. */
+    await say(npc?.data?.line ?? `${who}: I sail where the money is. Name a port.`);
     const labels = ports.map((p) => `${p.name} (${p.fare}g)`);
     const pick = await choose('Where to?', [...labels, 'Nowhere yet']);
     if (pick < 0 || pick >= ports.length) {
-      await say("Ship's Captain: Then get off my deck or make yourself useful.");
+      await say(`${who}: Then get off my deck or make yourself useful.`);
       return;
     }
 
@@ -1026,18 +1041,18 @@ export const SCRIPTS = {
        whole ladder. Gold is not an achievement. */
     const held = sigilCount();
     if ((port.needs ?? 0) > held) {
-      await say(`Ship's Captain: ${port.name}? With ${held} seat${held === 1 ? '' : 's'} `
+      await say(`${who}: ${port.name}? With ${held} seat${held === 1 ? '' : 's'} `
         + `behind you? They would have you off my deck and in the harbour. `
         + `Come back with ${port.needs}.`);
       return;
     }
     if (!canAfford(port.fare)) {
-      await say(`Ship's Captain: ${port.fare} gold dragons. Come back when you have them.`);
+      await say(`${who}: ${port.fare} gold dragons. Come back when you have them.`);
       return;
     }
     addMoney(-port.fare);
     audio.sfx('confirm');
-    await say(`Ship's Captain: ${port.name} it is. Find somewhere to sit and do not be sick `
+    await say(`${who}: ${port.name} it is. Find somewhere to sit and do not be sick `
       + 'anywhere I can see.');
     await say('The crossing takes days. You sleep badly and eat worse.');
     overworld.sailTo(port);
@@ -1370,9 +1385,10 @@ export const SCRIPTS = {
     }
   },
 
-  async klHint({ say }) {
+  async klHint({ say, npc }) {
     const counts = dexCounts();
-    await say(`Beggar: You have met ${counts.seen} kinds of creature and won over ${counts.caught}. That is more than most lords manage.`);
+    if (npc?.data?.line) await say(spoken(npc));
+    await say(`${npc?.name ?? 'Beggar'}: You have met ${counts.seen} kinds of creature and won over ${counts.caught}. That is more than most lords manage.`);
   },
 
   async klRecruiter({ say }) {
@@ -1409,9 +1425,11 @@ export const SCRIPTS = {
     await say('Carter: Wrap up. And do not talk to anything that talks back.');
   },
 
-  async wallHint({ say }) {
-    await say("Steward: The Watch holds the Wall with a tenth of the men it needs.");
-    await say('Steward: Beyond it, the wights come in numbers. Bring fire, or dragonglass, or both.');
+  async wallHint({ say, npc }) {
+    const who = npc?.name ?? 'Steward';
+    if (npc?.data?.line) await say(spoken(npc));
+    await say(`${who}: The Watch holds the Wall with a tenth of the men it needs.`);
+    await say(`${who}: Beyond it, the wights come in numbers. Bring fire, or dragonglass, or both.`);
   },
 
   async aemon({ say }) {
@@ -1455,9 +1473,11 @@ export const SCRIPTS = {
     if (aside) await say(aside);
   },
 
-  async eyrieHint({ say }) {
-    await say('Guard: Sky cells have three walls and a very persuasive fourth side.');
-    await say('Guard: WIND creatures nest all over the mountain. Bring something that throws stones.');
+  async eyrieHint({ say, npc }) {
+    const who = npc?.name ?? 'Guard';
+    if (npc?.data?.line) await say(spoken(npc));
+    await say(`${who}: Sky cells have three walls and a very persuasive fourth side.`);
+    await say(`${who}: WIND creatures nest all over the mountain. Bring something that throws stones.`);
   },
 
   // =========================================================================
@@ -1473,8 +1493,9 @@ export const SCRIPTS = {
     await say('Margaery: The rest is knowing which of your friends is counting your guards.');
   },
 
-  async reachHint({ say }) {
-    await say('Gardener: WILD creatures thrive here. Fire and cold both undo them, and so does a good hard wing.');
+  async reachHint({ say, npc }) {
+    if (npc?.data?.line) await say(spoken(npc));
+    await say(`${npc?.name ?? 'Gardener'}: WILD creatures thrive here. Fire and cold both undo them, and so does a good hard wing.`);
   },
 
   // =========================================================================
@@ -1485,8 +1506,9 @@ export const SCRIPTS = {
     await say('Prince Doran: Dorne remembers every slight. We simply take our time about them.');
   },
 
-  async dorneHint({ say }) {
-    await say('Orphan: VENOM creatures own the sands. Steel turns their fangs; nothing else does.');
+  async dorneHint({ say, npc }) {
+    if (npc?.data?.line) await say(spoken(npc));
+    await say(`${npc?.name ?? 'Orphan'}: VENOM creatures own the sands. Steel turns their fangs; nothing else does.`);
   },
 
   // =========================================================================
@@ -1508,8 +1530,9 @@ export const SCRIPTS = {
     await say('Ser Davos: Whatever you become, keep somebody near you who will tell you when you are wrong.');
   },
 
-  async stormHint({ say }) {
-    await say('Fisherman: STORM creatures ride the front in off the bay. Stone weathers them best.');
+  async stormHint({ say, npc }) {
+    if (npc?.data?.line) await say(spoken(npc));
+    await say(`${npc?.name ?? 'Fisherman'}: STORM creatures ride the front in off the bay. Stone weathers them best.`);
   },
 
   // =========================================================================

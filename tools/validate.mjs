@@ -626,13 +626,14 @@ const SHAPES = [
   /^  (?:async )?(\w+)\((\w*)\) \{\n([\s\S]*?)\n  \},$/gm,
 ];
 const scriptsRead = new Set();
+const scriptBodies = new Map();
 for (const shape of SHAPES) {
   for (const [, name, params, body] of scriptSource.matchAll(shape)) {
     /* One shape can stand for several seats; the names come out of the list
        it was built from, so the tally below counts them all. */
     const named = name.match(/\w+/g) ?? [];
     if (named.every((one) => scriptsRead.has(one))) continue;
-    for (const one of named) scriptsRead.add(one);
+    for (const one of named) { scriptsRead.add(one); scriptBodies.set(one, body); }
     const given = new Set(params.split(',').map((t) => t.trim().split(/[:=]/)[0].trim()));
     for (const key of SCRIPT_API) {
       if (given.has(key)) continue;
@@ -645,6 +646,30 @@ const scriptCount = Object.keys(SCRIPTS).length;
 if (scriptsRead.size < scriptCount) {
   fail(`the script-api check read ${scriptsRead.size} of ${scriptCount} scripts: `
     + 'a script is written in a shape it cannot see, and is going unchecked');
+}
+
+/* Words written for somebody that their script never speaks.
+ *
+ * A map hands its people what they are to say and sell in `data`, and the
+ * script decides what to do with it. Fifteen inns were stocked and their
+ * script read only the keeper's line; eleven harbours wrote their own captain
+ * and the script talked over every one of them; six people at the great seats
+ * were given a line of their own and a script that spoke as somebody else, by
+ * somebody else's name. All of it authored, none of it ever heard. A key here
+ * is one that carries words or wares: hand it to a script that never reads it
+ * and the work is lost, so that is a failure and not a note. */
+const SPOKEN_KEYS = ['line', 'stock'];
+for (const [mapId, map] of Object.entries(MAPS)) {
+  for (const npc of map.npcs ?? []) {
+    if (!npc.data) continue;
+    const body = scriptBodies.get(npc.script ?? 'generic');
+    if (!body) continue;
+    for (const key of SPOKEN_KEYS) {
+      if (!(key in npc.data)) continue;
+      if (new RegExp(`data\\??\\.${key}\\b`).test(body)) continue;
+      fail(`map ${mapId}: ${npc.name ?? npc.script} was written a ${key} that script "${npc.script}" never uses`);
+    }
+  }
 }
 
 for (const w of warnings) console.log(`  warn  ${w}`);

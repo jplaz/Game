@@ -2824,8 +2824,11 @@ function riverrunPlan() {
   // the inn, up under the north wall
   row(9, 6, 'yyyyy'); row(9, 7, 'YYYYY'); row(9, 8, 'HwDwH'); put(11, 5, 'n');
   /* And the common house, down in the south ward. Riverrun was the one seat
-     with an inn and nowhere else to spend an evening. */
-  row(9, 17, 'yyyyy'); row(9, 18, 'YYYYY'); row(9, 19, 'YYYYY'); row(9, 20, 'HwDwH'); put(12, 16, 'n');
+     with an inn and nowhere else to spend an evening. Four wide and a row
+     lower than it was first drawn: the first draft put its roof on 10,17,
+     which is the tile a Tully stands on at the start of a new game, and
+     checkstarts said so before the cartridge could. */
+  row(9, 18, 'yyyy'); row(9, 19, 'YYYY'); row(9, 20, 'YYYY'); row(9, 21, 'HDwH'); put(12, 17, 'n');
 
   /* The water gate, out at the point, where everything Riverrun eats arrives
      by boat because there is no road on this side of it. */
@@ -4874,7 +4877,7 @@ export const MAPS = {
       { beast: 'riverfry', min: 11, max: 14, weight: 14 },
     ],
     warps: [
-      { x: 11, y: 20, to: 'riverrunHouse', tx: 6, ty: 10, dir: 'up' },
+      { x: 10, y: 21, to: 'riverrunHouse', tx: 6, ty: 10, dir: 'up' },
       { x: 2, y: 0, to: 'riverlands', tx: 10, ty: 23, dir: 'up' },
       { x: 18, y: 12, to: 'maesterHallRiverrun', tx: 5, ty: 7, dir: 'up' },
       { x: 18, y: 16, to: 'riverrunForge', tx: 5, ty: 6, dir: 'up' },

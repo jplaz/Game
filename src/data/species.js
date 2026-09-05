@@ -193,6 +193,25 @@ export const SPECIES = {
        + 'three she is the only one who has never had to be driven off anybody.',
   },
 
+  /* ------------------------------------------------------- and the deep --
+   *
+   * The sea dragon whose ribs are the Grey King's hall on Old Wyk, if the
+   * ironborn are to be believed about anything. She is the fourth of the
+   * animals that can only be met in one place, and the only one of the four
+   * that has to be sailed to.
+   */
+  nagga: {
+    name: 'Nagga', types: ['tide', 'flame'], archetype: 'dragon',
+    base: { hp: 106, atk: 108, def: 102, spa: 116, spd: 104, spe: 76 },
+    growth: 'slow', catchRate: 3, expYield: 315,
+    mount: 'swim',
+    palette: P('#101c22', '#2c4a4a', '#4e7a6c', '#cfd8c4', '#1a2c30', '#e0a838'),
+    learnset: [[1, 'riptide'], [1, 'flamebreath'], [1, 'undertow'], [1, 'rocktoss'],
+               [46, 'tidalsurge'], [52, 'drownedfury'], [58, 'dragonfire'], [64, 'wildfire']],
+    dex: 'She ate krakens and warmed her blood with a fire, and her bones are a hall '
+       + 'on Old Wyk that men still hold councils in. Something out here answers to it.',
+  },
+
   // ============================================================ fish line ==
   riverfry: {
     name: 'Riverfry', types: ['tide'], archetype: 'fish',

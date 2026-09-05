@@ -3103,6 +3103,17 @@ function makeSea({ name, music = 'route', draw }) {
     put(x, y, 's');
     items.push({ x, y, item, count: 1, flag });
   };
+  /* And somebody standing on it.
+   *
+   * Five seas held nothing that could be spoken to: every island in the game
+   * was a shape that broke up the crossing, and the only events on open water
+   * were hulls coming over the horizon. A beach with a person on it is the
+   * reason to run a keel up one. */
+  const npcs = [];
+  const soul = (x, y, who) => {
+    put(x, y, 's');
+    npcs.push({ x, y, dir: 'down', ...who });
+  };
   /* A hole in a cliff that goes somewhere. You run the keel up the beach under
      it and walk in, which is the only reason an island is worth crossing open
      water to reach. */
@@ -3111,10 +3122,10 @@ function makeSea({ name, music = 'route', draw }) {
     warps.push({ x, y, to: dest, tx, ty, dir });
   };
 
-  draw({ put, span, isle, crossing, quay, wreck, mouth });
+  draw({ put, span, isle, crossing, quay, wreck, mouth, soul });
   return {
     name, music, ground: 'stone', sea: true,
-    tiles: G.map((r) => r.join('')), warps, items,
+    tiles: G.map((r) => r.join('')), warps, items, npcs,
   };
 }
 
@@ -5945,7 +5956,7 @@ export const MAPS = {
 
   blackwaterBay: makeSea({
     name: 'Blackwater Bay',
-    draw: ({ put, span, isle, crossing, quay, wreck, mouth }) => {
+    draw: ({ put, span, isle, crossing, quay, wreck, mouth, soul }) => {
       /* The west shore, and the mouth of the Rush coming down out of the city. */
       span(1, 4, 4, 18, 's'); span(1, 5, 3, 16, 'C');
       quay(4, 12, 'kingsLanding', 21, 28, 'right');
@@ -5978,13 +5989,17 @@ export const MAPS = {
       /* Two reefs to break the crossing up. */
       isle(13, 18, 2, 2);
       isle(20, 17, 3, 2);
+      soul(16, 10, { sprite: 'smallfolk', name: 'A Wrecker', script: 'townTalk',
+        data: { line: "A Wrecker: I work this bar because the bar works for me. Every gale puts something new on it and every gale I am the first man standing here when it does." } });
+      soul(3, 22, { sprite: 'oldman', name: 'The Bell Keeper', script: 'townTalk',
+        data: { line: "The Bell Keeper: I ring it in fog and I ring it in the dark. Twice a year somebody rows out to thank me. The rest of the year I am a nuisance." } });
       crossing('e', 9, 15, 'theGullet');
     },
   }),
 
   theGullet: makeSea({
     name: 'The Gullet',
-    draw: ({ put, isle, crossing, wreck, mouth }) => {
+    draw: ({ put, isle, crossing, wreck, mouth, soul }) => {
       /* The mouth is in the cliff face and you stand on the beach below it.
          The two tiles of sand that used to be cut into the middle of the rock
          were ground nothing could reach and the cave put you down on. */
@@ -5996,6 +6011,10 @@ export const MAPS = {
       put(16, 12, 'C'); put(29, 4, 'C');
       crossing('w', 9, 15, 'blackwaterBay');
       crossing('s', 8, 20, 'stepstones');
+      soul(19, 9, { sprite: 'guard', name: 'A Redwyne Lookout', script: 'townTalk',
+        data: { line: "A Redwyne Lookout: Everything that ever sailed at King\u2019s Landing came through this water first. We count the sails and send the count on. That is the post." } });
+      soul(24, 21, { sprite: 'smallfolk', name: 'A Castaway', script: 'townTalk',
+        data: { line: "A Castaway: Nine days. I have eaten things I will not name and made peace with all seven, twice. If you are going anywhere at all, I am going there too." } });
       wreck(7, 2, 'warhorn', 'sea_gullet_horn');
       wreck(26, 19, 'burnSalve', 'sea_gullet_salve');
       crossing('n', 6, 16, 'sunsetSea');
@@ -6004,7 +6023,7 @@ export const MAPS = {
 
   sunsetSea: makeSea({
     name: 'The Sunset Sea',
-    draw: ({ put, isle, crossing, quay, wreck, mouth }) => {
+    draw: ({ put, isle, crossing, quay, wreck, mouth, soul }) => {
       isle(26, 10, 4, 6);
       quay(25, 13, 'lannisport', 22, 18, 'left');
       isle(3, 4, 4, 4);
@@ -6016,6 +6035,30 @@ export const MAPS = {
       isle(19, 21, 3, 2);
       put(11, 22, 'C');
       crossing('s', 6, 16, 'theGullet');
+      /* And the beach with the ribs on it. Forty feet of them, and the thing
+         that is still using them comes back with the tide. */
+      soul(30, 13, { sprite: 'smallfolk', name: 'Nagga',
+        script: 'wildDragon', beast: 'nagga', huge: true,
+        hideIfFlag: 'nagga_taken',
+        data: { species: 'nagga', level: 44,
+          met: 'nagga_met', taken: 'nagga_taken',
+          waking: [
+            'There are ribs on this beach. Not driftwood: ribs, forty feet of them, curved '
+            + 'up out of the sand at the top of the tide line and grey as old rope.',
+            'The ironborn hold councils in a hall built of bones this size, and they say the '
+            + 'bones are hers.',
+            'Then the water behind you stands up.',
+          ],
+          spared: 'You put your back to the ribs and she goes under without a sound, which is '
+            + 'a good deal worse than if she had made one.',
+          driven: 'She goes down and stays down, and the sea closes over the place she was. '
+            + 'She has come back to this beach for a thousand years. She will again.',
+          taking: 'She comes up the sand as far as a thing that size can and lays her head '
+            + 'down among her own ribs. Whatever that is, it is not surrender.',
+          lost: 'The tide takes her out, and you are left on a beach with the bones of '
+            + 'something that is evidently still using them.' } });
+      soul(8, 5, { sprite: 'ironborn', name: 'A Marooned Oarsman', script: 'townTalk',
+        data: { line: "A Marooned Oarsman: There is a bigger thing than us out here and it has a beach it likes. I have seen the bones. I have not seen what puts flesh on them and I would like to keep it that way." } });
       wreck(4, 3, 'poppyMilk', 'sea_sunset_poppy');
       wreck(20, 20, 'frostTonic', 'sea_sunset_tonic');
       crossing('n', 10, 20, 'shiveringSea');
@@ -6024,7 +6067,7 @@ export const MAPS = {
 
   stepstones: makeSea({
     name: 'The Stepstones',
-    draw: ({ put, isle, crossing, quay, wreck, mouth }) => {
+    draw: ({ put, isle, crossing, quay, wreck, mouth, soul }) => {
       isle(3, 3, 3, 3);
       mouth(4, 5, 'pirateCave', 2, 16, 'up');
       isle(9, 7, 4, 3);
@@ -6035,6 +6078,10 @@ export const MAPS = {
       isle(23, 19, 3, 3);
       put(20, 13, 'C'); put(8, 23, 'C');
       quay(23, 10, 'volantis', 12, 25, 'down');
+      soul(8, 8, { sprite: 'sellsword', name: 'A Marooned Reaver', script: 'townTalk',
+        data: { line: "A Marooned Reaver: My own crew put me here with a skin of water and my sword, which tells you exactly what they thought of me and exactly what they feared." } });
+      soul(22, 20, { sprite: 'merchant', name: 'A Wreck Diver', script: 'townTalk',
+        data: { line: "A Wreck Diver: Forty ships on this reef and every one of them full. Finding them is not the trick. Coming back up is the trick." } });
       wreck(4, 2, 'weirwoodSap', 'sea_step_sap');
       wreck(18, 3, 'greatNet', 'sea_step_net');
       crossing('n', 8, 20, 'theGullet');
@@ -6043,7 +6090,7 @@ export const MAPS = {
 
   shiveringSea: makeSea({
     name: 'The Shivering Sea',
-    draw: ({ put, span, isle, crossing, quay, wreck, mouth }) => {
+    draw: ({ put, span, isle, crossing, quay, wreck, mouth, soul }) => {
       span(1, 1, 30, 1, 'i');
       span(1, 21, 3, 5, 's'); span(1, 22, 2, 4, 'C');
       quay(3, 23, 'eastwatch', 11, 19, 'right');
@@ -6055,6 +6102,10 @@ export const MAPS = {
       mouth(12, 10, 'iceCave', 2, 16, 'up');
       isle(19, 16, 3, 2);
       put(7, 8, 'i'); put(22, 7, 'i'); put(14, 21, 'i');
+      soul(29, 7, { sprite: 'ironborn', name: 'An Ibbenese Whaler', script: 'townTalk',
+        data: { line: "An Ibbenese Whaler: You are a long way from anywhere with a name on it. We come out here for the whales. Something out here comes out for us." } });
+      soul(1, 20, { sprite: 'oldman', name: 'A Frozen-In Trader', script: 'townTalk',
+        data: { line: "A Frozen-In Trader: The ice took my rudder in the autumn and I have been having the same argument with the same gull ever since. He is winning." } });
       wreck(14, 11, 'kissOfFire', 'sea_shiver_fire');
       wreck(18, 16, 'kingsRansom', 'sea_shiver_ransom');
       crossing('s', 10, 20, 'sunsetSea');

@@ -24,7 +24,8 @@ import { HOUSE_IDS } from './houses.js';
 import { SHIPS } from './ships.js';
 import {
   ship, ownsShip, buyShip, tradeIn, shipName, conditionWord,
-  repairShip, repairCost, berth, tally, board,
+  repairShip, repairCost, berth, tally, board, damageShip, sink,
+  REFITS, refitCost, hasRefit, refit,
 } from '../game/ship.js';
 import { seaFight as runSeaFight } from '../game/seafight.js';
 import { openQuest, closeQuest, isOpen, isClosed } from '../game/questlog.js';
@@ -145,8 +146,8 @@ export const SCRIPTS = {
     for (;;) {
       const have = ship();
       const bill = repairCost();
-      const opts = ['See the hulls', have ? 'Put her right' : null, 'Nothing today']
-        .filter(Boolean);
+      const opts = ['See the hulls', have ? 'Put her right' : null,
+        have ? 'Have work done on her' : null, 'Nothing today'].filter(Boolean);
       const opened = have
         ? `Shipwright: ${shipName()}, and she is ${conditionWord()}.`
           + (bill ? ` I can have that off her for ${bill}g.` : ' Nothing wants doing to her.')
@@ -168,6 +169,33 @@ export const SCRIPTS = {
         }
         audio.sfx('confirm');
         await say(`Shipwright: Caulked, pitched and re-planked. ${conditionWord()} again.`);
+        continue;
+      }
+
+      /* Work that stays on her, as against work that undoes what the sea has
+         done. Buying a bigger boat was the only way a hull ever improved, so
+         the one you learned the water in was scrap the day you could afford
+         the next. Three of these apiece and the skiff is worth keeping. */
+      if (opts[pick] === 'Have work done on her') {
+        const left = REFITS.filter((r) => !hasRefit(r.id));
+        if (!left.length) {
+          await say('Shipwright: There is nothing left to do to her that would not '
+            + 'be me inventing work. She is as much ship as she is going to be.');
+          continue;
+        }
+        const labels = left.map((r) => `${r.name} — ${refitCost(r.id)}g`);
+        const which = await choose(
+          `Shipwright: ${shipName()} will take more than she is carrying. What do you want on her?`,
+          [...labels, 'Not today']);
+        if (which < 0 || which >= left.length) continue;
+        const done = refit(left[which].id);
+        if (done === 'poor') {
+          audio.sfx('cancel');
+          await say('Shipwright: Timber costs what timber costs. Come back with it.');
+          continue;
+        }
+        audio.sfx('confirm');
+        await say(left[which].done);
         continue;
       }
 
@@ -248,6 +276,53 @@ export const SCRIPTS = {
     if (!fleet || !ownsShip()) return;
     audio.sfx('encounter');
     await runSeaFight(api, fleet);
+  },
+
+  /**
+   * Something in the water rather than something on it.
+   *
+   * A fleet can be run down, boarded, sunk or bought off. This cannot be any
+   * of those: it is under you, it does not want your cargo, and the only two
+   * answers are the rail and the sail. It is also the one thing at sea that
+   * can be taken alive, which is the whole reason to go looking.
+   */
+  async seaBeast(api) {
+    const { say, choose, battle, data } = api;
+    const row = data?.beast;
+    if (!row || !ownsShip()) return;
+    audio.sfx('encounter');
+    const level = Math.max(4, Math.round(row.min + Math.random() * (row.max - row.min)));
+    await say('The water off the bow goes flat and dark, the way water does when '
+      + 'something large has just gone under it.');
+    const pick = await choose('Whatever it is, it is keeping pace with you.',
+      ['Stand to the rail', 'Put on all sail']);
+    if (pick === 1) {
+      /* Running from something that swims better than you sail is a wager,
+         and the stake is the hull. */
+      if (Math.random() < 0.55) {
+        await say('It loses interest, or it finds something better. The water '
+          + 'closes and the sea is only the sea again.');
+        return;
+      }
+      const hurt = 6 + Math.floor(Math.random() * 12);
+      damageShip(hurt);
+      await say(`It comes up under the quarter as you turn. ${shipName()} takes `
+        + `${hurt} and every loose thing on deck goes over the side.`);
+      if ((ship()?.hull ?? 0) > 0) return;
+      sink();
+      await say('She goes down under you, and you are in the water with the rest '
+        + 'of it. Somebody fishes you out. You are not sure who.');
+      return;
+    }
+    if (!party().some((c) => c.hp > 0)) {
+      await say('There is nothing at your heel that swims, and nothing on deck '
+        + 'that would help. You hold on and hope.');
+      const hurt = 4 + Math.floor(Math.random() * 8);
+      damageShip(hurt);
+      if ((ship()?.hull ?? 0) <= 0) sink();
+      return;
+    }
+    await battle({ kind: 'wild', foe: createCreature(row.beast, level) });
   },
 
   // ------------------------------------------------------------- defaults --

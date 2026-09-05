@@ -20,7 +20,7 @@ import { activeCompanion, hasFallen, kill as killCompanion } from '../game/compa
 import { ownsHoldfast, gather, INGREDIENTS } from '../game/holdfast.js';
 import {
   ship, ownsShip, aboard, board, goAshore, berthedAt, shipName, conditionWord,
-  lane as seaLane, rollFleet,
+  lane as seaLane, rollFleet, rollSeaBeast,
 } from '../game/ship.js';
 import { shipSprite, SHIP_SIZE } from '../art/ship.js';
 import { creatureSprite, SPRITE_SIZE } from '../art/creatures.js';
@@ -784,6 +784,14 @@ export class Overworld {
     if (this.sailing && def.kind === 'water' && seaLane(this.mapId)) {
       if (game.state.player.wounded) return;
       if (!rng.chance(ENCOUNTER_CHANCE * 0.55)) return;
+      /* Not everything out here is a crew. Better than a third of what finds
+         you on open water is what lives in it, which is the only thing at sea
+         that can be taken alive rather than sunk or run from. */
+      const beast = rollSeaBeast(this.mapId, Math.random());
+      if (beast && rng.chance(0.35)) {
+        this.runScript('seaBeast', null, { beast });
+        return;
+      }
       const fleet = rollFleet(this.mapId, Math.random());
       if (fleet) this.runScript('seaFight', null, { fleet });
       return;

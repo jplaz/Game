@@ -10,7 +10,7 @@
 // who your father was.
 
 import { game, formatMoney } from './state.js';
-import { SHIPS, FLEETS, SEA_LANES } from '../data/ships.js';
+import { SHIPS, FLEETS, SEA_LANES, SEA_BEASTS } from '../data/ships.js';
 
 /** The ship you own, or null. */
 export function ship() {
@@ -84,8 +84,73 @@ export function nameShip(name) {
 
 // ------------------------------------------------------------- condition --
 
+/* What a shipwright can do to a hull that is not simply mending it.
+ *
+ * Buying a bigger boat was the only way a ship ever improved, so the skiff you
+ * learned the water in was worthless the moment you could afford a cog, and
+ * the cog was worthless the moment you could afford a galley. Three refits
+ * apiece: strakes doubled, a bronze beak fitted, and more hands than she was
+ * drawn for. A skiff with all three will still lose to a war galley - she is a
+ * skiff - but she is now a skiff worth keeping. */
+export const REFITS = [
+  { id: 'strakes', name: 'Double her strakes', hull: 0.35, cost: 1.1,
+    done: 'Shipwright: Doubled from the turn of the bilge up. She will take a beak now '
+        + 'and argue about it afterwards.' },
+  { id: 'beak', name: 'Fit a bronze beak', ram: 0.6, cost: 1.4,
+    done: 'Shipwright: Bronze, cast in one piece, and bolted through the stem. Do not '
+        + 'ram anything you are fond of.' },
+  { id: 'hands', name: 'Ship more hands', crew: 0.5, cost: 0.9,
+    done: 'Shipwright: Twelve more, and eight of them have been to Volantis. They will '
+        + 'want feeding, which is a problem for you and not for me.' },
+];
+
+/** What one refit costs on the hull you have: a share of what she cost new. */
+export function refitCost(id) {
+  const def = shipDef();
+  const r = REFITS.find((one) => one.id === id);
+  if (!def || !r) return 0;
+  return Math.round((def.price * r.cost) / 3);
+}
+
+export function hasRefit(id) {
+  return Boolean(ship()?.refits?.includes(id));
+}
+
+/** Buys one. Returns 'done', 'already', 'poor' or 'noship'. */
+export function refit(id) {
+  const s = ship();
+  const r = REFITS.find((one) => one.id === id);
+  if (!s || !r) return 'noship';
+  if (hasRefit(id)) return 'already';
+  const price = refitCost(id);
+  if (game.state.player.money < price) return 'poor';
+  game.state.player.money -= price;
+  (s.refits ??= []).push(id);
+  /* Doubling her strakes adds hull she does not have yet: the work is done,
+     the timber is on her, and she is that much further from going down. */
+  if (r.hull) s.hull += Math.round((shipDef()?.hull ?? 0) * r.hull);
+  return 'done';
+}
+
+/** What one of her numbers is worth once the work is on her. */
+function withRefits(key) {
+  const def = shipDef();
+  if (!def) return 0;
+  let n = def[key] ?? 0;
+  for (const r of REFITS) if (r[key] && hasRefit(r.id)) n += Math.round((def[key] ?? 0) * r[key]);
+  return n;
+}
+
 export function hullMax() {
-  return shipDef()?.hull ?? 0;
+  return withRefits('hull');
+}
+
+export function ramOf() {
+  return withRefits('ram');
+}
+
+export function crewOf() {
+  return withRefits('crew');
 }
 
 /** 0 to 1. Below a third she is answering slowly and everyone aboard knows it. */
@@ -192,7 +257,7 @@ export function berthedAt(mapId) {
 export function shipStrength(s = ship()) {
   const def = shipDef(s);
   if (!def || !s) return 0;
-  return Math.round((def.ram * 2 + def.crew) * (0.4 + 0.6 * condition()));
+  return Math.round((ramOf() * 2 + crewOf()) * (0.4 + 0.6 * condition()));
 }
 
 export function fleetStrength(id) {
@@ -203,6 +268,22 @@ export function fleetStrength(id) {
 /** Who might find you on a given water. */
 export function lane(mapId) {
   return SEA_LANES[mapId] ?? null;
+}
+
+/**
+ * What is in the water here, if anything. Same shape as a lane roll, and the
+ * caller decides which of the two a given encounter turns out to be.
+ */
+export function rollSeaBeast(mapId, roll = Math.random()) {
+  const rows = SEA_BEASTS[mapId];
+  if (!rows?.length) return null;
+  const total = rows.reduce((n, r) => n + r.weight, 0);
+  let pick = roll * total;
+  for (const r of rows) {
+    pick -= r.weight;
+    if (pick <= 0) return r;
+  }
+  return rows[rows.length - 1];
 }
 
 export function rollFleet(mapId, roll = Math.random()) {
@@ -225,7 +306,7 @@ export function exchange(fleetId, enemyHull) {
   const def = shipDef();
   const f = FLEETS[fleetId];
   if (!def || !f) return null;
-  const mine = Math.round(def.ram * (0.5 + 0.5 * condition()) * (0.75 + Math.random() * 0.5));
+  const mine = Math.round(ramOf() * (0.5 + 0.5 * condition()) * (0.75 + Math.random() * 0.5));
   const theirs = Math.round(f.ram * (0.75 + Math.random() * 0.5));
   const left = Math.max(0, enemyHull - mine);
   damageShip(theirs);

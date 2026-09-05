@@ -114,6 +114,47 @@ export const FLEETS = {
 };
 
 /** The fleets that sail a given water, and how likely each is to find you. */
+/* ------------------------------------------------------------ the deep ----
+ *
+ * What is in the water, as opposed to what is on it.
+ *
+ * The seas had fleets and nothing else, so every crossing in the game was a
+ * negotiation with another crew and the water itself was a floor. These come
+ * up under the hull instead: they cannot be run down, boarded or bought off,
+ * and unlike a fleet they can be taken alive. A hold with a kraken in it is
+ * the best reason there has ever been to own a boat.
+ *
+ * Levels are what the sea is worth rather than what you are: the Shivering
+ * Sea is the far end of the world and says so.
+ */
+export const SEA_BEASTS = {
+  blackwaterBay: [
+    { beast: 'silverfin', min: 20, max: 28, weight: 45 },
+    { beast: 'krakenling', min: 22, max: 30, weight: 35 },
+    { beast: 'crabcrag', min: 20, max: 27, weight: 20 },
+  ],
+  theGullet: [
+    { beast: 'tridentide', min: 30, max: 38, weight: 40 },
+    { beast: 'deepmaw', min: 32, max: 40, weight: 30 },
+    { beast: 'crabcrag', min: 26, max: 34, weight: 30 },
+  ],
+  sunsetSea: [
+    { beast: 'deepmaw', min: 34, max: 42, weight: 40 },
+    { beast: 'krakenling', min: 24, max: 32, weight: 30 },
+    { beast: 'tridentide', min: 30, max: 38, weight: 30 },
+  ],
+  stepstones: [
+    { beast: 'crabcrag', min: 28, max: 36, weight: 40 },
+    { beast: 'silverfin', min: 24, max: 32, weight: 30 },
+    { beast: 'deepmaw', min: 34, max: 42, weight: 30 },
+  ],
+  shiveringSea: [
+    { beast: 'deepmaw', min: 36, max: 44, weight: 40 },
+    { beast: 'tridentide', min: 34, max: 42, weight: 35 },
+    { beast: 'crabcrag', min: 30, max: 38, weight: 25 },
+  ],
+};
+
 export const SEA_LANES = {
   blackwaterBay: [
     { fleet: 'pirateSkiff', weight: 40 },

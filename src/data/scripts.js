@@ -108,6 +108,20 @@ export async function settleFate({ say, choose, id, def }) {
   return 'spared';
 }
 
+/** A night at an inn: fifty dragons, everyone healed, and this is where you
+    wake up next time you lose. Two innkeeps rent the same room. */
+async function rentRoom({ say, healParty }) {
+  if (!canAfford(50)) {
+    await say('Innkeep: Come back with coin.');
+    return;
+  }
+  addMoney(-50);
+  audio.sfx('heal');
+  healParty();
+  game.state.respawn = { ...game.state.position, dir: 'down' };
+  await say('You slept until the noise downstairs became unbearable. Everyone is rested.');
+}
+
 export const SCRIPTS = {
   /**
    * A shipwright. Sells hulls, takes your old one in trade at half what he
@@ -1172,16 +1186,7 @@ export const SCRIPTS = {
   async innkeep({ say, choose, healParty }) {
     const answer = await choose('Innkeep: A room is 50 gold dragons, and your creatures eat free.',
       ['Take a room', 'Not tonight']);
-    if (answer !== 0) return;
-    if (!canAfford(50)) {
-      await say('Innkeep: Come back with coin.');
-      return;
-    }
-    addMoney(-50);
-    audio.sfx('heal');
-    healParty();
-    game.state.respawn = { ...game.state.position, dir: 'down' };
-    await say('You slept until the noise downstairs became unbearable. Everyone is rested.');
+    if (answer === 0) await rentRoom({ say, healParty });
   },
 
   async innDrunk({ say }) {
@@ -1241,10 +1246,23 @@ export const SCRIPTS = {
 
   // ------------------------------------------------- inns and common houses --
   /** The innkeep: a bed, a meal, and a counter with remedies on it. */
-  async innkeep({ say, npc, healParty }) {
+  /* The keeper of a town inn built by makeInn.
+   *
+   * This was a second "innkeep", and the second key in an object literal wins:
+   * it silently replaced the one above, so Riverrun's inn stopped charging for
+   * a room and stopped setting where you wake up when you lose. It also threw
+   * away the shelf: thirteen inns were written with a stock list, and this
+   * read the keeper's line and nothing else. Its own name now, the room the
+   * original inn rents, and the shelf the author stocked. */
+  async townInnkeep({ say, choose, npc, healParty, openShop }) {
     await say(npc.data?.line ?? 'Innkeep: Bed, board, and mind the step.');
-    healParty?.();
-    await say('You eat, you sleep, and you wake up in one piece.');
+    const stock = Array.isArray(npc.data?.stock) ? npc.data.stock : [];
+    const wants = stock.length
+      ? ['Take a room', 'See the shelf', 'Not tonight']
+      : ['Take a room', 'Not tonight'];
+    const pick = await choose('Innkeep: A room is 50 gold dragons, and your creatures eat free.', wants);
+    if (pick === 0) await rentRoom({ say, healParty });
+    else if (stock.length && pick === 1) await openShop(stock);
   },
 
   /** Somebody in the taproom who has been here a while. */
@@ -1575,7 +1593,7 @@ export const SCRIPTS = {
 
   // --------------------------------------------------------- the endgame ---
   async gymThrone(api) {
-    const { say, overworld, battle, setFlag, flag } = api;
+    const { say, overworld, setFlag, flag } = api;
     const def = TRAINERS.gymThrone;
     // Once the chair is yours, sitting it again is a turn of ruling rather than
     // a repeat of the fight that won it.

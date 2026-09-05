@@ -7,7 +7,8 @@
     "start": "node serve.js",
     "serve": "node serve.js",
     "validate": "node tools/validate.mjs",
-    "playtest": "node tools/playtest.mjs"
+    "playtest": "node tools/playtest.mjs",
+    "lint": "eslint --no-config-lookup -c tools/lint.config.mjs src tools gba/export.mjs"
   },
   "keywords": [
     "game",

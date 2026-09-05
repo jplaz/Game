@@ -198,6 +198,14 @@ for (const [mapId, map] of Object.entries(MAPS)) {
     }
     // A merchant stocks a flat list of items; a smith stocks gear by slot.
     const stock = npc.data?.stock;
+    /* Winterfell's inn was stocked with the string 'north' for the whole life
+       of the game. Not an array, so this walked past it; the Shop scene would
+       have taken it as its rows and shown five letters for sale. Anything that
+       is not a list or a smith's shelves is a mistake, not a skip. */
+    if (stock !== undefined && !Array.isArray(stock)
+        && (typeof stock !== 'object' || stock === null)) {
+      fail(`map ${mapId}: ${npc.name ?? npc.script} has a stock that is ${JSON.stringify(stock)}, not a list`);
+    }
     if (Array.isArray(stock)) {
       for (const id of stock) {
         if (!ITEMS[id]) fail(`map ${mapId}: shop stocks unknown item "${id}"`);

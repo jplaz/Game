@@ -28,9 +28,21 @@ export class NamePad {
     this.fallback = fallback;
     this.cursor = { row: 0, col: 0 };
     this.time = 0;
+    this.done = false;
   }
 
   update(dt) {
+    /* Answer once.
+     *
+     * Three screens hand the name on to manager.transition, and a transition
+     * restarts its fade from nothing every time it is called. Press START on
+     * the pad again before the fade has reached black - a third of a second -
+     * and the fade starts over, the scene never swaps, and the game sits on
+     * the title screen for as long as the player keeps pressing. A tester
+     * alternating A and START at strict intervals never got in at all; it took
+     * a coin-flip to leave a long enough gap. A pad that has given its answer
+     * has nothing more to say. */
+    if (this.done) return null;
     this.time += dt;
     const rows = LETTER_ROWS;
 
@@ -64,6 +76,7 @@ export class NamePad {
     }
     if (input.pressed('start')) {
       audio.sfx('confirm');
+      this.done = true;
       return this.name.trim() || this.fallback;
     }
     return null;

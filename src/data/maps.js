@@ -1811,7 +1811,7 @@ function makeInn({ town, name, region, keeper, keeperLine, drinkerLine,
       { x: 1, y: 9, to: `${id}Cellar`, tx: 2, ty: 1, dir: 'down' },
     ],
     npcs: [
-      { x: 4, y: 1, dir: 'down', sprite: 'goodwife', name: keeper, script: 'innkeep',
+      { x: 4, y: 1, dir: 'down', sprite: 'goodwife', name: keeper, script: 'townInnkeep',
         data: { line: keeperLine, stock } },
       { x: 4, y: 6, dir: 'up', sprite: 'smallfolk', name: 'Drinker', script: 'taproom',
         data: { line: drinkerLine } },
@@ -3112,7 +3112,7 @@ export const MAPS = {
     keeper: 'Ony', keeperLine: 'Ony: Brown ale, black bread, and a bed if you can pay for one. The fire does not go out between now and spring.',
     drinkerLine: 'Half the Rills is drinking in here because there is nothing to do on a farm under four feet of snow.',
     fighter: 'A Drunk Freerider', fighterLine: 'bandit',
-    stock: 'north',
+    stock: ['maesterKit', 'poppyMilk', 'weirwoodSap', 'frostTonic'],
   }),
 
   winterfellHouse: makeCommonHouse({

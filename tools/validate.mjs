@@ -13,7 +13,7 @@ import { MOVES } from '../src/data/moves.js';
 import { ITEMS, item } from '../src/data/items.js';
 import { TRAINERS, trainerAsDuellist } from '../src/data/trainers.js';
 import { DUELLISTS, ROAMERS, ROAMER_TABLES, makeRoamer } from '../src/data/duellists.js';
-import { HOUSES, HOUSE_IDS, SWEARABLE, SPRITE_HOUSE } from '../src/data/houses.js';
+import { HOUSES, SWEARABLE, SPRITE_HOUSE } from '../src/data/houses.js';
 import { COMPANIONS, AID_DESCRIPTION } from '../src/data/companions.js';
 import { QUESTS } from '../src/data/quests.js';
 import { CUTSCENES } from '../src/data/cutscenes.js';

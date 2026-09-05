@@ -118,7 +118,6 @@ const MAP_IDS = [
 // What the cartridge's hardware will hold.
 const BG_TILE_LIMIT = 512;      // charblocks 0-1, 8bpp
 const NPC_ACTOR_LIMIT = 12;     // object VRAM, 4bpp, after the player's frames
-const PLAYER_FRAMES = 16;       // four facings, four steps
 const NPC_FRAMES = 8;           // four facings, two steps
 
 // ------------------------------------------------------------ the server ---
@@ -1225,7 +1224,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         /* Who keeps the house with the red lamp. The browser game gave every
            town one and gave the keeper a script the cartridge never read, so
            the loudest room in every town was furniture. */
-        evening: /houseKeeper/i.test(n.script ?? '') ? 1 : 0,
+        evening: /redLamp/i.test(n.script ?? '') ? 1 : 0,
         /* Somebody standing in the road who is gone the moment you hold this
            many of the great seats. Without this the browser's wardens would be
            permanent walls on the cartridge and the roads behind them would

@@ -253,7 +253,7 @@ let dragonArt = null;
 function dragonCanvas() {
   if (dragonArt) return dragonArt;
   const { canvas, ctx } = makeCanvas(48, 48);
-  const { fill, stroke, dot, worm } = dragonTools(ctx);
+  const { fill, stroke, worm } = dragonTools(ctx);
 
   // Back to front, the way it would be built if it were standing there.
   fill(D_WING_FAR, D_EDGE); stroke(D_WING_FAR, D_EDGE);

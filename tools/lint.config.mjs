@@ -74,5 +74,9 @@ export default [{
     'no-useless-backreference': 'error',
     'no-misleading-character-class': 'error',
     'no-invalid-regexp': 'error',
+    /* An import nobody uses is usually a script that got deleted, a helper
+       that got replaced, or - once - a "battle" taken from the api in place
+       of the "overworld" actually called. Worth a look every time. */
+    'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none', ignoreRestSiblings: true }],
   },
 }];

@@ -4,7 +4,7 @@
 //   await dialog.say('Winter is coming.');
 //   if (await dialog.choose('Take the sword?', ['Yes', 'No']) === 0) ...
 
-import { drawPanel, THEMES } from './panel.js';
+import { drawPanel } from './panel.js';
 import { drawText, wrapText, measure, LINE_HEIGHT } from '../engine/font.js';
 import { input } from '../engine/input.js';
 import { audio } from '../engine/audio.js';

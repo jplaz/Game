@@ -2,7 +2,7 @@
 // so the flow reads top to bottom; `update` only services timers, animations
 // and whichever menu is currently open.
 
-import { drawPanel, drawStatusBox, drawHpGauge, drawExpGauge, THEMES } from '../ui/panel.js';
+import { drawPanel, drawStatusBox, drawHpGauge, drawExpGauge } from '../ui/panel.js';
 import { drawText, fitText, measure, LINE_HEIGHT } from '../engine/font.js';
 import { dialog } from '../ui/textbox.js';
 import { input } from '../engine/input.js';

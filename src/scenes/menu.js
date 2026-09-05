@@ -26,7 +26,7 @@ import { questEntries, questCounts } from '../game/questlog.js';
 import { gear, gearTable, GEAR_SLOTS } from '../data/gear.js';
 import {
   playerStats, equipped, equip, playerTechniques, playerTitle,
-  maxVigour, expForPlayerLevel, expToNextLevel, playerAppearance,
+  maxVigour, expToNextLevel, playerAppearance,
 } from '../game/player.js';
 import { drawActor, ACTOR_W, ACTOR_H } from '../art/actors.js';
 

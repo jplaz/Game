@@ -37,12 +37,7 @@ function toneShift(hex, amount) {
 }
 
 const lit = (hex) => toneShift(hex, 0.13);
-const dim = (hex) => toneShift(hex, -0.22);
 const deep = (hex) => toneShift(hex, -0.4);
-/* Trousers and boots are painted near-black in the palettes, which is the
-   right colour for cloth and the wrong colour next to a near-black keyline.
-   This is the tone they are actually drawn in. */
-const pale = (hex) => toneShift(hex, 0.32);
 /* Trousers and boots were written into the palettes as near-black, which is a
    true colour for cloth and an impossible one to draw with: at this size a
    near-black leg beside a near-black outline is one dark brick where a pair of

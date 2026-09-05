@@ -11,7 +11,7 @@
 // experience for the rounds it fought.
 
 import {
-  drawPanel, drawStatusBox, drawHpGauge, drawExpGauge, drawWindGauge, HP_COLORS, THEMES,
+  drawPanel, drawStatusBox, drawHpGauge, drawExpGauge, drawWindGauge, HP_COLORS, 
 } from '../ui/panel.js';
 import { drawText, fitText, measure, LINE_HEIGHT } from '../engine/font.js';
 import { dialog } from '../ui/textbox.js';
@@ -30,13 +30,12 @@ import { duellist as getDuellist } from '../data/duellists.js';
 import { item as getItem, ITEMS } from '../data/items.js';
 import { attemptCatch } from '../game/combat.js';
 import {
-  playerStats, playerTechniques, maxVigour, gainPlayerExp, equipped,
-  giveGear, expToNextLevel, expForPlayerLevel, playerAppearance,
+  playerStats, playerTechniques, gainPlayerExp, 
+  giveGear, expForPlayerLevel, playerAppearance,
 } from '../game/player.js';
 import {
-  game, addMoney, setFlag, takeItem, itemCount, markCaught, changeStanding, standingWord,
+  game, addMoney, setFlag, takeItem, itemCount, markCaught, changeStanding, 
 } from '../game/state.js';
-import { HOUSES } from '../data/houses.js';
 import { COMPANIONS } from '../data/companions.js';
 import { activeCompanion, hurtCompanion, kill as killCompanion } from '../game/company.js';
 import { deepenBond, bondWord } from '../game/eggs.js';

@@ -9,7 +9,7 @@ import { TRACKS } from '../data/music.js';
 import { creatureSprite, SPRITE_SIZE } from '../art/creatures.js';
 import { species as getSpecies } from '../data/species.js';
 import { newGame, setState, formatTime } from '../game/state.js';
-import { hasSave, loadGame, saveSummary } from '../game/save.js';
+import { loadGame, saveSummary } from '../game/save.js';
 
 
 export class Title {

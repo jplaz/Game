@@ -6,8 +6,8 @@
 
 import {
   game, party, addCreature, giveItem, hasItem, addMoney, canAfford,
-  sigilCount, hasSigil, dexCounts, swearTo, allegiance, standing, standingWord,
-  changeStanding, recordChoice, choice, markDead, isDead,
+  sigilCount, hasSigil, dexCounts, swearTo, allegiance, standing, 
+  changeStanding, recordChoice, markDead, isDead,
 } from '../game/state.js';
 import { HOUSES, SWEARABLE } from './houses.js';
 import { giveEgg } from '../game/eggs.js';
@@ -18,12 +18,12 @@ import { COMPANIES } from './companies.js';
 import {
   holdfast, ownsHoldfast, FURNISHINGS, installed, install, seats, canCook,
   larder, INGREDIENTS, DISHES, canCookDish, cook as cookDish, dishCount,
-  holdFeast, feastCount, grantHoldfast, gather,
+  holdFeast, feastCount, grantHoldfast, 
 } from '../game/holdfast.js';
 import { HOUSE_IDS } from './houses.js';
 import { SHIPS } from './ships.js';
 import {
-  ship, ownsShip, buyShip, tradeIn, shipName, shipDef, conditionWord,
+  ship, ownsShip, buyShip, tradeIn, shipName, conditionWord,
   repairShip, repairCost, berth, tally, board,
 } from '../game/ship.js';
 import { seaFight as runSeaFight } from '../game/seafight.js';
@@ -44,8 +44,8 @@ import { maxVigour } from '../game/player.js';
 import { asideFor } from '../game/regard.js';
 import { MATCHES } from './matches.js';
 import {
-  willHear, betroth, wed, isMarried, spouse, betrothed, bearChild, childDue,
-  children, heir, ageWord, takeIntoService, sworn, hostSize, swornFull,
+  willHear, betroth, wed, spouse, betrothed, bearChild, childDue,
+  children, heir, ageWord, takeIntoService, hostSize, swornFull,
 } from '../game/household.js';
 import { audio } from '../engine/audio.js';
 
@@ -821,21 +821,6 @@ export const SCRIPTS = {
   },
 
   /**
-   * The gangplank at King's Landing. Everything east of here starts with
-   * somebody at a dock asking whether you can pay.
-   */
-  async harbour({ say, choose, overworld }) {
-    await say('Harbourmaster: Ships out to Braavos, Pentos, Volantis and Meereen. '
-      + 'The captain sets the fare, not me.');
-    const answer = await choose('Go aboard?', ['Go aboard', 'Stay ashore']);
-    if (answer !== 0) {
-      await say('Harbourmaster: Suit yourself. The sea will still be there.');
-      return;
-    }
-    overworld.sailTo({ map: 'narrowSea', x: 11, y: 5, dir: 'down' });
-  },
-
-  /**
    * The deed to a ruined holdfast. Somebody is squatting in it, which is the
    * usual condition of anywhere worth having.
    */
@@ -1088,18 +1073,6 @@ export const SCRIPTS = {
     }
   },
 
-  async winterfellGuard({ say, flag }) {
-    if (!flag('gotStarter')) {
-      await say('Maester Luwin is looking for you, down by the south road. Do not keep him.');
-      return;
-    }
-    if (!hasSigil('wolf')) {
-      await say('The Great Keep is up the north path. Lord Rickard does not hand out sigils to people who ask nicely.');
-      return;
-    }
-    await say('Wolf Sigil already? The South will not know what hit it.');
-  },
-
   async winterfellStable({ say }) {
     await say('Stablehand: Hold B while you walk and you will move a good deal faster. Saves the boots.');
   },
@@ -1285,11 +1258,6 @@ export const SCRIPTS = {
     await say(npc.data?.line ?? 'They raise a cup at you and go back to it.');
   },
 
-  /** The woman who runs the common house. */
-  async houseKeeper({ say, npc }) {
-    await say(npc.data?.line ?? 'She looks you over and decides you can afford it.');
-  },
-
   /** And whoever else is in it, which is where the town's news lives. */
   async houseTalk({ say, npc }) {
     await say(npc.data?.line ?? `${npc.name} has better things to do.`);
@@ -1377,14 +1345,6 @@ export const SCRIPTS = {
   },
 
   // -------------------------------------------------------- King's Landing --
-  async klGuard({ say }) {
-    if (sigilCount() >= 3) {
-      await say('Gold Cloak: Three sigils. The Red Keep is yours to climb. Gods be with you.');
-    } else {
-      await say(`Gold Cloak: Three sigils to climb to the throne room. You have ${sigilCount()}.`);
-    }
-  },
-
   async klHint({ say, npc }) {
     const counts = dexCounts();
     if (npc?.data?.line) await say(spoken(npc));
@@ -1538,12 +1498,6 @@ export const SCRIPTS = {
   // =========================================================================
   //  Dragonstone
   // =========================================================================
-  async daenerys({ say }) {
-    await say('Daenerys: I was born on this island in a storm, and I have not had a quiet day since.');
-    await say('Daenerys: You want the chair. So does everyone. What I want to know is what you will do the morning after.');
-    await say('Daenerys: Go into the Dragonmont if you are brave. Something down there is older than my house.');
-  },
-
   /** The Black Dread, sleeping under Dragonstone. */
   /**
    * The nest under the Dragonmont. You do not fight what lives here — you
@@ -1662,18 +1616,6 @@ export const SCRIPTS = {
     await overworld.holdCourt();
   },
 
-  /** Returning to the chair. Every visit after the first is a turn of ruling. */
-  async throne({ say, overworld, flag }) {
-    if (!flag('gameComplete')) {
-      await say('The chair is empty. It does not look like it wants company.');
-      return;
-    }
-    if (!reigning()) {
-      await say('They took the crown off you. The chair is somebody else\'s problem now.');
-      return;
-    }
-    await overworld.holdCourt();
-  },
   // ------------------------------------------------- the other eight seats ---
   // Five of these were written out longhand and the differences between them
   // were the name and the parting gift. One shape, nine seats: say your piece,

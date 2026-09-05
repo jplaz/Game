@@ -1839,7 +1839,7 @@ function makeCommonHouse({ town, name, region, madam, madamLine, voices,
       { x: 12, y: 3, to: `${id}Rooms`, tx: 11, ty: 4, dir: 'down' },
     ],
     npcs: [
-      { x: 2, y: 5, dir: 'right', sprite: 'goodwife', name: madam, script: 'houseKeeper',
+      { x: 2, y: 5, dir: 'right', sprite: 'goodwife', name: madam, script: 'redLamp',
         data: { line: madamLine } },
       { x: 10, y: 1, dir: 'down', sprite: 'girl', name: voices[0].who, script: 'houseTalk',
         data: { line: voices[0].line } },
@@ -3486,6 +3486,10 @@ export const MAPS = {
       { x: 8, y: 9, to: 'theEyrie', tx: 10, ty: 5, dir: 'down' },
     ],
     npcs: [
+      /* Both fell out when the Eyrie was rebuilt to climb its mountain; their
+         scripts stayed. Lysa beside her seat, Baelish where he can hear it. */
+      { x: 12, y: 3, dir: 'left', sprite: 'starkLady', name: 'Lady Arryn', script: 'lysa' },
+      { x: 11, y: 6, dir: 'up', sprite: 'noble', name: 'Lord Baelish', script: 'littlefinger' },
       { x: 3, y: 2, dir: 'down', sprite: 'arryn', name: 'Mya Stone', script: 'courtship',
         data: { match: 'mya' } },
       { x: 9, y: 2, dir: 'down', sprite: 'arryn', name: 'Bronze Yohn Royce',
@@ -6599,6 +6603,9 @@ export const MAPS = {
       { x: 13, y: 12, text: 'THE MUD GATE\nA ferryman who does not give his name.\nHe will take you to the island, and he will not talk about it.' },
     ],
     npcs: [
+      /* Written for the old capital and lost when it became a warren. A man
+         taking the black recruits at the gate, where the ships and the road are. */
+      { x: 14, y: 8, dir: 'left', sprite: 'nightswatch', name: 'Recruiter', script: 'klRecruiter' },
       /* He is a ferryman. He had no way of ferrying anybody anywhere: the
          script he was given was the one the forge assistants use, so the only
          man on the quay said his line and stood there. */
@@ -6643,6 +6650,10 @@ export const MAPS = {
       { x: 12, y: 10, text: 'THE FLEA-CHANNEL\nEverything the city is finished with comes down here on its way to the bay.\nThere is one plank over it. Mind where you put your feet.' },
     ],
     npcs: [
+      /* Likewise. A red priest preaching fire and blood belongs in Flea Bottom. */
+      /* Not at 5,9: Flea Bottom's streets are one tile wide and that one is
+         the only way south, so a man standing on it cut the map in half. */
+      { x: 10, y: 9, dir: 'right', sprite: 'redPriest', name: 'Stranger', script: 'klStranger' },
       { x: 18, y: 6, dir: 'down', sprite: 'smallfolk', name: 'Bowl-of-Brown Man', script: 'bellowsHand',
         data: { line: 'Bowl-of-Brown Man: A copper the bowl. Do not ask what is in it and I will not have to lie to you.' } },
       { x: 9, y: 13, dir: 'down', sprite: 'smallfolk', name: 'Alley Knife', script: 'duel',

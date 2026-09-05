@@ -386,7 +386,7 @@ const spawnsOn = (mapId) => {
   for (const cs of Object.values(CUTSCENES ?? {})) {
     if (cs.map !== mapId) continue;
     for (const beat of cs.beats ?? cs.script ?? []) {
-      if (!Array.isArray(beat) || beat[0] !== 'enter') continue;
+      if (!Array.isArray(beat) || beat[0] !== 'spawn') continue;
       const at = beat[2] ?? {};
       out.push(`${at.sprite ?? 'smallfolk'}|${at.name ?? ''}`);
     }

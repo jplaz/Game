@@ -84666,7 +84666,7 @@ static const Chest chests_3[1] = {
 };
 static const Npc npcs_3[5] = {
   { 7, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23,
-    "Alys Karstark", "My uncle wants me married to a man twice my age. You are not that, which is a start." },
+    "Alys Karstark", "My uncle wants me married to a man twice my age with a keep that faces the wrong way. You are neither of those things, which is a start." },
   { 8, 4, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24,
     "Lord Eddard Stark", "Winter is coming, and it does not care how ready you are. Show me you are anyway." },
   { 5, 10, 3, 2, 1, 0, 1, 0, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 25,
@@ -87104,7 +87104,7 @@ static const Npc npcs_10[6] = {
   { 14, 10, 2, 3, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 53,
     "Tormund", "Free folk do not kneel and do not queue. One fight, right now, and then we drink." },
   { 5, 17, 3, 4, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 54,
-    "Steward Boy", "Beyond it, the wights come in numbers. Bring fire, or dragonglass, or both." },
+    "Steward Boy", "Are you a knight? You do not look like a knight." },
   { 17, 17, 2, 5, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 55,
     "Maester Aemon", "Kill the boy and let the man be born. It is the only advice worth the raven." },
 };
@@ -90827,7 +90827,7 @@ static const Chest chests_22[1] = {
 };
 static const Npc npcs_22[3] = {
   { 7, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 101,
-    "Innkeep", "You slept until the noise downstairs became unbearable. Everyone is rested." },
+    "Innkeep", "A room is 50 gold dragons, and your creatures eat free." },
   { 3, 3, 3, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 102,
     "Sellsword", "I fight for coin. But I will make an exception for the practice." },
   { 8, 5, 2, 2, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 103,
@@ -91042,7 +91042,7 @@ static const Chest chests_23[1] = {
 };
 static const Npc npcs_23[5] = {
   { 3, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 104,
-    "Jeyne", "Family, duty, honour, in that order. I should like to pick the family part myself." },
+    "Jeyne", "Family, duty, honour, in that order, and I have been told it every day of my life. I should like to pick the family part myself." },
   { 8, 4, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 105,
     "Lady Catelyn", "You come from Winterfell with a wolf on your banner. Show me it means something." },
   { 4, 7, 3, 2, 1, 0, 1, 0, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 106,
@@ -92973,7 +92973,7 @@ static const Chest chests_28[1] = {
 };
 static const Npc npcs_28[4] = {
   { 3, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 125,
-    "Mya Stone", "I drive mules up a mountain and my father was a king. Nobody can decide which to treat me as." },
+    "Mya Stone", "I drive mules up a mountain for a living and my father was a king. Nobody in the Vale can decide which of those to treat me as. I have stopped waiting for them to work it out." },
   { 9, 2, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 126,
     "Yohn Royce", "Runes older than the Andals on this armour, and every one of them still works. Come on then." },
   { 7, 4, 0, 2, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127,
@@ -102168,7 +102168,7 @@ static const Npc npcs_55[6] = {
   { 13, 14, 2, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 242,
     "Margaery", "The smallfolk will love you if you let them see you. That is most of ruling." },
   { 3, 12, 3, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 243,
-    "Gardener's Girl", "WILD creatures thrive here. Fire and cold both undo them, and so does a good hard wing." },
+    "Gardener's Girl", "Nothing happens here, which is how we like it." },
   { 28, 12, 0, 5, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 244,
     "The Gardener", "Forty years I have cut this maze and I still have to think at the third turn. Take the left hand every time and you will come out." },
 };
@@ -102648,7 +102648,7 @@ static const Chest chests_58[1] = {
 };
 static const Npc npcs_58[4] = {
   { 3, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 246,
-    "Willas", "I breed hounds and horses and read a great deal. My grandmother finds me difficult to place." },
+    "Willas", "I breed hounds and horses and I read a great deal, and my grandmother has decided this makes me difficult to place. She may be right." },
   { 7, 4, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 247,
     "Randyll Tarly", "I have no patience for pageantry and less for wandering swords. Draw or leave." },
   { 3, 7, 3, 2, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 248,
@@ -103917,7 +103917,7 @@ static const Npc npcs_60[9] = {
   { 17, 17, 2, 5, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 260,
     "Prince Doran", "Dorne remembers every slight. We simply take our time about them." },
   { 5, 23, 3, 6, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 261,
-    "Orphan", "VENOM creatures own the sands. Steel turns their fangs; nothing else does." },
+    "Orphan", "Are you a knight? You do not look like a knight." },
   { 25, 10, 0, 7, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 262,
     "Orphan of the Greenblood", "Orphan of the Greenblood: We are called orphans because we lost the mother Rhoyne. That was a thousand years ago. Dornishmen hold a grudge." },
   { 25, 19, 0, 8, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 263,
@@ -104399,7 +104399,7 @@ static const Chest chests_63[1] = {
 };
 static const Npc npcs_63[4] = {
   { 3, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 268,
-    "Aryanne Sand", "I am a bastard of a bastard and have never once been ashamed of it." },
+    "Aryanne Sand", "I am a bastard of a bastard and I have never once been ashamed of it. In Dorne that is not an obstacle. Elsewhere it is all anybody can see. Which are you?" },
   { 7, 4, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 269,
     "Oberyn Martell", "You have come a long way to be poisoned. Do not worry. I only do that on purpose." },
   { 3, 7, 3, 2, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 169,
@@ -105820,7 +105820,7 @@ static const Npc npcs_65[7] = {
   { 17, 7, 2, 3, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 280,
     "Ser Davos", "I was a smuggler before I was a ser. The king took my fingertips and gave me a title." },
   { 8, 22, 3, 4, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 281,
-    "Fisherman", "STORM creatures ride the front in off the bay. Stone weathers them best." },
+    "Fisherwife", "Mind the mud, and mind your manners." },
   { 26, 9, 0, 5, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 282,
     "A Wrecker", "Everything on this shore came off a ship, including most of the people. Shipbreaker Bay is not a name somebody chose to be pretty." },
   { 27, 18, 0, 6, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 283,
@@ -106302,7 +106302,7 @@ static const Chest chests_68[1] = {
 };
 static const Npc npcs_68[4] = {
   { 3, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 285,
-    "Elena", "Everyone who comes to this castle wants something. You have not asked me for anything yet." },
+    "Elena", "Everyone who comes to this castle wants something from the storm lords. You have not asked me for anything yet, which is either a strategy or a novelty." },
   { 7, 4, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 286,
     "Stannis Baratheon", "I am not interested in what you deserve. Show me what you can hold." },
   { 3, 7, 3, 2, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 287,
@@ -108755,7 +108755,7 @@ static const Chest chests_75[1] = {
 };
 static const Npc npcs_75[4] = {
   { 3, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 311,
-    "Asha", "I captain my own ship and I will go on captaining it. Say now if that is a difficulty." },
+    "Asha", "I captain my own ship and I will go on captaining it. If that is a difficulty for you, say so now and save us both." },
   { 7, 3, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 204,
     "Euron Greyjoy", "I have sailed further than any of you and come back with worse ideas. Shall we?" },
   { 3, 6, 3, 2, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 142,
@@ -110932,7 +110932,7 @@ static const Chest chests_81[1] = {
 };
 static const Npc npcs_81[4] = {
   { 3, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 329,
-    "Domeric", "My family has a reputation, and I have spent nineteen years not being it." },
+    "Domeric", "My family has a reputation and I have spent nineteen years not being it. Marry me and you will find I am the dull one." },
   { 4, 6, 3, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 56,
     "Maester", "I keep the ravens and I keep quiet. Both are a service." },
   { 10, 10, 2, 2, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 57,

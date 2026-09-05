@@ -1415,8 +1415,12 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
        quest anybody added was always going to be the one that broke the
        build. Widening the record invalidates saves written by an older
        cartridge, which fail the checksum and are treated as no save rather
-       than as a corrupt one. */
-    if (at >= 128) throw new Error('more story flags than four words hold');
+       than as a corrupt one.
+
+       Six now. Three scenes that are things that happen rather than things
+       said - a melee, a trial, a toll - cost eleven flags between them, and
+       four words had four left. */
+    if (at >= 192) throw new Error('more story flags than six words hold');
     return at;
   };
   const scenes = [];
@@ -1470,12 +1474,19 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
                       (list) => list[0])
           : { ...DUELLISTS[who], name: DUELLISTS[who]?.name };
         if (!made?.name) throw new Error(`${id} fights ${who}, who is nobody`);
+        /* The same record an ambush on the same road would push, because it
+           is the same fight - it has simply been walked into on purpose. */
         const at = pushDuellist({
           name: made.name, level: made.level, vigour: made.vigour,
           might: made.might, guard: made.guard, swiftness: made.swiftness,
-          wind: made.wind, techniques: made.techniques, reward: made.reward,
-          exp: made.exp, canYield: made.canYield, loot: made.loot,
-          house: made.house, mortal: made.mortal, beast: made.beast,
+          techs: techSlots(made.techniques),
+          reward: made.reward, exp: made.exp, mortal: 1,
+          sworn: ROAMERS[who] ? swornOf(who) : 255, host: 0,
+          house: typeof made.house === 'number' ? made.house
+            : typeof made.house === 'string' ? houseIndexOf(made.house)
+              : houseOfSprite(made.sprite ?? 'smallfolk'),
+          dead: made.sprite === 'whitewalker' ? 1 : 0,
+          intro: made.intro, defeat: made.defeat,
         });
         /* Every field on a beat is a byte and there are more duellists in the
            world than a byte holds, so this one goes across two. */
@@ -2351,7 +2362,7 @@ L.push(`#define CUT_COUNT ${harvest.scenes.length}`);
 L.push(`#define BEAT_COUNT ${harvest.beats.length}`);
 L.push(`#define CHOICE_COUNT ${Math.max(1, harvest.choices.length)}`);
 L.push(`#define STORY_FLAGS ${harvest.sceneFlags.length}`);
-L.push('#define STORY_WORDS 4   /* a hundred and twenty-eight, in four words */');
+L.push('#define STORY_WORDS 6   /* a hundred and ninety-two, in six words */');
 L.push('#define BEAT_SAY     0');
 L.push('#define BEAT_WAIT    1');
 L.push('#define BEAT_SHAKE   2');

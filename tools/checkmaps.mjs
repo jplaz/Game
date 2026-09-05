@@ -75,7 +75,14 @@ for (const [id, map] of Object.entries(MAPS)) {
     .map((p) => `${p.x},${p.y}`));
   const dayCast = castAt('day');
   const nightCast = castAt('night');
-  const planted = new Set([...dayCast, ...nightCast]);
+  /* A chest in the ground is a wall too. The grid does not say so - a thing
+     lying on a road is written in the map's item list and the tile under it
+     stays a road - but the game blocks it, so a chest dropped in a one-tile
+     alley shuts everything behind it off. Three of them did exactly that in
+     Volantis and Meereen, and only the cartridge's own audit noticed, thirty
+     minutes into an export. */
+  const planted = new Set([...dayCast, ...nightCast,
+    ...(map.items ?? []).map((it) => `${it.x},${it.y}`)]);
 
   // Where you can go from here, obeying the drop rule.
   const from = (x, y) => {
@@ -92,7 +99,7 @@ for (const [id, map] of Object.entries(MAPS)) {
     return out;
   };
 
-  const flood = (seeds, throughPeople) => {
+  const flood = (seeds, throughPeople, only) => {
     const seen = new Set(), q = [];
     for (const [x, y] of seeds) {
       const k = `${x},${y}`;
@@ -102,7 +109,7 @@ for (const [id, map] of Object.entries(MAPS)) {
       for (const [nx, ny] of from(q[h][0], q[h][1])) {
         const k = `${nx},${ny}`;
         if (seen.has(k)) continue;
-        if (!throughPeople && planted.has(k)) continue;
+        if (only ? only.has(k) : (!throughPeople && planted.has(k))) continue;
         seen.add(k); q.push([nx, ny]);
       }
     }
@@ -137,6 +144,48 @@ for (const [id, map] of Object.entries(MAPS)) {
   /* The difference between the two floods is exactly what a standing body
      costs you, which is the sort of thing worth being told about by name. */
   const shutIn = (x, y) => !seen.has(`${x},${y}`) && loose.has(`${x},${y}`);
+  /* And who is doing it. Standing in a gap one tile wide is standing in a
+     doorway: the Salt Wife on the Stony Shore shut two hundred and seventy-two
+     tiles and a door off behind her. Each is tried on its own, so the report
+     names the one body or the one chest that costs the ground rather than the
+     whole crowd. */
+  {
+    const blockers = [
+      ...(map.npcs ?? []).filter((p) => !p.roams && !p.warden)
+        .map((p) => [`${p.x},${p.y}`, p.name ?? p.script ?? 'somebody']),
+      ...(map.items ?? []).map((it) => [`${it.x},${it.y}`, `the ${it.item}`]),
+    ];
+    /* From ONE door at a time, not from all of them at once. A body across
+       the middle of a map with a door on either side of it costs a player
+       everything on the far side of wherever they came in - and flooding from
+       every door together reaches both halves and says nothing at all. That
+       is the same hole the Storm's End wall went through. */
+    for (const [where, who] of blockers) {
+      let cost = 0, behind = [];
+      for (const w of ways) {
+        if (!stand(w.x, w.y)) continue;
+        const open = flood([[w.x, w.y]], true);
+        const shut = flood([[w.x, w.y]], true, new Set([where]));
+        if (open.size - shut.size - 1 > cost) {
+          cost = open.size - shut.size - 1;
+          behind = [...open].filter((k) => !shut.has(k) && k !== where);
+        }
+      }
+      if (cost <= 0) continue;
+      /* A lodger standing in the mouth of their own cubicle shuts four tiles
+         off and that is the room they sleep in, not a fault. What matters is
+         a body across a road: a lot of ground, or ground with a door, a sign
+         or something to pick up on the far side of it. */
+      const worth = behind.some((k) => [
+        ...ways.map((w) => `${w.x},${w.y}`),
+        ...(map.items ?? []).map((it) => `${it.x},${it.y}`),
+        ...(map.signs ?? []).map((sg) => `${sg.x},${sg.y}`),
+      ].includes(k));
+      if (cost >= 6 || worth) {
+        say(`${id}: ${who} at ${where} stands in a gap, and shuts ${cost} tiles off`);
+      }
+    }
+  }
 
   for (const w of ways) {
     if (!reached(w.x, w.y)) {

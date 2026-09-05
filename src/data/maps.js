@@ -18,24 +18,106 @@
    map layer does not have to load the painters to know where the ground is. */
 const STANDABLE = new Set([...'.,S;-dsoi*L_=cb<%tmD']);
 
-const MAESTER_HALL_TILES = [
-  'IIIIIIIIIIII',
-  'IN=B===B=B=I',
-  'IKKK===KKK=I',
-  'I==========I',
-  'Ib=b====h==I',
-  'I==T====T==I',
-  'Ib=b=======I',
-  'I==========I',
-  'IIIII__IIIII',
-];
+/* Which of the five a room in this region is furnished as.
+ *
+ * Fifteen inns, fifteen common houses, fifteen maester's halls and twelve
+ * forges were each one room drawn once and used everywhere: a hundred and
+ * thirty-two of the game's two hundred and forty-two maps were, tile for
+ * tile, some other map. Walking into the inn at Sunspear and finding the
+ * inn at Winterfell with the same tables in the same places is the moment a
+ * world stops being a world.
+ *
+ * The shells are the same, because the doors, the stair, the counter and
+ * everybody standing behind it are the same in every town and have to be.
+ * What changes is the floor and the furniture: boards and long trestles on
+ * the Trident, carpet and low tables in the south, benches along the walls
+ * where it is always blowing, shelves and rugs where there is money. */
+const ROOM_STYLES = {
+  'The North': 'north', 'The Wall': 'north', 'Beyond the Wall': 'north',
+  'The Neck': 'north',
+  'The Riverlands': 'river', 'The Vale': 'river', 'The Crownlands': 'river',
+  'The Reach': 'sun', 'Dorne': 'sun',
+  'The Stormlands': 'salt', 'The Iron Islands': 'salt', 'Dragonstone': 'salt',
+  'The Westerlands': 'gold', Braavos: 'gold', Pentos: 'gold',
+  Volantis: 'gold', Meereen: 'gold',
+};
+const styleOf = (region) => ROOM_STYLES[region] ?? 'north';
+/* A maester's hall is built from the town it opens onto rather than from a
+   region, because it is built before the region table exists. */
+const HALL_STYLE = {
+  winterfell: 'north', castleBlack: 'north', eastwatch: 'north',
+  moatCailin: 'north', dreadfort: 'north',
+  riverrun: 'river', theEyrie: 'river', kingsLanding: 'river', theTwins: 'river',
+  highgarden: 'sun', sunspear: 'sun',
+  stormsEnd: 'salt', dragonstone: 'salt', pyke: 'salt',
+  lannisport: 'gold',
+};
+
+/* A maester's hall: cages, two counters, cots and a fire. */
+const HALL_PLANS = {
+  north: [
+    'IIIIIIIIIIII',
+    'IN=B===B=B=I',
+    'IKKK===KKK=I',
+    'I==========I',
+    'Ib=b====h==I',
+    'I==T====T==I',
+    'Ib=b=======I',
+    'I==========I',
+    'IIIII__IIIII',
+  ],
+  river: [
+    'IIIIIIIIIIII',
+    'IN___BB___BI',
+    'IKKK___KKK_I',
+    'I__________I',
+    'Ib_T______hI',
+    'Ib_____TT__I',
+    'Ib_T_______I',
+    'I__________I',
+    'IIIII__IIIII',
+  ],
+  sun: [
+    'IIIIIIIIIIII',
+    'INcccBccccBI',
+    'IKKKcccKKKcI',
+    'IccccccccccI',
+    'IbcbcccFccFI',
+    'IccccccccccI',
+    'IbcbccTTcccI',
+    'IccccccccccI',
+    'IIIII__IIIII',
+  ],
+  salt: [
+    'IIIIIIIIIIII',
+    'IN===BB====I',
+    'IKKK===KKK=I',
+    'I==========I',
+    'Ib=T====h=bI',
+    'I==========I',
+    'Ib=T======bI',
+    'I==========I',
+    'IIIII__IIIII',
+  ],
+  gold: [
+    'IIIIIIIIIIII',
+    'INcccBBcccBI',
+    'IKKKcccKKKcI',
+    'IccccccccccI',
+    'IbcbcchccccI',
+    'IcccccTTccBI',
+    'IbcbcccccccI',
+    'IccccccccccI',
+    'IIIII__IIIII',
+  ],
+};
 
 function maesterHall({ exitTo, exitX, exitY, stock, healerLine, merchantLine, extraNpcs = [] }) {
   return {
     name: "Maester's Hall",
     indoor: true,
     music: 'town',
-    tiles: MAESTER_HALL_TILES,
+    tiles: walled(HALL_PLANS[HALL_STYLE[exitTo] ?? 'north'], HALL_STYLE[exitTo] ?? 'north'),
     warps: [
       { x: 5, y: 8, to: exitTo, tx: exitX, ty: exitY, dir: 'down' },
       { x: 6, y: 8, to: exitTo, tx: exitX, ty: exitY, dir: 'down' },
@@ -860,18 +942,7 @@ const OUTSKIRTS = {
 function makeCellar({ town, name, keeper, keeperDuel, line, loot }) {
   return {
     name, indoor: true, music: 'wild', ground: 'cave',
-    tiles: [
-      '@@@@@@@@@@@@@',
-      '@%%%%%%%%%%%@',
-      '@%@@%%%%%@@%@',
-      '@%@@%%%%%@@%@',
-      '@%%%%%F%%%%%@',
-      '@%@@%%%%%@@%@',
-      '@%@@%%%%%@@%@',
-      '@%%%%%%%%%%%@',
-      '@@@@@@%%@@@@@',
-      '@@@@@@%%@@@@@',
-    ],
+    tiles: CELLAR_PLANS[placeStyle(town)],
     warps: [
       { x: 6, y: 9, to: town, dir: 'down', back: true },
       { x: 7, y: 9, to: town, dir: 'down', back: true },
@@ -1212,7 +1283,7 @@ function makeHold({ name, town, townGate, hall, ground = 'grass', wall = '#',
 function makeHoldHall({ name, hold, seat = 45, npcs = [], signs = [], items = [] }) {
   return {
     name, indoor: true, music: 'town', seat,
-    tiles: [
+    tiles: walled(relaid([
       'IIIIIIIIIIIIIIIII',
       'I=bI=========Ib=I',
       'I==I====X====I==I',
@@ -1226,7 +1297,7 @@ function makeHoldHall({ name, hold, seat = 45, npcs = [], signs = [], items = []
       'I==I==h===h==I==I',
       'I==I=========I==I',
       'IIIIIII__IIIIIIII',
-    ],
+    ], '=', ROOM_MATERIAL[placeStyle(hold)].floor), placeStyle(hold)),
     warps: [
       { x: 7, y: 12, to: hold, tx: 11, ty: 8, dir: 'down' },
       { x: 8, y: 12, to: hold, tx: 12, ty: 8, dir: 'down' },
@@ -1579,7 +1650,7 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
      let that be the track up to it. Used by a landmark whose yard was carved
      out of a wood, and by a door that has to stay exactly where the caller
      put it. */
-  const roadReach = () => {
+  const roadReach = (skip = new Set()) => {
     const OPEN = new Set([floor, grass, 'd', 't', ...STANDABLE]);
     const seen = new Array(width * height).fill(false);
     const flood = [[road, 1]];
@@ -1590,6 +1661,7 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
         const nx = qx + dx, ny = qy + dy;
         if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
         if (seen[ny * width + nx] || !OPEN.has(g[ny][nx])) continue;
+        if (skip.has(`${nx},${ny}`)) continue;
         seen[ny * width + nx] = true;
         flood.push([nx, ny]);
       }
@@ -1721,10 +1793,15 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
      which tile of the Riverlands you step onto, and it says it in the Bloody
      Gate's own map: recarve the Riverlands and that tile can become a tree,
      which is a road you can walk out of and never walk back into. */
+  /* Reached WITHOUT walking through a door, because a door is not a way
+     across a map: the Green Fork's arrival tile in the Riverlands touched
+     nothing but the door back to the Green Fork, so you stepped out of one
+     road onto a tile whose only exit was the road you had just left. */
+  const shutDoors = new Set(warps.map((w) => `${w.x},${w.y}`));
   for (const [x, yy] of opens) {
     if (x < 0 || yy < 0 || x >= width || yy >= height) continue;
     if (!STANDABLE.has(g[yy][x]) && g[yy][x] !== floor && g[yy][x] !== grass) g[yy][x] = floor;
-    const [reached, OPEN] = roadReach();
+    const [reached, OPEN] = roadReach(shutDoors);
     if (!reached[yy * width + x]) trackTo([x, yy], reached, OPEN);
   }
 
@@ -2023,20 +2100,79 @@ function cityGrid() {
 /* The taproom. The beds have gone upstairs, where beds are: they were drawn on
    this floor because a cartridge map used to have one storey, and every inn in
    the game has three now - a stair by the counter and a hatch by the fire. */
-const INN_TILES = [
-  'IIIIIIIIIIIIII',
-  'Ih=========N=I',
-  'I==KKKKKK====I',
-  'I===========<I',
-  'I=T=T=T==T=T=I',
-  'I=T=T=T==T=T=I',
-  'I============I',
-  'I=T=T=T==T=T=I',
-  'I=T=T=T==T=T=I',
-  'I<====F=F====I',
-  'I============I',
-  'IIIIII__IIIIII',
-];
+/* A taproom: a counter, a raven post, a stair up and a stair down. */
+const INN_PLANS = {
+  north: [
+    'IIIIIIIIIIIIII',
+    'Ih=========N=I',
+    'I==KKKKKK====I',
+    'I===========<I',
+    'I=T=T=T==T=T=I',
+    'I=T=T=T==T=T=I',
+    'I============I',
+    'I=T=T=T==T=T=I',
+    'I=T=T=T==T=T=I',
+    'I<====F=F====I',
+    'I============I',
+    'IIIIII__IIIIII',
+  ],
+  river: [
+    'IIIIIIIIIIIIII',
+    'Ih_________N_I',
+    'I__KKKKKK____I',
+    'I___________<I',
+    'I_TTTT__TTTT_I',
+    'I____________I',
+    'I___________BI',
+    'I_TTTT__TTTT_I',
+    'I____________I',
+    'I<_F_______F_I',
+    'I____________I',
+    'IIIIII__IIIIII',
+  ],
+  sun: [
+    'IIIIIIIIIIIIII',
+    'IhcccccccccNcI',
+    'IccKKKKKKccccI',
+    'Iccccccccccc<I',
+    'ITcTccccccTcTI',
+    'ITccccccccccTI',
+    'IcccccFFcccccI',
+    'ITccccccccccTI',
+    'ITcTccccccTcTI',
+    'I<cccccccccccI',
+    'IccccccccccccI',
+    'IIIIII__IIIIII',
+  ],
+  salt: [
+    'IIIIIIIIIIIIII',
+    'Ih=========N=I',
+    'I==KKKKKK====I',
+    'I===========<I',
+    'IT===TTTT===TI',
+    'IT==========TI',
+    'IT==========TI',
+    'IT==========TI',
+    'I====TTTT====I',
+    'I<==F=====F==I',
+    'I============I',
+    'IIIIII__IIIIII',
+  ],
+  gold: [
+    'IIIIIIIIIIIIII',
+    'IhcccccccccNcI',
+    'IccKKKKKKccccI',
+    'Iccccccccccc<I',
+    'IBTTccccccTTBI',
+    'IccccccccccccI',
+    'IcccccFFcccccI',
+    'IccccccccccccI',
+    'IBTTccccccTTBI',
+    'I<cccccccccccI',
+    'IccccccccccccI',
+    'IIIIII__IIIIII',
+  ],
+};
 
 /* Six rooms off a landing. Bed and table in each, and the middle of every room
    left clear, because the one column that opens onto the landing is the middle
@@ -2069,22 +2205,191 @@ const INN_CELLAR = [
   'IIIIIIIIIIII',
 ];
 
-const HOUSE_TILES = [
-  'IIIIIIIIIIIIII',
-  'Ic==========cI',
-  'I=cccccccccc=I',
-  'I=cBc=F=cBc=<I',
-  'I=cccccccccc=I',
-  'I==KKK=======I',
-  'I============I',
-  'I=T=T====T=T=I',
-  'I============I',
-  'I=F=======F==I',
-  'I============I',
-  'IIIIII__IIIIII',
-];
+/* A house with a red lamp in the window. */
+const HOUSE_PLANS = {
+  north: [
+    'IIIIIIIIIIIIII',
+    'I===========cI',
+    'I=cccccccccc=I',
+    'I=cBccFccBcc<I',
+    'I=cccccccccc=I',
+    'I==KKK=======I',
+    'I============I',
+    'I=T=T====T=T=I',
+    'I============I',
+    'I=F=======F==I',
+    'I============I',
+    'IIIIII__IIIIII',
+  ],
+  river: [
+    'IIIIIIIIIIIIII',
+    'I____________I',
+    'I_ccccFccccB_I',
+    'I_Bccccccccc<I',
+    'I____________I',
+    'I__KKK_______I',
+    'I____________I',
+    'I_TT______TTBI',
+    'I____________I',
+    'I____F__F____I',
+    'I____________I',
+    'IIIIII__IIIIII',
+  ],
+  sun: [
+    'IIIIIIIIIIIIII',
+    'IccccccccccccI',
+    'IcBccccccccBcI',
+    'IcccccFFcccc<I',
+    'IccccccccccccI',
+    'IccKKKcccccccI',
+    'IccccccccccccI',
+    'ITcccTccTcccTI',
+    'ITccccccccccTI',
+    'IcccFccccFcccI',
+    'IccccccccccccI',
+    'IIIIII__IIIIII',
+  ],
+  salt: [
+    'IIIIIIIIIIIIII',
+    'I============I',
+    'IT====FF====TI',
+    'IT==========<I',
+    'IT==========TI',
+    'I==KKK=======I',
+    'I============I',
+    'I===TT==TT===I',
+    'I============I',
+    'I=F========F=I',
+    'I============I',
+    'IIIIII__IIIIII',
+  ],
+  gold: [
+    'IIIIIIIIIIIIII',
+    'IccccccccccccI',
+    'IcBBccccccBBcI',
+    'Iccccccccccc<I',
+    'IcccccFFcccccI',
+    'IccKKKcccccccI',
+    'IccccccccccccI',
+    'ITTccccccccTTI',
+    'IccccccccccccI',
+    'IccccTTTTccccI',
+    'IccccccccccccI',
+    'IIIIII__IIIIII',
+  ],
+};
 
 /* Upstairs in the common house: the same six rooms, carpeted. */
+/* And the rooms behind them, in the same materials. A cartridge cannot afford
+   a second drawing of a bedroom for every town, but it can afford the boards
+   under it: a floor is the largest single thing in a room, so re-laying it is
+   most of what makes the room somewhere else. */
+const relaid = (rows, was, now) => rows.map((r) => r.split(was).join(now));
+/* Twelve towns kept the same cellar under them, down to which two
+   pillars the barrels were behind. */
+const CELLAR_PLANS = {
+  north: [
+    '@@@@@@@@@@@@@',
+    '@%%%%%%%%%%%@',
+    '@%@@%%%%%@@%@',
+    '@%@@%%%%%@@%@',
+    '@%%%%%F%%%%%@',
+    '@%@@%%%%%@@%@',
+    '@%@@%%%%%@@%@',
+    '@%%%%%%%%%%%@',
+    '@@@@@@%%@@@@@',
+    '@@@@@@%%@@@@@',
+  ],
+  river: [
+    '@@@@@@@@@@@@@',
+    '@%%%%%%%%%%%@',
+    '@%%@%%@%%@%%@',
+    '@%%%%%%%%%%%@',
+    '@l%@%%F%%@%l@',
+    '@%%%%%%%%%%%@',
+    '@%%@%%@%%@%%@',
+    '@%%%%%%%%%%%@',
+    '@@@@@@%%@@@@@',
+    '@@@@@@%%@@@@@',
+  ],
+  sun: [
+    '@@@@@@@@@@@@@',
+    '@%%%%%%%%%%%@',
+    '@l%%@@%@@%%l@',
+    '@%%%%%%%%%%%@',
+    '@%%%%%F%%%%%@',
+    '@%%%%%%%%%%%@',
+    '@l%%@@%@@%%l@',
+    '@%%%%%%%%%%%@',
+    '@@@@@@%%@@@@@',
+    '@@@@@@%%@@@@@',
+  ],
+  salt: [
+    '@@@@@@@@@@@@@',
+    '@%%%%%%%%%%%@',
+    '@%@%%%T%%%@%@',
+    '@%@%%%%%%%@%@',
+    '@%%%@%F%@%%%@',
+    '@%@%%%%%%%@%@',
+    '@%@%%%T%%%@%@',
+    '@%%%%%%%%%%%@',
+    '@@@@@@%%@@@@@',
+    '@@@@@@%%@@@@@',
+  ],
+  gold: [
+    '@@@@@@@@@@@@@',
+    '@%%%%%%%%%%%@',
+    '@%%l@%%%@l%%@',
+    '@%%%%%T%%%%%@',
+    '@%%%%%F%%%%%@',
+    '@%%%%%T%%%%%@',
+    '@%%l@%%%@l%%@',
+    '@%%%%%%%%%%%@',
+    '@@@@@@%%@@@@@',
+    '@@@@@@%%@@@@@',
+  ],
+};
+
+/* Which style a town's cellar and its lord's hall are cut in. Beyond the
+   fifteen that have a maester, because a hold is not a town. */
+const PLACE_STYLE = {
+  winterfell: 'north', castleBlack: 'north', eastwatch: 'north',
+  moatCailin: 'north', dreadfort: 'north', crastersKeep: 'north',
+  kennelHold: 'north',
+  riverrun: 'river', theEyrie: 'river', kingsLanding: 'river',
+  theTwins: 'river', harrenhal: 'river', stoneCrowHold: 'river',
+  highgarden: 'sun', sunspear: 'sun', waterGardens: 'sun',
+  stormsEnd: 'salt', dragonstone: 'salt', pyke: 'salt',
+  seaDragonHold: 'salt', wreckersHold: 'salt',
+  lannisport: 'gold', braavos: 'gold', pentos: 'gold', volantis: 'gold',
+  meereen: 'gold', cheesemonger: 'gold', cheesemongerHold: 'gold',
+  sealordHold: 'gold', blackWallHold: 'gold', fightingPits: 'gold',
+};
+const placeStyle = (key) => PLACE_STYLE[key] ?? 'north';
+
+/** A room's walls in its region's stone. */
+const walled = (rows, style) => relaid(rows, 'I', ROOM_MATERIAL[style].wall);
+/* Which maps are inns and which are common houses. This used to be answered
+   by asking whether a map's tiles were the one shared inn array - and once
+   every region furnished and walled its own, no two inns had an array in
+   common and every upstairs and cellar in the game stopped being built. */
+const INN_IDS = [], HOUSE_IDS = [];
+/* Three floors and three walls between them, because there are only three
+   indoor floors drawn and only so many walls: boards and plain plaster on the
+   Trident, carpet and limewash in the south, flags and dressed ashlar where it
+   blows, flags and plaster in the north, carpet and plaster where there is
+   money. Five rooms out of two materials apiece. */
+const ROOM_MATERIAL = {
+  north: { floor: '=', wall: 'I' },
+  river: { floor: '_', wall: 'I' },
+  sun: { floor: 'c', wall: 'p' },
+  salt: { floor: '=', wall: 'A' },
+  gold: { floor: 'c', wall: 'I' },
+};
+const backRoom = (rows, was) => Object.fromEntries(
+  Object.entries(ROOM_MATERIAL).map(([style, m]) =>
+    [style, relaid(relaid(rows, was, m.floor), 'I', m.wall)]));
+
 const HOUSE_ROOMS = [
   'IIIIIIIIIIIIII',
   'I=b=I=b=I=b=II',
@@ -2098,15 +2403,20 @@ const HOUSE_ROOMS = [
   'IIIIIIIIIIIIII',
 ];
 
+const INN_ROOM_PLANS = backRoom(INN_ROOMS, '_');
+const INN_CELLAR_PLANS = backRoom(INN_CELLAR, '=');
+const HOUSE_ROOM_PLANS = backRoom(HOUSE_ROOMS, '=');
+
 /**
  * An inn: a fire, a counter, tables, and beds upstairs that are drawn on the
  * same floor because a cartridge map has one storey.
  */
 function makeInn({ town, name, region, keeper, keeperLine, drinkerLine,
                    fighter, fighterLine, stock, id = `${town}Inn` }) {
+  INN_IDS.push(id);
   return {
     name, indoor: true, music: 'town', ground: 'stone',
-    tiles: INN_TILES,
+    tiles: walled(INN_PLANS[styleOf(region)], styleOf(region)),
     warps: [
       { x: 6, y: 11, to: town, dir: 'down', back: true },
       { x: 7, y: 11, to: town, dir: 'down', back: true },
@@ -2133,9 +2443,10 @@ function makeInn({ town, name, region, keeper, keeperLine, drinkerLine,
  */
 function makeCommonHouse({ town, name, region, madam, madamLine, voices,
                           id = `${town}House` }) {
+  HOUSE_IDS.push(id);
   return {
     name, indoor: true, music: 'town', ground: 'stone',
-    tiles: HOUSE_TILES,
+    tiles: walled(HOUSE_PLANS[styleOf(region)], styleOf(region)),
     warps: [
       { x: 6, y: 11, to: town, dir: 'down', back: true },
       { x: 7, y: 11, to: town, dir: 'down', back: true },
@@ -3880,12 +4191,12 @@ export const MAPS = {
     music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'Ixx=a===l=lI',
+      'Ixx=a=====lI',
       'I=====KKK==I',
       'I==========I',
-      'I=a=====a==I',
+      'Ia==a=====aI',
       'I==========I',
-      'I=T=F==F=T=I',
+      'IT==F==F==TI',
       'IIIII__IIIII',
     ],
     warps: [
@@ -3995,7 +4306,7 @@ export const MAPS = {
         script: 'townTalk',
         data: { line: 'A Free Folk Girl: Do not sleep in the ring. My mother slept in the ring. '
                 + 'She came out and she was still my mother, mostly.' } },
-      { x: 15, y: 20, dir: 'left', sprite: 'wildling', name: 'A Thenn',
+      { x: 12, y: 20, dir: 'left', sprite: 'wildling', name: 'A Thenn',
         script: 'duel', data: { duel: 'wildlingRaider' } },
 ],
     items: [
@@ -4136,12 +4447,12 @@ export const MAPS = {
     indoor: true, music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'Ixx=a===l=lI',
-      'I=====KKK==I',
-      'I==========I',
-      'I=a=====a==I',
-      'I==========I',
-      'I=T=F==F=T=I',
+      'Ixx_a____llI',
+      'I_____KKK__I',
+      'I_a________I',
+      'I________a_I',
+      'I__________I',
+      'ITT_F____l_I',
       'IIIII__IIIII',
     ],
     warps: [
@@ -4297,8 +4608,8 @@ export const MAPS = {
       { roamer: 'poacher', min: 16, max: 22, weight: 50 },
     ],
     items: [
-      { x: 25, y: 1, item: 'kingsRansom', count: 1, flag: 'item_highgarden_orchard' },
-      { x: 29, y: 24, item: 'weirwoodSap', count: 1, flag: 'item_highgarden_maze' },
+      { x: 29, y: 7, item: 'kingsRansom', count: 1, flag: 'item_highgarden_orchard' },
+      { x: 27, y: 3, item: 'weirwoodSap', count: 1, flag: 'item_highgarden_maze' },
     ],
     npcs: [
       { x: 14, y: 19, dir: 'left', sprite: 'tyrell', name: 'Ser Loras', script: 'duel',
@@ -4330,12 +4641,12 @@ export const MAPS = {
     indoor: true, music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'Ixx=a===l=lI',
-      'I=====KKK==I',
-      'I==========I',
-      'I=a=====a==I',
-      'I==========I',
-      'I=T=F==F=T=I',
+      'IxxclcccclcI',
+      'IcccccKKKccI',
+      'IccccccccccI',
+      'IcacTcTcccaI',
+      'IccccccccccI',
+      'IcFccccccFcI',
       'IIIII__IIIII',
     ],
     warps: [
@@ -4506,12 +4817,12 @@ export const MAPS = {
     indoor: true, music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'Ixx=a===l=lI',
-      'I=====KKK==I',
-      'I==========I',
-      'I=a=====a==I',
-      'I==========I',
-      'I=T=F==F=T=I',
+      'IxxclcccclcI',
+      'IcccccKKKccI',
+      'IccccccccccI',
+      'IcacTcTcccaI',
+      'IccccccccccI',
+      'IcFccccccFcI',
       'IIIII__IIIII',
     ],
     warps: [
@@ -4600,7 +4911,7 @@ export const MAPS = {
         data: { line: 'The Beacon Keeper: I light it if the fleet comes. I have not lit it. '
                 + 'Sixty-one years, and the proudest thing I can tell you is that I have '
                 + 'never lit it.' } },
-      { x: 14, y: 19, dir: 'left', sprite: 'smallfolk', name: 'A Wrecker',
+      { x: 14, y: 15, dir: 'left', sprite: 'smallfolk', name: 'A Wrecker',
         script: 'duel', data: { duel: 'bandit' } },
 ],
     items: [
@@ -4673,12 +4984,12 @@ export const MAPS = {
     indoor: true, music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'Ixx=a===l=lI',
+      'Ixx=a=====lI',
       'I=====KKK==I',
       'I==========I',
-      'I=a=====a==I',
+      'Ia==a=====aI',
       'I==========I',
-      'I=T=F==F=T=I',
+      'IT==F==F==TI',
       'IIIII__IIIII',
     ],
     warps: [
@@ -5120,10 +5431,10 @@ export const MAPS = {
         data: { trainer: 'forager' } },
       { x: 14, y: 12, dir: 'left', sprite: 'nightswatch', name: 'Ranger Jon', script: 'trainer',
         data: { trainer: 'ranger' } },
-      { x: 5, y: 22, dir: 'up', sprite: 'wildlingWoman', name: 'Wildling', script: 'trainer',
+      { x: 7, y: 22, dir: 'up', sprite: 'wildlingWoman', name: 'Wildling', script: 'trainer',
         data: { trainer: 'wildling1' } },
       { x: 16, y: 20, dir: 'left', sprite: 'oldman', name: 'Woodsman', script: 'wolfswoodHint' },
-      { x: 14, y: 10, dir: 'down', sprite: 'septa', name: 'A Woman Who Keeps the Grove',
+      { x: 14, y: 8, dir: 'down', sprite: 'septa', name: 'A Woman Who Keeps the Grove',
         script: 'townTalk',
         data: { line: 'A Woman Who Keeps the Grove: The old gods have no septs and no '
           + 'septons, so they have me instead, and I was not asked either. '
@@ -5255,12 +5566,12 @@ export const MAPS = {
     music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'Ixx=a===l=lI',
-      'I=====KKK==I',
-      'I==========I',
-      'I=a=====a==I',
-      'I==========I',
-      'I=T=F==F=T=I',
+      'Ixx_a____llI',
+      'I_____KKK__I',
+      'I_a________I',
+      'I________a_I',
+      'I__________I',
+      'ITT_F____l_I',
       'IIIII__IIIII',
     ],
     warps: [
@@ -5761,12 +6072,12 @@ export const MAPS = {
     music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'Ixx=a===l=lI',
-      'I=====KKK==I',
-      'I==========I',
-      'I=a=====a==I',
-      'I==========I',
-      'I=T=F==F=T=I',
+      'IxxclccccalI',
+      'IcccccKKKccI',
+      'IccccccccclI',
+      'IcaccccccclI',
+      'IccccccccccI',
+      'IcTcFccFcTcI',
       'IIIII__IIIII',
     ],
     warps: [
@@ -5889,7 +6200,7 @@ export const MAPS = {
     npcs: [
       { x: 8, y: 14, dir: 'down', name: 'Samwell Tarly', sprite: 'nightswatch',
         script: 'recruit', data: { companion: 'sam' } },
-      { x: 5, y: 6, dir: 'right', sprite: 'baratheon', name: 'Ser Lyle', script: 'trainer',
+      { x: 4, y: 7, dir: 'right', sprite: 'baratheon', name: 'Ser Lyle', script: 'trainer',
         data: { trainer: 'stormKnight1' } },
       { x: 15, y: 12, dir: 'left', sprite: 'baratheon', name: 'Ser Rolland', script: 'trainer',
         data: { trainer: 'stormKnight2' } },
@@ -6093,7 +6404,7 @@ export const MAPS = {
     name: 'Volantis', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     items: [
       { x: 24, y: 13, item: 'fireblood', count: 1, flag: 'item_volantis_blood' },
-      { x: 29, y: 12, item: 'burnSalve', count: 2, flag: 'item_volantis_salve' },
+      { x: 24, y: 11, item: 'burnSalve', count: 2, flag: 'item_volantis_salve' },
     ],
     npcs: [
       { x: 15, y: 7, dir: 'left', sprite: 'redPriest', name: 'Priest of the Red Temple',
@@ -6142,7 +6453,7 @@ export const MAPS = {
     name: 'Meereen', music: 'town', ground: 'sand', wall: 'C', floor: 's',
     items: [
       { x: 21, y: 3, item: 'valyrianShard', count: 1, flag: 'item_meereen_shard' },
-      { x: 23, y: 18, item: 'antidote', count: 2, flag: 'item_meereen_antidote' },
+      { x: 2, y: 20, item: 'antidote', count: 2, flag: 'item_meereen_antidote' },
     ],
     npcs: [
       { x: 11, y: 6, dir: 'down', name: 'Daenerys Targaryen', sprite: 'targaryen',
@@ -6672,7 +6983,7 @@ export const MAPS = {
       { x: 14, y: 18, dir: 'left', sprite: 'ironborn', name: 'The Damphair', script: 'trainer',
         data: { trainer: 'drownedPriest' } },
       { x: 6, y: 25, dir: 'right', sprite: 'smallfolk', name: 'Salt Wife', script: 'shoreHint' },
-          { x: 6, y: 8, dir: 'down', sprite: 'goodwife', name: 'A Salt Wife',
+          { x: 4, y: 9, dir: 'down', sprite: 'goodwife', name: 'A Salt Wife',
         script: 'townTalk',
         data: { line: 'A Salt Wife: He took me off a beach in the Reach and called it paying '
                 + 'the iron price. He has been at sea nine years. I have the house and I '
@@ -7796,12 +8107,12 @@ export const MAPS = {
     music: 'town',
     tiles: [
       'IIIIIIIIIIII',
-      'Ixx=a===l=lI',
-      'I=====KKK==I',
-      'I==========I',
-      'I=a=====a==I',
-      'I==========I',
-      'I=T=F==F=T=I',
+      'Ixx_a____llI',
+      'I_____KKK__I',
+      'I_a________I',
+      'I________a_I',
+      'I__________I',
+      'ITT_F____l_I',
       'IIIII__IIIII',
     ],
     warps: [
@@ -8624,7 +8935,7 @@ export const MAPS = {
         script: 'hideoutLocal',
         data: { line: 'Last Farmer: Eleven families on this stretch when I was a boy. '
           + 'Now it is me, and I am only here because I have nowhere southward to be.' } },
-          { x: 6, y: 11, dir: 'down', sprite: 'nightswatch', name: 'A Steward of the Gift',
+          { x: 4, y: 8, dir: 'down', sprite: 'nightswatch', name: 'A Steward of the Gift',
         script: 'townTalk',
         data: { line: 'A Steward of the Gift: On the books this is the richest land the Watch '
                 + 'owns. On the ground it is four families, and two of those are the same '
@@ -9973,8 +10284,10 @@ export const UPPER_FLOORS = [];
        `crossroads`, so deriving the town by chopping the end off the name
        silently skipped three of them - and makeInn had already written a stair
        up to a floor that was then never built. */
-    const isInn = MAPS[key].tiles === INN_TILES;
-    const isHouse = MAPS[key].tiles === HOUSE_TILES;
+    /* Which of the two it is, now that each region furnishes its own: the
+       identity of one shared array no longer answers the question. */
+    const isInn = INN_IDS.includes(key);
+    const isHouse = HOUSE_IDS.includes(key);
     if (!isInn && !isHouse) continue;
     const town = key.endsWith('Inn') ? key.slice(0, -3) : key.slice(0, -5);
     const region = REGIONS[key] ?? REGIONS[town] ?? '';
@@ -9983,7 +10296,7 @@ export const UPPER_FLOORS = [];
     if (isInn) {
       MAPS[`${key}Rooms`] = {
         name: `${place}, Upstairs`, indoor: true, music: 'town', ground: 'wood',
-        tiles: INN_ROOMS,
+        tiles: INN_ROOM_PLANS[styleOf(region)],
         warps: [{ x: 12, y: 4, to: key, tx: 11, ty: 3, dir: 'down' }],
         npcs: [
           { x: 2, y: 2, dir: 'down', sprite: 'smallfolk', name: 'A Lodger', script: 'townTalk',
@@ -9996,7 +10309,7 @@ export const UPPER_FLOORS = [];
       };
       MAPS[`${key}Cellar`] = {
         name: `${place}, the Cellar`, indoor: true, music: 'town', ground: 'stone',
-        tiles: INN_CELLAR,
+        tiles: INN_CELLAR_PLANS[styleOf(region)],
         warps: [{ x: 1, y: 1, to: key, tx: 2, ty: 9, dir: 'up' }],
         npcs: [
           { x: 5, y: 8, dir: 'up', sprite: 'oldman', name: 'A Cellarman', script: 'townTalk',
@@ -10009,7 +10322,7 @@ export const UPPER_FLOORS = [];
     } else {
       MAPS[`${key}Rooms`] = {
         name: `${place}, Upstairs`, indoor: true, music: 'town', ground: 'stone',
-        tiles: HOUSE_ROOMS,
+        tiles: HOUSE_ROOM_PLANS[styleOf(region)],
         warps: [{ x: 12, y: 4, to: key, tx: 11, ty: 3, dir: 'down' }],
         npcs: [
           { x: 2, y: 2, dir: 'down', sprite: 'goodwife', name: 'A Girl of the House', script: 'houseTalk',

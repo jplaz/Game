@@ -1302,7 +1302,18 @@ static void pickGoal(void) {
    * everybody exactly once, so nine playthroughs spent eighteen evenings,
    * fathered a dozen children, and not one of them was ever grown and sworn:
    * the whole back half of that feature had never happened. */
-  {
+  /* Only when there is a place at the table for them.
+   *
+   * Taking a grown child into your service is swearIn(), and swearIn() refuses
+   * when the company is full. This errand never asked. With six swords behind
+   * it and a second child come of age, a run walked back to The Storm's Rest,
+   * pressed SELECT, was told to come back when there was room, left, and was
+   * sent straight back by every router in here - two hundred and eighteen
+   * times through the same door, a playthrough spent on ninety-five maps, and
+   * a note blaming a sign. Three seeds in sixteen, on data old and new. A
+   * full table is a reason to leave the child where they are; a place opens
+   * when a sword falls, and the errand comes back on its own. */
+  if (hostRoom() >= 0) {
     int kid = bastardHere(worldId);
     if (kid >= 0 && bastardGrown(kid)) {
       for (i = 0; i < crowdCount; i++) {
@@ -3711,8 +3722,16 @@ int main(int argc, char **argv) {
   printf("  the dragons    %d met on the road, %d towns saved, %d burned%s\n",
     dragonsMet, townsSaved, townsBurned,
     you.swoopMap != NO_MAP ? ", one still settled" : "");
-  printf("  the red lamp   %d evenings, %d children born, %d grown and sworn\n",
-    eveningsSpent, childrenBorn, childrenSworn);
+  {
+    int b, waiting = 0;
+    for (b = 0; b < 3 && b < (int)you.bastards; b++) {
+      if (!you.bastTaken[b] && bastardGrown(b)) waiting++;
+    }
+    printf("  the red lamp   %d evenings, %d children born, %d grown and sworn%s\n",
+      eveningsSpent, childrenBorn, childrenSworn,
+      waiting == 0 ? "" : waiting == 1 ? ", 1 grown and waiting on a place at the table"
+                                       : ", 2 grown and waiting on a place at the table");
+  }
   {
     int st, unread = 0;
     for (st = 0; st < STALL_COUNT; st++) if (!shelfSeen[st]) unread++;

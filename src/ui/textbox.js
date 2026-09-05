@@ -15,6 +15,14 @@ const TEXT_Y = BOX.y + 9;
 const TEXT_WIDTH = BOX.w - 18;
 const LINES_PER_PAGE = 2;
 const CHARS_PER_SECOND = 52;
+/* How many options fit above the box.
+ *
+ * The menu is drawn upwards from the top of the text box, and nothing ever
+ * checked that it reached the top of the screen before it ran out of options:
+ * a ten-entry list drew its first two entries off the top of the display,
+ * where they could be moved onto and chosen but never read. It scrolls now,
+ * which every long list in the game wants and only this one had. */
+const CHOICE_ROWS = Math.max(3, Math.floor((BOX.y - 8) / LINE_HEIGHT));
 
 export class Textbox {
   constructor() {
@@ -90,7 +98,7 @@ export class Textbox {
     // completion event here, picking an option is.
     this.say(text, { theme });
     this.resolve = null;
-    this.pendingChoice = { options, cancelIndex, index: 0 };
+    this.pendingChoice = { options, cancelIndex, index: 0, top: 0 };
     return new Promise((resolve) => { this.choiceResolve = resolve; });
   }
 
@@ -172,6 +180,12 @@ export class Textbox {
       this.choice.index = (this.choice.index + 1) % options.length;
       audio.sfx('cursor');
     }
+    // Keep the cursor inside the window it is drawn in.
+    const rows = Math.min(options.length, CHOICE_ROWS);
+    if (this.choice.index < this.choice.top) this.choice.top = this.choice.index;
+    if (this.choice.index >= this.choice.top + rows) {
+      this.choice.top = this.choice.index - rows + 1;
+    }
     if (input.pressed('a')) {
       audio.sfx('confirm');
       this.finishChoice(this.choice.index);
@@ -219,19 +233,27 @@ export class Textbox {
 
   drawChoice(ctx) {
     const { options, index } = this.choice;
+    const rows = Math.min(options.length, CHOICE_ROWS);
+    const top = Math.max(0, Math.min(this.choice.top ?? 0, options.length - rows));
     const width = Math.max(...options.map((o) => measure(o))) + 24;
-    const height = options.length * LINE_HEIGHT + 10;
+    const height = rows * LINE_HEIGHT + 10;
     const x = 236 - width;
     const y = BOX.y - height - 2;
     const theme = drawPanel(ctx, x, y, width, height, this.theme);
 
-    options.forEach((option, i) => {
+    for (let i = 0; i < rows; i++) {
+      const at = top + i;
       const rowY = y + 5 + i * LINE_HEIGHT;
-      if (i === index) {
+      if (at === index) {
         drawText(ctx, '▸', x + 5, rowY, { color: theme.text, shadow: theme.textShadow });
       }
-      drawText(ctx, option, x + 14, rowY, { color: theme.text, shadow: theme.textShadow });
-    });
+      drawText(ctx, options[at], x + 14, rowY, { color: theme.text, shadow: theme.textShadow });
+    }
+    /* Said only when there is something to say: more above, or more below. */
+    const mark = (glyph, rowY) => drawText(ctx, glyph, x + width - 11, rowY,
+      { color: theme.text, shadow: theme.textShadow });
+    if (top > 0) mark('▴', y + 5);
+    if (top + rows < options.length) mark('▾', y + 5 + (rows - 1) * LINE_HEIGHT);
   }
 }
 

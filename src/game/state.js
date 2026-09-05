@@ -40,6 +40,9 @@ export function newGame(playerName = 'Snow') {
     box: [],
     bag: {},          // itemId -> count
     sigils: [],       // earned sigil ids
+    // Where you were standing the first time you arrived at each outdoor map.
+    // A dragon needs a tile it is certain you can be put down on.
+    beenTo: {},
     flags: {},        // story flags
     dex: { seen: {}, caught: {} },
     // Who you swore to, and what every house makes of you since.

@@ -1413,6 +1413,59 @@ export const SCRIPTS = {
     }
   },
 
+  /* ------------------------------------------------------ the wild three --
+   *
+   * One script for all three dragons, because everything that differs between
+   * them is written on the map: which animal, how big, and what it says.
+   *
+   * Beating one does not kill it. It breaks off, climbs, and is back on the
+   * same rock the next time you walk in - so the fight can be lost, learnt
+   * from and come back to, and taking one alive is a thing you choose to do
+   * rather than a roll you get one of. Only catching it empties the place.
+   */
+  async wildDragon({ say, choose, npc, battle, setFlag, flag }) {
+    const d = npc.data;
+    if (flag(d.taken)) { npc.hidden = true; return; }
+
+    for (const line of d.waking) await say(line);
+    /* Nothing at heel that can stand up is not a hard fight, it is a battle
+       screen with nobody on your side of it: the drawing reaches for a
+       creature that is not there and the game stops. Every other way into a
+       wild fight already checks this; this one is reached by walking up to
+       something and pressing a button, which is the easiest of all of them to
+       do with an empty party. */
+    if (!party().some((c) => c.hp > 0)) {
+      await say('You have nothing on its feet to put between you and that. '
+        + 'Whatever this is going to be, it is not going to be today.');
+      return;
+    }
+    const pick = await choose(
+      flag(d.met) ? 'It knows you now. It is waiting to see what you do.'
+        : 'It has not decided about you yet.',
+      ['Stand your ground', 'Back away slowly'],
+    );
+    if (pick === 1) {
+      await say(d.spared);
+      return;
+    }
+    setFlag(d.met);
+
+    const outcome = await battle({ kind: 'wild', foe: createCreature(d.species, d.level) });
+    if (outcome === 'caught') {
+      setFlag(d.taken);
+      npc.hidden = true;
+      await say(d.taking);
+      return;
+    }
+    if (outcome === 'won') {
+      // Driven off, not killed, and only until you leave and come back.
+      npc.hidden = true;
+      await say(d.driven);
+      return;
+    }
+    await say(d.lost);
+  },
+
   // =========================================================================
   //  The Vale
   // =========================================================================

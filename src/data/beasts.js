@@ -59,11 +59,18 @@ export const GROWS_INTO = {
 };
 
 /**
- * Which beasts will not be taken alive at any price. A dragon out of the
- * Dragonmont is not something you throw a net over; the only dragon you will
- * ever have is one you hatched yourself.
+ * Which beasts will not be taken alive at any price.
+ *
+ * This used to hold the grown wyrm as well, which meant the answer to "can you
+ * catch a dragon" was no: the only dragon anybody could ever have was one they
+ * hatched out of an egg and walked for twelve wins. A wyrm off the Dragonmont
+ * can be taken now — at a catch rate of twelve it will cost you a fistful of
+ * banners and a very good day, which is the right price for the best mount in
+ * the game. What is left on this list is the four that are not animals so much
+ * as weather: the Black Dread, the white wolf, the thing in the ice, and the
+ * Walker. Those are beaten, not kept.
  */
-export const NEVER_TAMED = ['blackdread', 'dreadwyrm', 'ghostfang', 'palewalker'];
+export const NEVER_TAMED = ['blackdread', 'ghostfang', 'palewalker'];
 
 /** What comes out of an egg, and how long it sits before it does. */
 export const EGGS = [

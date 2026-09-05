@@ -3818,6 +3818,26 @@ export const MAPS = {
       { x: 8, y: 2, text: 'THE ROSEROAD\nSouth to Highgarden, and on to Dorne.\nGrowing strong.' },
     ],
     npcs: [
+      { x: 14, y: 21, dir: 'down', sprite: 'smallfolk', name: 'Silverwing',
+        script: 'wildDragon', beast: 'silverwing', huge: true,
+        hideIfFlag: 'silverwing_taken',
+        data: { species: 'silverwing', level: 36,
+          met: 'silverwing_met', taken: 'silverwing_taken',
+          waking: [
+            'The pond by the ford has a heron on it and no fish in it, and the flowers on the '
+            + 'near bank are crushed flat in the shape of something enormous lying down.',
+            'The shape lifts its head out of the flowers. It is the colour of a new coin.',
+            'Silverwing carried a queen over a battle that is still in every song. She has been '
+            + 'beside this water ever since, and nobody in the Reach has ever thought to be '
+            + 'frightened of her.',
+          ],
+          spared: 'She watches you go on up the road, mildly, the way a cat watches a door.',
+          driven: 'She lifts off the bank, circles the field once and settles on the far side '
+            + 'of the water. Come back when you mean to ask properly.',
+          taking: 'She folds her wings and waits, and you understand that she has been waiting '
+            + 'a great deal longer than today.',
+          lost: 'She settles back into the flowers. She has not moved off this bank in forty '
+            + 'years and you have not given her a reason to start.' } },
       { x: 11, y: 2, dir: 'down', sprite: 'tyrell', name: "Warden of the Roseroad", warden: 4,
         script: 'warden',
         data: { line: "Warden of the Roseroad: The Reach is not a shortcut. It is somewhere people are invited to.",
@@ -4416,6 +4436,44 @@ export const MAPS = {
     ],
   },
 
+  /* Down off the Dragonmont's floor, and the one room in the game that is only
+     ever entered on purpose: nothing on the way in is worth the walk, and the
+     animal at the bottom of it is. */
+  cannibalLair: makeCave({
+    id: 'cannibalLair', name: "The Cannibal's Deep", w: 20, h: 15, chambers: 3,
+    back: 'dragonmont', backX: 8, backY: 2,
+    npcs: [
+      { dir: 'down', room: 2, sprite: 'smallfolk', name: 'The Cannibal',
+        script: 'wildDragon', beast: 'cannibal', huge: true,
+        hideIfFlag: 'cannibal_taken',
+        data: { species: 'cannibal', level: 48,
+          met: 'cannibal_met', taken: 'cannibal_taken',
+          waking: [
+            'This chamber is warmer than the one behind it, and the floor has been swept '
+            + 'clear of bones by something that did not want to lie on them.',
+            'What you took for a fold in the rock opens one eye. Then the rest of it moves.',
+            'The Cannibal: black, and green, and older than the castle over your head. It has '
+            + 'eaten every dragon that ever hatched near it, which is most of the reason there '
+            + 'are so few.',
+          ],
+          spared: 'You go back the way you came, slowly, and it lets you. It has eaten today.',
+          driven: 'It breaks off, climbs into the dark and is gone. It will be lying on this '
+            + 'rock again the next time you come down, and it will remember this.',
+          taking: 'It looks at you for a long moment and then puts its head down on the stone. '
+            + 'Whatever that means to a dragon, it means it now.',
+          lost: 'It does not follow you out. It goes back to the warm rock and shuts the eye.' } },
+    ],
+    items: [
+      { room: 0, item: 'dragonglass', count: 2, flag: 'item_cannibal_glass' },
+      { room: 1, item: 'kingsRansom', count: 1, flag: 'item_cannibal_ransom' },
+    ],
+    encounters: [
+      { beast: 'emberwisp', min: 36, max: 44, weight: 40 },
+      { beast: 'scaleflight', min: 38, max: 46, weight: 35 },
+      { beast: 'pyremaw', min: 40, max: 46, weight: 25 },
+    ],
+  }),
+
   dragonmont: {
     name: 'The Dragonmont',
     /* The ground has to be named. Anything that paints the floor under itself
@@ -4458,6 +4516,7 @@ export const MAPS = {
     ],
     warps: [
       { x: 8, y: 15, to: 'dragonstone', tx: 4, ty: 5, dir: 'down' },
+      { x: 8, y: 1, to: 'cannibalLair', tx: 2, ty: 13, dir: 'up' },
     ],
     signs: [
       { x: 8, y: 5, text: 'Somebody has cut three words into the rock over the mouth of this chamber, '
@@ -7104,6 +7163,26 @@ export const MAPS = {
       { x: 5, y: 8, text: 'Bones the size of roof beams, and the sand is warm.' },
     ],
     npcs: [
+      { x: 8, y: 5, dir: 'down', sprite: 'smallfolk', name: 'Sheepstealer',
+        script: 'wildDragon', beast: 'sheepstealer', huge: true,
+        hideIfFlag: 'sheepstealer_taken',
+        data: { species: 'sheepstealer', level: 40,
+          met: 'sheepstealer_met', taken: 'sheepstealer_taken',
+          waking: [
+            'Something has been living in the pit. The grass in the hollow is flattened in a '
+            + 'wide circle, and round the edge of it the sheep bones are picked white.',
+            'The mud-brown shape in the middle of the circle is not a boulder. It lifts its '
+            + 'head and looks at you without much interest.',
+            'Sheepstealer. Forty years in a ruin under the city, and in all that time it has '
+            + 'never once taken a man when there was a sheep to be had.',
+          ],
+          spared: 'You back out of the hollow. It puts its head down again. As far as it is '
+            + 'concerned that is the whole of the matter.',
+          driven: 'It goes up out of the pit in three wingbeats and the bells start ringing '
+            + 'across half the city. It will come back. It always comes back.',
+          taking: 'It walks over, sniffs at you once and settles, and you have the distinct '
+            + 'sense of having been chosen rather than caught.',
+          lost: 'It watches you climb out of the pit and goes back to the bones.' } },
       { x: 8, y: 4, dir: 'down', sprite: 'redPriest', name: 'Pit Watcher', script: 'bellowsHand',
         data: { line: 'They said the last of them died the size of a cat. They lied about a great deal.' } },
     ],
@@ -8822,6 +8901,7 @@ export function tileAt(map, x, y) {
  * just which gate you walked through.
  */
 export const REGIONS = {
+  cannibalLair: 'Dragonstone',
   holdfast: 'The North',
   braavos: 'Braavos', houseOfBlackAndWhite: 'Braavos',
   pentos: 'Pentos', volantis: 'Volantis', meereen: 'Meereen',

@@ -130,7 +130,7 @@ export const SPECIES = {
   dreadwyrm: {
     name: 'Dreadwyrm', types: ['flame', 'wind'], archetype: 'dragon',
     base: { hp: 84, atk: 90, def: 82, spa: 118, spd: 90, spe: 96 },
-    growth: 'medium', catchRate: 45, expYield: 240,
+    growth: 'medium', catchRate: 12, expYield: 240,
     mount: 'fly',
     palette: P('#3c1210', '#8a2a1e', '#c04828', '#e8a048', '#2a2028', '#f2e050'),
     learnset: [[1, 'wingslash'], [1, 'flamebreath'], [1, 'kindle'], [29, 'searingbrand'],
@@ -146,6 +146,51 @@ export const SPECIES = {
     learnset: [[1, 'flamebreath'], [1, 'shadetouch'], [1, 'wargbond'], [50, 'longnight'],
                [56, 'dragonfire'], [62, 'wildfire']],
     dex: 'The Black Dread of old, or something wearing its shape. Its shadow alone withers grass.',
+  },
+
+  /* ------------------------------------------------------ the wild three --
+   *
+   * Three dragons that outlived their riders and went wild, and the only three
+   * animals in the game that are not on anybody's encounter table. Each one
+   * sleeps in one named place; the only way to meet one is to walk there and
+   * wake it, and two of them will kill you at the level you first could.
+   *
+   * They are catchable, which is the whole reason to go. A dragon nobody could
+   * ever take is scenery with teeth — these are the prize at the end of the
+   * three longest walks in the world.
+   */
+  cannibal: {
+    name: 'The Cannibal', types: ['flame', 'shadow'], archetype: 'dragon',
+    base: { hp: 108, atk: 122, def: 104, spa: 118, spd: 96, spe: 84 },
+    growth: 'slow', catchRate: 3, expYield: 320,
+    mount: 'fly',
+    palette: P('#0e1410', '#1e2c20', '#354a34', '#4a5a3c', '#0a0c0a', '#7ad04a'),
+    learnset: [[1, 'flamebreath'], [1, 'wingslash'], [1, 'shadetouch'], [1, 'maul'],
+               [48, 'searingbrand'], [54, 'nightterror'], [60, 'dragonfire'], [66, 'wildfire']],
+    dex: 'Black and green and older than the castle. It eats hatchlings, which is how it '
+       + 'came by the name and why no keeper has ever tried to feed it.',
+  },
+  sheepstealer: {
+    name: 'Sheepstealer', types: ['flame', 'wind'], archetype: 'dragon',
+    base: { hp: 94, atk: 108, def: 88, spa: 104, spd: 86, spe: 108 },
+    growth: 'slow', catchRate: 5, expYield: 300,
+    mount: 'fly',
+    palette: P('#2a1e12', '#5a4426', '#8a6a3c', '#b09258', '#3a2a16', '#d8a030'),
+    learnset: [[1, 'wingslash'], [1, 'flamebreath'], [1, 'gust'], [1, 'quickfang'],
+               [44, 'skyfall'], [50, 'searingbrand'], [56, 'dragonfire'], [62, 'updraft']],
+    dex: 'Mud-brown and plain, and it has never once taken a man when there was a sheep to '
+       + 'be had. The smallfolk are almost fond of it. They still bar the doors.',
+  },
+  silverwing: {
+    name: 'Silverwing', types: ['flame', 'wind'], archetype: 'dragon',
+    base: { hp: 98, atk: 90, def: 96, spa: 120, spd: 110, spe: 96 },
+    growth: 'slow', catchRate: 8, expYield: 295,
+    mount: 'fly',
+    palette: P('#232c38', '#6f8296', '#a8bacd', '#dae6f2', '#3e4c5e', '#7ce0f8'),
+    learnset: [[1, 'flamebreath'], [1, 'updraft'], [1, 'wingslash'], [1, 'rally'],
+               [42, 'skyfall'], [48, 'searingbrand'], [54, 'dragonfire'], [60, 'kindle']],
+    dex: 'She carried a queen once and has been waiting by the same lake ever since. Of the '
+       + 'three she is the only one who has never had to be driven off anybody.',
   },
 
   // ============================================================ fish line ==

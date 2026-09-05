@@ -4,7 +4,7 @@ import { TILE, tileCanvas, tileDef, TILE_GROUP, N, E, S, W } from '../art/tiles.
 import { variantFor } from '../art/pixels.js';
 import { drawActor, ACTOR_H } from '../art/actors.js';
 import { playerAppearance } from '../game/player.js';
-import { getMap, regionOf, tileAt } from '../data/maps.js';
+import { getMap, regionOf, tileAt, MAPS } from '../data/maps.js';
 import { input } from '../engine/input.js';
 import { audio } from '../engine/audio.js';
 import { TRACKS } from '../data/music.js';
@@ -14,6 +14,7 @@ import { challengeFor } from '../game/challenge.js';
 import { cutscenesOn } from '../data/cutscenes.js';
 import { duellist as getDuellist } from '../data/duellists.js';
 import { creatureSpecies, displayName, wildCreature } from '../game/creature.js';
+import { species as getSpecies } from '../data/species.js';
 import { walkEggs, hatch, deepenBond, willCarry } from '../game/eggs.js';
 import { activeCompanion, hasFallen, kill as killCompanion } from '../game/company.js';
 import { ownsHoldfast, gather, INGREDIENTS } from '../game/holdfast.js';
@@ -63,6 +64,9 @@ const FORAGE_BY_REGION = {
 };
 const MOUNT_SIZE = 30;
 const RIDER_LIFT = 13;
+// A wild animal standing in the world, and one that fills the mouth of a cave.
+const BEAST_SIZE = 30;
+const BEAST_SIZE_HUGE = 46;
 
 export class Overworld {
   constructor() {
@@ -131,6 +135,13 @@ export class Overworld {
     this.player.sprite = game.state.player.sprite;
     this.frameTimer = 0;
     game.state.position = { map: mapId, x, y, dir: this.player.dir };
+    /* Where you were standing the moment you arrived somewhere, which is the
+       one tile on that map you are certain can be stood on. A dragon needs
+       somewhere to put you down, and working a landing out from the geometry
+       is how you end up inside a wall. */
+    if (!this.map.indoor) {
+      (game.state.beenTo ??= {})[mapId] = { x, y };
+    }
 
     this.npcs = (this.map.npcs ?? []).map((def, index) => {
       // Anyone you killed is gone from the world for good, on every map and
@@ -248,6 +259,10 @@ export class Overworld {
     }
     if (input.pressed('ride')) {
       this.toggleRide();
+      return;
+    }
+    if (input.pressed('select')) {
+      this.takeWing();
       return;
     }
     if (input.pressed('challenge')) {
@@ -468,6 +483,71 @@ export class Overworld {
     audio.sfx('confirm');
     const verb = { fly: 'climb onto', swim: 'wade out on', ground: 'swing up onto' }[found.kind];
     await dialog.say(`You ${verb} ${displayName(found.creature)}.`);
+  }
+
+  /**
+   * The seats you have taken, which are the only places a dragon will carry
+   * you to.
+   *
+   * Not "everywhere you have been": a list of forty roads is a menu, and a
+   * dragon that goes anywhere turns the map into a table of contents. A seat
+   * costs a leader beaten, so every entry on this list was earned, and the
+   * list grows exactly as fast as the game does.
+   */
+  flightPorts() {
+    const been = game.state.beenTo ?? {};
+    // Where the leaders you have beaten are standing.
+    const halls = new Set();
+    for (const [mapId, map] of Object.entries(MAPS)) {
+      for (const n of map.npcs ?? []) {
+        const def = n.data?.trainer ? TRAINERS[n.data.trainer] : null;
+        if (def?.leader && def.sigil && game.state.sigils.includes(def.sigil)) halls.add(mapId);
+      }
+    }
+    /* And a leader stands in his own hall, which is indoors. Nothing lands on
+       a flagstone floor, so the place you fly to is the town the hall opens
+       onto: one step back out through the door that took you in. */
+    const out = [];
+    for (const [mapId, map] of Object.entries(MAPS)) {
+      if (map.indoor || !been[mapId]) continue;
+      if (halls.has(mapId) || (map.warps ?? []).some((w) => halls.has(w.to))) {
+        out.push({ mapId, name: map.name, at: been[mapId] });
+      }
+    }
+    return out;
+  }
+
+  /** Up, across the realm, and down again — on something grown enough to do it. */
+  async takeWing() {
+    if (this.busy) return;
+    if (!this.mount || this.mount.kind !== 'fly') {
+      if (this.map.indoor) return;
+      await dialog.say(this.mount
+        ? 'It is grown, and it is not going to leave the ground for you.'
+        : 'Nothing you have at heel can carry you over a hedge, let alone a kingdom.');
+      return;
+    }
+    const ports = this.flightPorts();
+    if (!ports.length) {
+      await dialog.say('You are carrying a dragon and nowhere to take it. Win a seat first, '
+        + 'and it will know the way back to that one.');
+      return;
+    }
+    const here = ports.findIndex((p) => p.mapId === this.mapId);
+    const options = ports.map((p) => p.name).concat('Stay on the ground');
+    const pick = await dialog.choose(
+      `${displayName(this.mount.creature)} is already leaning into the wind. Where?`,
+      options,
+    );
+    if (pick < 0 || pick >= ports.length || pick === here) return;
+
+    const to = ports[pick];
+    audio.sfx('confirm');
+    this.flash = { time: 0.4, max: 0.4, color: '#dfe8f4' };
+    await dialog.say(`You go up until the roads are threads, and come down over ${to.name}.`);
+    // Everything a warp would do, because arriving by air is still arriving.
+    this.loadMap(to.mapId, { x: to.at.x, y: to.at.y, dir: 'down' });
+    this.checkCutscene();
   }
 
   updateMovement(dt) {
@@ -891,6 +971,16 @@ export class Overworld {
       const d = this.skyDragon;
       d.x += d.vx * dt;
       d.t += dt;
+      // Its shadow reaching you is what decides it, so a dragon that crosses
+      // the far side of the screen is still only a dragon crossing the screen.
+      if (d.stoops && !d.stooped) {
+        const px = this.playerPixel().x - this.camera.x + TILE / 2;
+        if (Math.abs(d.x - px) < 8) {
+          d.stooped = true;
+          this.dragonStoops();
+          return;
+        }
+      }
       if (d.x < -80 || d.x > 320) this.skyDragon = null;
       return;
     }
@@ -909,7 +999,42 @@ export class Overworld {
       t: 0,
       size: yours ? 26 : rng.int(14, 22),
       mine: Boolean(yours),
+      /* Whether this one is going somewhere or hunting.
+       *
+       * The sky had a dragon in it from the first day and it had never once
+       * meant anything: it crossed, you watched it, it left. One in six is now
+       * looking down, and if its shadow goes over you it turns. It is not one
+       * of yours, you are out of doors, and the world has already told you
+       * dragons are back — which is what makes it an event on the road rather
+       * than weather that occasionally bites. */
+      stoops: !yours && !this.sailing
+        && (flag('sawADragon') || this.region === 'Dragonstone')
+        && rng.chance(0.17),
     };
+  }
+
+  /**
+   * The shadow crosses you, and comes back lower.
+   *
+   * Deliberately not an ambush out of the grass: it announces itself, it shakes
+   * the ground, and what comes down is scaled to you rather than to the road,
+   * because the sky reaches every road in the game and a fixed level would
+   * make one of them impassable.
+   */
+  async dragonStoops() {
+    if (this.busy || this.map.indoor || this.sailing) return;
+    if (!game.state.party.some((c) => c.hp > 0)) return;
+    this.skyDragon = null;
+    audio.sfx('encounter');
+    this.shake = 0.9;
+    this.flash = { time: 0.3, max: 0.3, color: '#ffd8a0' };
+    await dialog.say('The shadow goes over you, turns, and comes back a great deal lower.');
+    const level = Math.max(6, game.state.player.level + rng.int(-1, 3));
+    const grown = level >= 34 && rng.chance(0.35);
+    await this.startBattle({
+      kind: 'wild',
+      foe: wildCreature(grown ? 'dreadwyrm' : 'scaleflight', level, level),
+    });
   }
 
   /** The dragon itself, and the shadow it drags across the ground. */
@@ -1403,6 +1528,31 @@ export class Overworld {
         const t = Math.min(1, npc.moving.t);
         x = (npc.moving.fromX + (npc.moving.toX - npc.moving.fromX) * t) * TILE;
         y = (npc.moving.fromY + (npc.moving.toY - npc.moving.fromY) * t) * TILE;
+      }
+      /* An animal standing in the world is drawn as the animal.
+       *
+       * Everything that was not a person used to borrow a person's body and a
+       * question mark for a name, so the direwolf beyond the Wall and the
+       * thing in the ice cave were both a man in a hood, and the only way to
+       * learn what you had walked up to was to be attacked by it. A beast
+       * carries its own battle drawing out here instead, at the size a beast
+       * ought to be next to a man. */
+      if (npc.beast) {
+        const art = creatureSprite(getSpecies(npc.beast));
+        const size = npc.huge ? BEAST_SIZE_HUGE : BEAST_SIZE;
+        drawables.push({
+          y,
+          draw: () => {
+            ctx.save();
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(art, 0, 0, SPRITE_SIZE, SPRITE_SIZE,
+              Math.round(x - camX + (TILE - size) / 2),
+              Math.round(y - camY + TILE - size + 2),
+              size, size);
+            ctx.restore();
+          },
+        });
+        continue;
       }
       drawables.push({ y, draw: () => drawActor(ctx, npc.sprite, npc.dir, npc.moving ? npc.step : 0,
         x - camX, y - camY - (ACTOR_H - TILE)) });

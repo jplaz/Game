@@ -129,6 +129,12 @@ void hostFillDrawn(int x, int y, int w, int h) {
   }
 }
 
+/* Counted, so a photograph of a counter can wait for the paint it was named
+   for to reach the screen. */
+static int pagesFlushed, shopPaints;
+void hostPageFlushed(void) { pagesFlushed++; }
+void hostShopPainted(void) { shopPaints++; }
+
 void hostTextPixel(int x, int y) {
   if (x < 0 || y < 0 || x >= TXT_W || y >= TXT_H) return;
   if (!frameAt[y][x]) return;
@@ -1978,7 +1984,22 @@ void hostFrame(void) {
     else if (scene == SCENE_SHOP) {
       static const char *const SHELF_SHOT[4] = {
         "11-remedies", "12-arms", "12c-armour", "12d-oddments" };
-      if (shopStall >= 0 && shopStall < 4) catchOnce(SHELF_SHOT[shopStall]);
+      /* Once the shelf on the screen is the shelf the stall names.
+       *
+       * The picture is taken from video memory, and the counter's paint gets
+       * there a frame late at best: a stall change ends its frame before the
+       * flush, and the tester taps along the counter every frame or two, so
+       * the stall only ever sat still when a window opened over it - and a
+       * window holds the flush. Caught then, "12-arms", "12c-armour" and
+       * "12d-oddments" were three photographs of whatever shelf had last been
+       * flushed, in every build there has been, and the names said otherwise
+       * so nobody looked. So: the last paint of the counter has been flushed,
+       * and nothing is open over it. */
+      static int paintsWas = -1, flushedAtPaint;
+      if (shopPaints != paintsWas) { paintsWas = shopPaints; flushedAtPaint = pagesFlushed; }
+      if (pagesFlushed > flushedAtPaint && !windowOpen && shopStall >= 0 && shopStall < 4) {
+        catchOnce(SHELF_SHOT[shopStall]);
+      }
     }
     else if (scene == SCENE_DUEL) {
       if (windowOpen && windowSays("Off them")) catchOnce("21-what-they-carried");

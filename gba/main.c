@@ -743,6 +743,15 @@ void hostFillDrawn(int x, int y, int w, int h);
 #define TEXT_PIXEL(x, y)          hostTextPixel((x), (y))
 #define FRAME_DRAWN(x, y, w, h)   hostFrameDrawn((x), (y), (w), (h))
 #define FILL_DRAWN(x, y, w, h)    hostFillDrawn((x), (y), (w), (h))
+/* When the page reaches the screen, and when the counter is repainted. A
+   photograph of a shelf is only of that shelf once the paint has been flushed
+   to video memory and nothing is open over it, and the host cannot see either
+   from outside: a stall change ends its frame early and skips the flush, and
+   the window that opens next holds it. */
+void hostPageFlushed(void);
+void hostShopPainted(void);
+#define PAGE_FLUSHED()            hostPageFlushed()
+#define SHOP_PAINTED()            hostShopPainted()
 /* A frame is four nested fills, and one box drawn inside another - which is
    how the deeper windows in this game are built - lands the inner one's fills
    squarely on the outer one's border. That is composition, not a fault, so a
@@ -757,6 +766,8 @@ static int hostFraming;
 #define TEXT_PIXEL(x, y)          ((void)0)
 #define FRAME_DRAWN(x, y, w, h)   ((void)0)
 #define FILL_DRAWN(x, y, w, h)    ((void)0)
+#define PAGE_FLUSHED()            ((void)0)
+#define SHOP_PAINTED()            ((void)0)
 #define FRAMING_IN   ((void)0)
 #define FRAMING_OUT  ((void)0)
 #define IS_FRAMING   0
@@ -828,6 +839,7 @@ static void flushPage(void) {
   /* Both halves of the text layer land together, in the blank between frames:
      the shape of it and what is written on it. */
   applyLayout();
+  PAGE_FLUSHED();
   if (dirtyHi < dirtyLo) return;
   for (i = dirtyLo; i <= dirtyHi; i++) {
     /* Four-byte aligned by declaration, so a row of a tile is already a word:
@@ -7019,6 +7031,7 @@ static int shelfWare(const Stall *st, int nth) {
  * gives up a row for it. */
 static void paintShop(void) {
   const Stall *stall = &stalls[shopStall];
+  SHOP_PAINTED();
   int shelf = shelfCount(stall);
   int mends = keeperMends();
   int rows = mends ? 4 : 5;

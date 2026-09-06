@@ -14,6 +14,7 @@ import { typeColor, typeName } from '../data/types.js';
 import { move as getMove } from '../data/moves.js';
 import { item as getItem, ITEMS } from '../data/items.js';
 import { trainer as getTrainer } from '../data/trainers.js';
+import { NEVER_TAMED } from '../data/beasts.js';
 import {
   createCreature, creatureSpecies, displayName, maxHp, isFainted,
   gainExp, evolve, learnMove, expForLevel, healBy,
@@ -563,6 +564,18 @@ export class Battle {
     this.anim.ballY = 0;
     await this.wait(0.7);
 
+    /* Three of them are not animals so much as weather - the Black Dread, the
+       white wolf, and the thing in the ice. The cartridge has refused these
+       since beasts went on it; this build would hand you a Blackdread on a
+       long enough afternoon, at a catch rate of three, which makes the whole
+       "the only dragon you will ever have is one you hatched" line untrue on
+       one of the two builds of the same game. */
+    if (NEVER_TAMED.includes(this.foe.creature.speciesId)) {
+      this.anim.ballY = -1;
+      await this.say('It does not so much break free as decline to notice.');
+      await this.foeOnlyTurn();
+      return;
+    }
     const result = attemptCatch(this.foe, def.bonus);
     for (let i = 0; i < result.shakes; i++) {
       this.anim.ballShakes = 1;

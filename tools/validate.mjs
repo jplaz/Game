@@ -21,6 +21,7 @@ import { CUTSCENES } from '../src/data/cutscenes.js';
 import { ROAMERS as ROAMER_TABLE } from '../src/data/duellists.js';
 import { WEAPONS, ARMOUR, SHIELDS, TECHNIQUES, HELMS, GLOVES } from '../src/data/gear.js';
 import { MATERIALS, SNARES, RELICS, OATHS, EGG_ITEMS } from '../src/data/craft.js';
+import { GROWS_INTO, NEVER_TAMED, EGGS } from '../src/data/beasts.js';
 
 /* Everything gba/export.mjs will turn into a ware, in the same order it tries
    them. If it is in none of these the chest is empty. */
@@ -670,6 +671,33 @@ for (const [mapId, map] of Object.entries(MAPS)) {
       fail(`map ${mapId}: ${npc.name ?? npc.script} was written a ${key} that script "${npc.script}" never uses`);
     }
   }
+}
+
+/* The two builds have to agree about the same animal.
+ *
+ * The cartridge reads its own table of what grows into what; the browser reads
+ * the species. They were two hand-written copies of the same eighteen facts,
+ * and thirteen of the eighteen had drifted: a snowpup was a direwolf at
+ * sixteen in one build and at twenty in the other. The table is derived now,
+ * so this can only fail if somebody writes it out by hand again. */
+for (const [id, grow] of Object.entries(GROWS_INTO)) {
+  const evolve = SPECIES[id]?.evolve;
+  if (!evolve) { fail(`${id} grows on the cartridge and nowhere in the species table`); continue; }
+  if (evolve.into !== grow.into || evolve.level !== grow.at) {
+    fail(`${id}: the cartridge grows it into ${grow.into} at ${grow.at}, `
+       + `the species table into ${evolve.into} at ${evolve.level}`);
+  }
+}
+for (const [id, sp] of Object.entries(SPECIES)) {
+  if (sp.evolve && !GROWS_INTO[id]) fail(`${id} evolves, and the cartridge does not know it`);
+}
+/* And what may never be taken alive has to be the same list in both. */
+for (const id of NEVER_TAMED) {
+  if (!SPECIES[id]) fail(`the never-tamed list names "${id}", which is not a species`);
+}
+for (const egg of EGGS) {
+  if (!SPECIES[egg.hatches]) fail(`the ${egg.item} hatches "${egg.hatches}", which is not a species`);
+  if (!item(egg.item)) fail(`an egg is laid for "${egg.item}", which is nothing you can hold`);
 }
 
 for (const w of warnings) console.log(`  warn  ${w}`);

@@ -43,7 +43,7 @@ await page.evaluate(async () => {
   window.__game = { input: i.input, scenes: s.scenes, state: st, dialog: b.dialog, MAPS: m.MAPS };
 });
 const out = await page.evaluate(async () => {
-  const { input, scenes, state, dialog, MAPS } = window.__game;
+  const { input, scenes, state, MAPS } = window.__game;
   const breathe = () => new Promise((r) => { setTimeout(r, 0); });
   const turn = async (n) => { window.__turn(n); await breathe(); };
   const tap = async (k) => { input.press(k); await turn(4); input.release(k); await turn(4); };

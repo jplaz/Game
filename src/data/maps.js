@@ -5474,8 +5474,12 @@ export const MAPS = {
     warps: [
       { x: 10, y: 0, to: 'winterfell', tx: 12, ty: 30, dir: 'up' },
       { x: 10, y: 25, to: 'moatCailin', tx: 9, ty: 2, dir: 'down' },
+      /* And the gate to your own ground, half a day north of Winterfell the
+         way the landless knight tells it. Kept, so the road carves its own way
+         out to it rather than leaving it walled into the trees. */
+      { x: 17, y: 12, to: 'holdfastYard', tx: 9, ty: 10, dir: 'up', keep: true },
     ],
-    opens: [[10, 1], [10, 24]],
+    opens: [[10, 1], [10, 24], [17, 13]],
     signs: [
       { x: 12, y: 1, text: 'THE WOLFSWOOD\nSouth to Moat Cailin.\nStay on the road after dark.' },
       { x: 8, y: 17, text: 'A drop, not a climb. You can jump down, but not back up.' },
@@ -6307,7 +6311,51 @@ export const MAPS = {
         script: 'cook', data: {} },
     ],
     signs: [],
-    warps: [{ x: 7, y: 11, to: 'winterfell', tx: 7, ty: 15, dir: 'down' }],
+    warps: [{ x: 7, y: 11, to: 'holdfastYard', tx: 9, ty: 2, dir: 'down' }],
+  },
+
+  /* ------------------------------------------------------- and its yard --
+   *
+   * Your own seat used to be one room you could not walk to. Nothing in the
+   * world had a door into it: you asked a landless knight in Winterfell to
+   * take you, he set you down inside, and the only way out put you back in
+   * somebody else's town. A hall with no ground round it is a room, not a
+   * seat.
+   *
+   * So there is ground. A wall, a gate onto the wolfswood road, the hall's
+   * door on the north side, and a yard in between that is yours to fill -
+   * which is where the things that do not belong indoors go: the heart tree,
+   * the kennels, the forge.
+   */
+  holdfastYard: {
+    name: 'Your Yard', music: 'town', ground: 'snow', holdfast: true,
+    tiles: [
+      'PPPPPPPPPPPPPPPPPP',
+      'PMMMMMMMMDMMMMMMMP',
+      'PMsssssss=ssssssMP',
+      'PMsssssss=ssssssMP',
+      'PMsssssss=ssssssMP',
+      'PMsssssss=ssssssMP',
+      'PMsssssss=ssssssMP',
+      'PMsssssss=ssssssMP',
+      'PMsssssss=ssssssMP',
+      'PMsssssss=ssssssMP',
+      'PMMMMMMMM=MMMMMMMP',
+      'PPPPPPPPPDPPPPPPPP',
+    ],
+    npcs: [
+      { x: 4, y: 8, dir: 'right', name: 'Gate Watch', sprite: 'sellsword',
+        script: 'townTalk',
+        data: { line: 'Gate Watch: Nobody has come up this road in a fortnight, '
+          + 'which I am told is the point of the place.' } },
+    ],
+    signs: [
+      { x: 12, y: 8, text: 'A post, newly cut.\nWhatever is written on it, you wrote it.' },
+    ],
+    warps: [
+      { x: 9, y: 1, to: 'holdfast', tx: 7, ty: 10, dir: 'up' },
+      { x: 9, y: 11, to: 'wolfswood', tx: 16, ty: 12, dir: 'left' },
+    ],
   },
 
   // ======================================================= the Free Cities ==

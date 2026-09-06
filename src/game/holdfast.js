@@ -59,6 +59,7 @@ export const FURNISHINGS = {
     desc: 'Your colours on the wall, so nobody has to ask whose hall this is.',
   },
   godswood: {
+    outdoor: true,
     name: 'Godswood', cost: 2000, renown: 3, seats: 2, tile: 'W',
     desc: 'A heart tree in the yard. Northerners relax; southerners do not.',
   },
@@ -67,6 +68,7 @@ export const FURNISHINGS = {
     desc: 'Racks, a grindstone, and somewhere to hang what you took off people.',
   },
   kennels: {
+    outdoor: true,
     name: 'Kennels', cost: 1100, renown: 1, tile: 'N', wide: 2,
     desc: 'Your beasts sleep warm, and sleep well, and it shows in them.',
   },
@@ -84,7 +86,12 @@ export const FURNISHINGS = {
     name: 'A Bed of Your Own', cost: 700, tile: 'b', rests: true,
     desc: 'Rope, straw and a chest at the foot. You wake here from now on.',
   },
+  strongbox: {
+    name: 'Iron-Bound Chest', cost: 800, tile: 'j',
+    desc: 'Three locks, and you hold two of the keys. The steward holds the third.',
+  },
   forge: {
+    outdoor: true,
     name: 'Household Forge', cost: 2200, renown: 2, tile: 'a', wide: 2,
     desc: 'Your own anvil, so a nicked blade is a morning rather than a journey.',
   },
@@ -95,6 +102,15 @@ export const FURNISHINGS = {
    dropped. */
 export function wantsWall(id) {
   return Boolean(FURNISHINGS[id]?.wall);
+}
+
+/**
+ * Which of the two the piece belongs on. A heart tree, a kennel run and an
+ * open forge are yard things: standing them in the middle of a hall was only
+ * ever possible because there was no yard to stand them in.
+ */
+export function homeOf(id) {
+  return FURNISHINGS[id]?.outdoor ? 'holdfastYard' : 'holdfast';
 }
 
 /** How many tiles across a piece is. */
@@ -126,10 +142,13 @@ export function placedAt(id) {
   return placements()[id] ?? null;
 }
 
-/** Whichever piece covers this tile, or null. Pieces can be several wide. */
-export function pieceOn(x, y) {
+/**
+ * Whichever piece covers this tile of this map, or null. Pieces can be several
+ * wide, and the hall and the yard each have their own.
+ */
+export function pieceOn(where, x, y) {
   for (const [id, at] of Object.entries(placements())) {
-    if (at.y !== y) continue;
+    if (homeOf(id) !== where || at.y !== y) continue;
     if (x >= at.x && x < at.x + widthOf(id)) return id;
   }
   return null;
@@ -166,19 +185,22 @@ export function hasBed() {
  * old one behind, which is exactly the bug this shape avoids.
  */
 
-/** The bare room, kept aside the first time so the dressing has a base. */
-let barePlan = null;
+/* The bare hall and the bare yard, kept aside the first time each is dressed
+   so there is always something to build back from. */
+const barePlans = {};
 
 /**
- * Stamps everything you own onto the hall's grid.
+ * Stamps everything you own onto one of your two grounds.
  *
- * @param {{grid: string[], width: number, height: number}} hall the map
+ * @param {{id: string, grid: string[]}} ground the hall or the yard
  */
-export function dressHall(hall) {
-  if (!hall) return hall;
-  if (!barePlan) barePlan = [...hall.grid];
-  const rows = barePlan.map((row) => [...row]);
+export function dressHolding(ground) {
+  if (!ground) return ground;
+  const where = ground.id;
+  if (!barePlans[where]) barePlans[where] = [...ground.grid];
+  const rows = barePlans[where].map((row) => [...row]);
   for (const id of holdfast().furnishings) {
+    if (homeOf(id) !== where) continue;
     const at = placedAt(id);
     const def = FURNISHINGS[id];
     if (!at || !def?.tile) continue;
@@ -189,13 +211,18 @@ export function dressHall(hall) {
       rows[at.y][x] = def.tile;
     }
   }
-  hall.grid = rows.map((row) => row.join(''));
-  return hall;
+  ground.grid = rows.map((row) => row.join(''));
+  return ground;
 }
 
-/** The bare room, for a check that wants to know what was there to begin with. */
-export function hallPlan() {
-  return barePlan ? [...barePlan] : null;
+/** Whether this map is ground of yours that can be arranged. */
+export function isYourGround(mapId) {
+  return mapId === 'holdfast' || mapId === 'holdfastYard';
+}
+
+/** The bare ground, for a check that wants to know what was there first. */
+export function planOf(where) {
+  return barePlans[where] ? [...barePlans[where]] : null;
 }
 
 /**
@@ -206,8 +233,11 @@ export function hallPlan() {
  *
  * @returns {string|null} why not, or null if it may
  */
-export function whyNotHere(hall, id, x, y) {
-  const plan = barePlan ?? hall.grid;
+export function whyNotHere(ground, id, x, y) {
+  if (homeOf(id) !== ground.id) {
+    return FURNISHINGS[id]?.outdoor ? 'That belongs out in the yard.' : 'That belongs indoors.';
+  }
+  const plan = barePlans[ground.id] ?? ground.grid;
   const wide = widthOf(id);
   for (let i = 0; i < wide; i++) {
     const col = x + i;
@@ -215,13 +245,14 @@ export function whyNotHere(hall, id, x, y) {
       return 'That is outside the hall.';
     }
     const base = plan[y][col];
-    if (base !== '=' && base !== 'c' && base !== '_') return 'There is no floor there.';
-    /* The doorway and the tile in front of it stay clear, or you can wall
-       yourself into your own hall with a table. */
-    for (const w of hall.warps ?? []) {
-      if (w.x === col && (w.y === y || w.y === y + 1)) return 'That is the doorway.';
+    if (!FLOOR.includes(base)) return 'There is no floor there.';
+    /* The doorways and the tiles in front of them stay clear, or you can wall
+       yourself out of your own hall with a table. */
+    for (const w of ground.warps ?? []) {
+      if (w.x !== col) continue;
+      if (w.y === y || w.y === y + 1 || w.y === y - 1) return 'That is the doorway.';
     }
-    const other = pieceOn(col, y);
+    const other = pieceOn(ground.id, col, y);
     if (other && other !== id) return `${FURNISHINGS[other].name} is already there.`;
   }
   if (wantsWall(id)) {
@@ -231,25 +262,29 @@ export function whyNotHere(hall, id, x, y) {
   /* And it must not cut the room in half. Every door in this world is checked
      walkable and it would be a poor joke if the one room the player builds
      themselves were the one they could seal shut with a table. */
-  if (sealsSomethingOff(hall, id, x, y)) return 'That would shut off part of the hall.';
+  if (sealsSomethingOff(ground, id, x, y)) return 'That would shut off part of it.';
   return null;
 }
+
+/* What counts as ground you may stand a thing on: the hall's flags and carpet,
+   and the yard's trodden snow and path. */
+const FLOOR = '=c_s';
 
 /**
  * Would standing this piece here leave any of the hall's floor unreachable
  * from the door? A flood fill over a sixteen-by-twelve room, which is nothing.
  */
-function sealsSomethingOff(hall, id, x, y) {
-  const plan = barePlan ?? hall.grid;
+function sealsSomethingOff(ground, id, x, y) {
+  const plan = barePlans[ground.id] ?? ground.grid;
   const w = plan[0].length;
   const hgt = plan.length;
   const solid = [];
   for (let row = 0; row < hgt; row++) {
-    solid.push([...plan[row]].map((c) => !(c === '=' || c === 'c' || c === '_' || c === 'D')));
+    solid.push([...plan[row]].map((c) => !(FLOOR.includes(c) || c === 'D')));
   }
   /* Everything already standing, and then the piece in its proposed spot. */
   for (const [other, at] of Object.entries(placements())) {
-    if (other === id) continue;
+    if (other === id || homeOf(other) !== ground.id) continue;
     if (!FURNISHINGS[other]?.tile) continue;
     for (let i = 0; i < widthOf(other); i++) {
       if (solid[at.y] && at.x + i < w) solid[at.y][at.x + i] = true;
@@ -259,7 +294,7 @@ function sealsSomethingOff(hall, id, x, y) {
     if (solid[y] && x + i < w) solid[y][x + i] = true;
   }
 
-  const door = (hall.warps ?? [])[0];
+  const door = (ground.warps ?? [])[0];
   const from = door ? [door.x, Math.max(0, door.y - 1)] : null;
   if (!from || solid[from[1]]?.[from[0]]) return false;   // nothing to judge from
 

@@ -18,8 +18,8 @@ import { species as getSpecies } from '../data/species.js';
 import { walkEggs, hatch, deepenBond, willCarry } from '../game/eggs.js';
 import { activeCompanion, hasFallen, kill as killCompanion } from '../game/company.js';
 import {
-  ownsHoldfast, gather, INGREDIENTS, FURNISHINGS, dressHall, whyNotHere,
-  place, placedAt, widthOf,
+  ownsHoldfast, gather, INGREDIENTS, FURNISHINGS, dressHolding, whyNotHere,
+  place, placedAt, widthOf, isYourGround, homeOf,
 } from '../game/holdfast.js';
 import {
   ship, ownsShip, aboard, board, goAshore, berthedAt, shipName, conditionWord,
@@ -127,10 +127,10 @@ export class Overworld {
   /** Swaps to a map and places the player. */
   loadMap(mapId, { x, y, dir }) {
     this.map = getMap(mapId);
-    /* Your own hall is whatever you have put in it. Rebuilt on the way in
-       rather than edited in place, so moving a table does not leave the old
-       one standing behind the new one. */
-    if (mapId === 'holdfast') dressHall(this.map);
+    /* Your own ground - the hall and the yard both - is whatever you have put
+       on it. Rebuilt on the way in rather than edited in place, so moving a
+       table does not leave the old one standing behind the new one. */
+    if (isYourGround(mapId)) dressHolding(this.map);
     this.mapId = mapId;
     this.region = regionOf(mapId);
     setLocalRegion(this.region);
@@ -736,6 +736,15 @@ export class Overworld {
    * @param {string} id which furnishing
    */
   startArranging(id) {
+    /* A thing belongs on one of your two grounds, and you cannot carry it
+       through a door: the steward sends you to the right one. */
+    if (homeOf(id) !== this.mapId) {
+      dialog.say(FURNISHINGS[id].outdoor
+        ? `The ${FURNISHINGS[id].name} goes out in the yard. Take it out and I will `
+          + 'have it set down where you want it.'
+        : `The ${FURNISHINGS[id].name} goes inside. Ask me again in the hall.`);
+      return;
+    }
     const at = placedAt(id);
     this.arranging = {
       id,
@@ -775,7 +784,7 @@ export class Overworld {
       return;
     }
     place(hold.id, hold.x, hold.y);
-    dressHall(this.map);
+    dressHolding(this.map);
     /* Standing inside what you have just put down is the one way to shut
        yourself in, so step out from under it. */
     if (this.blocked(this.player.x, this.player.y)) {

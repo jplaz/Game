@@ -73,7 +73,7 @@ const out = await page.evaluate(async () => {
   await turn(10);
   const rows = () => MAPS.holdfast.grid.map((r) => r);
   res.bare = rows().join('|');
-  res.plan = hf.hallPlan()?.join('|') ?? null;
+  res.plan = hf.planOf('holdfast')?.join('|') ?? null;
 
   /* Every piece has something to draw. That was the whole defect. */
   res.pieces = Object.entries(hf.FURNISHINGS).map(([id, d]) => `${id}:${d.tile ?? '-'}`);
@@ -103,36 +103,59 @@ const out = await page.evaluate(async () => {
   /* The rules: off the floor, on the doorway, on top of something else, a
      banner in the middle of the room, and shutting the hall in half. */
   res.why = {
-    offFloor: hf.whyNotHere(MAPS.holdfast, 'godswood', 0, 0),
-    doorway: hf.whyNotHere(MAPS.holdfast, 'godswood', 7, 11),
-    inFront: hf.whyNotHere(MAPS.holdfast, 'godswood', 7, 10),
-    onTop: hf.whyNotHere(MAPS.holdfast, 'godswood', 6, 7),
+    offFloor: hf.whyNotHere(MAPS.holdfast, 'strongbox', 0, 0),
+    doorway: hf.whyNotHere(MAPS.holdfast, 'strongbox', 7, 11),
+    inFront: hf.whyNotHere(MAPS.holdfast, 'strongbox', 7, 10),
+    onTop: hf.whyNotHere(MAPS.holdfast, 'strongbox', 6, 7),
     bannerAdrift: hf.whyNotHere(MAPS.holdfast, 'banners', 6, 5),
     bannerOnWall: hf.whyNotHere(MAPS.holdfast, 'banners', 3, 1),
-    plainFloor: hf.whyNotHere(MAPS.holdfast, 'godswood', 4, 3),
+    plainFloor: hf.whyNotHere(MAPS.holdfast, 'strongbox', 4, 3),
   };
 
   /* And the one that matters: a wall of furniture across the room is refused.
      The hall's floor runs x=1..14, so this lays pieces from 1 to 10, leaves the
      table for 11..14, and the table is the piece that would close it. */
   hf.install('armoury'); hf.place('armoury', 1, 6);
-  hf.install('kennels'); hf.place('kennels', 3, 6);
-  hf.install('minstrelGallery'); hf.place('minstrelGallery', 5, 6);
-  hf.install('forge'); hf.place('forge', 7, 6);
-  hf.install('ravenry'); hf.place('ravenry', 9, 6);
-  hf.install('godswood'); hf.place('godswood', 10, 6);
+  hf.install('minstrelGallery'); hf.place('minstrelGallery', 3, 6);
+  hf.install('ravenry'); hf.place('ravenry', 5, 6);
+  hf.install('hearth'); hf.place('hearth', 6, 6);
+  hf.install('banners'); hf.place('banners', 7, 6);
+  hf.install('bed'); hf.place('bed', 9, 6);
+  hf.install('strongbox'); hf.place('strongbox', 10, 6);
+  /* Which leaves x=11..14 of that row, and the table is exactly four wide. */
   res.sealing = hf.whyNotHere(MAPS.holdfast, 'longTable', 11, 6);
-  /* One tile further down leaves the way round it, and is allowed. */
+  /* One row down leaves the way round it, and is allowed. */
   res.notSealing = hf.whyNotHere(MAPS.holdfast, 'longTable', 11, 8);
 
   /* Everything you own, drawn, after a fresh arrival. */
-  hf.place('godswood', 10, 8);
   hf.place('longTable', 5, 7);
+  hf.place('bed', 12, 3);
   ow.loadMap('holdfast', { x: 7, y: 10, dir: 'up' });
   await turn(10);
   res.dressed = MAPS.holdfast.grid.join('|');
   const chars = new Set(res.dressed.replace(/\|/g, '').split(''));
-  res.showing = ['T', 'l', 'N', 'B', 'a', 'u', 'W'].filter((c) => chars.has(c));
+  res.showing = ['T', 'l', 'B', 'u', 'h', 'V', 'b', 'j'].filter((c) => chars.has(c));
+
+  /* ---- and the yard, which is the other half of owning somewhere -------- */
+  hf.install('godswood'); hf.install('kennels'); hf.install('forge');
+  res.indoorInYard = hf.whyNotHere(MAPS.holdfastYard, 'longTable', 5, 5);
+  res.outdoorInHall = hf.whyNotHere(MAPS.holdfast, 'godswood', 5, 4);
+  res.yardSpot = hf.whyNotHere(MAPS.holdfastYard, 'godswood', 4, 5);
+  hf.place('godswood', 4, 5); hf.place('kennels', 12, 5); hf.place('forge', 12, 8);
+  ow.loadMap('holdfastYard', { x: 9, y: 2, dir: 'down' });
+  await turn(10);
+  res.yard = MAPS.holdfastYard.grid.join('|');
+  const outside = new Set(res.yard.replace(/\|/g, '').split(''));
+  res.yardShowing = ['W', 'N', 'a'].filter((c) => outside.has(c));
+  /* The hall is still the hall: the yard's things are not in it. */
+  res.hallUnchanged = !MAPS.holdfast.grid.join('').includes('W');
+  /* And you can walk from the road to the yard to the hall. */
+  res.doors = {
+    yardToHall: (MAPS.holdfastYard.warps ?? []).some((w) => w.to === 'holdfast'),
+    yardToWood: (MAPS.holdfastYard.warps ?? []).some((w) => w.to === 'wolfswood'),
+    woodToYard: (MAPS.wolfswood.warps ?? []).some((w) => w.to === 'holdfastYard'),
+    hallToYard: (MAPS.holdfast.warps ?? []).some((w) => w.to === 'holdfastYard'),
+  };
 
   /* And it survives being written down and read back. */
   const { saveGame, loadGame } = await import('/src/game/save.js');
@@ -166,13 +189,25 @@ const rows = [
   ['you cannot shut off half your own hall',
     /shut off/.test(r.sealing ?? '') && r.notSealing === null],
   ['everything you own is standing there when you walk back in',
-    (r.showing ?? []).length === 7],
+    (r.showing ?? []).length === 8],
   ['and it is still there after a save and a load', r.afterReload === '{"x":5,"y":7}'],
+  /* The yard: your own ground, walked to rather than asked for. */
+  ['the yard is reachable from the road, and the hall from the yard',
+    r.doors?.woodToYard === true && r.doors?.yardToHall === true
+    && r.doors?.yardToWood === true && r.doors?.hallToYard === true],
+  ['a table will not go in the yard, nor a heart tree in the hall',
+    /out in the yard|belongs indoors/.test(r.outdoorInHall ?? '')
+    && /belongs indoors|out in the yard/.test(r.indoorInYard ?? '')],
+  ['but a heart tree in the yard is simply allowed', r.yardSpot === null],
+  ['and the yard shows what you put on it', (r.yardShowing ?? []).length === 3],
+  ['without any of it turning up indoors', r.hallUnchanged === true],
 ];
 let bad = 0;
 for (const [what, ok] of rows) { if (!ok) bad++; console.log(`${ok ? 'ok  ' : 'BAD '} ${what}`); }
 console.log('  showing:', (r.showing ?? []).join(' '), ' why:', JSON.stringify(r.why));
 console.log('  the hall:');
 for (const row of (r.dressed ?? '').split('|')) console.log('    ' + row);
+console.log('  the yard:');
+for (const row of (r.yard ?? '').split('|')) console.log('    ' + row);
 if (thrown.length) { console.log('\nthrown:'); for (const t of thrown) console.log('  ' + t); }
 process.exit(bad || thrown.length ? 1 : 0);

@@ -12127,9 +12127,12 @@ int main(void) {
           clearPage();
           layoutTextRows(TEXT_PLAY);
           scene = SCENE_WORLD;
-          openWindow(0, "Your record is written down. The maesters keep worse "
-            "ones - and one is kept for you at every door you walk through, so "
-            "you may switch this off wherever you like.");
+          /* Kept to one page on purpose. The directed climb opens this menu,
+             and a message long enough to need a second page eats the press
+             that would have turned it over - which cost house two the last
+             two rungs of the ladder and was found by the build rather than by
+             reading. */
+          openWindow(0, "Written down - as it is at every door you pass.");
         } else {
           scene = SCENE_WORLD;
           clearPage();

@@ -213,6 +213,68 @@ const returned = await page.evaluate(async () => {
     sigils: [...state.game.state.sigils],
     at: { ...state.game.state.position } };
 });
+
+/* ---- and a save written before any of today's fields existed ------------ */
+/* Somebody who played yesterday has a save with no winter in it, no children,
+   no dragon on any granary roof and no count of fights won. Coming back to a
+   build that has all four must not strand them on the title screen. */
+await page.reload({ waitUntil: 'load' });
+await wire();
+await page.evaluate(async () => {
+  /* A save file the shape it was before this session: version 1, a player with
+     none of the new counters, and nothing else added since. */
+  const yesterday = {
+    version: 1,
+    player: { name: 'Snow', sprite: 'hero', money: 1234, playtime: 90, steps: 400,
+      level: 12, exp: 500, hp: 60, wounded: false,
+      equipment: { weapon: 'ironSword', armour: 'gambeson', shield: 'buckler',
+        helm: 'nasalHelm', gloves: 'mailMittens' },
+      gearOwned: { weapon: ['ironSword'], armour: ['gambeson'], shield: ['buckler'] },
+      duelsWon: 3, duelsLost: 1 },
+    party: [], box: [], bag: { weirwoodSap: 2 }, sigils: ['wolf'],
+    beenTo: {}, flags: { gotStarter: true }, dex: { seen: {}, caught: {} },
+    allegiance: 'stark', localHouse: null, reputation: {}, choices: {}, dead: [],
+    properties: [], rentFrom: {}, ship: null,
+    position: { map: 'winterfell', x: 15, y: 20, dir: 'down' },
+    respawn: { map: 'winterfell', x: 15, y: 20, dir: 'down' },
+    rival: { name: 'Joffrey', defeats: 0 },
+  };
+  try { localStorage.setItem('asoiam.save.v1', JSON.stringify(yesterday)); } catch { /* no */ }
+});
+
+await page.reload({ waitUntil: 'load' });
+await wire();
+const yesterdayBack = await page.evaluate(async () => {
+  const { input, scenes, state } = window.__game;
+  const breathe = () => new Promise((r) => { setTimeout(r, 0); });
+  const turn = async (n) => { window.__turn(n); await breathe(); };
+  const tap = async (k) => { input.press(k); await turn(4); input.release(k); await turn(4); };
+  const scene = () => scenes.current?.constructor?.name;
+  for (let i = 0; i < 200 && scene() !== 'Title'; i++) await turn(4);
+  const options = [...(scenes.current?.options ?? [])];
+  await tap('a');
+  for (let i = 0; i < 60 && scene() !== 'Overworld'; i++) await turn(20);
+  const out = { options, landed: scene(), thrown: null };
+  if (scene() !== 'Overworld') return out;
+  const ow = scenes.current;
+  for (let i = 0; i < 2000 && ow.busy; i++) await tap('a');
+  /* Everything added today, read on a save that has never heard of it. */
+  try {
+    out.money = state.game.state.player.money;
+    out.stage = state.winterStage();
+    out.season = state.seasonWord();
+    out.ranging = state.ranging();
+    out.dead = ow.theDeadWalkHere();
+    const sw = await import('/src/game/swoop.js');
+    const ba = await import('/src/game/bastards.js');
+    out.settled = sw.settledOn();
+    out.kids = ba.bastards().length;
+    /* And walking a step, which is where most of it is read from. */
+    for (let i = 0; i < 30; i++) { input.press('down'); await turn(2); input.release('down'); await turn(2); }
+    out.walked = true;
+  } catch (e) { out.thrown = String(e.message); }
+  return out;
+});
 await browser.close();
 server.close();
 const b = before;
@@ -241,6 +303,17 @@ const rows = [
   ['and does, with nobody having chosen SAVE',
     returned.landed === 'Overworld' && returned.money === 999
     && returned.at.map === 'lannisport' && returned.sigils.includes('lion')],
+  /* Somebody who played before any of today's counters existed. */
+  ["yesterday's save still offers to take you back",
+    (yesterdayBack.options ?? [])[0] === 'CONTINUE'],
+  ['and loads, with everything on it intact',
+    yesterdayBack.landed === 'Overworld' && yesterdayBack.money === 1234],
+  ['the winter reads as a long summer rather than throwing',
+    yesterdayBack.thrown === null && yesterdayBack.stage === 0
+    && yesterdayBack.season === 'a long summer' && yesterdayBack.dead === false],
+  ['no ranging, no dragon, no children, and it walks',
+    yesterdayBack.ranging?.want === 0 && yesterdayBack.settled === null
+    && yesterdayBack.kids === 0 && yesterdayBack.walked === true],
 ];
 let bad = 0;
 for (const [what, ok] of rows) { if (!ok) bad++; console.log(`${ok ? 'ok  ' : 'BAD '} ${what}`); }

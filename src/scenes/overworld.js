@@ -17,7 +17,10 @@ import { creatureSpecies, displayName, wildCreature } from '../game/creature.js'
 import { species as getSpecies } from '../data/species.js';
 import { walkEggs, hatch, deepenBond, willCarry } from '../game/eggs.js';
 import { activeCompanion, hasFallen, kill as killCompanion } from '../game/company.js';
-import { ownsHoldfast, gather, INGREDIENTS } from '../game/holdfast.js';
+import {
+  ownsHoldfast, gather, INGREDIENTS, FURNISHINGS, dressHall, whyNotHere,
+  place, placedAt, widthOf,
+} from '../game/holdfast.js';
 import {
   ship, ownsShip, aboard, board, goAshore, berthedAt, shipName, conditionWord,
   lane as seaLane, rollFleet, rollSeaBeast,
@@ -26,7 +29,7 @@ import { shipSprite, SHIP_SIZE } from '../art/ship.js';
 import { creatureSprite, SPRITE_SIZE } from '../art/creatures.js';
 import { dialog } from '../ui/textbox.js';
 import { drawPanel } from '../ui/panel.js';
-import { drawText, measure } from '../engine/font.js';
+import { drawText, measure, fitText } from '../engine/font.js';
 import {
   game, flag, setFlag, standingWord, setLocalRegion, isDead, recordChoice,
   sigilCount, deepenWinter, winterStage, takeRaven,
@@ -97,6 +100,9 @@ export class Overworld {
     /* Steps of quiet owed to whoever carried you off the field. See whiteout()
        and the note above the check in onArrive(). */
     this.carriedHome = 0;
+    /* The piece of furniture you are currently carrying about your own hall,
+       looking for somewhere to put it down. See startArranging(). */
+    this.arranging = null;
     this.cutscene = null;      // a scene playing out in the world around you
     this.telling = false;      // and one of the five told as pages
     this.cutsceneTimer = null;
@@ -121,6 +127,10 @@ export class Overworld {
   /** Swaps to a map and places the player. */
   loadMap(mapId, { x, y, dir }) {
     this.map = getMap(mapId);
+    /* Your own hall is whatever you have put in it. Rebuilt on the way in
+       rather than edited in place, so moving a table does not leave the old
+       one standing behind the new one. */
+    if (mapId === 'holdfast') dressHall(this.map);
     this.mapId = mapId;
     this.region = regionOf(mapId);
     setLocalRegion(this.region);
@@ -241,7 +251,8 @@ export class Overworld {
 
   get busy() {
     return Boolean(this.script) || dialog.busy || Boolean(this.approach)
-      || Boolean(this.cutscene) || Boolean(this.telling) || this.manager.busy;
+      || Boolean(this.cutscene) || Boolean(this.telling) || Boolean(this.arranging)
+      || this.manager.busy;
   }
 
   // -------------------------------------------------------------- update --
@@ -253,7 +264,9 @@ export class Overworld {
     dialog.update(dt);
     game.state.player.playtime += dt;
 
-    if (this.approach) {
+    if (this.arranging) {
+      this.updateArranging();
+    } else if (this.approach) {
       this.updateApproach(dt);
     } else if (!this.busy) {
       this.updateInput(dt);
@@ -707,6 +720,106 @@ export class Overworld {
     audio.sfx('confirm');
     dialog.say(`${RAVENS[stage]}\n${DEAD_REACH[stage]}`, { theme: 'parchment' });
     return true;
+  }
+
+  // ----------------------------------------------------- arranging a hall --
+  //
+  // Buying a thing for your hall used to change nothing you could see, and
+  // choosing where it went was not a question anybody was asked. This is the
+  // other half of owning somewhere: you carry the piece about the room and put
+  // it down where you want it, and the hall is that shape from then on.
+
+  /**
+   * Picks a piece up. The cursor starts where it already stands, or at your
+   * feet for something that has never been put down.
+   *
+   * @param {string} id which furnishing
+   */
+  startArranging(id) {
+    const at = placedAt(id);
+    this.arranging = {
+      id,
+      x: at ? at.x : this.player.x,
+      y: at ? at.y : this.player.y,
+      why: null,
+      blink: 0,
+    };
+    audio.sfx('confirm');
+  }
+
+  updateArranging() {
+    const hold = this.arranging;
+    hold.blink += 1;
+    const step = (dx, dy) => {
+      hold.x = Math.max(0, Math.min(this.map.width - 1, hold.x + dx));
+      hold.y = Math.max(0, Math.min(this.map.height - 1, hold.y + dy));
+      hold.why = whyNotHere(this.map, hold.id, hold.x, hold.y);
+      audio.sfx('cursor');
+    };
+    if (input.repeat('left')) step(-1, 0);
+    else if (input.repeat('right')) step(1, 0);
+    else if (input.repeat('up')) step(0, -1);
+    else if (input.repeat('down')) step(0, 1);
+
+    if (input.pressed('b')) {
+      audio.sfx('cancel');
+      this.arranging = null;
+      return;
+    }
+    if (!input.pressed('a')) return;
+
+    const why = whyNotHere(this.map, hold.id, hold.x, hold.y);
+    if (why) {
+      hold.why = why;
+      audio.sfx('cancel');
+      return;
+    }
+    place(hold.id, hold.x, hold.y);
+    dressHall(this.map);
+    /* Standing inside what you have just put down is the one way to shut
+       yourself in, so step out from under it. */
+    if (this.blocked(this.player.x, this.player.y)) {
+      const free = this.openTileNear(this.player.x, this.player.y);
+      this.player.x = free.x;
+      this.player.y = free.y;
+      game.state.position = { ...game.state.position, x: free.x, y: free.y };
+    }
+    audio.sfx('confirm');
+    const name = FURNISHINGS[hold.id].name;
+    this.arranging = null;
+    keep();
+    dialog.say(`${name}, there. It looks like it has always been there, which `
+      + 'is the whole trick of a hall.');
+  }
+
+  /** The piece you are carrying, drawn over the room it is going into. */
+  drawArranging(ctx, camX, camY) {
+    const hold = this.arranging;
+    if (!hold) return;
+    const def = FURNISHINGS[hold.id];
+    const wide = widthOf(hold.id);
+    const ok = !whyNotHere(this.map, hold.id, hold.x, hold.y);
+    const x = hold.x * TILE - camX;
+    const y = hold.y * TILE - camY;
+
+    /* The piece itself, ghosted, so you are looking at the room as it would be
+       rather than at a box you have to imagine something inside. */
+    ctx.globalAlpha = 0.55;
+    for (let i = 0; i < wide; i++) {
+      ctx.drawImage(tileCanvas(def.tile, this.animFrame, 0, this.map.ground, 0),
+        x + i * TILE, y);
+    }
+    ctx.globalAlpha = 1;
+
+    if (Math.floor(hold.blink / 8) % 2 === 0) {
+      ctx.strokeStyle = ok ? '#f0dca0' : '#e07a6a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, TILE * wide - 1, TILE - 1);
+    }
+
+    const said = hold.why ?? `${def.name} — A to set it down, B to leave it.`;
+    drawPanel(ctx, 4, SCREEN_H - 30, SCREEN_W - 8, 26, 'parchment');
+    drawText(ctx, fitText(said, SCREEN_W - 20), 10, SCREEN_H - 22, { color: '#2a2018' });
   }
 
   /* Word about the dragon on somebody's granary roof, on the same terms as the
@@ -1788,6 +1901,9 @@ export class Overworld {
     }
     this.drawAlert(ctx, camX, camY);
     this.drawLocationBanner(ctx);
+    /* Over the room, under the dialogue: what you are carrying goes where you
+       can see the floor you are putting it on. */
+    this.drawArranging(ctx, camX, camY);
     dialog.draw(ctx);
   }
 

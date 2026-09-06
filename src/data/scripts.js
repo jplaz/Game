@@ -22,7 +22,7 @@ import { COMPANIES } from './companies.js';
 import {
   holdfast, ownsHoldfast, FURNISHINGS, installed, install, seats, canCook,
   larder, INGREDIENTS, DISHES, canCookDish, cook as cookDish, dishCount,
-  holdFeast, feastCount, grantHoldfast, 
+  holdFeast, feastCount, grantHoldfast, placedAt, 
 } from '../game/holdfast.js';
 import { HOUSE_IDS } from './houses.js';
 import { SHIPS, FLEETS } from './ships.js';
@@ -1127,36 +1127,69 @@ export const SCRIPTS = {
 
     while (true) {
       const pick = await choose('Steward: What needs doing?',
-        ['Furnish the hall', 'Hold a feast', 'Rename the hall', 'Nothing today']);
-      if (pick === 0) await SCRIPTS.furnishHall({ say, choose });
-      else if (pick === 1) await SCRIPTS.feastHall({ say, choose });
-      else if (pick === 2) { await overworld.renameHall(); return; }
+        ['Furnish the hall', 'Move something', 'Hold a feast', 'Rename the hall',
+         'Nothing today']);
+      if (pick === 0) { if (await SCRIPTS.furnishHall({ say, choose, overworld })) return; }
+      else if (pick === 1) { if (await SCRIPTS.arrangeHall({ say, choose, overworld })) return; }
+      else if (pick === 2) await SCRIPTS.feastHall({ say, choose });
+      else if (pick === 3) { await overworld.renameHall(); return; }
       else return;
     }
   },
 
+  /**
+   * Picking a piece up and carrying it somewhere else. Hands the hall over to
+   * the pad rather than to another menu: choosing a spot by walking a cursor
+   * round the room you are standing in is the whole point of it being yours.
+   *
+   * @returns {boolean} whether the hall has been handed over, so the steward
+   *   stops talking rather than asking again over the top of it
+   */
+  async arrangeHall({ say, choose, overworld }) {
+    const standing = holdfast().furnishings.filter((id) => FURNISHINGS[id]?.tile);
+    if (!standing.length) {
+      await say('Steward: There is nothing in here to move. That is rather the '
+        + 'problem with it.');
+      return false;
+    }
+    const labels = standing.map((id) => {
+      const at = placedAt(id);
+      return at ? FURNISHINGS[id].name : `${FURNISHINGS[id].name} (still in the yard)`;
+    });
+    const pick = await choose('Steward: Move what?', [...labels, 'Nothing']);
+    if (pick < 0 || pick >= standing.length) return false;
+    overworld.startArranging(standing[pick]);
+    return true;
+  },
+
   /** Buying things to put in the hall. */
-  async furnishHall({ say, choose }) {
+  async furnishHall({ say, choose, overworld }) {
     const available = Object.keys(FURNISHINGS).filter((id) => !installed(id));
     if (!available.length) {
       await say('Steward: There is nothing left to add that would not be showing off.');
-      return;
+      return false;
     }
     const labels = available.map((id) => `${FURNISHINGS[id].name} (${FURNISHINGS[id].cost}g)`);
     const pick = await choose('What shall we put in?', [...labels, 'Never mind']);
-    if (pick < 0 || pick >= available.length) return;
+    if (pick < 0 || pick >= available.length) return false;
 
     const id = available[pick];
     const def = FURNISHINGS[id];
     await say(def.desc);
     const confirm = await choose(`${def.cost} gold. Do it?`, ['Do it', 'Not yet']);
-    if (confirm !== 0) return;
+    if (confirm !== 0) return false;
     if (!install(id)) {
       await say('Steward: We cannot afford that. I have checked twice.');
-      return;
+      return false;
     }
     audio.sfx('confirm');
-    await say(`Steward: ${def.name}. The hall is the better for it.`);
+    await say(`Steward: ${def.name}. Now show the men where you want it.`);
+    /* Bought and then put down by hand, in that order. A thing you have paid
+       for and cannot see is the defect this whole business exists to fix, so
+       the placing follows the buying rather than waiting to be found in a
+       second menu. */
+    overworld.startArranging(id);
+    return true;
   },
 
   /** Sitting houses down at your table and feeding them. */

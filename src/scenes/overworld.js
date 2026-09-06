@@ -627,6 +627,23 @@ export class Overworld {
     this.checkEncounter();
   }
 
+  /* Whether this is a brother of the Watch with nothing better to do than send
+     you north. Sworn brothers who fight, keep a counter or hold a hideout keep
+     their own scripts — the ranging belongs to the ones who otherwise stand
+     there with one line, which is seven of them across the Wall and beyond it.
+     Deliberately narrower than the cartridge's rule, which reads the name and
+     so offers a ranging from a corridor guard in Volantis. */
+  ranger(npc) {
+    /* The steward at Castle Black, whose whole script is about how few men
+       hold the Wall — the cartridge sends you north off that one too, and
+       Castle Black is where a player frightened by a raven looks first. Its
+       gate watch is only out at night, so without him the most obvious door in
+       the game is shut in daylight. */
+    if (npc.script === 'wallHint') return true;
+    if (npc.sprite !== 'nightswatch') return false;
+    return !npc.script || npc.script === 'townTalk' || npc.script === 'hideoutLocal';
+  }
+
   /* The nearest tile to this one that somebody can be stood on. A scene that
      finds you anywhere puts its people down at an offset from wherever you
      are, and wherever you are is not always somewhere with room beside it. */
@@ -1453,7 +1470,7 @@ export class Overworld {
     }
     if (npc) {
       npc.dir = this.facingFrom(npc);
-      this.runScript(npc.script ?? 'generic', npc);
+      this.runScript(this.ranger(npc) ? 'ranging' : (npc.script ?? 'generic'), npc);
       return;
     }
 

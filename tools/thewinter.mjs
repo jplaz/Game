@@ -223,6 +223,74 @@ const out = await page.evaluate(async () => {
   res.livingFight = box.of;
   res.boughtByLiving = after - you.winter;
 
+  /* ---- a ranging, which is the only way back down ---------------------- */
+  /* Who will send you north. A ranging is the one thing in the game that
+     pushes the winter back, so it wants somebody standing in every place a
+     player frightened by a raven would think to go. */
+  const black = [];
+  for (const [id, m] of Object.entries(MAPS)) {
+    for (const n of m.npcs ?? []) if (ow.ranger(n)) black.push(`${id}:${n.name}`);
+  }
+  res.brothers = black;
+  res.spokeTo = [];
+
+  /* The live list rather than the written one: a map builds its crowd on
+     arrival, so who is actually standing there is only knowable once you are. */
+  const talkTo = async (mapId) => {
+    ow.loadMap(mapId, { x: 1, y: 1, dir: 'down' });
+    await turn(20);
+    const n = ow.npcs.find((who) => !who.hidden && ow.ranger(who));
+    if (!n) return null;
+    const D = { up: [0, -1, 'down'], down: [0, 1, 'up'], left: [-1, 0, 'right'], right: [1, 0, 'left'] };
+    const [dx, dy, face] = D[n.dir ?? 'down'];
+    ow.player.x = n.x + dx; ow.player.y = n.y + dy; ow.player.dir = face;
+    await turn(4);
+    ow.interact();
+    res.spokeTo.push(`${mapId}:${n.name}`);
+    let said = '';
+    for (let i = 0; i < 200 && ow.script; i++) {
+      said += ' ' + (dialog.pages ?? []).flat().join(' ');
+      await tap('a');
+    }
+    return said;
+  };
+
+  /* Too green for it. */
+  setStage(3);
+  you.rangeWant = 0; you.rangeGot = 0; you.rangings = 0; you.level = 4;
+  res.greenSaid = await talkTo('castleBlack');
+  res.greenTook = state.ranging().want;
+
+  /* Old enough, and the count grows with the winter. */
+  you.level = 30;
+  res.tookSaid = await talkTo('castleBlack');
+  res.tookWant = state.ranging().want;
+
+  /* Not done yet. */
+  res.midSaid = await talkTo('eastwatch');
+  res.midWant = state.ranging().want;
+
+  /* Put them down — and only the dead count. */
+  for (let i = 0; i < 3; i++) state.countTowardRanging();
+  const partWay = state.ranging().got;
+  for (let i = 0; i < 20; i++) state.countTowardRanging();
+  res.gotCap = state.ranging().got;
+  res.partWay = partWay;
+
+  /* And hand it in. */
+  const purse = you.money;
+  const cold = you.winter;
+  res.doneSaid = await talkTo('castleBlack');
+  res.paid = you.money - purse;
+  res.thaw = cold - you.winter;
+  res.doneCount = state.ranging().done;
+  res.clear = state.ranging().want;
+  /* Which is worth more when it is worse. */
+  setStage(6);
+  you.level = 30;
+  await talkTo('castleBlack');
+  res.deepWant = state.ranging().want;
+
   return { res };
 });
 await browser.close();
@@ -262,6 +330,20 @@ const rows = [
     r.fought === 'won' && r.backOut === 'Overworld' && r.bought === 2],
   ['and killing something that was alive does not',
     r.livingFight === 'won' && r.boughtByLiving === 0],
+  ['there is a brother in black to walk up to, in more than one place',
+    (r.brothers?.length ?? 0) >= 5],
+  ['a green boy is not sent over the Wall',
+    /no use to us yet/.test(r.greenSaid ?? '') && r.greenTook === 0],
+  ['a ranging asks for three and the winter\'s own count',
+    /take a ranging/.test(r.tookSaid ?? '') && r.tookWant === 6],
+  ['and asks for more when it is worse', r.deepWant === 9],
+  ['any brother remembers you are out on one',
+    /still out on the last one/.test(r.midSaid ?? '') && r.midWant === 6],
+  ['the count runs up and stops where they asked',
+    r.partWay === 3 && r.gotCap === 6],
+  ['handing it in pays, and pushes the winter back',
+    /that is the count/i.test(r.doneSaid ?? '') && r.paid === 750 && r.thaw === 34],
+  ['and leaves you free to take another', r.doneCount === 1 && r.clear === 0],
 ];
 let bad = 0;
 for (const [what, ok] of rows) { if (!ok) bad++; console.log(`${ok ? 'ok  ' : 'BAD '} ${what}`); }
@@ -271,5 +353,9 @@ console.log(`  ${r.bareRoad} (no table of its own): cold`, JSON.stringify(r.bare
 console.log('  worst over you:', r.worstOver, ' kinds:', (r.kinds ?? []).join(' '),
   ' rose:', r.rose, ' fight:', r.fought, r.backOut, 'bought', r.bought,
   ' living:', r.livingFight, r.boughtByLiving);
+console.log('  brothers in black:', (r.brothers ?? []).join(', '));
+console.log('  spoke to:', (r.spokeTo ?? []).join(', '));
+console.log('  ranging:', r.tookWant, '->', r.gotCap, 'paid', r.paid, 'thaw', r.thaw,
+  ' deepest asks', r.deepWant);
 if (thrown.length) { console.log('\nthrown:'); for (const t of thrown) console.log('  ' + t); }
 process.exit(bad || thrown.length ? 1 : 0);

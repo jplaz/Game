@@ -8,6 +8,7 @@ import {
   game, party, addCreature, giveItem, hasItem, addMoney, canAfford,
   sigilCount, hasSigil, dexCounts, swearTo, allegiance, standing, 
   changeStanding, recordChoice, markDead, isDead, deepenWinter,
+  ranging, takeRanging, handInRanging, seasonWord, deadReachWord,
 } from '../game/state.js';
 import { HOUSES, SWEARABLE } from './houses.js';
 import { giveEgg } from '../game/eggs.js';
@@ -375,6 +376,63 @@ export const SCRIPTS = {
     await say(npc?.data?.line ?? `${npc?.name ?? 'Someone'} nods, and goes back to it.`);
     const aside = asideFor();
     if (aside) await say(aside);
+  },
+
+  /**
+   * A ranging.
+   *
+   * You take one from anybody in black, you go north and put down what you
+   * find, and you come back. It is the one thing in this world that pushes the
+   * winter back instead of watching it come: everything else a player does —
+   * every house broken, every step of the last act — is a garrison that will
+   * not be relieved. A threat nobody can answer is weather rather than a
+   * story, so this has to be somebody you can walk up to, and there is one
+   * standing in every place a player who has just been frightened by a raven
+   * would think to go.
+   */
+  async ranging(api) {
+    const { say, npc } = api;
+    const who = npc?.name ?? 'A brother in black';
+    /* The steward at Castle Black has the speech about how thin the Watch is
+       stretched, which is the lead-in to this rather than a rival to it. He
+       says his piece and then sends you north. */
+    if (npc?.script === 'wallHint') await SCRIPTS.wallHint(api);
+    const out = ranging();
+
+    /* Back with it done. */
+    if (out.want && out.got >= out.want) {
+      const paid = handInRanging();
+      addMoney(paid);
+      audio.sfx('money');
+      await say(`${who}: That is the count, and more than most bring back. `
+        + `${paid} gold out of the Watch's own chest, and the cold over the `
+        + `Wall has gone back a step because of it. The season is `
+        + `${seasonWord()} now.`);
+      return;
+    }
+
+    /* Out on one and not done. */
+    if (out.want) {
+      await say(`${who}: You are still out on the last one. ${out.got} of `
+        + `${out.want} put down. Go back over the Wall, or go north far enough `
+        + 'that it comes to you — and it is coming further south every month '
+        + 'you leave it.');
+      return;
+    }
+
+    /* Nobody is sent over the Wall in a gambeson. */
+    if (game.state.player.level < 12) {
+      await say(`${who}: You are no use to us yet. Come back with some years `
+        + 'on you and something better than that in your hand, and I will send '
+        + 'you north.');
+      return;
+    }
+
+    const want = takeRanging();
+    audio.sfx('confirm');
+    await say(`${who}: Then take a ranging. Put down ${want} of the dead — `
+      + 'anywhere they walk, and they walk further south every year — and come '
+      + `back to any brother in black. ${deadReachWord()}`);
   },
 
   /** Ground pickups. */

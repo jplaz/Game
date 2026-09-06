@@ -43,6 +43,11 @@ export function newGame(playerName = 'Snow') {
       /* Everyone you have put in the ground, which the winter reads: the realm
          eating itself is the whole reason the Wall goes unwatched. */
       kills: 0,
+      /* And the ranging you are out on: how many of the dead the Watch asked
+         for, how many you have put down, and how many you have finished. */
+      rangeWant: 0,
+      rangeGot: 0,
+      rangings: 0,
     },
     party: [],
     box: [],
@@ -357,6 +362,52 @@ export function deepenWinter(by) {
 export function winterFalls(by) {
   const p = game.state.player;
   p.winter = Math.max(0, (p.winter ?? 0) - by);
+}
+
+// --------------------------------------------------------------- ranging ---
+//
+// You take one from anybody in black, you go north and put down what you find,
+// and you come back. Finishing one buys back a real slice of the winter, so a
+// player who takes the Wall seriously can hold the Long Night off the
+// Riverlands for the whole game — and a player who ignores it entirely finds
+// the dead on the Kingsroad by the end, which is the point.
+
+/** How many of them a ranging asks for. It asks for more as it gets worse. */
+export function rangingWants() {
+  return Math.min(9, 3 + winterStage());
+}
+
+/** Whether you are out on one, and how it stands. */
+export function ranging() {
+  const p = game.state.player;
+  return { want: p.rangeWant ?? 0, got: p.rangeGot ?? 0, done: p.rangings ?? 0 };
+}
+
+/** Takes one, and answers with how many they want. */
+export function takeRanging() {
+  const p = game.state.player;
+  p.rangeWant = rangingWants();
+  p.rangeGot = 0;
+  return p.rangeWant;
+}
+
+/** One of them put down, which only counts while you are out on a ranging. */
+export function countTowardRanging() {
+  const p = game.state.player;
+  if (p.rangeWant && (p.rangeGot ?? 0) < p.rangeWant) p.rangeGot = (p.rangeGot ?? 0) + 1;
+}
+
+/** Hands the ranging in. Returns what the Watch paid, or 0 if it is not done. */
+export function handInRanging() {
+  const p = game.state.player;
+  if (!p.rangeWant || (p.rangeGot ?? 0) < p.rangeWant) return 0;
+  const paid = 120 + p.rangeWant * 60 + winterStage() * 90;
+  p.rangings = (p.rangings ?? 0) + 1;
+  p.rangeWant = 0;
+  p.rangeGot = 0;
+  /* The one payment in the game made in weather rather than in gold. */
+  winterFalls(34);
+  return paid;
 }
 
 // -------------------------------------------------------------------- dex --

@@ -26,7 +26,7 @@ import {
 } from '../game/combat.js';
 import {
   game, party, addCreature, takeItem, itemCount, addMoney, setFlag,
-  markSeen, markCaught, awardSigil, winterFalls,
+  markSeen, markCaught, awardSigil, winterFalls, countTowardRanging,
 } from '../game/state.js';
 import { isOneOfTheDead } from '../data/winter.js';
 
@@ -631,6 +631,8 @@ export class Battle {
            it. This is the only lever in the game that moves the winter the
            right way — everything else in a playthrough makes it worse. */
         winterFalls(2);
+        /* And it counts against whatever the Watch sent you north for. */
+        countTowardRanging();
       }
     } else if (this.outcome === 'lost') {
       await this.say('You have no creatures left standing...');

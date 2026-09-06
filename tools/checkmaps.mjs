@@ -223,6 +223,26 @@ for (const [id, map] of Object.entries(MAPS)) {
       say(`${id}: ${p.name ?? 'somebody'} at ${p.x},${p.y} cannot be spoken to`);
     }
   }
+  /* Somebody behind a counter with a scrap of open floor beside them that
+     nothing can walk to.
+     The game lets you speak across a counter, so this is not a person you
+     cannot reach - but the walk aims at the tile beside a person whenever
+     there IS one, and only crosses a counter when a person is walled in on
+     all four sides. Give a steward a foot of floor to his left and every
+     automated playthrough in the game walks at him forever: the maester's
+     halls did it twenty-nine times in one build. Wall the strip in, or open
+     it properly. */
+  for (const p of map.npcs ?? []) {
+    if (beside(p.x, p.y) || reached(p.x, p.y)) continue;
+    const loose = DIRS.some(([dx, dy]) => {
+      const kind = kindOf(at(p.x + dx, p.y + dy));
+      return kind !== 'missing' && !SOLID.has(kind) && kind !== 'ledge';
+    });
+    if (loose) {
+      say(`${id}: ${p.name ?? 'somebody'} at ${p.x},${p.y} has open ground beside `
+        + 'them that nothing can walk to, so a walk aims at it and never arrives');
+    }
+  }
   for (const s of map.signs ?? []) {
     if (!beside(s.x, s.y)) say(`${id}: a sign at ${s.x},${s.y} nobody can stand next to`);
   }

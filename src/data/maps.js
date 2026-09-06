@@ -68,7 +68,7 @@ const HALL_PLANS = {
   ],
   river: [
     'IIIIIIIIIIII',
-    'IN___BB___BI',
+    'IN_B_BBB_BBI',
     'IKKK___KKK_I',
     'I__________I',
     'Ib_T______hI',
@@ -79,7 +79,7 @@ const HALL_PLANS = {
   ],
   sun: [
     'IIIIIIIIIIII',
-    'INcccBccccBI',
+    'INcBcBcBcBBI',
     'IKKKcccKKKcI',
     'IccccccccccI',
     'IbcbcccFccFI',
@@ -90,7 +90,7 @@ const HALL_PLANS = {
   ],
   salt: [
     'IIIIIIIIIIII',
-    'IN===BB====I',
+    'IN=B=BBB=B=I',
     'IKKK===KKK=I',
     'I==========I',
     'Ib=T====h=bI',
@@ -101,7 +101,7 @@ const HALL_PLANS = {
   ],
   gold: [
     'IIIIIIIIIIII',
-    'INcccBBcccBI',
+    'INcBcBBBcBBI',
     'IKKKcccKKKcI',
     'IccccccccccI',
     'IbcbcchccccI',

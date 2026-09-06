@@ -13,8 +13,6 @@ import { writeFile, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
 import { createRequire } from 'node:module';
-/* Shared with the browser build, deliberately: see the note by `cold` below. */
-import { coldOf } from '../src/data/winter.js';
 
 // The berth list is plain data with nothing browser-shaped in it, so it is read
 // here rather than harvested out of the page.
@@ -163,6 +161,9 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const actors = await import('/src/art/actors.js');
   const pixels = await import('/src/art/pixels.js');
   const { MAPS, REGIONS } = await import('/src/data/maps.js');
+  /* How cold each region's ground is, read out of the same module the
+     browser build reads it from rather than typed out again here. */
+  const { coldOf } = await import('/src/data/winter.js');
   const { DUELLISTS, ROAMERS, ROAMER_TABLES, makeRoamer } = await import('/src/data/duellists.js');
   const { TRAINERS, trainerAsDuellist } = await import('/src/data/trainers.js');
   const { MATCHES } = await import('/src/data/matches.js');

@@ -187,6 +187,10 @@ export const REGION_HOUSE = {
   'The Reach': 'tyrell',
   'Dorne': 'martell',
   'The Stormlands': 'baratheon',
+  /* Thirteen maps sat in the Iron Islands and this table did not mention them,
+     so Pyke - a great house's own seat - was unheld ground: no house priced
+     it, no standing applied on it, and nobody born there carried a name. */
+  'The Iron Islands': 'greyjoy',
   'The Crownlands': 'lannister',
   'Dragonstone': 'targaryen',
   // Across the Narrow Sea nobody cares which Westerosi banner you carry, which

@@ -6339,10 +6339,10 @@ export const MAPS = {
       { x: 18, y: 6, dir: 'down', sprite: 'braavosi', name: 'Factor of the Iron Bank', script: 'deedBroker',
         data: { property: 'braavosCounting' } },
       { x: 3, y: 6, dir: 'down', name: 'Jaqen H\'ghar', sprite: 'braavosi',
-        script: 'freeCityLocal', data: { line: "Jaqen H'ghar: A man was no one, and is someone again, "
+        script: 'jaqen', data: { line: "Jaqen H'ghar: A man was no one, and is someone again, "
           + 'and will be no one after. Valar morghulis.' } },
       { x: 5, y: 7, dir: 'down', name: 'Arya', sprite: 'girl',
-        script: 'freeCityLocal', data: { line: 'Arya: I am no one. That is what they keep telling me. '
+        script: 'aryaList', data: { line: 'Arya: I am no one. That is what they keep telling me. '
           + 'I am fairly sure I am still someone.' } },
       { x: 11, y: 15, dir: 'down', name: 'Iron Banker', sprite: 'merchant',
         script: 'smith', data: { line: 'Iron Banker: The Iron Bank will have its due, and while '
@@ -6352,7 +6352,7 @@ export const MAPS = {
       { x: 6, y: 20, dir: 'right', name: 'Water Dancer', sprite: 'braavosi',
         script: 'duel', data: { duel: 'syrio' } },
       { x: 17, y: 23, dir: 'left', name: 'Braavosi Bravo', sprite: 'sellsword',
-        script: 'freeCityLocal', data: { line: 'Bravo: In Braavos we fight with the point. '
+        script: 'bravo', data: { line: 'Bravo: In Braavos we fight with the point. '
           + 'Hacking is for people who chop wood.' } },
     ],
     signs: [
@@ -6423,16 +6423,16 @@ export const MAPS = {
         script: 'ship',
         data: { line: 'A Pentoshi Captain: Pentos has no army, so Pentos has ships instead. It has worked for four hundred years. Where are you going?' } },
       { x: 7, y: 9, dir: 'down', name: 'Illyrio Mopatis', sprite: 'merchant',
-        script: 'freeCityLocal', data: { line: 'Illyrio Mopatis: I am a merchant of cheese and spice. '
+        script: 'illyrio', data: { line: 'Illyrio Mopatis: I am a merchant of cheese and spice. '
           + 'Also of kings, occasionally, when the market is right.' } },
       { x: 15, y: 9, dir: 'down', name: 'Ser Jorah', sprite: 'guard',
-        script: 'freeCityLocal', data: { line: 'Ser Jorah Mormont: I was a lord in Bear Island once. '
+        script: 'jorah', data: { line: 'Ser Jorah Mormont: I was a lord in Bear Island once. '
           + 'Now I am a man who knows where the ships go.' } },
       { x: 11, y: 16, dir: 'down', name: 'Spice Merchant', sprite: 'merchant',
         script: 'shop', data: { line: 'Spice Merchant: Pentos grows nothing and sells everything. Every remedy worth the name passes over this table on its way somewhere else, and I take my cut of it before it goes.',
           stock: ['kissOfFire', 'weirwoodSap', 'kingsRansom', 'poppyMilk', 'antidote', 'stillwater', 'frostTonic'] } },
       { x: 4, y: 9, dir: 'right', name: 'Dothraki Rider', sprite: 'wildling',
-        script: 'freeCityLocal', data: { line: 'Dothraki Rider: A khal who cannot ride is no khal. '
+        script: 'dothraki', data: { line: 'Dothraki Rider: A khal who cannot ride is no khal. '
           + 'You walk everywhere. It is very strange.' } },
     ],
     signs: [
@@ -6470,16 +6470,16 @@ export const MAPS = {
         script: 'ship',
         data: { line: 'A Volantene Captain: Down the Rhoyne and out. I do not ask what you did to want leaving this badly, and you do not ask what is under my deck.' } },
       { x: 13, y: 7, dir: 'down', name: 'Red Priestess', sprite: 'redPriest',
-        script: 'freeCityLocal', data: { line: 'Red Priestess: The night is dark and full of terrors. '
+        script: 'redPriestess', data: { line: 'Red Priestess: The night is dark and full of terrors. '
           + 'Volantis burns a fire against it every hour of every day.' } },
       { x: 17, y: 8, dir: 'down', name: 'Triarch', sprite: 'noble',
-        script: 'freeCityLocal', data: { line: 'Triarch: Old Volantis was first. Everything since '
+        script: 'triarch', data: { line: 'Triarch: Old Volantis was first. Everything since '
           + 'has been a copy, and a poor one.' } },
       { x: 12, y: 22, dir: 'down', name: 'Slaver', sprite: 'merchant',
         script: 'smith', data: { line: 'Slaver: War gear, and I do not ask what for. Volantis has been arming other people\u2019s quarrels since before your kingdoms had names, and the heavy end of it comes over this bridge.',
           stock: { weapon: ['greatsword', 'poleaxe'], armour: ['knightPlate', 'halfPlate'], shield: ['scutum', 'towerShield'] } } },
       { x: 13, y: 14, dir: 'right', name: 'Bridge Guard', sprite: 'unsullied',
-        script: 'freeCityLocal', data: { line: 'Bridge Guard: The Long Bridge has stood a thousand '
+        script: 'bridgeToll', data: { line: 'Bridge Guard: The Long Bridge has stood a thousand '
           + 'years. Walk on the left.' } },
     ],
     signs: [
@@ -6521,7 +6521,7 @@ export const MAPS = {
         script: 'ship',
         data: { line: 'A Ghiscari Captain: Eight thousand miles between here and Westeros, and I have sailed every one of them twice. Name the port.' } },
       { x: 7, y: 9, dir: 'down', name: 'Missandei', sprite: 'targaryen',
-        script: 'freeCityLocal', data: { line: 'Missandei: I speak nineteen languages. '
+        script: 'missandei', data: { line: 'Missandei: I speak nineteen languages. '
           + 'In all of them, this city is complicated.' } },
       { x: 15, y: 9, dir: 'down', name: 'Grey Worm', sprite: 'unsullied',
         script: 'duel', data: { duel: 'greyWorm' } },
@@ -6563,7 +6563,7 @@ export const MAPS = {
     ],
     warps: [{ x: 7, y: 10, to: 'pentos', tx: 11, ty: 15, dir: 'down' }],
     npcs: [
-      { x: 7, y: 3, dir: 'down', sprite: 'merchant', name: 'Illyrio Mopatis', script: 'freeCityLocal',
+      { x: 7, y: 3, dir: 'down', sprite: 'merchant', name: 'Illyrio Mopatis', script: 'illyrio',
         data: { line: 'Illyrio Mopatis: Sit. Eat. The candied figs are worth more than '
           + 'your sword and I will not hear otherwise.' } },
       { x: 4, y: 5, dir: 'right', sprite: 'guard', name: 'Ser Jorah', script: 'duel',
@@ -6987,7 +6987,7 @@ export const MAPS = {
       { x: 9, y: 5, dir: 'down', name: 'Ship\'s Captain', sprite: 'braavosi',
         script: 'ship', data: { line: "Ship's Captain: I sail where the money is. Name a port." } },
       { x: 14, y: 8, dir: 'left', name: 'Deckhand', sprite: 'smallfolk',
-        script: 'freeCityLocal', data: { line: 'Deckhand: Four days to Braavos with this wind. '
+        script: 'deckhand', data: { line: 'Deckhand: Four days to Braavos with this wind. '
           + 'Longer if you keep asking.' } },
     ],
     signs: [{ x: 11, y: 6, text: 'SPEAK TO THE CAPTAIN TO NAME A PORT.' }],
@@ -10022,6 +10022,17 @@ export const REGIONS = {
   paintedTable: 'Dragonstone',
   dragonstoneArmoury: 'Dragonstone',
   maesterHallDragonstone: 'Dragonstone',
+  /* The Ice Caves are reached off open water, so reading their kingdom off the
+     door would put them in the Narrow Sea. They are as far north as anything
+     in the game and are named here rather than derived. */
+  iceCave: 'Beyond the Wall',
+  /* And the five you buy. A deed is not a door, so nothing warps into these
+     and there is nothing to read a kingdom off. */
+  propFleaRoom: 'The Crownlands',
+  propRiverCottage: 'The Riverlands',
+  propBraavosCounting: 'Braavos',
+  propValeWatchtower: 'The Vale',
+  propDorneOrchard: 'Dorne',
 };
 
 /* Every inn and common house sits in the town it opens off. */
@@ -10029,6 +10040,25 @@ for (const town of Object.keys(REGIONS)) {
   if (REGIONS[`${town}Inn`] === undefined && MAPS[`${town}Inn`]) {
     REGIONS[`${town}Inn`] = REGIONS[town];
     REGIONS[`${town}House`] = REGIONS[town];
+  }
+}
+
+/* And so does everything else underneath one. A cellar, a crypt or a set of
+   rooms is part of the place its stair comes up in, and twenty-three of them
+   were in no region at all: the location card named the room and not the
+   kingdom, and anything reading the region off a map - the light it is drawn
+   under, whose ground it is, what a child born there would be called - got
+   nothing back. Derived rather than typed, so a new cellar cannot be forgotten
+   the way these were. */
+/* Read off the door rather than off the name: a room is in the kingdom the map
+   whose stair comes down into it is in. Repeated until it settles, because a
+   cellar under an inn under a town is three doors from anywhere named. */
+for (let pass = 0; pass < 4; pass++) {
+  for (const [from, map] of Object.entries(MAPS)) {
+    if (REGIONS[from] === undefined) continue;
+    for (const w of map.warps ?? []) {
+      if (MAPS[w.to] && REGIONS[w.to] === undefined) REGIONS[w.to] = REGIONS[from];
+    }
   }
 }
 

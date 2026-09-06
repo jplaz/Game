@@ -618,11 +618,44 @@ export class Overworld {
     this.checkEncounter();
   }
 
+  /* The nearest tile to this one that somebody can be stood on. A scene that
+     finds you anywhere puts its people down at an offset from wherever you
+     are, and wherever you are is not always somewhere with room beside it. */
+  openTileNear(x, y) {
+    const seen = new Set([`${x},${y}`]);
+    const queue = [[x, y]];
+    for (let head = 0; head < queue.length && head < 400; head++) {
+      const [qx, qy] = queue[head];
+      if (qx >= 0 && qy >= 0 && qx < this.map.width && qy < this.map.height
+          && !this.blocked(qx, qy)) return { x: qx, y: qy };
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const key = `${qx + dx},${qy + dy}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        queue.push([qx + dx, qy + dy]);
+      }
+    }
+    return { x, y };
+  }
+
   /** Whether standing here starts something. Each scene fires once, ever. */
+  /* And in the order it was written in.
+   *
+   * A scene says what has to have befallen you first - `needs` names a flag
+   * another scene set, `unless` names one that closes it off, `sigils` holds
+   * it back until that many seats have bent to you - and `anywhere` means it
+   * finds you rather than waiting on one tile. The cartridge has honoured all
+   * four since the scenes went on it. This build honoured none of them: every
+   * gate was open, so the man who wants to know who paid the follower turned
+   * up before the follower did, and the scenes written to find you anywhere
+   * sat on a single flagstone waiting to be trodden on. */
   checkCutscene() {
     for (const scene of cutscenesOn(this.map.id)) {
-      if (scene.x !== this.player.x || scene.y !== this.player.y) continue;
+      if (!scene.anywhere && (scene.x !== this.player.x || scene.y !== this.player.y)) continue;
       if (flag(scene.flag)) continue;
+      if (scene.needs && !flag(scene.needs)) continue;
+      if (scene.unless && flag(scene.unless)) continue;
+      if ((scene.sigils ?? 0) > sigilCount()) continue;
       setFlag(scene.flag);
       this.playCutscene(scene);
       return true;
@@ -635,7 +668,16 @@ export class Overworld {
    * these happen in the world rather than cutting away from it.
    */
   async playCutscene(scene) {
-    this.cutscene = { cast: new Map() };
+    /* Where the people it brings on come out. A scene that can happen
+       anywhere has to put them down beside whoever it happened to; one that
+       waits on its own tile puts them exactly where it was written to. Both
+       are the same sum - the offset from the scene's own spot - which is how
+       the cartridge has always done it. */
+    this.cutscene = {
+      cast: new Map(),
+      dx: scene.anywhere ? this.player.x - scene.x : 0,
+      dy: scene.anywhere ? this.player.y - scene.y : 0,
+    };
     audio.sfx('cursor');
 
     try {
@@ -687,8 +729,10 @@ export class Overworld {
         break;
       case 'spawn': {
         const [id, def] = args;
+        const at = this.openTileNear(def.x + this.cutscene.dx, def.y + this.cutscene.dy);
         const actor = {
-          ...def, id: `cutscene:${id}`, step: 0, moving: null, hidden: false,
+          ...def, x: at.x, y: at.y,
+          id: `cutscene:${id}`, step: 0, moving: null, hidden: false,
           script: 'generic', data: {},
         };
         cast.set(id, actor);
@@ -719,6 +763,11 @@ export class Overworld {
         const [text, options, opts] = args;
         const picked = await dialog.choose(text, options);
         if (opts?.record) recordChoice(opts.record, options[picked] ?? options[0]);
+        /* And one flag per answer, named for the scene, so a later scene can
+           wait on what you said. The cartridge sets these; this build set
+           none of them, so the one scene in the game that waits on an answer
+           could never fire here. */
+        setFlag(`${opts?.record ?? scene.id}_${picked}`);
         /* An answer that changes what happens next rather than only what is
            remembered: the refusing option steps over the beats it refused, so
            a scene can offer a fight you are allowed to walk away from. */

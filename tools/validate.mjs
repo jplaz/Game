@@ -649,6 +649,48 @@ if (scriptsRead.size < scriptCount) {
     + 'a script is written in a shape it cannot see, and is going unchecked');
 }
 
+/* A script nobody can ever reach.
+ *
+ * `lannisportHint` was written, and the one line in it was already being said
+ * by an apprentice in the goldsmith's who had it typed into her `data`. Nobody
+ * pointed at the script, nothing called it, and it sat in the table looking
+ * like content. Dead weight is the harmless case; the harmful one is the same
+ * shape - a script somebody wrote for a person and then never attached, so the
+ * work is there and unreachable and nothing says so.
+ *
+ * A script is reachable if a person on a map points at it, or if any source
+ * file names it as a string, which covers the ones the engine runs itself:
+ * `pickup` off the ground, `ranging` off a brother in black, `seaFight` out of
+ * the water, `generic` as the fallback nobody points at on purpose. */
+{
+  const pointedAt = new Set();
+  for (const map of Object.values(MAPS)) {
+    for (const npc of map.npcs ?? []) if (npc.script) pointedAt.add(npc.script);
+    if (map.onEnter) pointedAt.add(map.onEnter);
+  }
+  /* Every source file, so a script called by name from the engine counts. */
+  const roots = ['../src/data/scripts.js', '../src/scenes/overworld.js',
+                 '../src/scenes/battle.js', '../src/scenes/duel.js',
+                 '../src/data/cutscenes.js', '../src/data/quests.js'];
+  let named = '';
+  for (const rel of roots) {
+    try {
+      named += await readFile(new URL(rel, import.meta.url), 'utf8');
+    } catch { /* a file that is not there cannot name anything */ }
+  }
+  for (const name of Object.keys(SCRIPTS)) {
+    if (pointedAt.has(name)) continue;
+    /* Named as a string or reached as `SCRIPTS.thing` somewhere in the engine.
+       The definition itself is `  async thing(` or `  thing(`, which neither
+       pattern matches, so a script cannot vouch for itself. */
+    const asString = new RegExp(`['"\`]${name}['"\`]`).test(named);
+    const asMember = new RegExp(`SCRIPTS\\.${name}\\b`).test(named);
+    if (asString || asMember) continue;
+    fail(`script ${name}: nothing points at it and nothing calls it — `
+      + 'it cannot be reached by playing');
+  }
+}
+
 /* Words written for somebody that their script never speaks.
  *
  * A map hands its people what they are to say and sell in `data`, and the

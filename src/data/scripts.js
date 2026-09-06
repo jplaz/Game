@@ -1868,10 +1868,6 @@ export const SCRIPTS = {
     await say('Gold Cloak: Casterly Rock is up the stair. Ser Jaime holds the Lion Sigil and gives it to almost nobody.');
   },
 
-  async lannisportHint({ say }) {
-    await say('Goldsmith: STEEL turns aside frost and stone alike. Fire goes straight through it.');
-  },
-
   async rivalLannisport({ say, npc, overworld, setFlag, flag }) {
     const def = TRAINERS.rival2;
     if (flag('trainer_rival2')) {

@@ -717,6 +717,9 @@ static int warpTowardWork(void) {
 /* Somewhere in the grass, for when the tester is meant to be levelling rather
    than sightseeing. */
 static int grindMode, grindX, grindY;
+/* Which town the run is trying to reach a grown child in, and how many times
+   it has set off without arriving. */
+static int childAim = -1, childAsks, childGaveUp;
 /* Which snow the ranging is walking towards, and how many times it has said
    so without ever getting there. */
 static int rangeAsked = -1, rangeAsks;
@@ -1381,6 +1384,20 @@ static void pickGoal(void) {
         if (you.bastMap[b] >= MAP_COUNT || !mapSeen[you.bastMap[b]]) continue;
         want = you.bastMap[b];
         break;
+      }
+      /* And a road the run cannot actually find. Two neighbours whose shortest
+         way to the child is nailed shut on both sides each send you to the
+         other: a screenshot run crossed the Bloody Gate four hundred and
+         seventy times at level forty-two and walked thirty-four of two
+         hundred and forty-one maps. Set off for the same town eighty times
+         without arriving and then let the child be, the way the ranging lets
+         the snow be. Eighty rather than six hundred: an errand is chosen once
+         per map crossed, not once per frame. */
+      if (childGaveUp) {
+        want = -1;
+      } else if (want >= 0 && want != worldId) {
+        if (want != childAim) { childAim = want; childAsks = 0; }
+        if (++childAsks > 80) { childGaveUp = 1; want = -1; }
       }
       if (want >= 0 && want != worldId) {
         i = warpTowardMap(want);

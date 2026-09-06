@@ -103,8 +103,17 @@ export function reconcileHp() {
  */
 export function gainPlayerExp(amount) {
   const p = game.state.player;
-  const result = { gained: amount, levels: 0 };
-  if (p.level >= MAX_PLAYER_LEVEL) return result;
+  const result = { gained: amount, levels: 0, paid: 0 };
+  /* Fifty is as high as anybody goes, and a run reaches fifty with a hundred
+     maps still unwalked - so from there on every fight paid nothing at all and
+     the back half of the game stopped rewarding anything you did. What you
+     learn past that point is worth money to somebody instead, which is what
+     the halls, the oaths, the feasts and the campaigns all want. */
+  if (p.level >= MAX_PLAYER_LEVEL) {
+    result.paid = Math.floor(amount / 2) + 1;
+    p.money = Math.max(0, Math.min(999999, p.money + result.paid));
+    return result;
+  }
 
   p.exp += amount;
   while (p.level < MAX_PLAYER_LEVEL && p.exp >= expForPlayerLevel(p.level + 1)) {

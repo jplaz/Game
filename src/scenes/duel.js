@@ -613,7 +613,13 @@ export class Duel {
 
       const exp = this.def.exp ?? Math.round(this.def.level * 18);
       const result = gainPlayerExp(exp);
-      await this.say(`You gained ${exp} experience.`);
+      if (result.paid > 0) {
+        audio.sfx('money');
+        await this.say('There is nothing left for you to learn from a fight like '
+          + `that. The telling of it is worth ${result.paid} gold to somebody.`);
+      } else {
+        await this.say(`You gained ${exp} experience.`);
+      }
       if (result.levels > 0) {
         audio.sfx('levelup');
         await this.say(`You are now level ${game.state.player.level}! You feel steadier on your feet.`);

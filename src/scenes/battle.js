@@ -444,6 +444,10 @@ export class Battle {
     if (mine.levels > 0) {
       audio.sfx('levelup');
       await this.say(`You reached level ${game.state.player.level}!`);
+    } else if (mine.paid > 0) {
+      audio.sfx('money');
+      await this.say(`There is nothing left for you to learn from this. `
+        + `Somebody pays ${mine.paid} gold to hear how it went.`);
     }
 
     for (const creature of alive) {

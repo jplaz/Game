@@ -538,6 +538,32 @@ static int deepestWinter, deadMet, deadSouth, ravensRead, rangingsDone;
 static int dragonsMet, townsSaved, townsBurned;
 static int eveningsSpent, childrenBorn, childrenSworn;
 static int doorsThisRung;
+/* Rungs the climb has set aside for now.
+ *
+ * nextRung() is the status card's answer: the lowest seat nobody has taken.
+ * It is advice, not a rule - a player who walks up to the Bloody Gate on one
+ * sigil is told the road wants three, and goes and takes three somewhere else
+ * first. The climb could not: told to take the Vale second, it walked at the
+ * gate until the run ended, and half the ladder went unplayed because of a
+ * toll it was too early to pay. A rung that will not open is set aside and
+ * the next one tried; every hold comes off the moment a sigil is taken,
+ * because taking one is what opens gates. */
+static unsigned char rungHeld[LEADER_COUNT];
+static int rungFor(void) {
+  int i, any = 0;
+  for (i = 0; i < LEADER_COUNT; i++) {
+    if (haveSigil(atRung[i])) continue;
+    any = 1;
+    if (!rungHeld[i]) return i;
+  }
+  /* Every seat left is one the climb has already turned away from. Try them
+     all again rather than stopping: the world may have opened since. */
+  if (any) {
+    for (i = 0; i < LEADER_COUNT; i++) rungHeld[i] = 0;
+    for (i = 0; i < LEADER_COUNT; i++) if (!haveSigil(atRung[i])) return i;
+  }
+  return -1;
+}
 static int spottings, spottedBy, shooting, titleWant;
 static const char *startedAt = "nowhere";
 static int storyEvery, storyFor;
@@ -1081,7 +1107,7 @@ static int findCover(int *gx, int *gy) {
 /* What the ladder run wants next: the leader it is short of, the grass it needs
    to be worth fighting them, or the road in between. */
 static void pickLadderGoal(void) {
-  int at = nextRung(), lead, want, who, i;
+  int at = rungFor(), lead, want, who, i;
   if (at < 0) {                                      /* nine sigils: finished */
     /* Every sigil taken. For an ordinary climb that is the end of the errand -
        but the last act begins after the last sigil, not with it, so a crown run
@@ -3042,10 +3068,22 @@ void hostFrame(void) {
       /* A ladder run that takes hundreds of doors without taking a sigil is
          walking a two-map loop, not travelling. Say where, and stop. */
       if (ladderMode) {
+        /* Four hundred doors and no sigil is a seat this climb cannot reach
+           yet. Set it aside and go and take another; the hold comes off the
+           moment one falls. Only when every remaining seat has been set aside
+           twice over is the climb actually stuck. */
         if (++doorsThisRung > 400) {
-          printf("      walking in circles near %s at level %d, %d doors without "
-                 "a sigil\n", world->name, you.level, doorsThisRung);
-          hostFramesLeft = 0;
+          int at = rungFor();
+          doorsThisRung = 0;
+          if (at >= 0 && !rungHeld[at]) {
+            printf("      %s will not open yet at %d sigils; taking another "
+                   "seat first\n", leaders[atRung[at]].seat, countSigils());
+            rungHeld[at] = 1;
+          } else {
+            printf("      walking in circles near %s at level %d, no seat left "
+                   "it can reach\n", world->name, you.level);
+            hostFramesLeft = 0;
+          }
         }
       }
     }
@@ -3415,6 +3453,18 @@ void hostFrame(void) {
       ladderFrames = frameNo;
       ladderFights = 0;
       doorsThisRung = 0;
+      /* A seat has fallen, so every gate in the world has just moved: the
+         holds come off, and so do the nails. A door the climb proved it could
+         not walk to while three knights stood across it is a door that opens
+         the moment they are not there any more, and a nail nobody pulls is
+         how the Vale stayed shut at six sigils. */
+      { int r; for (r = 0; r < LEADER_COUNT; r++) rungHeld[r] = 0; }
+      {
+        int m, w;
+        for (m = 0; m < MAP_COUNT; m++) {
+          for (w = 0; w < MAX_WARP_MARK; w++) warpStuck[m][w] = 0;
+        }
+      }
     }
   }
   /* POOR=1 keeps the purse empty, not merely starts it empty.

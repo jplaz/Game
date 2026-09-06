@@ -1857,6 +1857,46 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
   const walkable = (x, yy) => WALKABLE.has(g[yy][x]);
   const shoulder = (x, yy) => walkable(x, yy) && g[yy][x] !== 'd' && g[yy][x] !== 't';
 
+  /* And a door is not a tile you walk across: step on it and you are through
+     it and somewhere else. So a door may not go where it is the only way into
+     somewhere - the cave mouth on the Roseroad landed on the doorway of the
+     wayside sept, and the sept became six tiles nobody could enter without
+     leaving the map. */
+  const wholeGround = () => {
+    let n = 0;
+    for (let yy = 0; yy < height; yy++) {
+      for (let x = 0; x < width; x++) if (WALKABLE.has(g[yy][x])) n++;
+    }
+    return n;
+  };
+  const reachedWithout = (shutX, shutY) => {
+    const seen = new Array(width * height).fill(false);
+    const queue = [[road, 0]];
+    seen[road] = true;
+    let n = 1;
+    for (let head = 0; head < queue.length; head++) {
+      const [qx, qy] = queue[head];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = qx + dx, ny = qy + dy;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        if (seen[ny * width + nx] || !WALKABLE.has(g[ny][nx])) continue;
+        if (nx === shutX && ny === shutY) continue;
+        seen[ny * width + nx] = true; n++;
+        queue.push([nx, ny]);
+      }
+    }
+    return n;
+  };
+  /* Somewhere the road actually reaches, and somewhere that stays reachable
+     when a door or a chest is put on it. A tile nothing could get to in the
+     first place passes the second half of that on a technicality, which is
+     how the Stone Crypt's mouth ended up in a nook behind a chest. */
+  const openEnough = (x, yy) => {
+    if (!WALKABLE.has(g[yy][x])) return false;
+    if (reachedWithout(-1, -1) === reachedWithout(x, yy)) return false;
+    return reachedWithout(x, yy) >= wholeGround() - 1;
+  };
+
   /* Nobody stands where somebody already is, and nobody stands on the tile a
      door puts you down on.
      Each of these used to search on its own, so two people written three tiles
@@ -1900,8 +1940,11 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
   // bottom of it.
   const placedItems = items.map((it, i) => {
     const aim = pockets[i % Math.max(1, pockets.length)] ?? [it.x, it.y];
+    /* And a chest is as solid as a door, so it may not be the thing that shuts
+       a way in either: one dropped beside the Stone Crypt's mouth left the
+       mouth in a pocket of its own. */
     const at = nearest(aim[0], aim[1], (x, yy) => walkable(x, yy) && g[yy][x] !== 'd'
-      && !taken.has(`${x},${yy}`)
+      && !taken.has(`${x},${yy}`) && openEnough(x, yy)
       && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) =>
         inside(x + dx, yy + dy) && walkable(x + dx, yy + dy) && g[yy + dy][x + dx] !== 'j'));
     if (!at) return it;
@@ -1915,7 +1958,8 @@ function makeRoute({ name, music = 'route', ground = 'grass', wall = '#', floor 
   // ground. The two gates are fixed; everything else moves to meet the road.
   const placedWarps = warps.map((w) => {
     if (w.y === 0 || w.y === height - 1 || w.keep) return w;
-    const at = nearest(w.x, w.y, shoulder) ?? nearest(w.x, w.y, walkable);
+    const at = nearest(w.x, w.y, (x, yy) => shoulder(x, yy) && openEnough(x, yy))
+      ?? nearest(w.x, w.y, shoulder) ?? nearest(w.x, w.y, walkable);
     if (!at) return w;
     if (w.cave) g[at[1]][at[0]] = '%';
     return { ...w, x: at[0], y: at[1] };
@@ -7840,9 +7884,6 @@ export const MAPS = {
       { x: 12, y: 10, text: 'THE FLEA-CHANNEL\nEverything the city is finished with comes down here on its way to the bay.\nThere is one plank over it. Mind where you put your feet.' },
     ],
     items: [
-      { x: 16, y: 13, item: 'poppySeed', count: 2, flag: 'item_flea_seed' },
-      { x: 22, y: 9, item: 'ironScrap', count: 2, flag: 'item_flea_scrap' },
-      { x: 7, y: 5, item: 'stillwater', count: 2, flag: 'item_flea_water' },
     ],
     npcs: [
       /* Likewise. A red priest preaching fire and blood belongs in Flea Bottom. */
@@ -7862,7 +7903,10 @@ export const MAPS = {
       { x: 18, y: 8, dir: 'up', sprite: 'smallfolk', name: 'A Man Not Buying Anything', abroad: 'night',
         script: 'townTalk',
         data: { line: 'A Man Not Buying Anything: You have been down here a while now. People notice a thing like that, and some of them charge for noticing.' } },
-      { x: 25, y: 13, dir: 'left', sprite: 'goodwife', name: 'Washerwoman', abroad: 'day', script: 'bellowsHand',
+      /* Off the lane. Flea Bottom is one-tile alleys end to end, and she was
+         standing in the only one that reaches the east of the warren: fifteen
+         tiles of it were shut every day and open every night. */
+      { x: 28, y: 9, dir: 'left', sprite: 'goodwife', name: 'Washerwoman', abroad: 'day', script: 'bellowsHand',
         data: { line: 'Washerwoman: You want to keep your hand on your purse down here, and your purse where your hand is.' } },
     ],
   },
@@ -10056,7 +10100,7 @@ export const CAVE_IDS = [];
     let n = 0;
     for (const ch of seed) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
 
-    const flood = (rows, sx, sy) => {
+    const flood = (rows, sx, sy, shut) => {
       const seen = new Set([`${sx},${sy}`]);
       const q = [[sx, sy]];
       while (q.length) {
@@ -10064,6 +10108,7 @@ export const CAVE_IDS = [];
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           const nx = cx + dx, ny = cy + dy, key = `${nx},${ny}`;
           if (nx < 0 || ny < 0 || nx >= map.width || ny >= map.height || seen.has(key)) continue;
+          if (key === shut) continue;
           const c = rows[ny][nx];
           if (!WALKABLE.includes(c) && c !== 'D') continue;
           seen.add(key); q.push([nx, ny]);
@@ -10076,7 +10121,19 @@ export const CAVE_IDS = [];
       const rows = map.grid.map((r) => r.split(''));
       for (const i of [-1, 0, 1]) rows[y][x + i] = 'C';
       rows[y][x] = 'D';
-      if (flood(rows, x, y + 1) >= flood(map.grid.map((r) => r.split('')), x, y + 1) - 3) {
+      /* And the mouth itself is a wall for the purpose of this question.
+       *
+       * Stepping on it takes you into the cave, and the cave puts you back on
+       * the tile you came from - so a mouth is never a way through, however
+       * open it looks. Flooded as though a door were a road, a mouth carved
+       * across the only crossing of a river looked harmless: the clansmen's
+       * cave landed on the one ford at the Bloody Gate, turned the three
+       * tiles of it into two cliffs and a door, and shut the Vale out of the
+       * game. Nine playthroughs then climbed to six sigils apiece and could
+       * not take the second seat on the ladder. */
+      const shut = `${x},${y}`;
+      const before = flood(map.grid.map((r) => r.split('')), x, y + 1, null);
+      if (flood(rows, x, y + 1, shut) >= before - 3) {
         return { x, y, rows };
       }
     }

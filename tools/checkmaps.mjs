@@ -99,6 +99,13 @@ for (const [id, map] of Object.entries(MAPS)) {
     return out;
   };
 
+  /* You cannot walk ACROSS a doorway. Step onto one and you are through it
+     and somewhere else, so a door is somewhere the walk ends, never somewhere
+     it passes. Flooding through them said a road was joined up when it was
+     not: a cave mouth carved across the one ford at the Bloody Gate turned
+     three tiles of road into two cliffs and a door, and everything from the
+     Vale upward went out of the game with nothing here saying a word. */
+  const doorway = new Set((map.warps ?? []).map((w) => `${w.x},${w.y}`));
   const flood = (seeds, throughPeople, only) => {
     const seen = new Set(), q = [];
     for (const [x, y] of seeds) {
@@ -106,6 +113,8 @@ for (const [id, map] of Object.entries(MAPS)) {
       if (!seen.has(k)) { seen.add(k); q.push([x, y]); }
     }
     for (let h = 0; h < q.length; h++) {
+      const here = `${q[h][0]},${q[h][1]}`;
+      if (h && doorway.has(here)) continue;
       for (const [nx, ny] of from(q[h][0], q[h][1])) {
         const k = `${nx},${ny}`;
         if (seen.has(k)) continue;

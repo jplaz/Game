@@ -5025,15 +5025,20 @@ export const MAPS = {
          reach it - written into `npcs` he ended up halfway up the castle. */
       { dir: 'left', sprite: 'ironborn', name: 'The Harbourmaster', script: 'ship',
         data: { line: 'The Harbourmaster: The Strand, and the whole world off the end of it. Say a name and a price and I will find you a hull going that way.' } },
-      { dir: 'down', sprite: 'targaryen', name: 'A Stone Cutter', script: 'townTalk',
-        data: { line: 'A Stone Cutter: Nobody cut this castle. It was raised out of the rock while it was still soft, and nobody will say by what.' } },
-      { dir: 'down', sprite: 'smallfolk', name: 'A Sulphur Gatherer', script: 'townTalk',
-        data: { line: 'A Sulphur Gatherer: The ground is warm here in midwinter. That is not comforting once you have thought about why.' } },
     ],
     outskirts: OUTSKIRTS.smokingStrand, gate: 16,
     /* The stair off the castle comes down onto these two and the whole strand
        - harbour, berth, dragon and the door at the end of it - is behind them. */
-    noStand: [[25, 19], [25, 20], [26, 19]],
+    /* The stair off the castle, every course of it, and the two tiles it comes
+       down onto. It is two tiles wide and the whole strand - harbour, berth,
+       dragon and the door at the end of it - is behind it, so a body parked
+       halfway up leaves one flagstone to squeeze past by: the harbourmaster
+       and a stone cutter stood one above the other on it, and a Stark
+       playthrough spent twelve hundred frames failing to buy a passage. Only
+       the man selling passage stands out there now; the other two have the
+       whole castle to talk in. */
+    noStand: [[25, 15], [26, 15], [25, 16], [26, 16], [25, 17], [26, 17],
+              [25, 18], [26, 18], [25, 19], [26, 19], [25, 20]],
     core: dragonstoneCore,
     banner: 'V',
     /* Nothing scattered on the floor any more. Ten pieces of rubble and four
@@ -5082,6 +5087,14 @@ export const MAPS = {
       { x: 2, y: 15, item: 'frostTonic', count: 1, flag: 'item_dragonstone_gallery' },
     ],
     npcs: [
+      { x: 6, y: 16, dir: 'down', sprite: 'targaryen', name: 'A Stone Cutter',
+        script: 'townTalk',
+        data: { line: 'A Stone Cutter: Nobody cut this castle. It was raised out of '
+          + 'the rock while it was still soft, and nobody will say by what.' } },
+      { x: 17, y: 16, dir: 'down', sprite: 'smallfolk', name: 'A Sulphur Gatherer',
+        script: 'townTalk',
+        data: { line: 'A Sulphur Gatherer: The ground is warm here in midwinter. '
+          + 'That is not comforting once you have thought about why.' } },
       { x: 8, y: 16, dir: 'down', sprite: 'unsullied', name: 'Grey Worm', script: 'duel',
         data: { duel: 'greyWorm' } },
       { x: 14, y: 16, dir: 'left', sprite: 'braavosi', name: 'Daario', script: 'duel',

@@ -645,6 +645,7 @@ static int workTarget = -1;
 
 static int warpTowardWork(void) {
   int from[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, i;
+  int backDoor = -1, backTarget = -1;
   for (i = 0; i < MAP_COUNT; i++) from[i] = -2;
   from[worldId] = -1;
   q[tail++] = worldId;
@@ -681,15 +682,35 @@ static int warpTowardWork(void) {
           break;
         }
       }
+      /* Not straight back out of the door you came in by while there is
+         other unfinished ground to be had. The nearest map with work on it
+         is a different map depending on which side of a gate you are
+         standing, so a Stark playthrough walked through the same gate
+         twenty-nine times and saw seventy of two hundred and forty-one
+         maps. Keep looking; come back to this one only if it is all there
+         is. */
+      if (door >= 0 && world->warps[door].to == lastDoorMap && backDoor < 0) {
+        backDoor = door; backTarget = m;
+        continue;
+      }
       if (door >= 0) { workTarget = m; return door; }
     }
     for (i = 0; i < maps[m].warpCount; i++) {
       int to = maps[m].warps[i].to;
+      /* A door this run has nailed shut is not a road on ANY hop, not just
+         the first. Honouring the nails only under your own feet is what made
+         the nearest unfinished map a different map on each side of a gate:
+         from Winterfell the crypt door was nailed, so the search went on to
+         somewhere beyond the Wall and set off north; from the Kingsroad North
+         the crypt door was somebody else's problem, so the nearest work was
+         the crypts again and the run turned round. Twenty-nine times. */
+      if (i < MAX_WARP_MARK && warpStuck[m][i] >= WARP_GIVE_UP) continue;
       if (from[to] != -2 || !crossable(to)) continue;
       from[to] = m;
       q[tail++] = to;
     }
   }
+  if (backDoor >= 0) { workTarget = backTarget; return backDoor; }
   return -1;
 }
 
@@ -935,7 +956,7 @@ static int warpTowardMap(int want) {
      * is not a road, and any door you can actually reach that still gets there
      * is better than the one you have proved you cannot. */
     {
-      int best = -1, bestHops = 1 << 30;
+      int best = -1, bestHops = 1 << 30, backwards = -1;
       for (i = 0; i < world->warpCount; i++) {
         int to = world->warps[i].to, near;
         if (!crossable(to)) continue;
@@ -943,9 +964,17 @@ static int warpTowardMap(int want) {
         if (!canWalkTo(world->warps[i].x, world->warps[i].y)) continue;
         near = to == want ? 0 : hopsBetween(to, want);
         if (near < 0 || near >= bestHops) continue;
+        /* Not straight back out of the door you came in by, while there is
+           any other way at all. When the shortest road out of two neighbours
+           is nailed shut on both sides, this detour sends each of them to
+           the other and the errand is never reached: a run doing that across
+           the Bloody Gate managed four hundred and fifty crossings and
+           fifty-nine maps. */
+        if (to == lastDoorMap) { backwards = i; continue; }
         bestHops = near; best = i;
       }
       if (best >= 0) return best;
+      if (backwards >= 0) return backwards;
     }
     /* Every door that way has been nailed shut by a circle this run already
        walked. Saying so is better than walking it again: "no road" sends the
@@ -1281,6 +1310,15 @@ static void pickGoal(void) {
    * signs, played two of the thirty-two scenes, and spoke to nobody twice
    * over. A run that is buying purses is not walking Westeros. Finish the
    * room you are standing in; the errands are what a finished room is for. */
+  /* Anybody the map lists who is not standing on it is not somebody you can
+     go and talk to: a face that is hidden until a flag is set, or one who
+     keeps hours and is indoors at this one. The map counts them, so a map
+     with one of them on it could never be finished - and once the router was
+     told to walk to the nearest unfinished map and stay with it, a Tully
+     playthrough spent itself walking to a person who was not there. */
+  for (i = crowdCount; i < maps[worldId].npcCount && i < MAX_CROWD; i++) {
+    npcStuck[worldId][i] = 1;
+  }
   for (i = 0; i < crowdCount; i++) {
     /* Anyone who drew on you from across the road and lost is dealt with,
        whether or not there was ever a conversation. */

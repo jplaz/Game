@@ -92,6 +92,9 @@ export class Overworld {
     // A dragon crossing the sky, and its shadow on the ground under it.
     this.skyDragon = null;
     this.skyTimer = rng.int(14, 40);
+    /* Steps of quiet owed to whoever carried you off the field. See whiteout()
+       and the note above the check in onArrive(). */
+    this.carriedHome = 0;
     this.cutscene = null;      // a scene playing out in the world around you
     this.telling = false;      // and one of the five told as pages
     this.cutsceneTimer = null;
@@ -624,6 +627,16 @@ export class Overworld {
        out by a wolf either. */
     if (this.checkRaven()) return;
     if (this.checkTrainers()) return;
+    /* Somebody carried you here. Give them a moment.
+     *
+     * Losing puts you back at your maester's, and by the last act your maester
+     * may well be standing in a town the dead have reached: you wake in the
+     * snow at Winterfell, take four steps towards the gate, and something that
+     * used to be somebody comes out of the hedge. The cartridge learned this
+     * the expensive way — eleven thousand eight hundred losses in the same
+     * courtyard, because the only way out of it went through cover. A bed you
+     * are carried to has to be a bed you can leave. */
+    if (this.carriedHome > 0) { this.carriedHome--; return; }
     this.checkEncounter();
   }
 
@@ -1664,6 +1677,7 @@ export class Overworld {
     }
 
     const spot = g.state.respawn;
+    this.carriedHome = 40;
     this.manager.transition(() => {
       this.loadMap(spot.map, { x: spot.x, y: spot.y, dir: spot.dir ?? 'down' });
     });

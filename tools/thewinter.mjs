@@ -291,6 +291,28 @@ const out = await page.evaluate(async () => {
   await talkTo('castleBlack');
   res.deepWant = state.ranging().want;
 
+  /* ---- and a bed you are carried to has to be a bed you can leave ------ */
+  /* The whole reason this needs a test: the winter puts the dead on the ground
+     your own maester stands on, and losing there used to drop you into the
+     snow with the hedge already occupied. */
+  setStage(6);
+  state.game.state.party.length = 0;
+  state.game.state.party.push(creature.createCreature('direwolf', 30));
+  ow.loadMap('kingsroadNorth', coverTile('kingsroadNorth'));
+  ow.carriedHome = 0;
+  asked.length = 0;
+  ow.startBattle = (config) => { asked.push(config); return Promise.resolve('won'); };
+  for (let i = 0; i < 300; i++) ow.onArrive();
+  res.exposed = asked.length;
+  ow.carriedHome = 40;
+  asked.length = 0;
+  for (let i = 0; i < 40; i++) ow.onArrive();
+  res.carried = asked.length;
+  res.stepsLeft = ow.carriedHome;
+  for (let i = 0; i < 300; i++) ow.onArrive();
+  res.afterGrace = asked.length;
+  ow.startBattle = real;
+
   return { res };
 });
 await browser.close();
@@ -330,6 +352,9 @@ const rows = [
     r.fought === 'won' && r.backOut === 'Overworld' && r.bought === 2],
   ['and killing something that was alive does not',
     r.livingFight === 'won' && r.boughtByLiving === 0],
+  ['carried home, nothing comes out of the grass for forty steps',
+    r.exposed > 5 && r.carried === 0 && r.stepsLeft === 0],
+  ['and then the road is a road again', r.afterGrace > 5],
   ['there is a brother in black to walk up to, in more than one place',
     (r.brothers?.length ?? 0) >= 5],
   ['a green boy is not sent over the Wall',

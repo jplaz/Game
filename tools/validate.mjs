@@ -649,18 +649,23 @@ if (scriptsRead.size < scriptCount) {
     + 'a script is written in a shape it cannot see, and is going unchecked');
 }
 
-/* Gear that exists and can never be had.
+/* Gear and goods that exist and can never be had.
  *
  * Thirty pieces of kit in five slots, and three of them - a Sellsword's Blade,
  * a Halberd and a Fur Cloak - were on no counter, in no chest, on no ground,
- * in no recipe and no quest's gift. Written, priced, described, drawn, and
- * unobtainable by any means the game offers. That is the same defect as a
- * script nobody points at, wearing different clothes.
+ * in no recipe and won off nobody. Written, priced, described, drawn, and
+ * unobtainable by any means the game offers. A Signet Ring sat in the item
+ * table saying it was proof you rode on Winterfell's business, and nobody
+ * handed it over and nothing looked for it. Same defect as a script nobody
+ * points at, in different clothes.
  *
- * Counted as obtainable: a counter's stock, an item lying on a map, a chest,
- * a recipe's output, and any gear id a script names outright - which covers
- * the pieces handed over by the story rather than sold. Tier nought is what
- * you start in and is exempt. */
+ * What counts as a way in is deliberately narrow: a counter's stock, an item
+ * on the ground, a chest, a recipe's output, a duellist's loot, a quest's
+ * gift, or a `giveItem('x')` written somewhere in the engine. Being *mentioned*
+ * does not count - the first version of this check took any mention and passed
+ * an item that only ever appeared inside the `hasItem` that reads it, which is
+ * exactly the shape it exists to catch. Tier nought gear is what you start in
+ * and is exempt. */
 {
   const TABLES = { weapon: WEAPONS, armour: ARMOUR, helm: HELMS, gloves: GLOVES, shield: SHIELDS };
   const gettable = new Set();
@@ -679,6 +684,10 @@ if (scriptsRead.size < scriptCount) {
     const made = recipe.into ?? recipe.makes;
     if (made) gettable.add(made);
   }
+  /* Won off somebody: `loot` is [slot, id], and the id is what you keep. */
+  for (const who of Object.values(DUELLISTS)) {
+    if (Array.isArray(who.loot) && who.loot.length === 2) gettable.add(who.loot[1]);
+  }
   for (const q of Object.values(QUESTS)) {
     for (const key of ['reward', 'gift', 'item', 'gear']) {
       const got = q[key];
@@ -688,14 +697,20 @@ if (scriptsRead.size < scriptCount) {
       }
     }
   }
+  /* And handed over outright by the story. A grant, not a mention: `giveItem`
+     with the name in it, wherever in the engine that is written. */
+  for (const [, id] of scriptSource.matchAll(/giveItem\(\s*['"`]([\w]+)['"`]/g)) gettable.add(id);
+  for (const [, id] of scriptSource.matchAll(/gather\(\s*['"`]([\w]+)['"`]/g)) gettable.add(id);
+
+  for (const [id, thing] of Object.entries(ITEMS)) {
+    if (gettable.has(id)) continue;
+    fail(`item ${id} (${thing.name}): nothing sells it, drops it, makes it or `
+      + 'hands it over — it cannot be got hold of');
+  }
   for (const [slot, table] of Object.entries(TABLES)) {
     for (const [id, piece] of Object.entries(table)) {
       if (!(piece.tier ?? 0)) continue;          // what you start in
       if (gettable.has(id)) continue;
-      /* Named by a script is the last way in: the story hands some of it over
-         rather than selling it. Its own table is not source, so a piece
-         cannot vouch for itself. */
-      if (new RegExp(`['"\`]${id}['"\`]`).test(scriptSource)) continue;
       fail(`${slot} ${id}: exists at tier ${piece.tier} and there is no way `
         + 'in the game to get hold of it');
     }

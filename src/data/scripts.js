@@ -26,7 +26,7 @@ import {
 } from '../game/holdfast.js';
 import { HOUSE_IDS } from './houses.js';
 import { SHIPS, FLEETS } from './ships.js';
-import { getMap } from './maps.js';
+import { getMap, regionOf } from './maps.js';
 import { settledOn } from '../game/swoop.js';
 import {
   lane as seaLane,
@@ -119,6 +119,22 @@ export async function settleFate({ say, choose, id, def }) {
 /** A night at an inn: fifty dragons, everyone healed, and this is where you
     wake up next time you lose. Two innkeeps rent the same room. */
 async function rentRoom({ say, healParty }) {
+  /* Winterfell's own rider does not pay for a bed north of the Neck. The
+     signet ring existed in the item table and did nothing at all - nobody gave
+     it out and nothing looked for it - and this is the thing it says it is
+     for: proof of whose business you are on, in the one part of the world
+     where that business is worth anything. */
+  const northern = ['The North', 'The Neck', 'The Wall', 'Beyond the Wall']
+    .includes(regionOf(game.state.position.map));
+  if (hasItem('houseRing') && northern) {
+    audio.sfx('heal');
+    healParty();
+    game.state.respawn = { ...game.state.position, dir: 'down' };
+    await say('The innkeep looks at the ring, looks at you, and does not put a '
+      + 'hand out. A bed, a fire, and no charge for a rider on Winterfell\'s '
+      + 'business. Everyone is rested.');
+    return;
+  }
   if (!canAfford(50)) {
     await say('Innkeep: Come back with coin.');
     return;
@@ -1641,6 +1657,13 @@ export const SCRIPTS = {
     if (outcome === 'won') {
       setFlag('duel_joryCassel');
       await say(DUELLISTS.joryCassel.after);
+      /* And the thing that says whose rider you are, handed over at the moment
+         you are allowed to be one. */
+      giveItem('houseRing');
+      audio.sfx('confirm');
+      await say('Jory Cassel: Take this. Lord Rickard\'s signet. Every inn '
+        + 'between here and the Neck knows it, and none of them will take your '
+        + 'coin while you carry it.', { theme: 'royal' });
     } else {
       await say('Jory Cassel: Again, when you have your wind back. The road will keep.');
     }

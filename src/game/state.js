@@ -5,6 +5,7 @@ import {
   REGION_HOUSE, PRICE_FACTOR,
 } from '../data/houses.js';
 import { healFully } from './creature.js';
+import { WINTER_STEP, WINTER_DEEPEST, SEASONS, DEAD_REACH } from '../data/winter.js';
 
 export const PARTY_LIMIT = 6;
 
@@ -35,6 +36,13 @@ export function newGame(playerName = 'Snow') {
       gearOwned: { weapon: ['fists'], armour: ['roughspun'], shield: ['none'] },
       duelsWon: 0,
       duelsLost: 0,
+      /* The Long Night's own clock, and the deepest stage a raven has already
+         told you about, so it does not tell you twice. See data/winter.js. */
+      winter: 0,
+      winterSaid: 0,
+      /* Everyone you have put in the ground, which the winter reads: the realm
+         eating itself is the whole reason the Wall goes unwatched. */
+      kills: 0,
     },
     party: [],
     box: [],
@@ -73,6 +81,10 @@ export const game = { state: newGame() };
 
 export function setState(next) {
   game.state = next;
+  /* A letter owed to the game you were playing a moment ago is not owed to
+     this one. Which stages have already been reported is on the save; the one
+     in flight is not, so it goes. */
+  clearRaven();
 }
 
 // ------------------------------------------------------------------ party --
@@ -230,7 +242,14 @@ export function priceFactor() {
  */
 export function markDead(id) {
   game.state.dead = game.state.dead ?? [];
-  if (!game.state.dead.includes(id)) game.state.dead.push(id);
+  if (game.state.dead.includes(id)) return;
+  game.state.dead.push(id);
+  /* And the season turns a little on every sixth grave. A player who never
+     goes near the ladder should still look up one day and find it colder than
+     it was, because the winter is not waiting on anybody. */
+  const p = game.state.player;
+  p.kills = (p.kills ?? 0) + 1;
+  if (p.kills % 6 === 0) deepenWinter(1);
 }
 
 export function isDead(id) {
@@ -263,7 +282,12 @@ export function flag(name) {
 }
 
 export function awardSigil(id) {
-  if (!game.state.sigils.includes(id)) game.state.sigils.push(id);
+  if (game.state.sigils.includes(id)) return;
+  game.state.sigils.push(id);
+  /* Every one of these is a great house broken and a garrison that will not be
+     relieved. The realm eating itself is the whole reason the Wall goes
+     unwatched, so this is where most of the winter comes from. */
+  deepenWinter(9);
 }
 
 export function hasSigil(id) {
@@ -272,6 +296,67 @@ export function hasSigil(id) {
 
 export function sigilCount() {
   return game.state.sigils.length;
+}
+
+// ---------------------------------------------------------------- winter ---
+//
+// One counter, read three ways: a word for the card, a reach for the raven,
+// and a number the roads use to decide what is standing in the grass.
+
+/** How deep the winter has got, 0 through WINTER_DEEPEST. */
+export function winterStage() {
+  const at = Math.floor((game.state.player.winter ?? 0) / WINTER_STEP);
+  return at > WINTER_DEEPEST ? WINTER_DEEPEST : at;
+}
+
+/** What the maesters would call it. */
+export function seasonWord() {
+  return SEASONS[winterStage()];
+}
+
+/** How far down the map they have got, named as a place rather than a number. */
+export function deadReachWord() {
+  return DEAD_REACH[winterStage()];
+}
+
+/* A raven, when it gets worse. Held rather than said at once, because the
+   moment the winter deepens is usually the moment somebody has just gone down
+   in front of you and the screen is busy. The overworld picks this up on the
+   first quiet step. */
+let ravenWaiting = -1;
+
+/** The stage a raven owes you a letter about, or -1. Clears when taken. */
+export function takeRaven() {
+  const stage = ravenWaiting;
+  if (stage >= 0) {
+    ravenWaiting = -1;
+    game.state.player.winterSaid = stage;
+  }
+  return stage;
+}
+
+/** Forgets any letter in flight — a new game or a load starts quiet. */
+export function clearRaven() {
+  ravenWaiting = -1;
+}
+
+/**
+ * The realm tears itself apart and the Wall goes unwatched. Every caller is a
+ * thing the player did, which is the point: the winter is not weather.
+ */
+export function deepenWinter(by) {
+  const p = game.state.player;
+  if (by <= 0) return;
+  if ((p.winter ?? 0) > 60000) return;
+  const was = winterStage();
+  p.winter = (p.winter ?? 0) + by;
+  if (winterStage() !== was && winterStage() > (p.winterSaid ?? 0)) ravenWaiting = winterStage();
+}
+
+/** And the one lever that moves it the other way: killing what it sends. */
+export function winterFalls(by) {
+  const p = game.state.player;
+  p.winter = Math.max(0, (p.winter ?? 0) - by);
 }
 
 // -------------------------------------------------------------------- dex --

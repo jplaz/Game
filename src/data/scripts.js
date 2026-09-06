@@ -7,7 +7,7 @@
 import {
   game, party, addCreature, giveItem, hasItem, addMoney, canAfford,
   sigilCount, hasSigil, dexCounts, swearTo, allegiance, standing, 
-  changeStanding, recordChoice, markDead, isDead,
+  changeStanding, recordChoice, markDead, isDead, deepenWinter,
 } from '../game/state.js';
 import { HOUSES, SWEARABLE } from './houses.js';
 import { giveEgg } from '../game/eggs.js';
@@ -144,6 +144,9 @@ async function finishTheChair(api, def) {
       + 'still up there, and so is it.', { theme: 'royal' });
     return;
   }
+  /* The last thing between anybody and the chair has just stopped being in the
+     way, and there is nothing at all left watching the north. */
+  deepenWinter(24);
   await tale('throne');
 
   setFlag('gameComplete');

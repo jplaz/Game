@@ -18,6 +18,7 @@ import {
 } from '../game/creature.js';
 import {
   game, party, itemCount, takeItem, formatMoney, formatTime, dexCounts, SIGILS,
+  winterStage, seasonWord,
   allegiance, standing, localHouse, priceFactor,
 } from '../game/state.js';
 import { saveGame } from '../game/save.js';
@@ -830,6 +831,13 @@ export class MainMenu {
     drawText(ctx, `Steps     ${p.steps}`, 14, 90, theme);
     const counts = dexCounts();
     drawText(ctx, `Bestiary  ${counts.caught} sworn of ${SPECIES_IDS.length}`, 14, 104, theme);
-    drawText(ctx, game.state.flags.gameComplete ? 'The realm is yours.' : 'The road goes on.', 14, 126, theme);
+    /* And where you stand with the winter, which is the one power in this
+       world that moves whether you touch it or not. It reddens as it gets
+       worse, because by the last of it the word is the warning. */
+    const stage = winterStage();
+    drawText(ctx, `Winter    ${seasonWord()}`, 14, 118, {
+      color: stage >= 5 ? '#ffb0a0' : stage >= 3 ? '#ffd890' : '#d8c8a8', shadow: '#3a1218',
+    });
+    drawText(ctx, game.state.flags.gameComplete ? 'The realm is yours.' : 'The road goes on.', 14, 134, theme);
   }
 }

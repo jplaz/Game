@@ -13,6 +13,8 @@ import { writeFile, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
 import { createRequire } from 'node:module';
+/* Shared with the browser build, deliberately: see the note by `cold` below. */
+import { coldOf } from '../src/data/winter.js';
 
 // The berth list is plain data with nothing browser-shaped in it, so it is read
 // here rather than harvested out of the page.
@@ -575,24 +577,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
      what everything else is a departure from. */
   /* Which of the ten tunes a region is heard under. Indoors anywhere is the
      room tune; the rest is country. */
-  /* Five deep beyond the Wall down to nothing in Dorne. Paired with the
-     winter's own count in the cartridge, this is the whole map of how far the
-     dead have walked. */
-  const COLD_OF = {
-    'Beyond the Wall': 6,
-    'The Wall': 5,
-    'The North': 4,
-    'The Neck': 3,
-    'The Riverlands': 3, 'The Vale': 3, 'The Iron Islands': 3,
-    'The Westerlands': 2, 'The Crownlands': 2,
-    'The Reach': 2, 'The Stormlands': 2,
-    Dorne: 1,
-    /* Nought is not "warm" - it is "the cold never comes here". Every room in
-       the game is nought, and so is everything on the far side of the Narrow
-       Sea: salt water and eight thousand miles. Whatever is coming, it is not
-       coming to Meereen. */
-    'The Narrow Sea': 0, Braavos: 0, Pentos: 0, Volantis: 0, Meereen: 0,
-  };
+  /* How cold each region's ground is comes out of src/data/winter.js, which
+     is also where the browser build reads it. It used to be typed out again
+     here, and two copies of a table that decides how far south the dead have
+     walked is two answers to the same question waiting to disagree. */
   const TUNE_FOR = {
     'The North': 3, 'The Wall': 3, 'Beyond the Wall': 7, 'The Neck': 3,
     'The Vale': 3,
@@ -1392,7 +1380,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
          deepens, so every road in the game needs to know where it stands
          between the Wall and the Water Gardens. Indoors is warm, and the cold
          does not cross the Narrow Sea. */
-      cold: map.indoor ? 0 : (COLD_OF[region] ?? 2),
+      cold: coldOf(region, map.indoor),
       warps: (map.warps ?? []).map((w) => ({ ...w })),
       signs: (map.signs ?? []).map((s) => ({ x: s.x, y: s.y, text: s.text })),
     });

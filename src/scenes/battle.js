@@ -26,8 +26,9 @@ import {
 } from '../game/combat.js';
 import {
   game, party, addCreature, takeItem, itemCount, addMoney, setFlag,
-  markSeen, markCaught, awardSigil,
+  markSeen, markCaught, awardSigil, winterFalls,
 } from '../game/state.js';
+import { isOneOfTheDead } from '../data/winter.js';
 
 const FOE_SPRITE = { x: 154, y: 12, size: 56 };
 const PLAYER_SPRITE = { x: 22, y: 44, size: 64 };
@@ -625,6 +626,11 @@ export class Battle {
           awardSigil(this.trainer.sigil);
           await this.say(`You received the ${this.trainer.sigil.toUpperCase()} SIGIL!`, { theme: 'royal' });
         }
+      } else if (isOneOfTheDead(this.foe?.creature?.speciesId)) {
+        /* And if that was one of the dead, the Watch would like to hear about
+           it. This is the only lever in the game that moves the winter the
+           right way — everything else in a playthrough makes it worse. */
+        winterFalls(2);
       }
     } else if (this.outcome === 'lost') {
       await this.say('You have no creatures left standing...');

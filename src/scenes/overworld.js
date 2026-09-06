@@ -29,8 +29,9 @@ import { drawPanel } from '../ui/panel.js';
 import { drawText, measure } from '../engine/font.js';
 import {
   game, flag, setFlag, standingWord, setLocalRegion, isDead, recordChoice,
-  sigilCount,
+  sigilCount, deepenWinter, winterStage, takeRaven,
 } from '../game/state.js';
+import { coldOf, RAVENS, DEAD_REACH, THE_DEAD } from '../data/winter.js';
 import { SCRIPTS } from '../data/scripts.js';
 import { TRAINERS } from '../data/trainers.js';
 import { saveGame } from '../game/save.js';
@@ -616,6 +617,12 @@ export class Overworld {
     }
     if (this.checkLastAct()) return;
     if (this.checkCutscene()) return;
+    /* After the story and before the road. A letter is not allowed to stand in
+       front of a sequence — the winter deepens hardest at exactly the moments
+       the last act turns, so a raven checked first would have swallowed the
+       step that shows you the hall — and it is not allowed to be shouldered
+       out by a wolf either. */
+    if (this.checkRaven()) return;
     if (this.checkTrainers()) return;
     this.checkEncounter();
   }
@@ -646,16 +653,80 @@ export class Overworld {
      The cartridge has told both since they were written; this build told
      neither, so a playthrough went from the ninth sigil straight to a woman
      in a room. */
+  /* A letter from the Wall, on the first quiet step after the winter deepened.
+     Held rather than said at once, because the moment the season turns is
+     usually the moment somebody has just gone down in front of you and the
+     screen is busy with it. */
+  checkRaven() {
+    const stage = takeRaven();
+    if (stage < 0) return false;
+    audio.sfx('confirm');
+    dialog.say(`${RAVENS[stage]}\n${DEAD_REACH[stage]}`, { theme: 'parchment' });
+    return true;
+  }
+
+  /* Whether the dead have reached the ground you are standing on. A road is
+     cold from nought in Dorne to five beyond the Wall, the winter adds its own
+     count to that, and at seven between them they are here. Indoors is warm,
+     and nothing is coming to Meereen. */
+  theDeadWalkHere() {
+    const cold = coldOf(this.region, this.map.indoor);
+    return cold > 0 && cold + winterStage() >= 7;
+  }
+
+  /**
+   * The Long Night, on the road you are actually standing on. Once the winter
+   * has reached this ground a share of whatever lives here is not what lives
+   * here any more, and that share grows with the cold — so the Kingsroad in
+   * the last act is a different road from the one you walked in the first
+   * hour. This is the whole of how the Wall stops being a place and starts
+   * being a clock.
+   *
+   * @returns {boolean} whether something got up and a fight started.
+   */
+  rollTheDead() {
+    if (!game.state.party.some((c) => c.hp > 0)) return false;
+    const stage = winterStage();
+    const cold = coldOf(this.region, this.map.indoor);
+    const share = Math.min(80, 14 + (cold + stage - 6) * 16);
+    if (!rng.chance(share / 100)) return false;
+
+    /* A wight at first, something older once it is properly cold. */
+    const deep = stage >= 5 && rng.chance(0.25);
+    const species = deep ? THE_DEAD.walker : stage >= 4 ? THE_DEAD.risen : THE_DEAD.wight;
+
+    /* How far over you they are allowed to be. Uncapped this reaches fourteen
+       levels over, on nearly four fights in five, on the ground your own
+       maester stands on — which turns the last act into arithmetic rather than
+       into a different set of roads. Five over is still the worst thing
+       anywhere. The cartridge measures "over you" against the hero, who does
+       his own fighting there; here it is a beast in the ring, so it is
+       measured against whichever of the two is stronger. */
+    const lift = Math.min((cold + stage) * 2, 11) - 6;
+    const best = game.state.party.reduce((n, c) => Math.max(n, c.level), 0);
+    const level = Math.min(60, Math.max(2, Math.max(game.state.player.level, best) + lift));
+
+    audio.sfx('encounter');
+    this.startBattle({ kind: 'wild', foe: wildCreature(species, level, level) });
+    return true;
+  }
+
   checkLastAct() {
     if (sigilCount() < 9) return false;
     if (!flag('cs_summons')) {
       setFlag('cs_summons');
+      /* Nine seats broken at once is the hardest single shove the winter ever
+         takes, and the same is true of the gate and of the thing behind the
+         chair: the last act is where the realm stops watching the north at
+         all. */
+      deepenWinter(24);
       this.telling = true;
       this.tellTale('summons').then(() => { this.telling = false; });
       return true;
     }
     if (this.mapId === 'redKeep' && !flag('cs_gate')) {
       setFlag('cs_gate');
+      deepenWinter(24);
       this.telling = true;
       this.tellTale('gate').then(() => { this.telling = false; });
       return true;
@@ -918,8 +989,13 @@ export class Overworld {
       return;
     }
     if (def.kind !== 'encounter') return;
-    if (!(this.map.encounters?.length)) return;
     if (game.state.player.wounded) return;
+    /* Cover on cold ground is worth watching even where the map's own table is
+       empty: what the winter sends was never on that table. Without this the
+       Long Night could not reach a single road that has nothing living on it,
+       which is most of the ones worth being frightened of. */
+    const winterHere = this.theDeadWalkHere();
+    if (!winterHere && !(this.map.encounters?.length)) return;
     // Cover is also where things grow and graze. If you hold a hall, some of
     // what you walk through ends up in its larder.
     if (ownsHoldfast() && rng.chance(FORAGE_CHANCE)) {
@@ -932,6 +1008,9 @@ export class Overworld {
 
     const chance = ENCOUNTER_CHANCE * (this.mount ? MOUNTED_ENCOUNTER_SCALE : 1);
     if (!rng.chance(chance)) return;
+
+    if (winterHere && this.rollTheDead()) return;
+    if (!(this.map.encounters?.length)) return;
 
     const entry = rng.weighted(this.map.encounters);
     const level = rng.int(entry.min, entry.max);

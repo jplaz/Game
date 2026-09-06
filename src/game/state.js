@@ -7,6 +7,7 @@ import {
 import { healFully } from './creature.js';
 import { WINTER_STEP, WINTER_DEEPEST, SEASONS, DEAD_REACH } from '../data/winter.js';
 import { clearDragonNews } from './swoop.js';
+import { clearLetter } from './bastards.js';
 
 export const PARTY_LIMIT = 6;
 
@@ -56,6 +57,11 @@ export function newGame(playerName = 'Snow') {
       swoopAt: 0,
       swoopsBeaten: 0,
       swoopsBurned: 0,
+      /* Every fight won, which is the clock the dragon and the children of the
+         evening both run on, and the evening you are waiting on word from. */
+      fightsWon: 0,
+      eveMap: null,
+      eveAt: 0,
     },
     party: [],
     box: [],
@@ -99,6 +105,7 @@ export function setState(next) {
      in flight is not, so it goes — and the same is true of the dragon's. */
   clearRaven();
   clearDragonNews();
+  clearLetter();
 }
 
 // ------------------------------------------------------------------ party --

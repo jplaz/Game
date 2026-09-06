@@ -7,9 +7,12 @@
 import {
   game, party, addCreature, giveItem, hasItem, addMoney, canAfford,
   sigilCount, hasSigil, dexCounts, swearTo, allegiance, standing, 
-  changeStanding, recordChoice, markDead, isDead, deepenWinter,
+  changeStanding, recordChoice, markDead, isDead, theDead, deepenWinter,
   ranging, takeRanging, handInRanging, seasonWord, deadReachWord,
 } from '../game/state.js';
+import {
+  bastardHere, grown, takeBastard, spendTheEvening,
+} from '../game/bastards.js';
 import { HOUSES, SWEARABLE } from './houses.js';
 import { giveEgg } from '../game/eggs.js';
 import { beginReign, reigning } from '../game/realm.js';
@@ -22,8 +25,11 @@ import {
   holdFeast, feastCount, grantHoldfast, 
 } from '../game/holdfast.js';
 import { HOUSE_IDS } from './houses.js';
-import { SHIPS } from './ships.js';
+import { SHIPS, FLEETS } from './ships.js';
+import { getMap } from './maps.js';
+import { settledOn } from '../game/swoop.js';
 import {
+  lane as seaLane,
   ship, ownsShip, buyShip, tradeIn, shipName, conditionWord,
   repairShip, repairCost, berth, tally, board, damageShip, sink,
   REFITS, refitCost, hasRefit, refit,
@@ -47,7 +53,7 @@ import { asideFor } from '../game/regard.js';
 import { MATCHES } from './matches.js';
 import {
   willHear, betroth, wed, spouse, betrothed, bearChild, childDue,
-  children, heir, ageWord, takeIntoService, hostSize, swornFull,
+  children, heir, ageWord, takeIntoService, hostSize, swornFull, hasSworn,
 } from '../game/household.js';
 import { audio } from '../engine/audio.js';
 
@@ -665,11 +671,68 @@ export const SCRIPTS = {
    * where the talk is, and where somebody will let you sit down and stop
    * bleeding for a while.
    */
-  async redLamp({ say, choose, npc, healParty, saveGame }) {
+  async redLamp({ say, choose, npc, healParty, saveGame, overworld }) {
+    const here = overworld?.mapId ?? game.state.position.map;
+    /* The keeper knows what an evening costs, and knows better than anybody in
+       town whose children are whose. That is the whole of the trade. */
+    const kid = bastardHere(here);
+    if (kid && grown(kid)) {
+      await say(`${npc.name}: That one by the fire, with your chin? Grown now, `
+        + 'and good with their hands. They know whose blood they carry — '
+        + 'everybody in this town knows. Nobody else is offering them anything.');
+      const yes = await choose(`Take ${kid.first} ${kid.surname} into your service?`,
+        ['Yes', 'Not today']);
+      if (yes !== 0) {
+        await say(`${npc.name}: They will still be here. That is rather the trouble.`);
+        return;
+      }
+      const how = takeBastard(kid);
+      if (how === 'full') {
+        await say('Your company is full. Six swords is what one table feeds; '
+          + 'come back when there is a place at it.');
+        return;
+      }
+      audio.sfx('confirm');
+      await say('They put their cup down, look at you the way you look at '
+        + `yourself in still water, and kneel. ${kid.surname} rides with you `
+        + 'now, and fights behind you like it settles something. Perhaps it '
+        + 'does.', { theme: 'royal' });
+      return;
+    }
+    if (kid) {
+      await say(`${npc.name}: The child is well. Growing. Asks about you, which `
+        + 'I neither encourage nor prevent. Come back when they are old enough '
+        + 'to hold something sharper than a spoon.');
+      return;
+    }
+
     const line = npc.data?.line ?? `${npc.name}: You look like a long road. Come in off it.`;
     await say(line);
+    const evening = 40 + game.state.player.level * 2;
     const answer = await choose('What do you want?',
-      ['A bed and a wash \u2014 60g', 'What is being said', 'Nothing']);
+      ['A bed and a wash \u2014 60g', 'What is being said',
+       `The evening \u2014 ${evening}g`, 'Nothing']);
+
+    if (answer === 2) {
+      if (!canAfford(evening)) {
+        audio.sfx('cancel');
+        await say(`${npc.name}: The keeper looks at your purse and pours you `
+          + 'water. Come back solvent.');
+        return;
+      }
+      addMoney(-evening);
+      spendTheEvening(here);
+      audio.sfx('confirm');
+      await say('Wine downstairs, company upstairs, and nobody writes anything '
+        + 'down. You leave before it is properly light.');
+      /* Nobody in this world minds this except one person, and only if there
+         is one - which is precisely how much the story minds it. */
+      if (spouse()) {
+        await say('Word of it will get home before you do. It always does.');
+        recordChoice('strayed', true);
+      }
+      return;
+    }
 
     if (answer === 1) {
       const rumours = [
@@ -687,6 +750,7 @@ export const SCRIPTS = {
       return;
     }
     if (answer !== 0) { await say(`${npc.name}: Suit yourself. The door does not lock.`); return; }
+
 
     if (!canAfford(60)) {
       audio.sfx('cancel');
@@ -1158,8 +1222,353 @@ export const SCRIPTS = {
   },
 
   /** Somebody standing in a Free City with something to say about it. */
-  async freeCityLocal({ say, npc }) {
-    await say(npc.data?.line ?? `${npc.name} has nothing to say to you today.`);
+  /* -------------------------------------------------- east of the sea ----
+   *
+   * Twelve of the most recognisable people in the story stood in the four
+   * Free Cities sharing one script, and that script was `generic` with a
+   * nicer name: it said their line and stopped. Jaqen, Arya, Illyrio, Jorah,
+   * the Red Priestess, the Triarch, Missandei — every one of them furniture.
+   * Worse, two of the four cities had nowhere at all to mend: Braavos has the
+   * Kindly Man and Volantis the Red Priest, and if you lost a fight in Pentos
+   * or Meereen your only answer was to pay an innkeep fifty gold for a bed.
+   *
+   * Nobody new has been added to any of those maps. The people who were
+   * already standing there do the things they are known for instead.
+   */
+
+  /** A man gives a name. Once, and it is not taken back. */
+  async jaqen({ say, choose, npc }) {
+    await say(npc.data?.line ?? 'Valar morghulis.');
+    if (game.state.choices?.jaqenPaid) {
+      await say('Jaqen H\'ghar: A man gave a man a name, and the name was '
+        + 'taken. A man does not give two. Valar dohaeris.');
+      return;
+    }
+    /* Everyone you beat and let live. The list is your own play read back to
+       you, which is the only list he could possibly be offering. */
+    const spared = Object.keys(game.state.choices ?? {})
+      .filter((k) => k.startsWith('spared_'))
+      .map((k) => k.slice(7))
+      .filter((id) => !isDead(id));
+    if (!spared.length) {
+      await say('Jaqen H\'ghar: A man owes the Red God three deaths, and a girl '
+        + 'has taken none of them from him. Come back when you have left '
+        + 'somebody standing that you would rather had not been left.');
+      return;
+    }
+    const names = spared.slice(0, 3);
+    const pick = await choose('Jaqen H\'ghar: Speak a name.',
+      [...names.map((id) => DUELLISTS[id]?.name ?? id), 'No name today']);
+    if (pick < 0 || pick >= names.length) {
+      await say('Jaqen H\'ghar: Then a man waits. A man is very good at waiting.');
+      return;
+    }
+    const id = names[pick];
+    const who = DUELLISTS[id]?.name ?? id;
+    markDead(id);
+    recordChoice('jaqenPaid', true);
+    recordChoice(`named_${id}`, true);
+    const house = DUELLISTS[id]?.house;
+    if (house) changeStanding(house, -18);
+    audio.sfx('faint');
+    await say(`Jaqen H'ghar: It is done. A man does not ask when, and a girl `
+      + `does not ask how. ${who} will not be at the next feast, and everyone `
+      + 'at it will notice.', { theme: 'royal' });
+  },
+
+  /** The list, which is your own list whether you meant to keep one or not. */
+  async aryaList({ say, npc }) {
+    await say(npc.data?.line ?? 'Arya: I am no one.');
+    /* The ids in that list come from three places - a duellist, `duel_<id>`
+       from a fight you finished, `trainer_<id>` from a leader you finished -
+       so all three are unwrapped before the name is looked up, and anything
+       still unrecognised is read out as it is written rather than dropped.
+       Arya of all people does not forget a name because it was filed oddly. */
+    const PREFIX = ['duel_', 'trainer_'];
+    const nameOf = (raw) => {
+      const cut = PREFIX.find((one) => raw.startsWith(one));
+      const id = cut ? raw.slice(cut.length) : raw;
+      return DUELLISTS[id]?.name ?? TRAINERS[id]?.name
+        ?? id.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase());
+    };
+    const dead = [...new Set(theDead().map(nameOf))];
+    if (!dead.length) {
+      await say('Arya: I say the names every night before I sleep. You have not '
+        + 'given me one yet. That is either very good of you or very dull.');
+      return;
+    }
+    await say(`Arya: You keep a list too, then. ${dead.length} of them.`);
+    /* Three at a time, the way she says them. */
+    for (let i = 0; i < dead.length && i < 9; i += 3) {
+      await say(`Arya: ${dead.slice(i, i + 3).join('. ')}.`);
+    }
+    if (dead.length > 9) await say(`Arya: And ${dead.length - 9} more. You are ahead of me.`);
+    await say('Arya: Saying them out loud is the whole of it. You should try it.');
+  },
+
+  /** A bravo does not haggle; he asks whether you can use the point. */
+  async bravo({ say, choose, npc, overworld }) {
+    await say(npc.data?.line ?? 'Bravo: We fight with the point here.');
+    const pick = await choose('He is standing rather closer than he was.',
+      ['Draw', 'Bow and walk on']);
+    if (pick !== 0) {
+      await say('Bravo: A pity. Braavos is full of people who will not, and I '
+        + 'have met all of them.');
+      return;
+    }
+    const level = Math.max(6, game.state.player.level + 1);
+    const foe = makeRoamer('sellsword', level, (list) => list[0]);
+    foe.name = 'A Braavosi Bravo';
+    foe.intro = 'Bravo: The point, ser. Only ever the point.';
+    foe.defeat = 'Bravo: Ha! The point. Everyone learns eventually.';
+    const how = await overworld.startAmbush(foe);
+    if (how !== 'won') return;
+    addMoney(120);
+    audio.sfx('money');
+    await say('Bravo: The point. I said so. A hundred and twenty for the '
+      + 'lesson, and you may keep the lesson.');
+  },
+
+  /**
+   * A merchant of cheese and spice, and of kings when the market is right.
+   * He feeds you — which is how Pentos got somewhere to mend — and he pays a
+   * retainer on every seat you have taken since he last saw you, because a man
+   * backing a claimant pays by results.
+   */
+  async illyrio({ say, choose, npc, healParty }) {
+    await say(npc.data?.line ?? 'Illyrio Mopatis: Sit. Eat.');
+    const paidFor = game.state.player.illyrioPaid ?? 0;
+    const owed = Math.max(0, sigilCount() - paidFor);
+    const options = ['Sit and eat'];
+    if (owed) options.push(`Speak of the realm (${owed} seat${owed > 1 ? 's' : ''})`);
+    options.push('Nothing');
+    const pick = await choose('Illyrio Mopatis: What is it to be?', options);
+
+    if (pick === 0) {
+      healParty();
+      game.state.player.hp = maxVigour();
+      game.state.player.wounded = false;
+      const ally = activeCompanion();
+      if (ally && ally.hp < ally.maxHp) restCompanion();
+      audio.sfx('heal');
+      await say('Duck, honeyed figs, a Myrish physician who does not ask what '
+        + 'the cut was from, and a bed in a room with no lock on the outside. '
+        + 'You leave mended and slightly heavier.');
+      return;
+    }
+    if (owed && pick === 1) {
+      const paid = owed * 400;
+      addMoney(paid);
+      game.state.player.illyrioPaid = sigilCount();
+      audio.sfx('money');
+      await say(`Illyrio Mopatis: ${owed === 1 ? 'A seat' : 'Seats'} taken. I `
+        + 'am a merchant, and a merchant pays on delivery. '
+        + `${paid} gold, and do not tell me what it is for.`, { theme: 'royal' });
+      return;
+    }
+    await say('Illyrio Mopatis: Then eat something on your way out. You look '
+      + 'like a man who is about to do something expensive.');
+  },
+
+  /** An exile with nowhere to be. He has been looking for somebody to follow. */
+  async jorah({ say, choose, npc }) {
+    await say(npc.data?.line ?? 'Ser Jorah Mormont: I was a lord once.');
+    if (hasSworn('jorah')) {
+      await say('Ser Jorah: I ride with you. You need not ask me twice, and I '
+        + 'would rather you did not.');
+      return;
+    }
+    if (swornFull()) {
+      await say('Ser Jorah: You have as many swords as one table feeds. I have '
+        + 'sat at tables like that. Come back when there is a place.');
+      return;
+    }
+    const pick = await choose('Ser Jorah: I am a exile with a sword and no one '
+      + 'to point it at. That is a poor way to end.', ['Come with me', 'Not now']);
+    if (pick !== 0) {
+      await say('Ser Jorah: Then I will be here. I am always here.');
+      return;
+    }
+    takeIntoService({ name: 'Ser Jorah Mormont', sprite: 'knight',
+      level: Math.max(12, game.state.player.level), house: null }, 'jorah');
+    audio.sfx('confirm');
+    await say(`Ser Jorah: Then you have a bear. There are now ${hostSize()} `
+      + 'sworn to you, and one of them has been exiled for slaving, which you '
+      + 'will hear about from somebody eventually.', { theme: 'royal' });
+  },
+
+  /** A khal who cannot ride is no khal, and you walk everywhere. */
+  async dothraki({ say, choose, npc }) {
+    await say(npc.data?.line ?? 'Dothraki Rider: You walk everywhere.');
+    const price = 900;
+    if (party().some((c) => c.speciesId === 'courser')) {
+      await say('Dothraki Rider: You have a horse. Ride it, then, instead of '
+        + 'standing next to it talking to me.');
+      return;
+    }
+    const pick = await choose(`A courser, broken to the saddle. ${price}g.`,
+      ['Buy the horse', 'Walk']);
+    if (pick !== 0) {
+      await say('Dothraki Rider: Then walk. It is what you are for, apparently.');
+      return;
+    }
+    if (!canAfford(price)) {
+      await say('Dothraki Rider: You cannot buy a horse with that. You could '
+        + 'buy a look at one.');
+      return;
+    }
+    addMoney(-price);
+    const horse = createCreature('courser', Math.max(8, game.state.player.level - 2));
+    const where = addCreature(horse);
+    audio.sfx('confirm');
+    await say(`He puts the reins in your hand and does not let go of them for a `
+      + `moment. ${displayName(horse)} is ${where === 'party' ? 'yours, and at your heel' : 'sent on to your holdfast'}.`);
+  },
+
+  /**
+   * The flames, which are the only thing in the game that will tell you plainly
+   * where you stand: what the season is, how far south the dead have walked,
+   * which seat is next, and whether something has come down on a town.
+   */
+  async redPriestess({ say, npc }) {
+    await say(npc.data?.line ?? "Red Priestess: The night is dark and full of terrors.");
+    await say(`Red Priestess: I see the season. It is ${seasonWord()}. `
+      + deadReachWord());
+    /* The nine seats, read off the leaders who hold them rather than out of a
+       second list that could disagree with the first. */
+    const next = Object.values(TRAINERS)
+      .find((t) => t.leader && t.sigil && t.sigil !== 'crown' && !hasSigil(t.sigil));
+    if (next) {
+      await say(`Red Priestess: I see a seat that has not bent, and ${next.name} `
+        + 'sitting in it. That is the one in front of you.');
+    } else {
+      await say('Red Priestess: I see nine seats bent and a tenth that is only '
+        + 'a chair with a woman in it. Go and sit down.');
+    }
+    const town = settledOn();
+    if (town) {
+      await say('Red Priestess: And I see fire that is not mine, over '
+        + `${getMap(town).name}. It is eating. It will not stop being hungry `
+        + 'because you are busy.', { theme: 'royal' });
+    }
+  },
+
+  /** Old Volantis was first, and Old Volantis still keeps a ledger of men. */
+  async triarch({ say, choose, npc }) {
+    await say(npc.data?.line ?? 'Triarch: Old Volantis was first.');
+    if (hasSworn('volanteneFreedman')) {
+      await say('Triarch: You bought one. He works for you now rather than for '
+        + 'me, which I am told is a great difference.');
+      return;
+    }
+    const price = 700;
+    if (swornFull()) {
+      await say('Triarch: You have no room at your table. A man with no room '
+        + 'is no use to a man with too many men.');
+      return;
+    }
+    const pick = await choose('Triarch: There is a man in my ledger with five '
+      + `tears on his cheek and a sword hand. ${price} gold buys the page he is `
+      + 'written on. What you do with the page is your affair.',
+    ['Buy the page and burn it', 'Leave him in the ledger']);
+    if (pick !== 0) {
+      await say('Triarch: As you like. He will still be in it.');
+      return;
+    }
+    if (!canAfford(price)) {
+      await say('Triarch: Not at that price you do not.');
+      return;
+    }
+    addMoney(-price);
+    takeIntoService({ name: 'A Freed Spear', sprite: 'sellsword',
+      level: Math.max(10, game.state.player.level - 3), house: null },
+    'volanteneFreedman');
+    recordChoice('freedAMan', true);
+    audio.sfx('confirm');
+    await say('He looks at the ashes a long moment, and then at you, and picks '
+      + `up a spear. There are now ${hostSize()} sworn to you, and one of them `
+      + 'has five tears on his cheek and intends to keep them.', { theme: 'royal' });
+  },
+
+  /** The Long Bridge has stood a thousand years and has always been paid for. */
+  async bridgeToll({ say, choose, npc, overworld }) {
+    await say(npc.data?.line ?? 'Bridge Guard: Walk on the left.');
+    if (game.state.choices?.bridgePaid) {
+      await say('Bridge Guard: You have paid this month. Walk on the left.');
+      return;
+    }
+    const toll = 60;
+    const pick = await choose(`Bridge Guard: ${toll} for a foreigner, and you `
+      + 'are about as foreign as they come.', [`Pay ${toll}g`, 'Refuse']);
+    if (pick === 0) {
+      if (!canAfford(toll)) {
+        await say('Bridge Guard: Then walk round. It is four hundred miles.');
+        return;
+      }
+      addMoney(-toll);
+      recordChoice('bridgePaid', true);
+      await say('Bridge Guard: Left. I will not say it again.');
+      return;
+    }
+    await say('Bridge Guard: Everybody refuses once.');
+    const level = Math.max(8, game.state.player.level);
+    const guard = makeRoamer('goldCloak', level, (list) => list[0]);
+    guard.name = 'A Bridge Guard';
+    guard.intro = 'Bridge Guard: Everybody refuses once.';
+    guard.defeat = 'Bridge Guard: ...walk on the left.';
+    const how = await overworld.startAmbush(guard);
+    if (how !== 'won') return;
+    recordChoice('bridgePaid', true);
+    recordChoice('bridgeFought', true);
+    await say('He sits down heavily against the parapet and waves you across '
+      + 'with the hand that still works. Nobody asks you for a toll in Volantis '
+      + 'again.');
+  },
+
+  /**
+   * Nineteen languages, and the queen's household. Meereen's answer to a
+   * maester, which is what it did not have.
+   */
+  async missandei({ say, choose, npc, healParty, saveGame }) {
+    await say(npc.data?.line ?? 'Missandei: This city is complicated.');
+    const pick = await choose('Missandei: The Queen keeps healers, and the '
+      + 'Queen is not here. Shall I send for one?',
+    ['See to my creatures', 'Write my progress down', 'Nothing']);
+    if (pick === 1) {
+      const ok = saveGame();
+      await say(ok
+        ? 'Missandei: Written, in three languages, so that it cannot be '
+          + 'misunderstood by anybody.'
+        : 'Missandei: It will not take. Your browser may be refusing it.');
+      return;
+    }
+    if (pick !== 0) {
+      await say('Missandei: Then be careful. This city is not fond of visitors '
+        + 'who are careful, and much less fond of the others.');
+      return;
+    }
+    healParty();
+    game.state.player.hp = maxVigour();
+    game.state.player.wounded = false;
+    const ally = activeCompanion();
+    if (ally && ally.hp < ally.maxHp) restCompanion();
+    audio.sfx('heal');
+    await say('Cool water, clean linen, and a woman who tells you exactly what '
+      + 'she is doing before she does it. You and yours are mended.');
+  },
+
+  /** Four days to Braavos with this wind, and here is what is in the way. */
+  async deckhand({ say, npc, overworld }) {
+    await say(npc.data?.line ?? 'Deckhand: Four days with this wind.');
+    const rows = seaLane(overworld?.mapId ?? game.state.position.map);
+    if (!rows?.length) {
+      await say('Deckhand: Nothing out here but water and the occasional bad '
+        + 'idea. Mostly ours.');
+      return;
+    }
+    const names = rows.map((row) => FLEETS[row.fleet]?.name).filter(Boolean);
+    await say(`Deckhand: What is out here? ${[...new Set(names)].join(', ')}. `
+      + 'Any of them will come alongside if the captain looks tired.');
   },
 
   /**

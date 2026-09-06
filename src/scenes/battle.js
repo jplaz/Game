@@ -30,6 +30,7 @@ import {
 } from '../game/state.js';
 import { isOneOfTheDead } from '../data/winter.js';
 import { dragonAfterWin, dragonBeaten } from '../game/swoop.js';
+import { bastardAfterWin } from '../game/bastards.js';
 
 const FOE_SPRITE = { x: 154, y: 12, size: 56 };
 const PLAYER_SPRITE = { x: 22, y: 44, size: 64 };
@@ -648,6 +649,7 @@ export class Battle {
         await this.say(saved, { theme: 'royal' });
       }
       dragonAfterWin();
+      bastardAfterWin();
     } else if (this.outcome === 'lost') {
       await this.say('You have no creatures left standing...');
     }

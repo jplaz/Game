@@ -33,6 +33,7 @@ import {
 } from '../game/state.js';
 import { coldOf, RAVENS, DEAD_REACH, THE_DEAD } from '../data/winter.js';
 import { settledOn, takeDragonNews } from '../game/swoop.js';
+import { takeLetter } from '../game/bastards.js';
 import { SCRIPTS } from '../data/scripts.js';
 import { TRAINERS } from '../data/trainers.js';
 import { saveGame } from '../game/save.js';
@@ -628,6 +629,7 @@ export class Overworld {
        out by a wolf either. */
     if (this.checkRaven()) return;
     if (this.checkDragonNews()) return;
+    if (this.checkLetter()) return;
     if (this.checkTrainers()) return;
     /* Somebody carried you here. Give them a moment.
      *
@@ -701,6 +703,15 @@ export class Overworld {
      raven: it waits for a step where nothing else is happening. */
   checkDragonNews() {
     const said = takeDragonNews();
+    if (!said) return false;
+    audio.sfx('confirm');
+    dialog.say(said, { theme: 'parchment' });
+    return true;
+  }
+
+  /* And word from the house with the red lamp, on the same terms again. */
+  checkLetter() {
+    const said = takeLetter();
     if (!said) return false;
     audio.sfx('confirm');
     dialog.say(said, { theme: 'parchment' });

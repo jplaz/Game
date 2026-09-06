@@ -40,6 +40,7 @@ import { COMPANIONS } from '../data/companions.js';
 import { activeCompanion, hurtCompanion, kill as killCompanion } from '../game/company.js';
 import { deepenBond, bondWord } from '../game/eggs.js';
 import { dragonAfterWin } from '../game/swoop.js';
+import { bastardAfterWin } from '../game/bastards.js';
 
 const PLAYER_POS = { x: 26, y: 44, scale: 2 };
 const FOE_POS = { x: 172, y: 14, scale: 2 };
@@ -612,6 +613,7 @@ export class Duel {
       /* A duel is a fight won, and the dragon on the granary roof is counting
          them. It does not care who you were fighting. */
       dragonAfterWin();
+      bastardAfterWin();
       audio.play('victory', TRACKS);
       await this.say(this.def.defeat, { theme: this.def.boss ? 'royal' : 'parchment' });
 

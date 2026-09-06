@@ -20,7 +20,7 @@ import { CUTSCENES } from '../src/data/cutscenes.js';
 
 import { ROAMERS as ROAMER_TABLE } from '../src/data/duellists.js';
 import { WEAPONS, ARMOUR, SHIELDS, TECHNIQUES, HELMS, GLOVES } from '../src/data/gear.js';
-import { MATERIALS, SNARES, RELICS, OATHS, EGG_ITEMS } from '../src/data/craft.js';
+import { MATERIALS, SNARES, RELICS, OATHS, EGG_ITEMS, RECIPES } from '../src/data/craft.js';
 import { GROWS_INTO, NEVER_TAMED, EGGS } from '../src/data/beasts.js';
 
 /* Everything gba/export.mjs will turn into a ware, in the same order it tries
@@ -647,6 +647,59 @@ const scriptCount = Object.keys(SCRIPTS).length;
 if (scriptsRead.size < scriptCount) {
   fail(`the script-api check read ${scriptsRead.size} of ${scriptCount} scripts: `
     + 'a script is written in a shape it cannot see, and is going unchecked');
+}
+
+/* Gear that exists and can never be had.
+ *
+ * Thirty pieces of kit in five slots, and three of them - a Sellsword's Blade,
+ * a Halberd and a Fur Cloak - were on no counter, in no chest, on no ground,
+ * in no recipe and no quest's gift. Written, priced, described, drawn, and
+ * unobtainable by any means the game offers. That is the same defect as a
+ * script nobody points at, wearing different clothes.
+ *
+ * Counted as obtainable: a counter's stock, an item lying on a map, a chest,
+ * a recipe's output, and any gear id a script names outright - which covers
+ * the pieces handed over by the story rather than sold. Tier nought is what
+ * you start in and is exempt. */
+{
+  const TABLES = { weapon: WEAPONS, armour: ARMOUR, helm: HELMS, gloves: GLOVES, shield: SHIELDS };
+  const gettable = new Set();
+  for (const map of Object.values(MAPS)) {
+    for (const npc of map.npcs ?? []) {
+      const stock = npc.data?.stock;
+      if (Array.isArray(stock)) for (const id of stock) gettable.add(id);
+      else if (stock) for (const list of Object.values(stock)) for (const id of list) gettable.add(id);
+    }
+    for (const thing of map.items ?? []) gettable.add(thing.item);
+    for (const chest of map.chests ?? []) {
+      for (const id of chest.loot ?? [chest.item]) if (id) gettable.add(id);
+    }
+  }
+  for (const recipe of Object.values(RECIPES ?? {})) {
+    const made = recipe.into ?? recipe.makes;
+    if (made) gettable.add(made);
+  }
+  for (const q of Object.values(QUESTS)) {
+    for (const key of ['reward', 'gift', 'item', 'gear']) {
+      const got = q[key];
+      if (typeof got === 'string') gettable.add(got);
+      else if (got && typeof got === 'object') for (const id of Object.values(got)) {
+        if (typeof id === 'string') gettable.add(id);
+      }
+    }
+  }
+  for (const [slot, table] of Object.entries(TABLES)) {
+    for (const [id, piece] of Object.entries(table)) {
+      if (!(piece.tier ?? 0)) continue;          // what you start in
+      if (gettable.has(id)) continue;
+      /* Named by a script is the last way in: the story hands some of it over
+         rather than selling it. Its own table is not source, so a piece
+         cannot vouch for itself. */
+      if (new RegExp(`['"\`]${id}['"\`]`).test(scriptSource)) continue;
+      fail(`${slot} ${id}: exists at tier ${piece.tier} and there is no way `
+        + 'in the game to get hold of it');
+    }
+  }
 }
 
 /* A script nobody can ever reach.

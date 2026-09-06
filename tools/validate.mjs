@@ -603,7 +603,7 @@ console.log(`Checked ${Object.keys(MAPS).length} maps, ${SPECIES_IDS.length} spe
  * Read as text on purpose. The mistake is a name that is missing from the
  * argument list, and by the time the module is imported that name is gone. */
 const SCRIPT_API = ['subject', 'npc', 'data', 'overworld', 'say', 'choose', 'battle',
-                    'duel', 'holdCourt', 'openShop', 'openSmithy', 'healParty',
+                    'duel', 'tale', 'holdCourt', 'openShop', 'openSmithy', 'healParty',
                     'saveGame', 'setFlag', 'flag'];
 const scriptSource = await readFile(new URL('../src/data/scripts.js', import.meta.url), 'utf8');
 

@@ -92,6 +92,7 @@ export class Overworld {
     this.skyDragon = null;
     this.skyTimer = rng.int(14, 40);
     this.cutscene = null;      // a scene playing out in the world around you
+    this.telling = false;      // and one of the five told as pages
     this.cutsceneTimer = null;
     this.shake = 0;
     this.flash = null;
@@ -224,7 +225,7 @@ export class Overworld {
 
   get busy() {
     return Boolean(this.script) || dialog.busy || Boolean(this.approach)
-      || Boolean(this.cutscene) || this.manager.busy;
+      || Boolean(this.cutscene) || Boolean(this.telling) || this.manager.busy;
   }
 
   // -------------------------------------------------------------- update --
@@ -613,6 +614,7 @@ export class Overworld {
       this.doHatch();
       return;
     }
+    if (this.checkLastAct()) return;
     if (this.checkCutscene()) return;
     if (this.checkTrainers()) return;
     this.checkEncounter();
@@ -636,6 +638,29 @@ export class Overworld {
       }
     }
     return { x, y };
+  }
+
+  /* The two sequences of the last act that fire off their own account rather
+     than out of a fight: the raven that comes when nine seats have bent to
+     you, wherever you are standing, and the first sight of the hall itself.
+     The cartridge has told both since they were written; this build told
+     neither, so a playthrough went from the ninth sigil straight to a woman
+     in a room. */
+  checkLastAct() {
+    if (sigilCount() < 9) return false;
+    if (!flag('cs_summons')) {
+      setFlag('cs_summons');
+      this.telling = true;
+      this.tellTale('summons').then(() => { this.telling = false; });
+      return true;
+    }
+    if (this.mapId === 'redKeep' && !flag('cs_gate')) {
+      setFlag('cs_gate');
+      this.telling = true;
+      this.tellTale('gate').then(() => { this.telling = false; });
+      return true;
+    }
+    return false;
   }
 
   /** Whether standing here starts something. Each scene fires once, ever. */
@@ -1397,6 +1422,7 @@ export class Overworld {
       choose: (text, options, opts) => dialog.choose(text, options, opts),
       battle: (config) => this.startBattle(config),
       duel: (duellistId) => this.startDuel(duellistId),
+      tale: (id) => this.tellTale(id),
       holdCourt: () => this.holdCourt(),
       openShop: (stock) => this.openShop(stock),
       openSmithy: (stock) => this.openSmithy(stock),
@@ -1439,6 +1465,18 @@ export class Overworld {
           ? new Duel({ duellistId: who, onEnd })
           : new Duel({ def: who, onEnd }));
       }, { color: '#1a1016' });
+    });
+  }
+
+  /* One of the five sequences of the last act, told as pages and waited on.
+     They have been on the cartridge since they were written; nothing here had
+     ever shown one. */
+  tellTale(id) {
+    return new Promise((resolve) => {
+      this.manager.transition(async () => {
+        const { Tale } = await import('./tale.js');
+        this.manager.push(new Tale(id, resolve));
+      }, { color: '#100c14' });
     });
   }
 

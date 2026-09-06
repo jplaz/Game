@@ -132,6 +132,34 @@ function spoken(npc) {
   return /^[A-Z][^:]{0,40}: /.test(line) ? line : `${npc?.name ?? 'Someone'}: ${line}`;
 }
 
+/* Everything after the queen goes down: the thing standing behind the chair,
+   and then the chair itself. Its own function because there are two ways into
+   it - the climb that beats her, and every climb after one that beat you. */
+async function finishTheChair(api, def) {
+  const { say, setFlag, tale } = api;
+  await tale('champion');
+  const champion = await api.duel('throneChampion');
+  if (champion !== 'won') {
+    await say('You wake somewhere with a ceiling over you, and the hall is '
+      + 'still up there, and so is it.', { theme: 'royal' });
+    return;
+  }
+  await tale('throne');
+
+  setFlag('gameComplete');
+  await say(def.after, { theme: 'royal' });
+  await say('You sit. The blades are exactly as uncomfortable as everyone said.',
+    { theme: 'royal' });
+  await tale('crowned');
+
+  // Winning the chair is not the end of it. The realm you made on the way up
+  // is the realm you now have to hold.
+  beginReign();
+  await say('And then the room fills with people who want things from you.', { theme: 'royal' });
+  await say('Sit the throne again whenever you are ready to hold court.', { theme: 'royal' });
+  await api.overworld.holdCourt();
+}
+
 export const SCRIPTS = {
   /**
    * A shipwright. Sells hulls, takes your old one in trade at half what he
@@ -1720,6 +1748,15 @@ export const SCRIPTS = {
       await overworld.holdCourt();
       return;
     }
+    /* The queen is beaten and the chair is not yours, which means the thing
+       behind it put you down. It is not standing on any map - nobody can walk
+       up to it - so without this the last fight in the game could be lost
+       exactly once and then never fought again, and the story stopped there
+       forever. It is waiting in the same shadow every time you come back up. */
+    if (flag('cerseiFell') && !flag('gameComplete')) {
+      await finishTheChair(api, def);
+      return;
+    }
     if (flag('trainer_gymThrone')) {
       await say(def.after);
       return;
@@ -1742,17 +1779,16 @@ export const SCRIPTS = {
       return;
     }
 
-    setFlag('gameComplete');
-    await say(def.after, { theme: 'royal' });
-    await say('You sit. The blades are exactly as uncomfortable as everyone said.', { theme: 'royal' });
+    /* And the thing standing behind the chair, which has been there the whole
+       time. The queen going down is not the end of the game: it is the moment
+       the last of it stands up. This build used to hand over the throne here,
+       so the fight the cartridge has always finished on never happened, and
+       neither did the two sequences either side of it. */
+    setFlag('cerseiFell');
+    await finishTheChair(api, def);
 
-    // Winning the chair is not the end of it. The realm you made on the way up
-    // is the realm you now have to hold.
-    beginReign();
-    await say('And then the room fills with people who want things from you.', { theme: 'royal' });
-    await say('Sit the throne again whenever you are ready to hold court.', { theme: 'royal' });
-    await overworld.holdCourt();
   },
+
 
   // ------------------------------------------------- the other eight seats ---
   // Five of these were written out longhand and the differences between them

@@ -3037,6 +3037,26 @@ static void settleFolk(int id) {
   }
 }
 
+/* ------------------------------------------------------------ keeping it --
+ *
+ * The record worked and nothing used it. There was exactly one way to write
+ * your progress to the cartridge - open the menu and choose "Record" - and no
+ * other moment in the whole game wrote a single byte. Switch the console off
+ * anywhere else, at any point, and the session was gone. From where a player
+ * sits that is indistinguishable from a game that cannot save.
+ *
+ * So it keeps itself at the door. Every time you arrive somewhere the record
+ * goes down, which costs about eight and a half kilobytes of byte-wide writes
+ * - a third of a frame, hidden inside the blank the warp already holds the
+ * display off for - and means switching it off on a road costs you the walk
+ * back to the last door rather than the evening.
+ *
+ * The battery-backed memory on a cartridge is RAM, not flash: there is no
+ * write-wear to husband, which is what makes this affordable at every door
+ * rather than at a handful of them. */
+static void keepRecord(void);
+static int recordWorthKeeping;
+
 static void enterMap(int id, int tx, int ty, int dir) {
   int i;
   u16 was = REG_DISPCNT;
@@ -3120,6 +3140,11 @@ static void enterMap(int id, int tx, int ty, int dir) {
   REG_DISPCNT = was;
   showPlate(world->name);
   if (cutWaitsHere()) showAside("Somebody here");
+
+  /* And write it down. Not before the world is up: the title screen calls
+     nothing here, and a new game sets the flag on its way in so that the very
+     first door already leaves something to come back to. */
+  if (recordWorthKeeping) keepRecord();
 }
 
 static void reloadHousehold(void) {
@@ -9018,6 +9043,7 @@ static int scene;
 #define DUEL_PACK 7              /* choosing which of yours stands the fight */
 
 static void enterWorld(int map, int x, int y, int dir) {
+  recordWorthKeeping = 1;
   scene = SCENE_WORLD;
   clearPage();
   layoutTextRows(TEXT_PLAY);
@@ -11925,6 +11951,7 @@ int main(void) {
           /* Somebody who wants the old save gone should be able to be rid of
              it without going looking for a file on a telephone. */
           forgetRecord();
+          recordWorthKeeping = 0;
           hasRecord = 0;
           titlePick = 0;
           paintTitle();
@@ -12100,7 +12127,9 @@ int main(void) {
           clearPage();
           layoutTextRows(TEXT_PLAY);
           scene = SCENE_WORLD;
-          openWindow(0, "Your record is written down. The maesters keep worse ones.");
+          openWindow(0, "Your record is written down. The maesters keep worse "
+            "ones - and one is kept for you at every door you walk through, so "
+            "you may switch this off wherever you like.");
         } else {
           scene = SCENE_WORLD;
           clearPage();

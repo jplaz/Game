@@ -36,7 +36,7 @@ import { settledOn, takeDragonNews } from '../game/swoop.js';
 import { takeLetter } from '../game/bastards.js';
 import { SCRIPTS } from '../data/scripts.js';
 import { TRAINERS } from '../data/trainers.js';
-import { saveGame } from '../game/save.js';
+import { saveGame, keep, nowPlaying } from '../game/save.js';
 import { aboutNow, isNight } from '../game/clock.js';
 
 const SCREEN_W = 240;
@@ -108,6 +108,9 @@ export class Overworld {
   }
 
   enter() {
+    /* The world is up, so from here on the game is worth keeping. Nothing is
+       written before this: the title screen has no game in it yet. */
+    nowPlaying();
     this.loadMap(game.state.position.map, game.state.position);
   }
 
@@ -177,6 +180,13 @@ export class Overworld {
 
     this.updateCamera(true);
     audio.play(this.map.music ?? 'town', TRACKS);
+
+    /* And keep it, every time you arrive somewhere. A door is the natural
+       place to write a game down: it is where a player stops, it is cheap -
+       about a kilobyte and a half of JSON - and it means switching the game
+       off on a road costs you the walk back to that door rather than the
+       whole evening. */
+    keep();
 
     // A map-entry script (used for the story beats) runs once on arrival.
     const entry = this.map.onEnter;

@@ -3757,6 +3757,70 @@ int main(void) {
     note("the record is %d bytes", (int)sizeof(Record));
   }
 
+  /* --- and the console switched off ---------------------------------------
+   *
+   * Everything above proves the record survives being written and read inside
+   * one running game. What nobody ever checked is the only thing a player
+   * cares about: walking through a door, switching the console off, and
+   * switching it back on.
+   *
+   * That used to fail for a reason no test could see, because it was not a bug
+   * in any of this. It was that nothing called it. There was one way to write
+   * the record - the menu's "Record" entry - and no other moment in the game
+   * touched the cartridge's memory at all. Play for an hour, walk anywhere,
+   * switch off, and the hour was gone.
+   *
+   * A door writes it now, so this walks through one and then wipes every
+   * global the way a power cycle does. */
+  {
+    memset(hostSram, 0, sizeof hostSram);
+    newGameState();
+    you.house = 1; you.level = 9; you.gold = 3131; you.kills = 5;
+    you.hp = vigourFor(you.level);
+    recordWorthKeeping = 0;
+
+    /* Standing somewhere with the record not yet worth keeping - the title
+       screen - writes nothing. */
+    enterMap(4, 6, 8, 1);
+    if (findRecord()) bad("a game that has not started is written to the cartridge");
+
+    /* And once it is a game, walking through a door writes it with nobody
+       having chosen anything from a menu. */
+    enterWorld(7, 5, 9, 2);
+    if (!findRecord()) bad("walking through a door does not write the record");
+
+    /* Now switch it off. Everything in memory goes; the cartridge keeps what
+       it was given. */
+    {
+      Record kept = record;
+      memset(&record, 0, sizeof record);
+      newGameState();
+      you.house = 0; you.level = 5; you.gold = 220;
+      worldId = 0;
+      hero.px = 0; hero.py = 0; hero.dir = 0;
+      (void)kept;
+    }
+    if (!findRecord()) {
+      bad("the cartridge does not come back after the console is switched off");
+    } else {
+      takeUpRecord();
+      if (you.house != 1 || you.level != 9 || you.gold != 3131 || you.kills != 5) {
+        bad("who you were does not come back after the console is switched off");
+      }
+      if (record.worldId != 7 || record.x != 5 || record.y != 9) {
+        bad("where you were standing does not come back after the console is "
+            "switched off");
+      }
+    }
+
+    /* And throwing the record away at the title leaves nothing behind. */
+    forgetRecord();
+    recordWorthKeeping = 0;
+    enterMap(9, 4, 4, 0);
+    if (findRecord()) bad("a record thrown away is written back by the next door");
+    recordWorthKeeping = 0;
+  }
+
   /* --- where you start --------------------------------------------------- */
   for (i = 0; i < HOUSE_COUNT; i++) {
     const House *h = &houses[i];

@@ -4,6 +4,7 @@ import { input } from './engine/input.js';
 import { audio } from './engine/audio.js';
 import { scenes } from './engine/scenes.js';
 import { Title } from './scenes/title.js';
+import { keepOnLeaving } from './game/save.js';
 
 const WIDTH = 240;
 const HEIGHT = 160;
@@ -48,6 +49,12 @@ window.addEventListener('keydown', (e) => {
     console.log(muted ? 'Muted' : 'Unmuted');
   }
 });
+
+/* And the one that matters most: whatever happens to this tab - closed,
+   switched away from, a phone locked - the game is written down first.
+   `pagehide` is the event that actually fires on mobile Safari, where
+   `beforeunload` does not, so all three are listened for. */
+keepOnLeaving(window);
 
 scenes.push(new Title());
 

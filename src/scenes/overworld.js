@@ -32,6 +32,7 @@ import {
   sigilCount, deepenWinter, winterStage, takeRaven,
 } from '../game/state.js';
 import { coldOf, RAVENS, DEAD_REACH, THE_DEAD } from '../data/winter.js';
+import { settledOn, takeDragonNews } from '../game/swoop.js';
 import { SCRIPTS } from '../data/scripts.js';
 import { TRAINERS } from '../data/trainers.js';
 import { saveGame } from '../game/save.js';
@@ -626,6 +627,7 @@ export class Overworld {
        step that shows you the hall — and it is not allowed to be shouldered
        out by a wolf either. */
     if (this.checkRaven()) return;
+    if (this.checkDragonNews()) return;
     if (this.checkTrainers()) return;
     /* Somebody carried you here. Give them a moment.
      *
@@ -695,6 +697,16 @@ export class Overworld {
     return true;
   }
 
+  /* Word about the dragon on somebody's granary roof, on the same terms as the
+     raven: it waits for a step where nothing else is happening. */
+  checkDragonNews() {
+    const said = takeDragonNews();
+    if (!said) return false;
+    audio.sfx('confirm');
+    dialog.say(said, { theme: 'parchment' });
+    return true;
+  }
+
   /* Whether the dead have reached the ground you are standing on. A road is
      cold from nought in Dorne to five beyond the Wall, the winter adds its own
      count to that, and at seven between them they are here. Indoors is warm,
@@ -738,6 +750,20 @@ export class Overworld {
 
     audio.sfx('encounter');
     this.startBattle({ kind: 'wild', foe: wildCreature(species, level, level) });
+    return true;
+  }
+
+  /**
+   * It comes off the granary roof. Scaled to you rather than to the road,
+   * because a dragon settles where it likes and a fixed level would make one
+   * town in the game impassable — and six over is a fight worth the purse.
+   */
+  rollTheDragon() {
+    if (!game.state.party.some((c) => c.hp > 0)) return false;
+    const best = game.state.party.reduce((n, c) => Math.max(n, c.level), 0);
+    const level = Math.min(60, Math.max(8, Math.max(game.state.player.level, best) + 6));
+    audio.sfx('encounter');
+    this.startBattle({ kind: 'wild', foe: wildCreature('dreadwyrm', level, level) });
     return true;
   }
 
@@ -1039,6 +1065,13 @@ export class Overworld {
     const chance = ENCOUNTER_CHANCE * (this.mount ? MOUNTED_ENCOUNTER_SCALE : 1);
     if (!rng.chance(chance)) return;
 
+    /* Over the town it has settled on, whatever is in the cover is the dragon.
+       Every fight you have here is that fight until one of you stops getting
+       up, which is the whole of what makes it an errand rather than a rumour.
+       Before the winter and before the map's own table, deliberately: the
+       towns worth settling over are exactly the ones with people in them
+       instead of wolves. */
+    if (settledOn() === this.mapId && this.rollTheDragon()) return;
     if (winterHere && this.rollTheDead()) return;
     if (!(this.map.encounters?.length)) return;
 

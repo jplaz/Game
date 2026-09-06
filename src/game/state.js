@@ -6,6 +6,7 @@ import {
 } from '../data/houses.js';
 import { healFully } from './creature.js';
 import { WINTER_STEP, WINTER_DEEPEST, SEASONS, DEAD_REACH } from '../data/winter.js';
+import { clearDragonNews } from './swoop.js';
 
 export const PARTY_LIMIT = 6;
 
@@ -48,6 +49,13 @@ export function newGame(playerName = 'Snow') {
       rangeWant: 0,
       rangeGot: 0,
       rangings: 0,
+      /* And the dragon that has come down on somebody's granary roof: which
+         town, how many fights before it has eaten the place, and the tally
+         either way. See game/swoop.js. */
+      swoopMap: null,
+      swoopAt: 0,
+      swoopsBeaten: 0,
+      swoopsBurned: 0,
     },
     party: [],
     box: [],
@@ -88,8 +96,9 @@ export function setState(next) {
   game.state = next;
   /* A letter owed to the game you were playing a moment ago is not owed to
      this one. Which stages have already been reported is on the save; the one
-     in flight is not, so it goes. */
+     in flight is not, so it goes — and the same is true of the dragon's. */
   clearRaven();
+  clearDragonNews();
 }
 
 // ------------------------------------------------------------------ party --

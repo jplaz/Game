@@ -29,6 +29,7 @@ import {
   markSeen, markCaught, awardSigil, winterFalls, countTowardRanging,
 } from '../game/state.js';
 import { isOneOfTheDead } from '../data/winter.js';
+import { dragonAfterWin, dragonBeaten } from '../game/swoop.js';
 
 const FOE_SPRITE = { x: 154, y: 12, size: 56 };
 const PLAYER_SPRITE = { x: 22, y: 44, size: 64 };
@@ -638,6 +639,15 @@ export class Battle {
         /* And it counts against whatever the Watch sent you north for. */
         countTowardRanging();
       }
+      /* And if that was the dragon, standing on the town it had settled over,
+         the town is saved and the house that holds it saw who came. */
+      const saved = dragonBeaten(this.config.mapId ?? game.state.position.map,
+        this.foe?.creature?.speciesId);
+      if (saved) {
+        audio.sfx('money');
+        await this.say(saved, { theme: 'royal' });
+      }
+      dragonAfterWin();
     } else if (this.outcome === 'lost') {
       await this.say('You have no creatures left standing...');
     }

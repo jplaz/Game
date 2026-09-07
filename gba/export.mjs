@@ -1547,12 +1547,22 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
         row.c = actors.DIRECTIONS.indexOf(at.dir ?? 'down');
         /* The person who walks in has to have their art resident on that map,
            the same as anybody standing on it does. */
-        const actor = actorFor(personLook(at.sprite ?? 'smallfolk', at.name ?? ''),
-                               `${at.sprite}|${at.name ?? ''}`);
+        /* Their name decides their face: a look is hashed from `sprite|name`,
+           so two people of the same trade with different names are two
+           appearances. A scene that stands in nine halls therefore has to be
+           told whose hall this copy is BEFORE the face is made - otherwise all
+           nine get one stranger, and that stranger is a thirteenth appearance
+           on the six seats that already carry twelve. Filled in here, the
+           maester who crosses your yard is the maester who lives there, whose
+           face the map is already holding, and he costs nothing. */
+        const called = stand.house === 255 ? (at.name ?? '')
+          : fillFor(houses[stand.house], at.name ?? '');
+        const actor = actorFor(personLook(at.sprite ?? 'smallfolk', called),
+                               `${at.sprite}|${called}`);
         (map.sceneActors ??= []).push(actor);
         row.actor = actor;
         row.mapId = stand.map;
-        row.text = at.name ?? '';
+        row.text = called;
       } else if (kind === 'walk') {
         row.slot = slotOf(beat[1]);
         row.a = actors.DIRECTIONS.indexOf(beat[2]);

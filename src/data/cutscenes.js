@@ -478,23 +478,30 @@ export const CUTSCENES = {
        town. Eight of the nine could otherwise reach the last act without ever
        being told why any of it was happening. */
     map: '@seat', x: 12, y: 16, flag: 'cs_raven', name: 'The Raven',
+    /* The man who comes is your own maester, not Luwin, and he is named on the
+       spot: every hall in the realm now has one standing in it, which eight of
+       the nine did not. That is what makes this scene affordable in nine
+       places rather than one - object memory holds twelve appearances to a map
+       and six of the nine seats already carry twelve, so the maester who walks
+       on here has to be a face the map is already holding. */
     beats: [
-      ['say', 'A maester comes across the yard too fast for a man his age, '
-            + 'with a scrap of paper held out in front of him like it is hot.'],
-      ['spawn', 'luwin', { x: 12, y: 13, dir: 'down', sprite: 'maester', name: '{maester}' }],
-      ['walk', 'luwin', 'down', 2],
-      ['say', 'Maester: From the Wall. Not the usual count of stores and cold. '
-            + 'It is signed by a man I buried a rumour about last winter.'],
-      ['say', 'Maester: Three words. THEY ARE COMING. No number, no name, '
+      ['say', 'Somebody is crossing the yard too fast for a man his age: a '
+            + 'chain of many metals, robes gathered up in one fist, and in the '
+            + 'other a scrap of paper held out in front of him like it is hot.'],
+      ['spawn', 'maester', { x: 12, y: 13, dir: 'down', sprite: 'maester', name: '{maester}' }],
+      ['walk', 'maester', 'down', 2],
+      ['say', '{maester}: From the Wall. Not the usual count of stores and '
+            + 'cold. It is signed by a man I buried a rumour about last winter.'],
+      ['say', '{maester}: Three words. THEY ARE COMING. No number, no name, '
             + 'nothing a lord could act on, which is what frightens me about it.'],
       ['choose', 'What do you make of it?',
         ['A frightened man in the cold', 'Somebody wants us looking north',
          'I believe it'],
         { record: 'theRaven',
           favour: [{ stark: -8 }, { lannister: 6, stark: -6 }, { stark: 12 }] }],
-      ['say', 'Maester: Then go and be useful about it. Nobody south of the Neck '
-            + 'will move for three words and a stranger. Give them nine sigils '
-            + 'and they will move for anything you like.'],
+      ['say', '{maester}: Then go and be useful about it. Nobody south of the '
+            + 'Neck will move for three words and a stranger. Give them nine '
+            + 'sigils and they will move for anything you like.'],
       ['flag', 'heardTheRaven'],
     ],
   },

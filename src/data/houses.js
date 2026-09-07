@@ -176,6 +176,81 @@ export function house(id) {
  * Who holds each region. Standing with the house that holds the ground you are
  * standing on is what a merchant there is reading when they name a price.
  */
+/* ------------------------------------------------------- where you begin ---
+ *
+ * The nine seats, and the people standing in them when you wake up.
+ *
+ * These coordinates lived in gba/export.mjs and nowhere else, which meant the
+ * cartridge did what the game says it does — swear to a house and begin at its
+ * seat — and this build did not. Here you were put in a chamber in Winterfell
+ * whichever banner you had just named, and told by Maester Luwin that Lord
+ * Rickard wanted a rider, handed a scroll naming you Winterfell's rider, and
+ * sent to earn the Wolf Sigil. Swear to Martell and the opening still called
+ * you a Stark: the largest choice in the game, made in its first two minutes,
+ * changed a colour and nothing else.
+ *
+ * So it is one table now, read by the exporter and by the opening alike, and
+ * it carries the story as well as the coordinates: whose maester wakes you,
+ * whose lord wants a rider, which sigil is theirs to give, and where they
+ * point you when you leave.
+ *
+ * The coordinates are load-bearing and nothing else in the build checks them —
+ * redraw a seat and three houses start the game standing inside a wall. See
+ * tools/checkstarts.mjs.
+ */
+export const HOUSE_SEATS = {
+  stark: {
+    map: 'winterfell', x: 12, y: 12, dir: 0, level: 5,
+    maester: 'Maester Luwin', lord: 'Lord Eddard', sigil: 'wolf',
+    keep: 'the Great Keep', next: 'Moat Cailin first, and Riverrun beyond it',
+  },
+  lannister: {
+    map: 'lannisport', x: 9, y: 15, dir: 0, level: 5,
+    maester: 'Maester Creylen', lord: 'Ser Jaime', sigil: 'lion',
+    keep: 'Casterly Rock', next: 'the gold road east, and the capital past it',
+  },
+  tully: {
+    map: 'riverrun', x: 10, y: 17, dir: 1, level: 5,
+    maester: 'Maester Vyman', lord: 'Lady Catelyn', sigil: 'trout',
+    keep: 'the keep above the water gate', next: 'the crossroads, and whichever road you like from there',
+  },
+  targaryen: {
+    map: 'dragonstone', x: 11, y: 18, dir: 1, level: 5,
+    maester: 'Maester Cressen', lord: 'the Queen across the water', sigil: 'dragon',
+    keep: 'the Painted Table', next: 'a ship, and the Crownlands shore',
+  },
+  greyjoy: {
+    map: 'pyke', x: 11, y: 12, dir: 1, level: 5,
+    maester: 'Maester Wendamyr', lord: 'Yara', sigil: 'kraken',
+    keep: 'the sea tower', next: 'the iron coast, and the mainland beyond it',
+  },
+  arryn: {
+    map: 'theEyrie', x: 11, y: 5, dir: 0, level: 5,
+    maester: 'Maester Colemon', lord: 'Bronze Yohn', sigil: 'falcon',
+    keep: 'the high hall', next: 'the Bloody Gate, and down out of the mountains',
+  },
+  tyrell: {
+    map: 'highgarden', x: 11, y: 14, dir: 0, level: 5,
+    maester: 'Maester Lomys', lord: 'Lord Randyll', sigil: 'rose',
+    keep: 'the keep', next: 'the roseroad, and King\'s Landing at the end of it',
+  },
+  martell: {
+    map: 'sunspear', x: 14, y: 9, dir: 0, level: 5,
+    maester: 'Maester Caleotte', lord: 'Prince Oberyn', sigil: 'viper',
+    keep: 'the Tower of the Sun', next: 'the Prince\'s Pass, and the Reach on the far side',
+  },
+  baratheon: {
+    map: 'stormsEnd', x: 11, y: 17, dir: 0, level: 5,
+    maester: 'Maester Jurne', lord: 'Stannis', sigil: 'stag',
+    keep: 'the drum tower', next: 'the stormlands road, and the kingsroad past it',
+  },
+};
+
+/** Where a house's rider wakes up, with Winterfell as the last resort. */
+export function seatOf(houseId) {
+  return HOUSE_SEATS[houseId] ?? HOUSE_SEATS.stark;
+}
+
 export const REGION_HOUSE = {
   'The North': 'stark',
   'The Neck': 'stark',

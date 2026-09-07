@@ -164,6 +164,8 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   /* How cold each region's ground is, read out of the same module the
      browser build reads it from rather than typed out again here. */
   const { coldOf } = await import('/src/data/winter.js');
+  /* And where the nine houses begin, from the same file the opening reads. */
+  const { HOUSE_SEATS } = await import('/src/data/houses.js');
   const { DUELLISTS, ROAMERS, ROAMER_TABLES, makeRoamer } = await import('/src/data/duellists.js');
   const { TRAINERS, trainerAsDuellist } = await import('/src/data/trainers.js');
   const { MATCHES } = await import('/src/data/matches.js');
@@ -370,17 +372,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
      These coordinates are load-bearing and nothing else in the build checks
      them: redraw a seat and three houses start the game standing inside a
      wall. tools/checkstarts.mjs is the check. */
-  const SEAT_START = {
-    stark:     { map: 'winterfell',  x: 12, y: 12, dir: 0, level: 5 },
-    lannister: { map: 'lannisport',  x: 9,  y: 15, dir: 0, level: 5 },
-    tully:     { map: 'riverrun',    x: 10, y: 17, dir: 1, level: 5 },
-    targaryen: { map: 'dragonstone', x: 11, y: 18, dir: 1, level: 5 },
-    greyjoy:   { map: 'pyke',        x: 11, y: 12, dir: 1, level: 5 },
-    arryn:     { map: 'theEyrie',    x: 11, y: 5,  dir: 0, level: 5 },
-    tyrell:    { map: 'highgarden',  x: 11, y: 14, dir: 0, level: 5 },
-    martell:   { map: 'sunspear',    x: 14, y: 9,  dir: 0, level: 5 },
-    baratheon: { map: 'stormsEnd',   x: 11, y: 17, dir: 0, level: 5 },
-  };
+  /* Read out of src/data/houses.js, which is where the browser build reads it
+     too: the cartridge and the browser now start the same nine houses in the
+     same nine places, and there is one table to redraw a seat against. */
+  const SEAT_START = HOUSE_SEATS;
   for (const h of houses) {
     const seat = SEAT_START[h.id];
     if (!seat) throw new Error(`no starting seat for ${h.id}`);

@@ -13,7 +13,7 @@ import {
 import {
   bastardHere, grown, takeBastard, spendTheEvening,
 } from '../game/bastards.js';
-import { HOUSES, SWEARABLE } from './houses.js';
+import { HOUSES, SWEARABLE, seatOf } from './houses.js';
 import { giveEgg } from '../game/eggs.js';
 import { beginReign, reigning } from '../game/realm.js';
 import { QUESTS } from './quests.js';
@@ -901,18 +901,34 @@ export const SCRIPTS = {
   },
 
   // ------------------------------------------------------ the opening beat --
+  /**
+   * The opening beat, and the one place the largest choice in the game has to
+   * land.
+   *
+   * It used to be a Stark opening whatever you swore to. Maester Luwin told
+   * every rider that Lord Rickard wanted somebody for the southern roads, gave
+   * them a scroll naming them Winterfell's rider, and sent them to earn the
+   * Wolf Sigil — after they had just been told, out loud, that their seat was
+   * Sunspear or Pyke or the Eyrie. The banner changed a colour and nothing
+   * else, in the two minutes of the game that exist to make it matter.
+   *
+   * Every name in it comes off HOUSE_SEATS now, and the door out of the
+   * chamber opens onto your own seat rather than onto Winterfell.
+   */
   async starter({ say, choose, npc, setFlag, flag }) {
     if (flag('gotStarter')) {
+      const mine = seatOf(allegiance() ?? 'stark');
       if (!flag('luwinAdvice2')) {
         setFlag('luwinAdvice2');
         await say('Tall grass hides wild creatures. Raise a banner at a weakened one and it may swear to you.');
       } else {
-        await say('South, then. Moat Cailin first, and Riverrun beyond it. Ride safely.');
+        await say(`Out, then. ${mine.next[0].toUpperCase()}${mine.next.slice(1)}. Ride safely.`);
       }
       return;
     }
 
-    await say('Maester Luwin: There you are. Lord Rickard wants a rider for the southern roads, and every other candidate is either too old or too Bolton.');
+    await say('There you are. Somebody wants a rider for the long roads, and '
+      + 'every other candidate is either too old or too well connected to risk.');
 
     // Whose banner you ride under. Every house in the realm forms an opinion
     // from this moment, and they all remember it.
@@ -936,8 +952,14 @@ export const SCRIPTS = {
     recordChoice('allegiance', houseId);
     audio.sfx('levelup');
     const sworn = HOUSES[houseId];
+    const seat = seatOf(houseId);
+    /* And from this line on, this is where you are. The chamber you woke in is
+       a chamber at your own seat: whoever you swore to, their maester is the
+       one who has been talking to you. */
+    game.state.position = { map: seat.map, x: seat.x, y: seat.y, dir: 'down' };
+    game.state.respawn = { map: seat.map, x: seat.x, y: seat.y, dir: 'down' };
     await say(`You are sworn to ${sworn.full}.`);
-    await say(`Maester Luwin: ${sworn.sworn}`);
+    await say(`${seat.maester}: ${sworn.sworn}`);
     await say('Their rivals will have heard by the time you reach the gate. That is how it works.');
 
     await say('Now. You will need a creature of your own. I have three in my care. Choose.');
@@ -966,8 +988,12 @@ export const SCRIPTS = {
     giveItem('sigilBanner', 5);
     giveItem('maesterKit', 3);
     giveItem('ravenScroll', 1);
-    await say('Take five Sigil Banners and some bandages. And this scroll — it names you Winterfell\'s rider, so the gate guards will let you pass.');
-    await say('Lord Rickard holds the Wolf Sigil in the Great Keep. Earn it from him before you ride south. He will insist.');
+    await say('Take five Sigil Banners and some bandages. And this scroll — it '
+      + `names you ${sworn.seat}'s rider, so the gate guards will let you pass.`);
+    const sigilName = seat.sigil[0].toUpperCase() + seat.sigil.slice(1);
+    await say(`${seat.lord} holds the ${sigilName} Sigil in ${seat.keep}. Earn `
+      + 'it from them before you ride out. They will insist.');
+    await say(`And then ${seat.next}.`);
 
     // Luwin steps out of the road.
     npc.x = 11;

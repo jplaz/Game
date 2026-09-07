@@ -26,7 +26,7 @@ import { eggs, eggProgress, bondOf, bondWord, RIDING_BOND } from '../game/eggs.j
 import { questEntries, questCounts } from '../game/questlog.js';
 import { gear, gearTable, GEAR_SLOTS } from '../data/gear.js';
 import {
-  playerStats, equipped, equip, playerTechniques, playerTitle,
+  playerStats, equipped, equip, playerTechniques, playerTitle, conditionWord,
   maxVigour, expToNextLevel, playerAppearance,
 } from '../game/player.js';
 import { drawActor, ACTOR_W, ACTOR_H } from '../art/actors.js';
@@ -537,7 +537,13 @@ export class MainMenu {
     GEAR_SLOTS.forEach((slot, i) => {
       const y = 36 + i * 12;
       drawText(ctx, slot.toUpperCase(), 12, y, i === this.gearSlot ? gold : pale);
-      drawText(ctx, fit(equipped(slot).name, TEXT_W - 58), 62, y, bright);
+      /* And what state it is in. Steel wears now, and a player who cannot see
+         a blade going is a player whose blade goes mid-duel for no reason they
+         could have seen coming. */
+      const worn = conditionWord(slot);
+      drawText(ctx, fit(equipped(slot).name, TEXT_W - 116), 62, y, bright);
+      drawText(ctx, worn, 150, y, worn === 'sound' ? pale
+        : { color: worn === 'about to go' ? '#e07a6a' : '#e8c07a', shadow: '#151a2c' });
     });
 
     drawText(ctx, `HEALTH ${Math.round(p.hp ?? maxVigour())}/${maxVigour()}`, 12, 74, bright);

@@ -48,7 +48,9 @@ import { PROPERTIES } from './properties.js';
 import {
   ownsProperty, buyProperty, collectRent, rentLine,
 } from '../game/property.js';
-import { maxVigour } from '../game/player.js';
+import {
+  maxVigour, mendCost, mendAll, wantsMending,
+} from '../game/player.js';
 import { asideFor } from '../game/regard.js';
 import { MATCHES } from './matches.js';
 import {
@@ -854,8 +856,27 @@ export const SCRIPTS = {
   },
 
   /** Blacksmiths sell arms and armour and will fit them for you. */
-  async smith({ say, npc, openSmithy }) {
+  async smith({ say, choose, npc, openSmithy }) {
     if (npc.data?.line) await say(npc.data.line);
+    /* Mending, before selling. Steel wears now, and a forge that will sell you
+       a new sword but not put an edge back on the one you have is a shop with
+       an anvil in it. This is what seventeen smiths are for. */
+    while (wantsMending()) {
+      const cost = mendCost();
+      const pick = await choose(`Your kit wants a night on the wheel. ${cost}g for `
+        + 'the lot.', [`Mend it — ${cost}g`, 'Look at the rack']);
+      if (pick !== 0) break;
+      if (!canAfford(cost)) {
+        await say('Smith: Come back with the coin and I will come back with the '
+          + 'grindstone.');
+        break;
+      }
+      addMoney(-cost);
+      mendAll();
+      audio.sfx('confirm');
+      await say('Sparks, water, and a long unpleasant noise. Every piece you '
+        + 'have on is sound again.');
+    }
     await openSmithy(npc.data?.stock ?? {});
   },
 

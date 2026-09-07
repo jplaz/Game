@@ -30,7 +30,7 @@ import { duellist as getDuellist } from '../data/duellists.js';
 import { item as getItem, ITEMS } from '../data/items.js';
 import { attemptCatch } from '../game/combat.js';
 import {
-  playerStats, playerTechniques, gainPlayerExp, 
+  playerStats, playerTechniques, gainPlayerExp, wearOn, neverWears, equipped, 
   giveGear, expForPlayerLevel, playerAppearance,
 } from '../game/player.js';
 import {
@@ -41,6 +41,10 @@ import { activeCompanion, hurtCompanion, kill as killCompanion } from '../game/c
 import { deepenBond, bondWord } from '../game/eggs.js';
 import { dragonAfterWin } from '../game/swoop.js';
 import { bastardAfterWin } from '../game/bastards.js';
+
+/* Which piece a blow that got through found. A shield takes the most, because
+   a shield is what you put in the way on purpose. */
+const COVER = ['shield', 'shield', 'armour', 'helm', 'gloves'];
 
 const PLAYER_POS = { x: 26, y: 44, scale: 2 };
 const FOE_POS = { x: 172, y: 14, scale: 2 };
@@ -181,6 +185,60 @@ export class Duel {
   }
 
   // ------------------------------------------------------------ utilities --
+
+  /**
+   * A piece of yours takes a blow's worth of wear, and if it goes, it goes.
+   * Held on the scene and said once the exchange is over, because a sword
+   * snapping is worth a line of its own rather than a clause in the middle of
+   * the damage.
+   */
+  noteWear(slot) {
+    const went = wearOn(slot, 1);
+    if (went.broke) this.broke = went;
+  }
+
+  /**
+   * A blow that got through found one of the four things covering you.
+   *
+   * Which one is drawn only from the pieces that can actually wear, and not at
+   * all when none of them can. That is not only tidier: drawing a number every
+   * time somebody hits a man in his shirtsleeves moves the whole seeded
+   * sequence along, and the fixed-seed drivers that play the last act through
+   * started losing a fight they had won a hundred times.
+   */
+  noteWearFromBlow() {
+    const wearable = COVER.filter((slot) => !neverWears(slot, equipped(slot).id));
+    if (!wearable.length) return;
+    this.noteWear(wearable[rng.int(0, wearable.length - 1)]);
+  }
+
+  /** Whatever broke this exchange, said now that the blows have landed. */
+  async sayWhatBroke() {
+    const went = this.broke;
+    if (!went) return;
+    this.broke = null;
+    const nameOf = (id) => { try { return gear(went.slot, id).name; } catch { return 'It'; } };
+    const name = nameOf(went.broke);
+    audio.sfx('faint');
+    if (went.drew) {
+      await this.say(`${name} goes, halfway through the swing. You have `
+        + `${nameOf(went.drew)} out before it hits the ground.`, { theme: 'royal' });
+    } else {
+      await this.say(`${name} goes, and there is nothing behind it.`, { theme: 'royal' });
+    }
+    /* The numbers a fight is fought with were taken when it was readied, so
+       they are taken again: what you are swinging is not what you were. */
+    this.refreshYou();
+  }
+
+  /** Your three numbers, after something you were wearing has changed. */
+  refreshYou() {
+    const stats = playerStats();
+    this.you.might = stats.might;
+    this.you.guard = stats.guard;
+    this.you.swiftness = stats.swiftness;
+    this.you.techniques = playerTechniques();
+  }
 
   wait(seconds) {
     return new Promise((resolve) => { this.timer = seconds; this.waitResolve = resolve; });
@@ -410,6 +468,11 @@ export class Duel {
       const { damage, critical } = computeDamage(actor, target, tech);
       anyCrit = anyCrit || critical;
       target.hp = Math.max(0, target.hp - damage);
+      /* Steel against steel. Your own blow takes an edge off what you swung,
+         and a blow that lands on you takes a piece out of whatever was in the
+         way. Only your own kit: nobody is tracking a hedge knight's helm. */
+      if (actor === this.you) this.noteWear('weapon');
+      else if (target === this.you) this.noteWearFromBlow();
       total += damage;
       audio.sfx(critical ? 'strong' : 'hit');
       this.anim.lungeFor = actor;
@@ -418,6 +481,9 @@ export class Duel {
     }
     if (anyCrit) await this.say('It bites deep!');
     if (hits > 1) await this.say(`Struck ${hits} times!`);
+    /* And whatever of yours gave out doing it. Said here rather than inside
+       the loop, so a sword going is its own moment. */
+    await this.sayWhatBroke();
 
     const effect = tech.effect ?? {};
     const fires = tech.chance === undefined || rng.chance(tech.chance);

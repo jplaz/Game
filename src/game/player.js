@@ -44,6 +44,146 @@ export function equipped(slot) {
   }
 }
 
+// --------------------------------------------------------------- the wear --
+//
+// Steel against steel. Your own blow takes an edge off whatever you swung it
+// with, and whatever lands on you takes a piece out of what you were wearing
+// when it did.
+//
+// Nothing in this build ever wore out. The cartridge has had this since the
+// gear ladder was written, which is what a forge in every town is *for*: a
+// blade that never dulls turns seventeen smiths into seventeen shops. Here a
+// sword bought at Winterfell was the same sword at the Iron Throne, in the
+// same condition, having been through nine hundred fights.
+
+/**
+ * Whether a piece is beyond wearing out.
+ *
+ * Your bare hands, and the nine things in the tables that carry no price:
+ * Valyrian steel, dragonglass, dragonscale, the Kingsguard's plate. None of
+ * them is sold anywhere, so none of them could ever be replaced — and a rule
+ * that quietly destroys the best sword in the game with no way to get another
+ * is not a rule, it is a punishment for having won something. It also happens
+ * to be true of the material: Valyrian steel does not dull.
+ */
+export function neverWears(slot, id) {
+  try {
+    return !(gear(slot, id).price > 0);
+  } catch {
+    return true;
+  }
+}
+
+/** How many blows a piece has in it. Dearer things last longer, up to a point. */
+export function gearLife(slot, id) {
+  const def = gear(slot, id);
+  return Math.min(140, 30 + Math.floor((def.price ?? 0) / 40));
+}
+
+/** The wear record, made on demand so an older save grows one. */
+export function wearOf() {
+  const p = game.state.player;
+  p.wear = p.wear ?? {};
+  return p.wear;
+}
+
+/** How much life is left in what is in that slot. */
+export function lifeLeft(slot) {
+  const w = wearOf();
+  if (w[slot] === undefined) w[slot] = gearLife(slot, equipped(slot).id);
+  return w[slot];
+}
+
+/**
+ * A word for the state of a thing, for the gear page. The same four the
+ * cartridge uses, on the same thresholds.
+ */
+export function conditionWord(slot) {
+  const id = equipped(slot).id;
+  if (neverWears(slot, id)) return 'sound';
+  const full = gearLife(slot, id);
+  if (full < 1) return 'sound';
+  const left = lifeLeft(slot);
+  if (left * 4 >= full * 3) return 'sound';
+  if (left * 2 >= full) return 'worn';
+  if (left * 4 >= full) return 'notched';
+  return 'about to go';
+}
+
+/** The best thing you own for that slot that is not the one that just broke. */
+function spareFor(slot, notThis) {
+  const owned = [...new Set(game.state.player.gearOwned?.[slot] ?? [])]
+    .filter((id) => id !== notThis);
+  let best = null;
+  for (const id of owned) {
+    try {
+      const def = gear(slot, id);
+      const worth = (def.might ?? 0) + (def.guard ?? 0);
+      if (!best || worth > best.worth) best = { id, worth };
+    } catch { /* a piece the tables no longer know about */ }
+  }
+  return best?.id ?? null;
+}
+
+/**
+ * Takes some life out of what is in that slot.
+ *
+ * @returns {{broke: string|null, drew: string|null}} what went, and what you
+ *   reached for. A broken thing comes off and does not go back in the pack —
+ *   a snapped sword is not a sword you can put on again — and the best spare
+ *   you own is drawn on the spot. Nobody draws a spare by opening a bag in the
+ *   middle of a fight; they draw it because the first one broke.
+ */
+export function wearOn(slot, by = 1) {
+  const p = game.state.player;
+  const id = equipped(slot).id;
+  if (neverWears(slot, id) || by <= 0) return { slot, broke: null, drew: null };
+
+  const w = wearOf();
+  const left = lifeLeft(slot);
+  if (left > by) { w[slot] = left - by; return { slot, broke: null, drew: null }; }
+
+  w[slot] = 0;
+  const owned = p.gearOwned?.[slot];
+  if (owned) {
+    const at = owned.indexOf(id);
+    if (at >= 0) owned.splice(at, 1);
+  }
+  const spare = spareFor(slot, id);
+  const fallback = { weapon: 'fists', armour: 'roughspun', shield: 'none',
+                     helm: 'bareHead', gloves: 'bareHands' }[slot];
+  p.equipment[slot] = spare ?? fallback;
+  w[slot] = gearLife(slot, p.equipment[slot]);
+  reconcileHp();
+  return { slot, broke: id, drew: spare };
+}
+
+/** What a smith wants to put everything you are wearing right. */
+export function mendCost() {
+  let sum = 0;
+  for (const slot of GEAR_SLOTS) {
+    const id = equipped(slot).id;
+    if (neverWears(slot, id)) continue;
+    const full = gearLife(slot, id);
+    const left = lifeLeft(slot);
+    if (left >= full) continue;
+    sum += Math.floor((full - left) * (gear(slot, id).price ?? 0) / (full * 3)) + 4;
+  }
+  return sum;
+}
+
+/** Everything you are wearing, put right. */
+export function mendAll() {
+  const w = wearOf();
+  for (const slot of GEAR_SLOTS) w[slot] = gearLife(slot, equipped(slot).id);
+}
+
+/** Whether anything you have on wants a smith. */
+export function wantsMending() {
+  return GEAR_SLOTS.some((slot) => !neverWears(slot, equipped(slot).id)
+    && lifeLeft(slot) < gearLife(slot, equipped(slot).id));
+}
+
 /** Stats after gear. This is what the duel actually reads. */
 export function playerStats() {
   const p = game.state.player;
@@ -132,6 +272,11 @@ export function equip(slot, id) {
   p.equipment = p.equipment ?? {};
   const previous = p.equipment[slot];
   p.equipment[slot] = id;
+  /* A piece you have just put on is however worn it is, and a piece you have
+     never worn is whole. Held per slot rather than per piece, the way the
+     cartridge holds it: swapping back and forth to dodge the wear would be a
+     dull thing to have to police. */
+  if (id !== previous) wearOf()[slot] = gearLife(slot, id);
   reconcileHp();
   return previous;
 }

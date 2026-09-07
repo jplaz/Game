@@ -433,6 +433,28 @@ static void checkNoWayBack(void) {
    it comes out as a hole in the middle of a word. */
 static void checkText(const char *what, const char *s) {
   const char *p;
+  /* Nobody in Westeros speaks JavaScript.
+   *
+   * Dialogue that a script builds rather than states is scraped out of the
+   * source by the exporter, with regexes that used not to know what a template
+   * literal was: an apostrophe inside one opened a string as far as they were
+   * concerned and the match ran on to the next quote several lines down. Three
+   * people shipped like that. One said "s rider, so the gate guards will let
+   * you pass.`); const sigilName = ..." and was caught below, because the font
+   * has no backtick; the other two came out as plausible-looking rubbish and
+   * were caught by nothing at all. This is the check for the rest of the
+   * family, and it is deliberately narrow - these four never occur in a line
+   * somebody wrote on purpose. */
+  static const char *const CODE[4] = { "${", "await ", "return;", ".sfx(" };
+  int k;
+  for (k = 0; k < 4; k++) {
+    const char *want = CODE[k];
+    for (p = s; *p; p++) {
+      const char *a = p, *b = want;
+      while (*b && *a == *b) { a++; b++; }
+      if (!*b) { bad("%s: says code, not words: \"%.44s\"", what, s); return; }
+    }
+  }
   for (p = s; *p; p++) {
     unsigned char c = (unsigned char)*p;
     if (c == '\n') continue;

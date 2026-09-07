@@ -1718,6 +1718,29 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       needs: q.needs ? flagAt(q.needs) : 255, denies: 255, sigils: q.sigils ?? 0 });
   }
 
+  /* One question, however many halls it is asked in.
+   *
+   * A scene that stands in nine seats was carrying nine copies of its own
+   * question, and the audit was right to call that nine different facts: no two
+   * answers in the game may set the same flag, because agreeing with a man in
+   * the Riverlands is not agreeing with a man at the Wall. These nine are one
+   * man, asked once, in whichever hall you happen to have woken up in - so the
+   * identical ones are folded back into one and the beats all point at it. */
+  {
+    const seen = new Map();
+    const kept = [];
+    const remap = choices.map((c) => {
+      const key = JSON.stringify(c);
+      if (seen.has(key)) return seen.get(key);
+      seen.set(key, kept.length);
+      kept.push(c);
+      return kept.length - 1;
+    });
+    for (const b of beats) if (b.kind === BEAT.choose) b.a = remap[b.a];
+    choices.length = 0;
+    choices.push(...kept);
+  }
+
   {
     const seen = new Set();
     for (const sc of scenes) {
@@ -1978,12 +2001,25 @@ function scriptLine(script) {
   const rest = scriptSource.slice(at + 1);
   const end = rest.indexOf('\n  async ');
   const body = end < 0 ? rest : rest.slice(0, end);
+  /* Template literals go first, and they have to go before anything else looks
+     at the body.
+     They cannot be scraped - their `${...}` holes are only known while the game
+     is running - but the real damage is subtler than that. An apostrophe inside
+     one, as in `${sworn.seat}'s rider`, opens a string literal as far as the
+     regexes below are concerned, so the match runs on past the end of the
+     template to the next quote several lines down and drags everything between
+     them in with it. Winterfell's maester shipped a build saying "s rider, so
+     the gate guards will let you pass.`); const sigilName = ...", which is how
+     this was found: the font has no glyph for a backtick. There are seventy-odd
+     template literals in the scripts and a score of them hold an apostrophe, so
+     this was never going to stay one maester's problem. */
+  const plain = body.replace(/`(?:\\.|[^\\`])*`/g, '``');
   // Dialogue is not always passed straight to say(): plenty of scripts hold it
   // in an array and loop, or build it up with +. So take every string literal in
   // the function that is shaped like a sentence, and keep the longest.
   const run = /((?:(['"])(?:\\.|(?!\2)[^\\])*\2\s*\+\s*)*(['"])(?:\\.|(?!\3)[^\\])*\3)/g;
   const piece = /(['"])((?:\\.|(?!\1)[^\\])*)\1/g;
-  const lines = [...body.matchAll(run)]
+  const lines = [...plain.matchAll(run)]
     .map((m) => [...m[0].matchAll(piece)].map((p) => p[2]).join(''))
     .map((t) => t.replace(/\\n/g, '\n').replace(/\\'/g, "'").replace(/\\"/g, '"'))
     .filter((t) => t.length > 24 && / /.test(t) && /[.!?]/.test(t) && !/^[a-z_]+$/.test(t))

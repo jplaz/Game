@@ -27,6 +27,34 @@
 //
 // 'player' is a valid id for walk and face.
 
+import { seatOf, HOUSES } from './houses.js';
+import { allegiance } from '../game/state.js';
+
+/**
+ * Fills a scene's line in with whoever is reading it.
+ *
+ * `{seat}`, `{house}`, `{words}`, `{maester}` and `{lord}` come off the house
+ * you swore to. One line in the game needed this — an outrider on the northern
+ * kingsroad calling you the one from Winterfell, which he had no business
+ * knowing about a Dornishman — but a story that can only be told about a Stark
+ * is the thing being fixed, and nine copies of a scene is not the way to fix
+ * the next one.
+ *
+ * @param {string} line what the scene wants said
+ */
+export function yours(line) {
+  if (typeof line !== 'string' || !line.includes('{')) return line;
+  const id = allegiance() ?? 'stark';
+  const seat = seatOf(id);
+  const house = HOUSES[id] ?? HOUSES.stark;
+  return line
+    .replace(/\{seat\}/g, house.seat)
+    .replace(/\{house\}/g, house.full)
+    .replace(/\{words\}/g, house.words)
+    .replace(/\{maester\}/g, seat.maester)
+    .replace(/\{lord\}/g, seat.lord);
+}
+
 export const CUTSCENES = {
   /* ---------------------------------------------------------------- the arc --
    *
@@ -444,7 +472,12 @@ export const CUTSCENES = {
   /** The raven that starts it, in the yard you woke up in. */
   theRaven: {
     anywhere: true,
-    map: 'winterfell', x: 12, y: 16, flag: 'cs_raven', name: 'The Raven',
+    /* Wherever you woke, and not Winterfell. This is the first beat of the
+       whole story - three words out of the Wall - and it was pinned to one
+       town, which was invisible only for as long as every house began in that
+       town. Eight of the nine could otherwise reach the last act without ever
+       being told why any of it was happening. */
+    map: '@seat', x: 12, y: 16, flag: 'cs_raven', name: 'The Raven',
     beats: [
       ['say', 'A maester comes across the yard too fast for a man his age, '
             + 'with a scrap of paper held out in front of him like it is hot.'],
@@ -578,7 +611,7 @@ export const CUTSCENES = {
       ['say', 'A rider comes up the road at a canter, and reins in hard when he sees you.'],
       ['spawn', 'rider', { x: 10, y: 17, dir: 'down', sprite: 'stark', name: 'Outrider' }],
       ['walk', 'rider', 'down', 3],
-      ['say', 'Outrider: You are the one from Winterfell. Turn back.'],
+      ['say', 'Outrider: You are the rider out of {seat}. Turn back.'],
       ['say', 'Outrider: There are men on this road who are not taking tolls any more. '
             + 'They are taking whatever they like.'],
       ['choose', 'What do you say?', ['I am going south', 'How many of them?'],
@@ -657,8 +690,22 @@ export const CUTSCENES = {
 export const CUTSCENE_IDS = Object.keys(CUTSCENES);
 
 /** Every cutscene that could fire on a given map. */
+/**
+ * Which scenes belong to this ground.
+ *
+ * A scene names its map, except for the ones that belong to whoever is
+ * playing rather than to a place: `map: '@seat'` means the seat of the house
+ * you swore to, whichever of the nine that is. The first beat of the whole
+ * story — a maester running across a yard with three words from the Wall —
+ * was pinned to Winterfell, which was invisible only for as long as every
+ * house began there. It is the inciting incident. It has to find everybody.
+ */
 export function cutscenesOn(mapId) {
+  const mine = seatOf(allegiance() ?? 'stark').map;
   return CUTSCENE_IDS
-    .filter((id) => CUTSCENES[id].map === mapId)
+    .filter((id) => {
+      const where = CUTSCENES[id].map;
+      return where === mapId || (where === '@seat' && mapId === mine);
+    })
     .map((id) => ({ id, ...CUTSCENES[id] }));
 }

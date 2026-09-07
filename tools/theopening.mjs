@@ -110,6 +110,29 @@ const out = await page.evaluate(async () => {
         && /Luwin|Rickard|Winterfell's rider|Wolf Sigil/.test(all),
     };
   }
+  /* ---- and the first beat of the story finds every one of them --------- */
+  const cs = await import('/src/data/cutscenes.js');
+  res.raven = {};
+  for (const id of res.swearable) {
+    state.setState(state.newGame('Rider'));
+    state.swearTo(id);
+    const seat = houses.HOUSE_SEATS[id];
+    const here = cs.cutscenesOn(seat.map).map((x) => x.id);
+    const elsewhere = cs.cutscenesOn(id === 'stark' ? 'sunspear' : 'winterfell')
+      .map((x) => x.id);
+    res.raven[id] = {
+      atMySeat: here.includes('theRaven'),
+      notAtSomebodyElses: !elsewhere.includes('theRaven'),
+    };
+  }
+
+  /* And a line can name whoever is reading it. */
+  state.setState(state.newGame('Rider'));
+  state.swearTo('martell');
+  res.spoken = cs.yours('Outrider: You are the rider out of {seat}. Turn back.');
+  state.swearTo('greyjoy');
+  res.spokenAgain = cs.yours('Outrider: You are the rider out of {seat}. Turn back.');
+  res.leftAlone = cs.yours('A plain line with no braces in it.');
   return { res };
 });
 await browser.close();
@@ -131,6 +154,16 @@ const rows = [
   ['and you are pointed at your own road', each((h) => h.pointsMeOn)],
   ['nobody but a Stark is told a word about Winterfell',
     r.swearable.filter((id) => id !== 'stark').every((id) => !r.houses[id].strayStark)],
+  /* The first beat of the story: three words out of the Wall, and the reason
+     any of the rest of it is happening. */
+  ['the raven from the Wall finds every rider at their own seat',
+    r.swearable.every((id) => r.raven[id].atMySeat)],
+  ['and is not waiting in somebody else\'s yard',
+    r.swearable.every((id) => r.raven[id].notAtSomebodyElses)],
+  ['a scene can name whoever is reading it',
+    /out of Sunspear/.test(r.spoken ?? '') && /out of Pyke/.test(r.spokenAgain ?? '')],
+  ['and leaves a plain line alone',
+    r.leftAlone === 'A plain line with no braces in it.'],
 ];
 let bad = 0;
 for (const [what, ok] of rows) { if (!ok) bad++; console.log(`${ok ? 'ok  ' : 'BAD '} ${what}`); }

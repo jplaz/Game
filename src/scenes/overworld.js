@@ -11,7 +11,7 @@ import { TRACKS } from '../data/music.js';
 import { rng } from '../engine/rng.js';
 import { makeRoamer, ROAMERS } from '../data/duellists.js';
 import { challengeFor } from '../game/challenge.js';
-import { cutscenesOn } from '../data/cutscenes.js';
+import { cutscenesOn, yours } from '../data/cutscenes.js';
 import { duellist as getDuellist } from '../data/duellists.js';
 import { creatureSpecies, displayName, wildCreature } from '../game/creature.js';
 import { species as getSpecies } from '../data/species.js';
@@ -1001,7 +1001,7 @@ export class Overworld {
 
     switch (kind) {
       case 'say':
-        await dialog.say(args[0], args[1]);
+        await dialog.say(yours(args[0]), args[1]);
         break;
       case 'wait':
         await this.pause(args[0]);

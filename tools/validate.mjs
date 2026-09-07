@@ -14,7 +14,9 @@ import { ITEMS, item } from '../src/data/items.js';
 import { DISHES } from '../src/game/holdfast.js';
 import { TRAINERS, trainerAsDuellist } from '../src/data/trainers.js';
 import { DUELLISTS, ROAMERS, ROAMER_TABLES, makeRoamer } from '../src/data/duellists.js';
-import { HOUSES, SWEARABLE, SPRITE_HOUSE } from '../src/data/houses.js';
+import {
+  HOUSES, SWEARABLE, SPRITE_HOUSE, HOUSE_SEATS,
+} from '../src/data/houses.js';
 import { COMPANIONS, AID_DESCRIPTION } from '../src/data/companions.js';
 import { QUESTS } from '../src/data/quests.js';
 import { CUTSCENES } from '../src/data/cutscenes.js';
@@ -393,18 +395,31 @@ const BEATS = new Set(['say', 'wait', 'shake', 'flash', 'spawn', 'walk', 'face',
   'despawn', 'sky', 'flag', 'choose', 'fight', 'won', 'lost', 'skip']);
 
 for (const [id, def] of Object.entries(CUTSCENES)) {
-  const map = MAPS[def.map];
-  if (!map) {
-    fail(`cutscene ${id}: unknown map "${def.map}"`);
+  /* A scene belonging to whoever is playing rather than to a place. `@seat` is
+     the seat of the house you swore to, so it has to hold up on all nine of
+     them at once - and it is only allowed for a scene that finds you anywhere,
+     because one fixed trigger tile cannot be walkable in nine different
+     towns. */
+  const wheres = def.map === '@seat'
+    ? Object.values(HOUSE_SEATS).map((seat) => seat.map)
+    : [def.map];
+  if (def.map === '@seat' && !def.anywhere) {
+    fail(`cutscene ${id}: is pinned to "@seat" but not marked anywhere, so its `
+       + 'one trigger tile would have to be walkable in all nine seats');
+  }
+  const missing = wheres.filter((where) => !MAPS[where]);
+  if (missing.length) {
+    fail(`cutscene ${id}: unknown map "${missing[0]}"`);
     continue;
   }
+  const map = MAPS[wheres[0]];
   if (!def.flag) fail(`cutscene ${id}: no flag, so it would fire every time`);
   // The trigger tile has to be somewhere the player can actually stand.
-  if (!walkable(map, def.x, def.y)) {
+  if (!def.anywhere && !walkable(map, def.x, def.y)) {
     fail(`cutscene ${id}: trigger at ${def.x},${def.y} on ${def.map} is not walkable `
        + `("${tileAt(map, def.x, def.y)}")`);
   }
-  if ((map.warps ?? []).some((w) => w.x === def.x && w.y === def.y)) {
+  if (!def.anywhere && (map.warps ?? []).some((w) => w.x === def.x && w.y === def.y)) {
     fail(`cutscene ${id}: trigger sits on a warp, so it would never fire`);
   }
   if (!def.beats?.length) fail(`cutscene ${id}: no beats`);

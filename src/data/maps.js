@@ -3984,8 +3984,13 @@ export const MAPS = {
         data: {
           line: 'Mikken: Northern steel. Plain, heavy and it will not let you down.',
           stock: {
-            weapon: ['huntingKnife', 'sellswordBlade', 'ironSword', 'woodAxe'],
-            armour: ['furCloak', 'gambeson', 'boiledLeather'],
+            /* The Reaping Hook, the Hide Jerkin and the Padded Jack are the
+               three cheapest things in the gear tables and no forge in the
+               world stocked one of them: they were written, priced, and
+               unbuyable. Winterfell is where a new player stands with the
+               least money in their purse, so this is where they belong. */
+            weapon: ['sickle', 'huntingKnife', 'sellswordBlade', 'ironSword', 'woodAxe'],
+            armour: ['hideJerkin', 'paddedJack', 'furCloak', 'gambeson', 'boiledLeather'],
             helm: ['paddedCoif', 'mailCoif', 'nasalHelm'],
             gloves: ['leatherGloves', 'paddedGloves', 'mailMittens'],
             shield: ['buckler'],

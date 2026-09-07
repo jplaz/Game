@@ -11,6 +11,7 @@ import { MAPS } from '../src/data/maps.js';
 import { SPECIES, SPECIES_IDS } from '../src/data/species.js';
 import { MOVES } from '../src/data/moves.js';
 import { ITEMS, item } from '../src/data/items.js';
+import { DISHES } from '../src/game/holdfast.js';
 import { TRAINERS, trainerAsDuellist } from '../src/data/trainers.js';
 import { DUELLISTS, ROAMERS, ROAMER_TABLES, makeRoamer } from '../src/data/duellists.js';
 import { HOUSES, SWEARABLE, SPRITE_HOUSE } from '../src/data/houses.js';
@@ -701,6 +702,9 @@ if (scriptsRead.size < scriptCount) {
      with the name in it, wherever in the engine that is written. */
   for (const [, id] of scriptSource.matchAll(/giveItem\(\s*['"`]([\w]+)['"`]/g)) gettable.add(id);
   for (const [, id] of scriptSource.matchAll(/gather\(\s*['"`]([\w]+)['"`]/g)) gettable.add(id);
+  /* And made in your own kitchen. A dish is an item you cook rather than one
+     anybody sells, so the way to get one is a hearth and a full larder. */
+  for (const id of Object.keys(DISHES)) gettable.add(id);
 
   for (const [id, thing] of Object.entries(ITEMS)) {
     if (gettable.has(id)) continue;

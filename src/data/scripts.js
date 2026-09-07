@@ -1267,7 +1267,8 @@ export const SCRIPTS = {
     cookDish(id);
     audio.sfx('heal');
     await say(DISHES[id].desc);
-    await say(`Cook: ${DISHES[id].name}, done. It will keep until you need it.`);
+    await say(`Cook: ${DISHES[id].name}, done. Wrapped, and in your pack — it `
+      + 'will keep until you need it, and you will.');
   },
 
   /** Somebody standing in a Free City with something to say about it. */

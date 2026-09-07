@@ -5,7 +5,9 @@
 // road, and you feast people in it — which is the only reliable way in this
 // world to make somebody who dislikes you sit down at your table.
 
-import { game, changeStanding, addMoney, canAfford } from './state.js';
+import {
+  game, changeStanding, addMoney, canAfford, giveItem, takeItem, itemCount,
+} from './state.js';
 import { HOUSES } from '../data/houses.js';
 
 export function holdfast() {
@@ -343,8 +345,11 @@ export const INGREDIENTS = {
 };
 
 /**
- * Dishes. Eating one heals and steadies you; serving one at a feast is what
- * actually moves people, and the dearer the dish the further it moves them.
+ * Dishes. Each is an item you carry once it is cooked — see data/items.js,
+ * where the same five ids live with the healing value written here — so a dish
+ * mends whatever you feed it to on the road. Serving one at a feast is the
+ * other thing to do with it, and what actually moves people: the dearer the
+ * dish, the further it moves them.
  */
 export const DISHES = {
   broth: {
@@ -393,19 +398,34 @@ export function cook(id) {
   if (!canCookDish(id)) return false;
   const h = holdfast();
   for (const [what, n] of Object.entries(def.needs)) h.larder[what] -= n;
-  h.dishes[id] = (h.dishes[id] ?? 0) + 1;
+  /* Into your pouch, not into a cupboard in a hall you are about to leave.
+     Every dish has carried a healing value since it was written and nothing
+     ever read it: a dish could only be put on a table at a feast, so "it will
+     keep until you need it" was a promise the game could not keep. */
+  giveItem(id, 1);
   return true;
 }
 
+/**
+ * How many of a dish you are carrying.
+ *
+ * Older saves kept cooked food in the hall rather than in the pouch. Anything
+ * still sitting in that cupboard is moved across the first time it is asked
+ * for, so a game saved before this reads back with its dinner intact.
+ */
 export function dishCount(id) {
-  return holdfast().dishes[id] ?? 0;
+  const h = holdfast();
+  const stored = h.dishes?.[id] ?? 0;
+  if (stored > 0) {
+    giveItem(id, stored);
+    h.dishes[id] = 0;
+  }
+  return itemCount(id);
 }
 
 export function takeDish(id) {
-  const h = holdfast();
-  if (!(h.dishes[id] > 0)) return false;
-  h.dishes[id]--;
-  return true;
+  if (dishCount(id) <= 0) return false;
+  return takeItem(id);
 }
 
 // --------------------------------------------------------------- feasting --

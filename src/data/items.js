@@ -38,6 +38,33 @@ export const ITEMS = {
     use: { kind: 'heal', amount: 50 },
     desc: 'Dulls any pain. Restores 50 HP.',
   },
+  /* Out of your own kitchen. See the note further down: these had a healing
+     value on them from the day they were written and nothing ever read it. */
+  broth: {
+    name: 'Barley Broth', price: 60, pocket: 'larder',
+    use: { kind: 'heal', amount: 40 },
+    desc: 'Thin, hot and honest. Restores 40 HP.',
+  },
+  bakedFish: {
+    name: 'Baked Trout', price: 130, pocket: 'larder',
+    use: { kind: 'heal', amount: 70 },
+    desc: 'Trout, salt, and whatever the fire decided. Restores 70 HP.',
+  },
+  honeyedVenison: {
+    name: 'Honeyed Venison', price: 320, pocket: 'larder',
+    use: { kind: 'heal', amount: 130 },
+    desc: 'The thing you cook when somebody important is coming. Restores 130 HP.',
+  },
+  lemonCakes: {
+    name: 'Lemon Cakes', price: 260, pocket: 'larder',
+    use: { kind: 'heal', amount: 60 },
+    desc: 'Everyone claims not to care about these. Restores 60 HP.',
+  },
+  feastRoast: {
+    name: 'Whole Roast Boar', price: 900, pocket: 'larder',
+    use: { kind: 'heal', amount: 200 },
+    desc: 'A boar, an apple, and a hall that smells of it for two days. Restores 200 HP.',
+  },
   weirwoodSap: {
     name: 'Weirwood Sap', price: 1500, pocket: 'medicine',
     use: { kind: 'heal', amount: 200 },
@@ -94,8 +121,25 @@ export const ITEMS = {
   },
 };
 
-export const POCKETS = ['banners', 'medicine', 'key'];
-export const POCKET_NAMES = { banners: 'BANNERS', medicine: 'REMEDIES', key: 'KEY ITEMS' };
+export const POCKETS = ['banners', 'medicine', 'larder', 'key'];
+export const POCKET_NAMES = {
+  banners: 'BANNERS', medicine: 'REMEDIES', larder: 'LARDER', key: 'KEY ITEMS',
+};
+
+/* ------------------------------------------------------------- the food ---
+ *
+ * What comes out of your own kitchen. These are the five dishes in
+ * game/holdfast.js, and they used to be a number in a save file: you gathered
+ * on the road, you cooked at your hearth, the cook said "it will keep until
+ * you need it" - and there was no way to ever need it. A dish could only be
+ * put on a table at a feast. Every one of them carried a healing value that
+ * nothing in the game read.
+ *
+ * They go in a pouch now, so a Whole Roast Boar is two hundred health you
+ * carried up the kingsroad rather than a line item in a hall you are not
+ * standing in. The prices are what somebody else would charge you for the
+ * same thing; you are not buying these, you are making them.
+ */
 
 /* Everything else the world can leave lying about.
  *

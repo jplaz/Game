@@ -1436,10 +1436,53 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     }
     throw new Error(`nowhere on ${map.id} for ${why} to happen`);
   };
+  /* A line with one house's own words written into it.
+     Only the copies that belong to a house can be filled in here, and they are
+     filled in here rather than on the cartridge because a spawned person's
+     name and the wording of a choice are baked, not drawn through the window
+     that does the substituting. What is left for the runtime is the scenes
+     that belong to nobody, where the house is not known until somebody is
+     playing. The five words are the same five in both places. */
+  const fillFor = (h, line) => {
+    if (typeof line !== 'string' || !line.includes('{')) return line;
+    return line
+      .replace(/\{seat\}/g, h.seat)
+      .replace(/\{house\}/g, h.full)
+      .replace(/\{words\}/g, h.words)
+      .replace(/\{maester\}/g, h.start.maester)
+      .replace(/\{lord\}/g, h.start.lord);
+  };
+  /* Where each scene stands, which is nearly always one place.
+   *
+   * `@seat` is not a map. It is your own hall, whichever of the nine you swore
+   * to, and the first beat of the whole story happens there: a maester comes
+   * across your own yard with three words out of the Wall. Pinned to one town
+   * it was invisible to eight houses out of nine, who could reach the Iron
+   * Throne without ever being told why any of it was happening.
+   *
+   * It is spread here rather than resolved on the cartridge because of the
+   * art. Everybody a scene walks onto a map has to be resident in that map's
+   * object memory, and the bank they sit in is worked out per map, in the
+   * order that map first needed them - so one scene carrying one bank number
+   * would have drawn the maester as whoever happens to sit in that slot at
+   * Sunspear. Nine copies, one per seat, each gated to its own house, each
+   * dealt its own map's banks. They share a flag and a house apiece, so
+   * exactly one of them can ever fire.
+   */
+  const standings = [];
   for (const id of CUTSCENE_IDS) {
     const cs = CUTSCENES[id];
-    const map = out.maps.find((m) => m.id === cs.map);
-    if (!map) throw new Error(`the cutscene ${id} stands on ${cs.map}, which is not on the cartridge`);
+    if (cs.map !== '@seat') { standings.push({ id, cs, map: cs.map, house: 255 }); continue; }
+    /* It stands in nine halls at once, so it can have no one tile. */
+    if (!cs.anywhere) throw new Error(`the cutscene ${id} stands on @seat, so it must be anywhere`);
+    for (let hi = 0; hi < houses.length; hi++) {
+      standings.push({ id, cs, map: houses[hi].start.map, house: hi });
+    }
+  }
+  for (const stand of standings) {
+    const { id, cs } = stand;
+    const map = out.maps.find((m) => m.id === stand.map);
+    if (!map) throw new Error(`the cutscene ${id} stands on ${stand.map}, which is not on the cartridge`);
     const where = openTileNear(map, cs.x, cs.y, id);
     const slots = [];
     const slotOf = (who) => {
@@ -1459,7 +1502,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       else if (kind === 'fight') {
         const who = beat[1];
         const made = ROAMERS[who]
-          ? makeRoamer(who, Math.max(3, groundBy[0][mapIds.indexOf(cs.map)] ?? 12),
+          ? makeRoamer(who, Math.max(3, groundBy[0][mapIds.indexOf(stand.map)] ?? 12),
                       (list) => list[0])
           : { ...DUELLISTS[who], name: DUELLISTS[who]?.name };
         if (!made?.name) throw new Error(`${id} fights ${who}, who is nobody`);
@@ -1508,7 +1551,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
                                `${at.sprite}|${at.name ?? ''}`);
         (map.sceneActors ??= []).push(actor);
         row.actor = actor;
-        row.mapId = cs.map;
+        row.mapId = stand.map;
         row.text = at.name ?? '';
       } else if (kind === 'walk') {
         row.slot = slotOf(beat[1]);
@@ -1557,9 +1600,19 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
             ?? (how.skip && i === (how.skipOn ?? opts.length - 1) ? how.skip : 0))),
           duel: opts.map(() => 0xFFFF) });
       }
+      if (stand.house !== 255) {
+        const h = houses[stand.house];
+        row.text = fillFor(h, row.text);
+        if (row.kind === BEAT.choose) {
+          const c = choices[row.a];
+          c.ask = fillFor(h, c.ask);
+          c.opts = c.opts.map((o) => fillFor(h, o));
+          if (c.result) c.result = c.result.map((r) => fillFor(h, r));
+        }
+      }
       beats.push(row);
     }
-    scenes.push({ id, map: cs.map, x: where.x, y: where.y,
+    scenes.push({ id, map: stand.map, house: stand.house, x: where.x, y: where.y,
       flag: flagAt(cs.flag), first, count: beats.length - first,
       people: slots.length,
       /* What has to have happened first. Without these a scene is a thing that
@@ -2165,13 +2218,19 @@ L.push('');
 
 // Houses.
 L.push(`#define HOUSE_COUNT ${harvest.houses.length}`);
-L.push('typedef struct { const char *name, *full, *words, *sworn, *seat; u16 colour, accent;'
+L.push('typedef struct { const char *name, *full, *words, *sworn, *seat;'
+     /* Who keeps the ravens in this hall and who sits in it, so a line
+        written about "your maester" can name him wherever you woke up. */
+     + ' const char *maester, *lord;'
+     + ' u16 colour, accent;'
      + ' u16 looks[4]; MapId startMap; u8 startX, startY, startDir, startLevel;'
      + ' u16 rivals, allies; } House;');
 L.push('static const House houses[HOUSE_COUNT] = {');
 for (const h of harvest.houses) {
   L.push(`  { ${cstr(h.name)}, ${cstr(h.full)}, ${cstr(h.words)},`);
-  L.push(`    ${cstr(h.sworn)}, ${cstr(h.seat)}, ${hex(hexColour(h.colour))}, ${hex(hexColour(h.accent))},`);
+  L.push(`    ${cstr(h.sworn)}, ${cstr(h.seat)},`);
+  L.push(`    ${cstr(h.start.maester)}, ${cstr(h.start.lord)},`);
+  L.push(`    ${hex(hexColour(h.colour))}, ${hex(hexColour(h.accent))},`);
   {
     const at = MAP_IDS.indexOf(h.start.map);
     if (at < 0) throw new Error(`${h.id} starts on ${h.start.map}, which is not exported`);
@@ -2423,6 +2482,11 @@ L.push('  u8 needs, denies, sigils;   /* what has to have happened first */');
    The people in an `anywhere` scene come out beside YOU rather than at a
    fixed spot, which is why it can stay on its own map and keep its art. */
 L.push('  u8 anywhere;');
+/* Whose scene it is, or 255 for anybody's. A scene that happens in your own
+   hall exists nine times over, once per seat, and only the copy standing in
+   your own hall is yours: the other eight are somebody else's yard, and a
+   maester does not run across it to hand YOU a letter. */
+L.push('  u8 house;');
 L.push('  u16 first, count;');
 L.push('  const char *name;');
 L.push('} Cut;');
@@ -2430,7 +2494,7 @@ L.push('static const Cut cuts[CUT_COUNT] = {');
 for (const sc of harvest.scenes) {
   L.push(`  { ${MAP_IDS.indexOf(sc.map)}, ${sc.x}, ${sc.y}, ${sc.flag}, ${sc.people}, `
     + `${sc.quest ?? 0}, ${sc.needs ?? 255}, ${sc.denies ?? 255}, ${sc.sigils ?? 0}, `
-    + `${sc.anywhere ? 1 : 0}, `
+    + `${sc.anywhere ? 1 : 0}, ${sc.house ?? 255}, `
     + `${sc.first}, ${sc.count}, ${cstr(sc.name ?? sc.id)} },`);
 }
 L.push('};');

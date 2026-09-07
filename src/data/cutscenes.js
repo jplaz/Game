@@ -481,7 +481,7 @@ export const CUTSCENES = {
     beats: [
       ['say', 'A maester comes across the yard too fast for a man his age, '
             + 'with a scrap of paper held out in front of him like it is hot.'],
-      ['spawn', 'luwin', { x: 12, y: 13, dir: 'down', sprite: 'maester', name: 'Maester Luwin' }],
+      ['spawn', 'luwin', { x: 12, y: 13, dir: 'down', sprite: 'maester', name: '{maester}' }],
       ['walk', 'luwin', 'down', 2],
       ['say', 'Maester: From the Wall. Not the usual count of stores and cold. '
             + 'It is signed by a man I buried a rumour about last winter.'],

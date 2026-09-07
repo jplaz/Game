@@ -5663,6 +5663,22 @@ static void paintBag(void) {
    forty. The first numbers here were three times these, and a whole
    playthrough of a hundred and fifty fights broke nothing at all - a rule
    nobody ever meets is not a rule. */
+/* Whether a thing is beyond wearing out at all.
+ *
+ * Life is priced off gold, and the nine best pieces in the game cost nothing
+ * because nobody sells them: Valyrian Steel, the Warhammer of the North, the
+ * dragonglass dagger, the two white plates, and the dragonscale and Kingsguard
+ * helms and gauntlets. Every one of them therefore landed on the 30-blow floor
+ * - the shortest life in the game, shorter than the iron shortsword you are
+ * handed in the first town - and then wearOn() took it out of the pouch for
+ * good. Reaching the end of the game meant watching the reward for reaching
+ * the end of the game snap after a dozen fights, with nowhere in the world to
+ * buy another. A sword out of legend does not wear out; that is most of what
+ * makes it a sword out of legend. */
+static int neverWears(int at) {
+  return at >= 0 && at < WARE_COUNT && wares[at].price == 0;
+}
+
 static int gearLife(int at) {
   int life = 30 + wares[at].price / 40;
   return life > 140 ? 140 : life;
@@ -5706,6 +5722,7 @@ static int wearOn(int kind, int by) {
   int at = you.worn[kind], spare;
   if (!at || by <= 0) return 0;
   at--;
+  if (neverWears(at)) return 0;
   if (you.wear[kind] > (u16)by) { you.wear[kind] = (u16)(you.wear[kind] - by); return 0; }
   /* Gone. It comes off and it does not go back in the pouch: a broken sword is
      not a sword you can put on again. */
@@ -5738,6 +5755,7 @@ static int wearOn(int kind, int by) {
 static const char *conditionWord(int kind) {
   int at = you.worn[kind], full;
   if (!at) return 0;
+  if (neverWears(at - 1)) return "sound";
   full = gearLife(at - 1);
   if (full < 1) return 0;
   if (you.wear[kind] * 4 >= full * 3) return "sound";
@@ -6984,7 +7002,7 @@ static int mendPrice(void) {
   int k, sum = 0;
   for (k = 0; k < WARE_KINDS; k++) {
     int at = you.worn[k], full;
-    if (!at) continue;
+    if (!at || neverWears(at - 1)) continue;
     full = gearLife(at - 1);
     if (you.wear[k] >= (u16)full) continue;
     sum += (full - you.wear[k]) * wares[at - 1].price / (full * 3) + 4;
@@ -7004,7 +7022,7 @@ static const char *mendAll(void) {
   you.gold -= price;
   for (k = 0; k < WARE_KINDS; k++) {
     int at = you.worn[k];
-    if (!at) continue;
+    if (!at || neverWears(at - 1)) continue;
     if (you.wear[k] < (u16)gearLife(at - 1)) done++;
     you.wear[k] = (u16)gearLife(at - 1);
   }
@@ -10507,26 +10525,48 @@ static void paintHost(void) {
 
 static int deedPick, deedTop;
 
+static int cutIsYours(int i);
+
+/* How many scenes are yours to be told, and which is the nth of them.
+ *
+ * A scene set in your own hall exists once per seat, so eight copies in every
+ * nine belong to another house and have no business on this page: they would
+ * list the same scene nine times over, and the tally at the top would go from
+ * "1 of 33" to "9 of 41" the moment one of them fired. */
+static int deedCount(void) {
+  int i, n = 0;
+  for (i = 0; i < CUT_COUNT; i++) if (cutIsYours(i)) n++;
+  return n;
+}
+
+static int deedNth(int n) {
+  int i;
+  for (i = 0; i < CUT_COUNT; i++) {
+    if (!cutIsYours(i)) continue;
+    if (!n--) return i;
+  }
+  return 0;
+}
+
 static void paintDeeds(void) {
-  int i, shown = 0, open = 0;
+  int n, shown = 0, open = 0, total = deedCount();
   clearRows(0, TXT_H);
   drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
   drawText(14, 6, "WHAT YOU HAVE DONE", C_GOLD);
   drawText(TXT_W - 84 - textWidth("B: go"), 6, "B: go", C_DIM);
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
-  for (i = 0; i < CUT_COUNT; i++) if (flagSet(cuts[i].flag)) open++;
+  for (n = 0; n < total; n++) if (flagSet(cuts[deedNth(n)].flag)) open++;
   copyString(scratch, "", sizeof scratch);
   appendNumber(scratch, open, sizeof scratch);
   appendString(scratch, " of ", sizeof scratch);
-  appendNumber(scratch, CUT_COUNT, sizeof scratch);
+  appendNumber(scratch, total, sizeof scratch);
   drawText(TXT_W - 14 - textWidth(scratch), 6, scratch, C_DIM);
 
-  for (i = 0; i < CUT_COUNT && shown < LIST_ROWS; i++) {
-    int y = 24 + shown * 12, seen = flagSet(cuts[i].flag);
-    if (i < deedTop) continue;
-    if (i == deedPick) drawCursor(14, y + 1, C_GOLD);
+  for (n = deedTop; n < total && shown < LIST_ROWS; n++) {
+    int i = deedNth(n), y = 24 + shown * 12, seen = flagSet(cuts[i].flag);
+    if (n == deedPick) drawCursor(14, y + 1, C_GOLD);
     drawText(24, y, seen ? cuts[i].name : "- - -",
-      i == deedPick ? C_GOLD : (seen ? C_INK : C_DIM));
+      n == deedPick ? C_GOLD : (seen ? C_INK : C_DIM));
     drawText(TXT_W - 76, y, seen ? "settled" : "not yet", seen ? C_WELL : C_DIM);
     shown++;
   }
@@ -10700,13 +10740,71 @@ static int cutWalkLeft, cutWalkSlot, cutWalkDir;
 static const char *cutSaid;
 static int cutFight = 0xFFFF;
 
+/* Whether a scene is yours to walk into.
+ *
+ * Nearly every one is anybody's. The exception is a scene set in your own
+ * hall: the first beat of the whole story is a maester coming across your own
+ * yard with three words out of the Wall, and it used to stand at Winterfell,
+ * so eight houses out of nine could reach the Iron Throne without ever being
+ * told why any of it was happening. It exists nine times over now, one copy
+ * per seat, and this is what keeps the other eight out of your way - a Stark
+ * walking through Sunspear is a visitor in somebody else's yard. */
+static int cutIsYours(int i) {
+  return cuts[i].house == 255 || cuts[i].house == (u8)you.house;
+}
+
+static int beginsWith(const char *s, const char *want) {
+  while (*want) { if (*s != *want) return 0; s++; want++; }
+  return 1;
+}
+
+/* A line with your own house written into it.
+ *
+ * Scenes are written once and played by nine different people, so a line that
+ * wants to name your hall cannot have the name in it. Five words in braces
+ * stand in - {seat} {house} {words} {maester} {lord} - and are filled in from
+ * whichever house you swore to, here, at the moment the line is shown. The
+ * browser build does the same substitution on the same five, so the two of
+ * them read the same. A brace nobody knows is left exactly as it was written,
+ * which is ugly on purpose: the audit refuses to ship one.
+ *
+ * The line comes back in `scratch` and is good until the next call, which is
+ * long enough - openWindow wraps it into its own rows before returning. */
+static const char *yourWords(const char *line) {
+  static const char *const TOKEN[5] =
+    { "{seat}", "{house}", "{words}", "{maester}", "{lord}" };
+  const House *h;
+  const char *p, *fill;
+  int n = 0, k;
+  if (!line) return line;
+  for (p = line; *p; p++) if (*p == '{') break;
+  if (!*p) return line;                 /* nothing to fill in, and nearly all */
+  h = &houses[you.house];
+  for (p = line; *p && n < (int)sizeof scratch - 1; ) {
+    if (*p != '{') { scratch[n++] = *p++; continue; }
+    fill = 0;
+    for (k = 0; k < 5; k++) {
+      if (!beginsWith(p, TOKEN[k])) continue;
+      fill = k == 0 ? h->seat : k == 1 ? h->full : k == 2 ? h->words
+           : k == 3 ? h->maester : h->lord;
+      while (*p && *p != '}') p++;
+      if (*p) p++;
+      break;
+    }
+    if (!fill) { scratch[n++] = *p++; continue; }
+    while (*fill && n < (int)sizeof scratch - 1) scratch[n++] = *fill++;
+  }
+  scratch[n] = 0;
+  return scratch;
+}
+
 /* Whether standing here starts something. Fires once, and never while a window
    is open or a fight is coming up. */
 static int cutHere(int x, int y) {
   int i;
   if (cutAt >= 0 || windowOpen || shift || spotted >= 0) return -1;
   for (i = 0; i < CUT_COUNT; i++) {
-    if (cuts[i].map != worldId) continue;
+    if (cuts[i].map != worldId || !cutIsYours(i)) continue;
     /* On its own tile, or anywhere on its map.
      *
      * A scene pinned to one tile of one map is a scene most players never
@@ -10747,7 +10845,7 @@ static int cutHere(int x, int y) {
 static int cutWaitsHere(void) {
   int i;
   for (i = 0; i < CUT_COUNT; i++) {
-    if (cuts[i].map != worldId) continue;
+    if (cuts[i].map != worldId || !cutIsYours(i)) continue;
     if (flagSet(cuts[i].flag)) continue;
     if (cuts[i].needs != 255 && !flagSet(cuts[i].needs)) continue;
     if (cuts[i].denies != 255 && flagSet(cuts[i].denies)) continue;
@@ -10807,7 +10905,7 @@ static int openBeat(void) {
   b = &beats[cut->first + cutBeat];
   switch (b->kind) {
     case BEAT_SAY:
-      openWindow(0, b->text);
+      openWindow(0, yourWords(b->text));
       break;
     case BEAT_WAIT:
       cutTimer = b->a;
@@ -12299,7 +12397,7 @@ int main(void) {
     } else if (scene == SCENE_DEEDS) {
       int was = deedPick;
       if (hit(KEY_UP) && deedPick > 0) deedPick--;
-      if (hit(KEY_DOWN) && deedPick < CUT_COUNT - 1) deedPick++;
+      if (hit(KEY_DOWN) && deedPick < deedCount() - 1) deedPick++;
       if (deedPick < deedTop) deedTop = deedPick;
       if (deedPick >= deedTop + LIST_ROWS) deedTop = deedPick - LIST_ROWS + 1;
       if (deedPick != was) { sfxPick(); paintDeeds(); }

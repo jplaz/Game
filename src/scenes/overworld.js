@@ -1027,6 +1027,10 @@ export class Overworld {
         const at = this.openTileNear(def.x + this.cutscene.dx, def.y + this.cutscene.dy);
         const actor = {
           ...def, x: at.x, y: at.y,
+          /* Their name goes through the same filling-in the lines do. The
+             maester who runs across your yard with the raven is your own
+             maester, and at Sunspear that is not Luwin. */
+          name: yours(def.name),
           id: `cutscene:${id}`, step: 0, moving: null, hidden: false,
           script: 'generic', data: {},
         };

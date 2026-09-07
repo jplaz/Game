@@ -2161,6 +2161,75 @@ int main(void) {
     }
   }
 
+  /* --- what wears out, and what does not ----------------------------------- */
+  /* Life is priced off gold, and the nine best pieces in the game are priced at
+     nothing because nobody sells them. So the reward for finishing the game got
+     the 30-blow floor - less life than the iron shortsword in the first town -
+     and then broke and was taken out of the pouch, with nowhere in the world to
+     buy another. Both halves are checked here: a bought sword still wears out
+     and still breaks, and a sword out of legend does neither. */
+  {
+    int k, priced = -1, legend = -1, blows;
+    for (k = 0; k < WARE_COUNT; k++) {
+      if (wares[k].kind != WARE_WEAPON) continue;
+      if (priced < 0 && wares[k].price > 0) priced = k;
+      if (legend < 0 && wares[k].price == 0) legend = k;
+    }
+    if (priced < 0) bad("there is no weapon with a price on it to wear out");
+    if (legend < 0) bad("there is no weapon beyond price to keep whole");
+
+    /* First that the rule still bites on something you bought. */
+    if (priced >= 0) {
+      for (k = 0; k < WARE_KINDS; k++) { you.worn[k] = 0; you.wear[k] = 0; }
+      for (k = 0; k < WARE_COUNT; k++) you.bag[k] = 0;
+      you.bag[priced] = 1;
+      if (!wearWare(priced)) bad("%s would not go on", wares[priced].name);
+      if (neverWears(priced)) bad("%s costs gold and still never wears", wares[priced].name);
+      if (you.wear[WARE_WEAPON] != (u16)gearLife(priced)) {
+        bad("%s came out of the pouch part-worn", wares[priced].name);
+      }
+      for (blows = 0; blows < 400 && you.WORN_WEAPON; blows++) wearOn(WARE_WEAPON, 1);
+      if (you.WORN_WEAPON) bad("%s never broke in four hundred blows", wares[priced].name);
+      if (blows != gearLife(priced)) {
+        bad("%s broke after %d blows, not the %d it has in it",
+          wares[priced].name, blows, gearLife(priced));
+      }
+      if (you.bag[priced]) bad("a broken sword went back in the pouch");
+    }
+
+    /* And then that it does not bite on the one you were given for winning. */
+    if (legend >= 0) {
+      for (k = 0; k < WARE_KINDS; k++) { you.worn[k] = 0; you.wear[k] = 0; }
+      for (k = 0; k < WARE_COUNT; k++) you.bag[k] = 0;
+      you.bag[legend] = 1;
+      you.gold = 10000;
+      if (!wearWare(legend)) bad("%s would not go on", wares[legend].name);
+      if (!neverWears(legend)) bad("%s is beyond price and still wears out", wares[legend].name);
+      for (blows = 0; blows < 4000; blows++) {
+        if (wearOn(WARE_WEAPON, 3)) {
+          bad("%s broke after %d blows", wares[legend].name, blows);
+          break;
+        }
+      }
+      if (!you.WORN_WEAPON || you.WORN_WEAPON != (u8)(legend + 1)) {
+        bad("%s left your hand", wares[legend].name);
+      }
+      if (!you.bag[legend]) bad("%s left the pouch", wares[legend].name);
+      { const char *word = conditionWord(WARE_WEAPON);
+        if (!word || strcmp(word, "sound")) {
+          bad("%s reads as \"%s\" after four thousand blows", wares[legend].name,
+            word ? word : "nothing at all");
+        } }
+      if (mendPrice()) {
+        bad("a smith wanted %d gold to mend %s, which cannot be damaged",
+          mendPrice(), wares[legend].name);
+      }
+    }
+    for (k = 0; k < WARE_KINDS; k++) { you.worn[k] = 0; you.wear[k] = 0; }
+    for (k = 0; k < WARE_COUNT; k++) you.bag[k] = 0;
+    refitYou();
+  }
+
   /* --- the kennels, and the swords behind you ------------------------------ */
   /* Neither of these is reachable by a wandering run: boarding an animal wants
      a full party and a maester's hall in the same afternoon, and taking an oath
@@ -3847,6 +3916,156 @@ int main(void) {
        Stark's doorstep on behalf of all nine ever since. */
     if (warpOn(&maps[h->startMap], h->startX, h->startY)) {
       bad("%s starts standing on a doorway at %s", h->name, maps[h->startMap].name);
+    }
+  }
+
+  /* --- the scenes, and whose they are --------------------------------------
+   *
+   * Nothing here had ever been read. The scenes were the one table on the
+   * cartridge with no check on it at all, which is how the first beat of the
+   * whole story - a maester crossing your own yard with three words out of the
+   * Wall - came to be pinned to Winterfell, where eight houses in nine would
+   * never see it. It is nine scenes now, one standing in each seat, and each
+   * of these asks something that was silently untrue before. */
+  {
+    int i, h, spine = -1;
+    you.house = 0;              /* the filling-in reads it; any house will do */
+    /* The five words, filled in from each house in turn. Checking that a line
+       merely changed is not enough - it has to come out as that house. */
+    for (h = 0; h < HOUSE_COUNT; h++) {
+      you.house = h;
+      if (strcmp(yourWords("{seat}"), houses[h].seat)) {
+        bad("{seat} comes out \"%s\" for %s, whose seat is %s",
+          yourWords("{seat}"), houses[h].name, houses[h].seat);
+      }
+      if (strcmp(yourWords("{house}"), houses[h].full)) {
+        bad("{house} comes out \"%s\" for %s", yourWords("{house}"), houses[h].name);
+      }
+      if (strcmp(yourWords("{words}"), houses[h].words)) {
+        bad("{words} comes out \"%s\" for %s", yourWords("{words}"), houses[h].name);
+      }
+      if (strcmp(yourWords("{maester}"), houses[h].maester)) {
+        bad("{maester} comes out \"%s\" for %s", yourWords("{maester}"), houses[h].name);
+      }
+      if (strcmp(yourWords("{lord}"), houses[h].lord)) {
+        bad("{lord} comes out \"%s\" for %s", yourWords("{lord}"), houses[h].name);
+      }
+      /* And a line with two of them in it, which is where a filler that
+         forgets to step over what it just wrote goes wrong. */
+      { char want[256];
+        copyString(want, "Of ", sizeof want);
+        appendString(want, houses[h].full, sizeof want);
+        appendString(want, ", of ", sizeof want);
+        appendString(want, houses[h].seat, sizeof want);
+        appendString(want, ".", sizeof want);
+        if (strcmp(yourWords("Of {house}, of {seat}."), want)) {
+          bad("two words in one line came out \"%s\", not \"%s\"",
+            yourWords("Of {house}, of {seat}."), want);
+        } }
+      /* A line with nothing in it comes back exactly as it was. */
+      if (strcmp(yourWords("Nothing to fill in here."), "Nothing to fill in here.")) {
+        bad("a line with no braces was changed anyway");
+      }
+    }
+    you.house = 0;
+    for (i = 0; i < CUT_COUNT; i++) {
+      const Cut *c = &cuts[i];
+      const Map *m;
+      if (c->map >= MAP_COUNT) { bad("the scene %s stands on no map", c->name); continue; }
+      m = &maps[c->map];
+      /* Somewhere to stand. An `anywhere` scene comes to you and needs no
+         tile of its own; one pinned to a tile has to have a tile you can be
+         on, or it is a scene that cannot happen. */
+      if (!c->anywhere) {
+        if (c->x >= m->w || c->y >= m->h) {
+          bad("the scene %s stands off the edge of %s", c->name, m->name);
+        } else if (m->solid[c->y * m->w + c->x]) {
+          bad("the scene %s stands inside a wall on %s", c->name, m->name);
+        }
+      }
+      /* Whose it is, and whether it is standing in their hall. A scene
+         belonging to a house that happens somewhere other than that house's
+         seat is a scene nobody can reach: you would have to be of that house
+         AND be standing in another house's seat expecting your own maester. */
+      if (c->house != 255) {
+        if (c->house >= HOUSE_COUNT) {
+          bad("the scene %s belongs to house %d, and there are %d",
+            c->name, c->house, HOUSE_COUNT);
+        } else if (houses[c->house].startMap != c->map) {
+          bad("the scene %s is House %s's and stands at %s, which is not their seat",
+            c->name, houses[c->house].name, m->name);
+        } else if (!c->anywhere) {
+          bad("the scene %s stands in nine halls and is pinned to one tile", c->name);
+        }
+      }
+      /* Every brace in a line has to be one the cartridge fills in.
+         `{seat}` and its four fellows are how a scene written once is played
+         by nine different people; a brace nobody knows is printed on the
+         screen exactly as typed, which is how "You are the rider out of
+         {seat}" came to be a line of dialogue. Only `say` is filled in, so
+         only `say` may carry one. */
+      { u16 b;
+        for (b = 0; b < c->count; b++) {
+          const Beat *bt = &beats[c->first + b];
+          const char *t = bt->text;
+          if (!t) continue;
+          for (; *t; t++) {
+            if (*t != '{') continue;
+            if (bt->kind != BEAT_SAY) {
+              bad("the scene %s has a %s beat with a brace in it, which nothing fills in",
+                c->name, bt->kind == BEAT_SPAWN ? "spawn" : "non-speaking");
+            } else if (strcmp(yourWords(t), t) == 0) {
+              bad("the scene %s says \"%s\", and nothing knows that word", c->name, t);
+            }
+          }
+        }
+      }
+
+      /* And everybody it walks onto the map has to be drawn from that map's
+         own object memory. This is the one that bites when a scene is moved:
+         the bank a person sits in is worked out per map, so the same number
+         is a maester on one map and a spearman on the next. */
+      { u16 b;
+        for (b = 0; b < c->count; b++) {
+          const Beat *bt = &beats[c->first + b];
+          if (bt->kind != BEAT_SPAWN) continue;
+          if (bt->bank >= m->residentCount) {
+            bad("the scene %s brings somebody out of bank %d on %s, which has %d",
+              c->name, bt->bank, m->name, m->residentCount);
+          }
+        }
+      }
+    }
+
+    /* The spine itself: the raven has to reach every house, exactly once. */
+    for (i = 0; i < CUT_COUNT; i++) if (!strcmp(cuts[i].name, "The Raven")) { spine = i; break; }
+    if (spine < 0) {
+      bad("there is no scene called The Raven; the story has no first beat");
+    } else {
+      int reach = 0;
+      for (h = 0; h < HOUSE_COUNT; h++) {
+        int mine = 0;
+        for (i = 0; i < CUT_COUNT; i++) {
+          if (strcmp(cuts[i].name, "The Raven")) continue;
+          if (cuts[i].house != 255 && cuts[i].house != h) continue;
+          if (cuts[i].map != houses[h].startMap) continue;
+          mine++;
+        }
+        if (mine != 1) {
+          bad("House %s has %d ravens waiting in their own hall, not one",
+            houses[h].name, mine);
+        } else reach++;
+      }
+      /* And they all read off the same flag, or the story forks nine ways. */
+      for (i = 0; i < CUT_COUNT; i++) {
+        if (strcmp(cuts[i].name, "The Raven")) continue;
+        if (cuts[i].flag != cuts[spine].flag) {
+          bad("the ravens do not share a flag; one house could see two");
+        }
+      }
+      if (reach == HOUSE_COUNT) {
+        note("the raven reaches all %d houses, in their own halls", HOUSE_COUNT);
+      }
     }
   }
 

@@ -10624,6 +10624,287 @@ function readableSigns() {
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * Nobody arranges two rooms the same way.
+ *
+ * A hundred and twenty-eight of the two hundred and forty-three maps in this
+ * game were, tile for tile, some other map. Not similar: identical. Five
+ * maester's halls shared one grid, five inns shared another, and the five
+ * common houses of Lannisport, Braavos, Pentos, Volantis and Meereen were one
+ * room drawn once. Styling by region helped the floors and the walls and did
+ * nothing at all about this, because the towns that collide are the towns
+ * inside one region, which by construction share a style.
+ *
+ * The shells have to stay. The door is in the same place because the town
+ * outside puts it there, the stair is where the room above needs it, and the
+ * keeper stands behind her counter in every inn in the world. What does not
+ * have to stay is the furniture, which is the part a player actually reads as
+ * "this is a different room": where the tables are, whether they are in rows
+ * or pairs or pushed against the walls, what is stacked in the corners.
+ *
+ * So every room is furnished again here, from its own name. The arrangement is
+ * chosen from a handful of ways a room of that shape can honestly be laid out,
+ * and it is checked as it is built: a piece that would shut anything off is
+ * not placed. That last part is the whole reason this is done here rather than
+ * in the plans - down here a room knows where its own doors and people are, so
+ * "do not wall the innkeeper in" is a thing the code can check rather than a
+ * thing an author has to remember fourteen times.
+ * ------------------------------------------------------------------------ */
+
+/* The solid half of the indoor legend, named here rather than imported so this
+   pass does not drag the art tables into the map file. */
+const SOLID_ROOM = new Set(['#', 'I', 'p', 'A', 'T', 'F', 'B', 'K', 'h', 'N',
+  'l', 'W', '!', 'j', 'n', 'f', 'U', 'C']);
+
+/* Furniture that stands loose on a floor and can be moved without the room
+   ceasing to be what it is. Counters, hearths, forges, cages and beds are not
+   in here: those are the room, and a bed that wanders is a bug. */
+const LOOSE = new Set(['T', 'B']);
+
+/* Deterministic per-room noise. The same room is furnished the same way on
+   every machine and in every build - a room that rearranges itself between the
+   browser and the cartridge would be worse than one that never changes. */
+function roomSeed(id) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h;
+}
+
+/*
+ * Where the tables go, as a question asked of each free tile.
+ *
+ * Six ways a room gets laid out, all of them things people actually do with
+ * furniture: rows down the room with a gangway between, pairs either side of a
+ * central aisle, everything pushed back against the walls, clustered round the
+ * middle, two long communal boards, and short ranks in columns. Each takes the
+ * tile's position and the room's size and says yes or no, so the same rule
+ * fills a wide room and a narrow one without being told which it is.
+ *
+ * They are all grid rules rather than scatter on purpose. Two of these used to
+ * be diagonals - `(x + 2y) % 5` and the like - which place furniture nowhere a
+ * person would put it and read as a room somebody dropped rather than laid
+ * out.
+ */
+const ARRANGEMENTS = [
+  (x, y) => y % 3 === 1 && x % 2 === 0,
+  (x, y, w) => y % 3 === 1 && (x < w / 2 ? x % 2 === 0 : x % 2 === 1),
+  (x, y, w, h) => (x === 1 || x === w - 2 || y === 1 || y === h - 2) && (x + y) % 2 === 0,
+  (x, y, w, h) => Math.abs(x - w / 2) < 3 && Math.abs(y - h / 2) < 3 && (x + y) % 2 === 0,
+  (x, y, w, h) => (y === Math.floor(h / 3) || y === h - 1 - Math.floor(h / 3))
+    && x > 1 && x < w - 2,
+  (x, y) => x % 4 === 1 && y % 2 === 1,
+];
+
+function furnishRooms() {
+  /* Which rooms are somebody else's room, asked before anything is moved.
+     These are the ones that have to come out different, and the only ones
+     allowed to gain furniture they were not drawn with: a room that is already
+     the only one of its kind is left with exactly what its author gave it. */
+  const byShape = new Map();
+  for (const map of Object.values(MAPS)) {
+    if (!map.indoor) continue;
+    const shape = map.grid.join('\n');
+    if (!byShape.has(shape)) byShape.set(shape, []);
+    byShape.get(shape).push(map.id);
+  }
+  const twinned = new Set();
+  for (const ids of byShape.values()) {
+    if (ids.length > 1) for (const id of ids) twinned.add(id);
+  }
+
+  /* Every room already standing in the world, so no room this pass lays out can
+     come out as one of them. The outdoor maps go in first because they are not
+     touched here and still count as taken. */
+  const alreadyStanding = new Set();
+  for (const map of Object.values(MAPS)) {
+    if (!map.indoor) alreadyStanding.add(map.grid.join('\n'));
+  }
+
+  for (const map of Object.values(MAPS)) {
+    if (!map.indoor) continue;
+    const rows = map.grid.map((row) => row.split(''));
+    const { width: w, height: h } = map;
+    const at = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? '#' : rows[y][x]);
+    const floor = (c) => !SOLID_ROOM.has(c) && STANDABLE.has(c);
+
+    /* What may not move, and what may not be built on: everybody's feet, every
+       door, every sign, everything on the ground, and the tile in front of
+       each of them so they can still be reached and spoken to. */
+    const keep = new Set();
+    const hold = (x, y) => {
+      keep.add(`${x},${y}`);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        keep.add(`${x + dx},${y + dy}`);
+      }
+    };
+    for (const it of map.warps ?? []) hold(it.x, it.y);
+    for (const it of map.npcs ?? []) hold(it.x, it.y);
+    for (const it of map.signs ?? []) hold(it.x, it.y);
+    for (const it of map.items ?? []) hold(it.x, it.y);
+    for (const it of map.chests ?? []) hold(it.x, it.y);
+
+    /* The room as it stands, minus its loose furniture. Everything that was a
+       table is floor again, and the floor it becomes is whatever this room is
+       floored with rather than a guess. */
+    let bare = null;
+    for (let y = 0; y < h && !bare; y++) {
+      for (let x = 0; x < w && !bare; x++) if (floor(at(x, y))) bare = at(x, y);
+    }
+    if (!bare) continue;
+    /* A sign hangs on something. Where that something is a table rather than a
+       wall, the table stays exactly where it is: lifting it leaves the sign
+       floating in mid-floor, and the pass that hangs signs then hammers a post
+       into the middle of the room instead. */
+    const signAt = new Set((map.signs ?? []).map((sg) => `${sg.x},${sg.y}`));
+    const pieces = [];
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (!LOOSE.has(at(x, y)) || signAt.has(`${x},${y}`)) continue;
+        pieces.push(rows[y][x]);
+        rows[y][x] = bare;
+      }
+    }
+    /* A room shared with another town gets enough furniture to be told apart.
+       The six sleeping cubicles of a common house were drawn with a bed and
+       nothing else, so there was nothing in them to arrange and all five
+       cities slept in the same one. What is added is what that room already
+       uses - barrels in a cellar, tables anywhere else - so no room gains a
+       thing its own walls have never seen. */
+    if (twinned.has(map.id)) {
+      const fill = map.grid.join('').includes('B') ? 'B' : 'T';
+      while (pieces.length < 6) pieces.push(fill);
+    }
+    if (!pieces.length) continue;
+
+    /* Somebody standing still is a wall, and so is a thing lying on the floor.
+       That is the map checker's rule and it has to be this pass's rule too: a
+       table that leaves a gangway one tile wide has not left a gangway at all
+       if the innkeeper is standing in it. Getting this wrong is what put two
+       dozen rooms through the checker with the cellarman bricked into a
+       corner. */
+    const occupied = new Set();
+    for (const n of map.npcs ?? []) occupied.add(`${n.x},${n.y}`);
+    for (const it of map.items ?? []) occupied.add(`${it.x},${it.y}`);
+    const passable = (x, y) => floor(at(x, y)) && !occupied.has(`${x},${y}`);
+
+    /* You cannot walk ACROSS a doorway. Step onto one and you are through it
+       and somewhere else, so a stair is where a walk ends, never somewhere it
+       passes. This pass did flood through them, decided the three tiles behind
+       the stairs at the Eastwatch inn were still joined to the room, and put a
+       table across the only way round - leaving the sign above them readable by
+       nobody. The map checker has known this for longer than this pass has
+       existed; it is its rule, copied. */
+    const doorway = new Set((map.warps ?? []).map((wp) => `${wp.x},${wp.y}`));
+    const openNow = () => {
+      const seen = new Set();
+      const queue = [];
+      for (const wp of map.warps ?? []) {
+        const key = `${wp.x},${wp.y}`;
+        if (!seen.has(key) && passable(wp.x, wp.y)) { seen.add(key); queue.push([wp.x, wp.y]); }
+      }
+      if (!queue.length) {
+        for (let y = 0; y < h && !queue.length; y++) {
+          for (let x = 0; x < w && !queue.length; x++) {
+            if (passable(x, y)) { seen.add(`${x},${y}`); queue.push([x, y]); }
+          }
+        }
+      }
+      for (let i = 0; i < queue.length; i++) {
+        const [cx, cy] = queue[i];
+        if (i && doorway.has(`${cx},${cy}`)) continue;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = cx + dx, ny = cy + dy;
+          const key = `${nx},${ny}`;
+          if (seen.has(key) || !passable(nx, ny)) continue;
+          seen.add(key);
+          queue.push([nx, ny]);
+        }
+      }
+      return seen;
+    };
+    const wanted = openNow();
+
+    /* And everybody has to still be reachable to be spoken to, which is not the
+       same question as whether the floor is connected: a person can be left
+       standing against a wall with the one tile you could have talked to them
+       from now under a barrel. */
+    const reachable = (open) => {
+      for (const list of [map.npcs, map.signs, map.warps, map.items, map.chests]) {
+        for (const it of list ?? []) {
+          let any = false;
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            if (open.has(`${it.x + dx},${it.y + dy}`)) { any = true; break; }
+          }
+          if (!any && !open.has(`${it.x},${it.y}`)) return false;
+        }
+      }
+      return true;
+    };
+
+    /* And now put it back, in this room's own arrangement. A piece that would
+       cut the room in two, or shut a door or a person off, is simply not put
+       down - which is why a room can never come out of here unwalkable however
+       badly the arrangement suits its shape.
+
+       The arrangement is tried, and if the room it makes is one some other town
+       already has, the next one is tried instead. Six ways of laying out a room
+       and four ways round make twenty-four, against at most five towns sharing
+       a shell, so this always finds one - but it falls back to the first rather
+       than looping forever, because a repeated room is a disappointment and a
+       hung build is a disaster. */
+    const bareRows = rows.map((row) => row.slice());
+    const laid = (variant) => {
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) rows[y][x] = bareRows[y][x];
+      const wants = ARRANGEMENTS[variant % ARRANGEMENTS.length];
+      const turn = Math.floor(variant / ARRANGEMENTS.length) % 4;
+      const flipX = turn & 1;
+      const flipY = (turn >>> 1) & 1;
+      let placed = 0;
+      for (let y = 1; y < h - 1 && placed < pieces.length; y++) {
+        for (let x = 1; x < w - 1 && placed < pieces.length; x++) {
+          const px = flipX ? w - 1 - x : x;
+          const py = flipY ? h - 1 - y : y;
+          if (!floor(at(px, py)) || keep.has(`${px},${py}`)) continue;
+          if (!wants(px, py, w, h)) continue;
+          const was = rows[py][px];
+          rows[py][px] = pieces[placed];
+          const still = openNow();
+          /* Everything that was walkable still is, bar the tile just filled,
+             and everybody can still be got at. Anything less and the piece
+             does not go down. */
+          if (still.size === wanted.size - 1 - placed && reachable(still)) placed++;
+          else rows[py][px] = was;
+        }
+      }
+      return rows.map((row) => row.join('')).join('\n');
+    };
+
+    const seed = roomSeed(map.id);
+    const tries = ARRANGEMENTS.length * 4;
+    let shape = null;
+    for (let i = 0; i < tries; i++) {
+      const made = laid((seed + i) % tries);
+      if (shape === null) shape = made;
+      if (!alreadyStanding.has(made)) { shape = made; break; }
+    }
+    alreadyStanding.add(shape);
+    map.grid = shape.split('\n');
+    if (Object.getOwnPropertyDescriptor(map, 'tiles')?.writable) map.tiles = map.grid;
+  }
+}
+
+furnishRooms();
+
+/* And only now are the signs hung.
+ *
+ * A sign is read by facing it, so it has to sit on something solid, and this
+ * pass is what decides which tiles those are: hanging the signs first and then
+ * moving the furniture took the table out from under twenty-one of them and
+ * left them floating in mid-floor, readable by nobody. Furniture first, then
+ * the signs go on whatever is left to hang them on. */
 readableSigns();
 
 /** The region a map belongs to, or an empty string if it has none. */

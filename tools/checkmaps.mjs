@@ -530,6 +530,31 @@ for (const [id, map] of Object.entries(MAPS)) {
   }
 }
 
+/* No room is another room.
+ *
+ * A hundred and twenty-eight of the two hundred and forty-three maps in this
+ * game were once, tile for tile, some other map: five maester's halls shared
+ * one grid, five inns shared another, and the common houses of Lannisport,
+ * Braavos, Pentos, Volantis and Meereen were one room drawn once and used five
+ * times. Styling by region fixed the floors and the walls and could not fix
+ * this, because the towns that collide are the towns inside one region.
+ *
+ * They are furnished apart now, at the bottom of maps.js, from each room's own
+ * name. This is the check that keeps them apart: it costs a millisecond, and
+ * the alternative is finding out by walking into the inn at Sunspear and
+ * recognising the inn at Winterfell. */
+{
+  const byShape = new Map();
+  for (const [id, map] of Object.entries(MAPS)) {
+    const shape = map.grid.join('\n');
+    if (!byShape.has(shape)) byShape.set(shape, []);
+    byShape.get(shape).push(id);
+  }
+  for (const ids of byShape.values()) {
+    if (ids.length > 1) say(`${ids.join(' and ')} are the same map, tile for tile`);
+  }
+}
+
 console.log(problems ? `\n${problems} problems` : `\n${Object.keys(MAPS).length} maps, nothing wrong`);
 /* And say so in the exit code, so the cartridge build can refuse to spend
    twenty-five minutes packing a world you cannot walk across. */

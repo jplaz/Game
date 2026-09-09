@@ -5024,10 +5024,15 @@ static void paintStatus(void) {
       winterStage() >= 5 ? C_HURT : winterStage() >= 3 ? C_TRIM : C_DIM);
   }
 
-  /* The frame's parchment stops at 103 and a line of writing is six deep, so
-     96 is the last row this card has. Two lines used to be drawn below that:
-     one sat on the keyline and the other was off the page entirely and had
-     never once been seen by anybody. */
+  /* The frame's parchment stops at 103, a line of writing is six deep and its
+     descenders go two deeper still, so LADDER_FOOT is the last row this card
+     has. Two lines used to be drawn below that: one sat on the keyline and the
+     other was off the page entirely and had never once been seen by anybody.
+     The two lines below used to say 96 outright, which is one row lower, and
+     both of them ran the tail of a 'y' or a 'p' into the bottom border. Only
+     the third had ever been moved up. Nothing had caught it because the state
+     these two are written for - every sigil taken, the chair not yet won - is
+     a narrow window that no run had ever opened this card in. */
   fillRect(16, 92, TXT_W - 32, 1, C_EDGE);
   /* What to do next, in words, on the one screen a lost player will open. The
      game had a spine and never mentioned it, which is the same as not having
@@ -5042,9 +5047,9 @@ static void paintStatus(void) {
       appendString(scratch, " of ", sizeof scratch);
       appendNumber(scratch, PETITION_COUNT, sizeof scratch);
       appendString(scratch, " heard. Sit the chair.", sizeof scratch);
-      drawText(16, 96, scratch, C_GOLD);
+      drawText(16, LADDER_FOOT, scratch, C_GOLD);
     } else if (at < 0) {
-      drawText(16, 96, "Every sigil taken. The Red Keep is open.", C_GOLD);
+      drawText(16, LADDER_FOOT, "Every sigil taken. The Red Keep is open.", C_GOLD);
     } else {
       const Leader *l = &leaders[atRung[at]];
       /* Name, seat and level on one row, and the seat is dropped rather than

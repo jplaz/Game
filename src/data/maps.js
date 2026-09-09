@@ -1,3 +1,7 @@
+import { hiddenNooks } from './nooks.js';
+import { gearTable, GEAR_SLOTS } from './gear.js';
+import { MATERIAL_IDS } from './craft.js';
+
 // World data.
 //
 // Each map is an ASCII grid using the legend in art/tiles.js. Rows are padded
@@ -11050,6 +11054,101 @@ furnishRooms();
  * left them floating in mid-floor, readable by nobody. Furniture first, then
  * the signs go on whatever is left to hang them on. */
 readableSigns();
+
+/* ---------------------------------------------------------------------------
+ * Something worth finding, in the corners of the world.
+ *
+ * The cartridge hides five hundred and eighty-five chests in nooks - tiles you
+ * cannot see from the road, behind a rock or round the back of a house - and
+ * the browser hid none at all. The finder that picks them, nooks.js, has
+ * always worked on these maps and has always been run against them by
+ * tools/nooks.mjs; nothing in the game itself ever called it. Every one of
+ * those chests was a thing only somebody with a flash cart ever found.
+ *
+ * They arrive here as ground items because the browser already has ground
+ * items and they are already chests: it draws them as a small strongbox,
+ * refuses to walk through them, and remembers by flag which ones you have
+ * opened. So this is placement rather than machinery.
+ *
+ * It matters most in the towns. Every one of the ten emptiest maps in the game
+ * is a town rather than a road - Eastwatch had two things to find across four
+ * hundred and eighty-seven tiles of ground - because the roads have had three
+ * rounds of work putting things on them and the towns have had none.
+ * ------------------------------------------------------------------------ */
+
+/* How far from your own gate, counted in doors walked rather than in tiles.
+   The cartridge works this out the same way and stretches it over the same
+   span - level three at your own gate, forty-four at the far end of
+   everything - so a chest in the Riverlands holds the same grade of thing in
+   both builds. */
+function strideFrom(originId) {
+  const seen = new Map([[originId, 0]]);
+  const queue = [originId];
+  for (let i = 0; i < queue.length; i++) {
+    const map = MAPS[queue[i]];
+    if (!map) continue;
+    for (const w of map.warps ?? []) {
+      if (!w.to || seen.has(w.to)) continue;
+      seen.set(w.to, seen.get(queue[i]) + 1);
+      queue.push(w.to);
+    }
+  }
+  return seen;
+}
+
+/* Everything with a price on it, cheapest first. What a chest holds is drawn
+   from a window that slides up this ladder as you get further out, so the
+   Wolfswood gives up a hunting knife and the Wall gives up plate. */
+const LOOT_LADDER = GEAR_SLOTS
+  .flatMap((slot) => Object.entries(gearTable(slot))
+    .filter(([, def]) => (def.price ?? 0) > 0)
+    .map(([id, def]) => ({ id, price: def.price })))
+  .sort((a, b) => a.price - b.price);
+
+function lootFor(level, n) {
+  if (!LOOT_LADDER.length) return null;
+  const last = LOOT_LADDER.length - 1;
+  const top = Math.round(last * Math.min(1, Math.max(0, level) / 44));
+  const low = Math.max(0, top - 6);
+  return LOOT_LADDER[low + (n % (top - low + 1))].id;
+}
+
+function hideThings() {
+  const stride = strideFrom('winterfell');
+  const far = Math.max(1, ...stride.values());
+  const levelOf = (id) => Math.min(44, 3 + Math.round(41 * (stride.get(id) ?? far) / far));
+  /* The finder wants the tile rule, and the map layer deliberately does not
+     load the painters, so it is answered from the same table the rest of this
+     file walks on. A ledge is a drop rather than ground: nothing is hidden on
+     one, because you cannot climb back up to it. */
+  const solid = (c) => !STANDABLE.has(c) || c === 'L';
+  let hidden = 0;
+  for (const [id, map] of Object.entries(MAPS)) {
+    if (map.indoor) continue;
+    const standing = new Set((map.items ?? []).map((it) => `${it.x},${it.y}`));
+    const nooks = hiddenNooks(map, standing, id, solid);
+    if (!nooks.length) continue;
+    const level = levelOf(id);
+    map.items = map.items ?? [];
+    nooks.forEach((nook, n) => {
+      const flag = `nook_${id}_${nook.x}_${nook.y}`;
+      if (nook.find === 'gold') {
+        map.items.push({ x: nook.x, y: nook.y, gold: 55 + level * 30, flag });
+      } else if (nook.find === 'makings') {
+        map.items.push({ x: nook.x, y: nook.y,
+          item: MATERIAL_IDS[(level + n) % MATERIAL_IDS.length],
+          count: 1 + ((level + n) % 3), flag });
+      } else {
+        const got = lootFor(level, n);
+        if (got) map.items.push({ x: nook.x, y: nook.y, item: got, count: 1, flag });
+      }
+      hidden++;
+    });
+  }
+  return hidden;
+}
+
+hideThings();
 
 /** The region a map belongs to, or an empty string if it has none. */
 export function regionOf(key) {

@@ -277,6 +277,22 @@ for (const [mapId, map] of Object.entries(MAPS)) {
 
   const seenFlags = new Set();
   for (const it of map.items ?? []) {
+    /* A purse is not a thing with a name. Some of what is hidden round the
+       backs of things is coin rather than goods, and gold is a number rather
+       than an entry in any ware table, so it is checked for being a sensible
+       number and let past the two questions below. */
+    if (it.gold !== undefined) {
+      if (!Number.isInteger(it.gold) || it.gold <= 0) {
+        fail(`map ${mapId}: the purse at ${it.x},${it.y} holds "${it.gold}"`);
+      }
+      if (it.item !== undefined) {
+        fail(`map ${mapId}: the purse at ${it.x},${it.y} also claims to be "${it.item}"`);
+      }
+      if (!it.flag) fail(`map ${mapId}: the purse at ${it.x},${it.y} has no flag`);
+      if (seenFlags.has(it.flag)) fail(`map ${mapId}: duplicate item flag "${it.flag}"`);
+      seenFlags.add(it.flag);
+      continue;
+    }
     /* Against every table the cartridge can draw a ware from, not just the
        pouch. Checking ITEMS alone called two hundred real chests unknown and
        said nothing at all about the thirteen that really were empty, which is

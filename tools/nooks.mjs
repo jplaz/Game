@@ -6,13 +6,13 @@
  *   node tools/nooks.mjs              every map, and the worst tile in the world
  *   node tools/nooks.mjs harrenhal    one map, and where its chests land
  *
- * This runs gba/nooks.mjs itself, not a copy of it, so it cannot drift from
+ * This runs src/data/nooks.js itself, not a copy of it, so it cannot drift from
  * what the cartridge actually gets. Three builds in a row were spent asking the
  * audit a question that could have been asked here.
  */
 import { MAPS } from '../src/data/maps.js';
 import { TILE_DEFS } from '../src/art/tiles.js';
-import { hiddenNooks } from '../gba/nooks.mjs';
+import { hiddenNooks } from '../src/data/nooks.js';
 
 /* The exporter's own rule, from the same tables the browser draws with. */
 const isSolid = (char) => {

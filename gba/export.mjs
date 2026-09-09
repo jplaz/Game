@@ -190,7 +190,6 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const creatures = await import('/src/art/creatures.js');
   const { TECHNIQUES, LEARNED } = await import('/src/data/gear.js');
   const { baseStats } = await import('/src/game/player.js');
-  const { hiddenNooks } = await import('/gba/nooks.mjs');
 
   const { tileCanvas, isSolid, tileDef, TILE_GROUP, N, E, S, W } = tiles;
 
@@ -751,25 +750,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
    * paid in the same coin as the first hedge outside Winterfell. The gold
    * scaled; the interest never did.
    *
-   * Real kit comes out of chests now, drawn from a band of the gear ladder
-   * that slides with how hard the ground is. The top of the band climbs and
-   * the bottom trails behind it, so a late chest can still turn up something
-   * ordinary but an early one can never turn up an ancestral blade -- the road
-   * decides what is worth carrying home from it. */
-  const LOOT_LADDER = wares
-    .map((w, at) => ({ at, price: w.price, kind: w.kind }))
-    .filter((w) => w.price > 0
-      && ['weapon', 'armour', 'helm', 'gloves', 'shield'].includes(w.kind))
-    .sort((a, b) => a.price - b.price);
-  /* roadLevel runs from nothing at your own gate to the high forties beyond
-     the Wall and across the sea. */
-  const lootAt = (roadLevel, n) => {
-    if (!LOOT_LADDER.length) return 255;
-    const last = LOOT_LADDER.length - 1;
-    const top = Math.round(last * Math.min(1, Math.max(0, roadLevel) / 44));
-    const low = Math.max(0, top - 6);
-    return LOOT_LADDER[low + (n % (top - low + 1))].at;
-  };
+   * Real kit comes out of chests, drawn from a band of the gear ladder that
+   * slides with how hard the ground is - which is worked out in
+   * src/data/maps.js now, alongside the finder that decides where the chests
+   * go, so that both builds fill the same alcove with the same thing. */
 
   /* ----------------------------------------------------------- the beasts ---
      Thirty-five animals the browser game already knows how to draw and how to
@@ -1003,23 +987,20 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
        a thing you walk up to and open, rather than a tile you happen to tread
        on and a line of text you may not have read. */
     const chestAt = new Set((map.items ?? []).map((it) => `${it.x},${it.y}`));
-    /* Something worth finding, in the corners of the world.
+    /* Something worth finding, in the corners of the world - found in
+     * src/data/maps.js now rather than here.
      *
      * Twenty of the fifty-four places you can walk outdoors had nothing on them
-     * at all, and every one of those twenty was a town - so the biggest, most
-     * carefully built spaces in the game were the ones with the least reason to
-     * walk into a corner of. You could cross Braavos end to end and be certain,
-     * correctly, that there was nothing off the road.
+     * at all, and every one of those twenty was a town. That was diagnosed
+     * here and fixed here, which meant it was fixed for the cartridge and for
+     * nothing else: the browser went on having nothing off the road, and it is
+     * the build most people play. The finder now runs where both builds can
+     * see it, and what it hides arrives here as ordinary ground items.
      *
-     * These are placed rather than written: the map is read for its dead ends
-     * and blind alcoves - a walkable tile with one way in, or two - and the
-     * best of them, furthest from any door and well apart from each other, get
-     * something in them. Somewhere you only stand if you went looking.
-     *
-     * Deterministic in the map's own name, so the same alcove holds the same
-     * thing in every build and a player can be told where something is. */
-    const hidden = hiddenNooks(map, chestAt, id, isSolid);
-    for (const h of hidden) chestAt.add(`${h.x},${h.y}`);
+     * Running it again here would hide a second set around the first, which is
+     * both more than a map should hold and a world the two builds no longer
+     * agree about. */
+
     /* The light a region is seen under.
      *
      * Seven regions are floored in the same grass, walled with the same trees
@@ -1339,18 +1320,13 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
            them handed over an empty lid and some coins. `wareOf` has known about
            all eleven kinds since it was written; the chests just never asked
            it. */
-        ware: wareOfChest(it.item, map.name),
-        gold: 40 + roadLevel * 22,
-      })).concat(hidden.map((h, n) => ({
-        x: h.x, y: h.y,
-        /* Makings and kit both scale with how hard the road is, so a nook at
-           the Wall is worth going into and one outside Winterfell is worth a
-           hafted stick. */
-        ware: h.find === 'makings'
-          ? forage[Math.min(forage.length - 1, Math.floor(roadLevel / 6) + (n % 2))] ?? 255
-          : h.find === 'gear' ? lootAt(roadLevel, n) : 255,
-        gold: h.find === 'gold' ? 55 + roadLevel * 30 : Math.round(20 + roadLevel * 8),
-      }))),
+        /* A purse has no ware in it, which is what 255 means here: a lid, and
+           coins underneath. What it holds is carried over rather than worked
+           out again, so the alcove behind the sept at Eastwatch is worth the
+           same on a console as it is in a browser. */
+        ware: it.gold ? 255 : wareOfChest(it.item, map.name),
+        gold: it.gold ?? 40 + roadLevel * 22,
+      })),
       /* Nests: the one place in the world a given egg is ever found. */
       nest: (NESTS[id] ?? []).map((it) => wareIndex.get(`egg:${it}`))
         .filter((n) => n !== undefined)[0] ?? 255,

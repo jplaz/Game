@@ -461,6 +461,17 @@ export const SCRIPTS = {
 
   /** Ground pickups. */
   async pickup({ subject, say, setFlag }) {
+    /* Some of them are coin rather than goods. The chests hidden round the
+       backs of things hold makings, gear or a purse, and a purse has no entry
+       in the item tables because gold is a number rather than a thing you
+       carry. */
+    if (subject.gold) {
+      addMoney(subject.gold);
+      setFlag(subject.flag);
+      audio.sfx('confirm');
+      await say(`A purse, pushed down out of sight. ${subject.gold} gold.`);
+      return;
+    }
     const def = getItem(subject.item);
     giveItem(subject.item, subject.count ?? 1);
     setFlag(subject.flag);

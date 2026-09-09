@@ -10879,14 +10879,26 @@ function furnishRooms() {
        nobody anything; shutting a door, a face or a large part of the room away
        is what the audit calls a problem, so those are what is asked about. */
     const bodySafe = () => {
-      /* Only where somebody actually walks. The audit asks this question of
-         roamers, one map at a time, and a room with nobody wandering in it is
-         never asked - which matters, because almost every inn in the game has a
-         tile in front of its cellar stair that would fail this and always has.
-         Asking it of every room strips them all back to bare boards. */
-      if (!(map.npcs ?? []).some((n) => n.roams)) return true;
+      /* Only where somebody walks. The audit asks this of tiles within three
+         steps of a roamer and of nowhere else, so asking it of every tile in
+         every room is a far harder question than the one that has to be
+         answered - hard enough that it empties every inn in the game.
+         Two kinds of room are asked. The ones whose own people roam, and the
+         common houses, because the exporter stands people in those that maps.js
+         has never heard of: Sunspear's, which is called the Water Gardens, gets
+         a roaming Ellaria who was the one body this pass could not see. */
+      if (!(map.npcs ?? []).some((n) => n.roams) && !HOUSE_IDS.includes(map.id)) return true;
       const open = openNow();
       for (const cell of open) {
+        /* A tile beside a door is never asked about, and that is the audit's
+           rule rather than a softening of it: standing in front of a doorway
+           shuts nothing off, because the door is the way through and the flood
+           starts on the far side of you. Almost every inn in the game has a
+           tile in front of its cellar stair that fails without this. */
+        const [qx, qy] = cell.split(',').map(Number);
+        if (doorway.has(cell)) continue;
+        if ([[1, 0], [-1, 0], [0, 1], [0, -1]]
+          .some(([dx, dy]) => doorway.has(`${qx + dx},${qy + dy}`))) continue;
         const without = openNow(new Set([cell]));
         const lost = open.size - 1 - without.size;
         if (lost <= 0) continue;
@@ -10971,7 +10983,8 @@ function furnishRooms() {
           } else rows[py][px] = was;
         }
       }
-      /* And back off until a room full of people still works. */
+      /* And back off until a room full of people still works. The bare room
+         always passes, so this always terminates. */
       while (placedAt.length && !(bodySafe() && householdSafe())) {
         const [bx, by] = placedAt.pop();
         rows[by][bx] = bare;

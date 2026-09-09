@@ -10720,11 +10720,15 @@ function furnishRooms() {
      touched here and still count as taken. */
   const alreadyStanding = new Set();
   for (const map of Object.values(MAPS)) {
-    if (!map.indoor) alreadyStanding.add(map.grid.join('\n'));
+    if (!map.indoor || !twinned.has(map.id)) alreadyStanding.add(map.grid.join('\n'));
   }
 
   for (const map of Object.values(MAPS)) {
-    if (!map.indoor) continue;
+    /* Only the rooms that are somebody else's room. A room that is already the
+       only one of its kind is left exactly as it was drawn - there is nothing
+       to fix, and rearranging it would throw away an author's layout to no end
+       (and cost a third of a second on every load of the game doing it). */
+    if (!map.indoor || !twinned.has(map.id)) continue;
     const rows = map.grid.map((row) => row.split(''));
     const { width: w, height: h } = map;
     const at = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? '#' : rows[y][x]);
@@ -10773,11 +10777,17 @@ function furnishRooms() {
        cities slept in the same one. What is added is what that room already
        uses - barrels in a cellar, tables anywhere else - so no room gains a
        thing its own walls have never seen. */
-    if (twinned.has(map.id)) {
+    if (twinned.has(map.id) && !map.seat) {
       const fill = map.grid.join('').includes('B') ? 'B' : 'T';
       while (pieces.length < 6) pieces.push(fill);
     }
-    if (!pieces.length) continue;
+    /* Except a hall you can buy, which is drawn bare because filling it is what
+       the holdfast is for. Furniture put in here is furniture the two checks
+       below take straight back out again - a household of five settles into
+       these rooms and three people wander round them - and trying twenty-four
+       arrangements only to strip each one cost most of a second on every load
+       of the game. They are told apart by their floors instead, below. */
+    if (!pieces.length && !map.seat) continue;
 
     /* Somebody standing still is a wall, and so is a thing lying on the floor.
        That is the map checker's rule and it has to be this pass's rule too: a
@@ -10798,17 +10808,20 @@ function furnishRooms() {
        nobody. The map checker has known this for longer than this pass has
        existed; it is its rule, copied. */
     const doorway = new Set((map.warps ?? []).map((wp) => `${wp.x},${wp.y}`));
-    const openNow = () => {
+    const openNow = (alsoBlocked) => {
+      const shut = (x, y) => alsoBlocked?.has(`${x},${y}`);
       const seen = new Set();
       const queue = [];
       for (const wp of map.warps ?? []) {
         const key = `${wp.x},${wp.y}`;
-        if (!seen.has(key) && passable(wp.x, wp.y)) { seen.add(key); queue.push([wp.x, wp.y]); }
+        if (!seen.has(key) && passable(wp.x, wp.y) && !shut(wp.x, wp.y)) {
+          seen.add(key); queue.push([wp.x, wp.y]);
+        }
       }
       if (!queue.length) {
         for (let y = 0; y < h && !queue.length; y++) {
           for (let x = 0; x < w && !queue.length; x++) {
-            if (passable(x, y)) { seen.add(`${x},${y}`); queue.push([x, y]); }
+            if (passable(x, y) && !shut(x, y)) { seen.add(`${x},${y}`); queue.push([x, y]); }
           }
         }
       }
@@ -10818,7 +10831,7 @@ function furnishRooms() {
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           const nx = cx + dx, ny = cy + dy;
           const key = `${nx},${ny}`;
-          if (seen.has(key) || !passable(nx, ny)) continue;
+          if (seen.has(key) || !passable(nx, ny) || shut(nx, ny)) continue;
           seen.add(key);
           queue.push([nx, ny]);
         }
@@ -10844,6 +10857,82 @@ function furnishRooms() {
       return true;
     };
 
+    /* Not everybody in a room stands still.
+     *
+     * The map checker asks whether the room works with its people where they
+     * are. The cartridge's own audit asks a harder question: whether it still
+     * works with somebody standing anywhere they could walk to, and - in a hall
+     * you can buy - with a household of five settled into it. Furniture that
+     * passes the first and fails the second is furniture that reads fine and
+     * then bricks Ellaria into a corner of the Water Gardens, or leaves the
+     * Hall of a Hundred Hearths seating three of your five.
+     *
+     * So both are asked here, and a room that fails gives its furniture back a
+     * piece at a time until it passes. The bare room always passes, so this
+     * always terminates. */
+    const DIRS4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    const faceable = (open, list) => (list ?? []).every((it) =>
+      open.has(`${it.x},${it.y}`)
+      || DIRS4.some(([dx, dy]) => open.has(`${it.x + dx},${it.y + dy}`)));
+
+    /* One body, anywhere it could stand. Shutting a broom cupboard away costs
+       nobody anything; shutting a door, a face or a large part of the room away
+       is what the audit calls a problem, so those are what is asked about. */
+    const bodySafe = () => {
+      /* Only where somebody actually walks. The audit asks this question of
+         roamers, one map at a time, and a room with nobody wandering in it is
+         never asked - which matters, because almost every inn in the game has a
+         tile in front of its cellar stair that would fail this and always has.
+         Asking it of every room strips them all back to bare boards. */
+      if (!(map.npcs ?? []).some((n) => n.roams)) return true;
+      const open = openNow();
+      for (const cell of open) {
+        const without = openNow(new Set([cell]));
+        const lost = open.size - 1 - without.size;
+        if (lost <= 0) continue;
+        if (lost > 8) return false;
+        for (const wp of map.warps ?? []) {
+          const key = `${wp.x},${wp.y}`;
+          if (key !== cell && open.has(key) && !without.has(key)) return false;
+        }
+        if (!faceable(without, map.signs)) return false;
+        if (!faceable(without, (map.npcs ?? []).filter((n) => `${n.x},${n.y}` !== cell))) return false;
+      }
+      return true;
+    };
+
+    /* And five bodies, in a hall you can buy and move a household into. They
+       settle onto the nearest free ground to wherever the hearth is set, and
+       the hearth can be set almost anywhere, so every open tile is tried as the
+       place they gather. */
+    const householdSafe = () => {
+      if (!map.seat) return true;
+      const open = openNow();
+      for (const origin of open) {
+        const [ox, oy] = origin.split(',').map(Number);
+        const taken = new Set();
+        const walked = new Set([origin]);
+        const queue = [[ox, oy]];
+        for (let i = 0; i < queue.length && taken.size < 5; i++) {
+          const [cx, cy] = queue[i];
+          const key = `${cx},${cy}`;
+          if (key !== origin) taken.add(key);
+          for (const [dx, dy] of DIRS4) {
+            const nx = cx + dx, ny = cy + dy, nk = `${nx},${ny}`;
+            if (walked.has(nk) || !open.has(nk)) continue;
+            walked.add(nk);
+            queue.push([nx, ny]);
+          }
+        }
+        const without = openNow(taken);
+        for (const wp of map.warps ?? []) {
+          if (!taken.has(`${wp.x},${wp.y}`) && !without.has(`${wp.x},${wp.y}`)) return false;
+        }
+        if (!faceable(without, map.signs)) return false;
+      }
+      return true;
+    };
+
     /* And now put it back, in this room's own arrangement. A piece that would
        cut the room in two, or shut a door or a person off, is simply not put
        down - which is why a room can never come out of here unwalkable however
@@ -10863,6 +10952,7 @@ function furnishRooms() {
       const flipX = turn & 1;
       const flipY = (turn >>> 1) & 1;
       let placed = 0;
+      const placedAt = [];
       for (let y = 1; y < h - 1 && placed < pieces.length; y++) {
         for (let x = 1; x < w - 1 && placed < pieces.length; x++) {
           const px = flipX ? w - 1 - x : x;
@@ -10875,9 +10965,16 @@ function furnishRooms() {
           /* Everything that was walkable still is, bar the tile just filled,
              and everybody can still be got at. Anything less and the piece
              does not go down. */
-          if (still.size === wanted.size - 1 - placed && reachable(still)) placed++;
-          else rows[py][px] = was;
+          if (still.size === wanted.size - 1 - placed && reachable(still)) {
+            placed++;
+            placedAt.push([px, py]);
+          } else rows[py][px] = was;
         }
+      }
+      /* And back off until a room full of people still works. */
+      while (placedAt.length && !(bodySafe() && householdSafe())) {
+        const [bx, by] = placedAt.pop();
+        rows[by][bx] = bare;
       }
       return rows.map((row) => row.join('')).join('\n');
     };
@@ -10889,6 +10986,40 @@ function furnishRooms() {
       const made = laid((seed + i) % tries);
       if (shape === null) shape = made;
       if (!alreadyStanding.has(made)) { shape = made; break; }
+    }
+
+    /* And when furniture cannot be the answer, the floor is.
+     *
+     * The great halls you can buy - Harrenhal, Craster's, the Sealord's palace
+     * and the rest - are drawn nearly bare on purpose, because filling them is
+     * what the holdfast is for. There is nothing in them to rearrange, and the
+     * two checks above are right to refuse to put anything in: they are the
+     * rooms a household of five settles into and three people wander around.
+     *
+     * So these are told apart by what is underfoot instead. A runner down the
+     * middle, a border, a chequer - laid in another floor the game already
+     * draws. Walkable ground stays walkable ground, so this cannot shut a door,
+     * strand a roamer or cost a household its seats: it is the one change to a
+     * room that is provably free. */
+    if (alreadyStanding.has(shape)) {
+      const rowsNow = shape.split('\n').map((row) => row.split(''));
+      const spare = ['_', '=', 'c'].filter((ch) => ch !== bare);
+      const PATTERNS = [
+        (x, y, ww, hh) => y === Math.floor(hh / 2),
+        (x, y, ww) => x === Math.floor(ww / 2),
+        (x, y, ww, hh) => y === 2 || y === hh - 3,
+        (x, y, ww) => x === 2 || x === ww - 3,
+        (x, y) => (x + y) % 2 === 0,
+        (x, y) => (x % 3 === 0) && (y % 3 === 0),
+      ];
+      outer:
+      for (const ch of spare) {
+        for (const pattern of PATTERNS) {
+          const tried = rowsNow.map((row, y) => row.map((c, x) =>
+            (c === bare && pattern(x, y, w, h) ? ch : c)).join('')).join('\n');
+          if (!alreadyStanding.has(tried)) { shape = tried; break outer; }
+        }
+      }
     }
     alreadyStanding.add(shape);
     map.grid = shape.split('\n');

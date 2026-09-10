@@ -11231,6 +11231,54 @@ function hideThings() {
 hideThings();
 
 /* ---------------------------------------------------------------------------
+ * The table by the door.
+ *
+ * Seven relics, each doing one thing no sword does and each used up doing it -
+ * a jar of wildfire, a horn of Valyrian glyphs, warlock's wine that lets you
+ * see the next blow before it is thrown. They are the reason a chest is still
+ * worth opening once you are wearing the best of everything in the world.
+ *
+ * Two of them are priceless and lie about the world to be found, and they were
+ * being found: there is a Weirwood Paste on the kingsroad and a Dragonbinder on
+ * Dragonstone. The other five have prices - four hundred gold up to three
+ * thousand - and nobody in the browser sold any of them. The cartridge has a
+ * table by the door in every maester's hall carrying exactly these five; the
+ * browser had forty-five hand-typed stock lists and no relic in any of them.
+ *
+ * So the same table, laid by how far into the world the town is. A jar of
+ * wildfire at three thousand gold is not stocked in a village a day north of
+ * Winterfell, and by the time you are that far south you have the gold for it.
+ * ------------------------------------------------------------------------ */
+function stockRelics() {
+  /* Dearest last, which is also furthest out. */
+  const LADDER = ['huntersDraught', 'maestersSalts', 'warhorn',
+                  'shadeOfTheEvening', 'wildfire'];
+  const stride = strideFrom('winterfell');
+  const far = Math.max(1, ...stride.values());
+  let counters = 0, laid = 0;
+  for (const [id, map] of Object.entries(MAPS)) {
+    /* How far out we are, nought to one, on the same walk of the roads that
+       decides what is worth hiding in this region's corners. */
+    const out = (stride.get(id) ?? far) / far;
+    /* A village carries the first of them, a city all five. */
+    const depth = Math.max(1, Math.min(LADDER.length, 1 + Math.round(out * 4)));
+    for (const npc of map.npcs ?? []) {
+      const stock = npc.data?.stock;
+      /* Only a counter that already sells things off a shelf. The smith's
+         stock is an object of gear by slot, and a relic is not gear. */
+      if (!Array.isArray(stock) || !stock.length) continue;
+      counters++;
+      for (const relic of LADDER.slice(0, depth)) {
+        if (!stock.includes(relic)) { stock.push(relic); laid++; }
+      }
+    }
+  }
+  return { counters, laid };
+}
+
+stockRelics();
+
+/* ---------------------------------------------------------------------------
  * Somewhere for the things on the table to be.
  *
  * An encounter fires when you step on cover, and on cover only - the overworld

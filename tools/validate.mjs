@@ -236,7 +236,13 @@ for (const [mapId, map] of Object.entries(MAPS)) {
     }
     if (Array.isArray(stock)) {
       for (const id of stock) {
-        if (!ITEMS[id]) fail(`map ${mapId}: shop stocks unknown item "${id}"`);
+        /* Asked of the whole legend rather than of ITEMS alone. A counter can
+           sell a relic, and relics are their own table in craft.js; asking
+           ITEMS by name is the same mistake the duel's item list was making,
+           which is what kept all seven of them out of a fight. */
+        let known = true;
+        try { item(id); } catch { known = false; }
+        if (!known) fail(`map ${mapId}: shop stocks unknown item "${id}"`);
       }
     } else if (stock && typeof stock === 'object') {
       /* All five slots. helm and gloves were missing, so every armoury in the

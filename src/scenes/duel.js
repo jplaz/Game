@@ -28,6 +28,7 @@ import { move as moveDef } from '../data/moves.js';
 import { technique, gear } from '../data/gear.js';
 import { duellist as getDuellist } from '../data/duellists.js';
 import { item as getItem, ITEMS } from '../data/items.js';
+import { RELICS } from '../data/craft.js';
 import { attemptCatch } from '../game/combat.js';
 import {
   playerStats, playerTechniques, gainPlayerExp, wearOn, neverWears, equipped, 
@@ -177,6 +178,12 @@ export class Duel {
     this.anim = { shake: 0, target: null, flash: 0, lungeFor: null, lunge: 0 };
     this.intro = 1;
     this.round = 0;
+
+    /* What a relic leaves behind it. Both of these are spent rather than held:
+       a blow you cannot miss is used up landing, and a doused net is used up
+       being thrown. See useRelic. */
+    this.sureShots = 0;
+    this.snareEdge = 1;
   }
 
   enter() {
@@ -326,9 +333,16 @@ export class Duel {
     // Banners are only worth carrying into a duel when there is a beast on the
     // other side to win over.
     const canClaim = this.foeBeast && this.foeBeast.hp > 0;
+    /* Relics are not in ITEMS - they are their own table in craft.js, and this
+       asked ITEMS by name, so all seven of them were filtered out of the list
+       before it was drawn. You could buy Wildfire for three thousand gold,
+       carry it the length of Westeros, and never once be offered the chance to
+       throw it. The cartridge has had them working all along. */
     const usable = Object.keys(game.state.bag)
-      .filter((id) => ITEMS[id] && !ITEMS[id].key && itemCount(id) > 0
-        && (ITEMS[id].use?.kind !== 'catch' || canClaim));
+      .filter((id) => itemCount(id) > 0 && (RELICS[id]
+        ? this.relicWorks(id)
+        : ITEMS[id] && !ITEMS[id].key
+          && (ITEMS[id].use?.kind !== 'catch' || canClaim)));
     if (!usable.length) {
       await this.say('Nothing in your pack will help here.');
       return null;
@@ -455,7 +469,12 @@ export class Duel {
       return;
     }
 
-    if (rng.int(1, 100) > tech.accuracy) {
+    /* A blow you have already seen thrown does not miss. Shade of the Evening
+       buys two of these and Dragonbinder three; they are spent on your own
+       swings, in order, and only on swings that could have missed. */
+    const foreseen = actor === this.you && this.sureShots > 0;
+    if (foreseen) this.sureShots--;
+    if (!foreseen && rng.int(1, 100) > tech.accuracy) {
       await this.say('The blow goes wide!');
       return;
     }
@@ -608,7 +627,69 @@ export class Duel {
     return false;
   }
 
+  /* Whether a relic would do anything if you reached for it now. Two of the
+     seven need something to work on: the Salts want a beast that is hurt, and
+     the Draught wants a beast on the other side to throw a net over. Asked
+     before the list is drawn rather than after it is chosen, so a relic is
+     never offered only to say it was no use. */
+  relicWorks(id) {
+    if (id === 'maestersSalts') return !!this.yourBeast && this.yourBeast.hp < this.yourBeast.maxHp;
+    if (id === 'huntersDraught') return !!this.foeBeast && this.foeBeast.hp > 0;
+    if (id === 'weirwoodPaste') return this.you.hp < this.you.maxHp;
+    return true;
+  }
+
+  /**
+   * The seven relics, each doing one thing no sword does and each used up doing
+   * it. This is what keeps a chest worth opening once you are wearing the best
+   * of everything in the world - which is the reason they exist, and they have
+   * worked on the cartridge since it had them. Same seven, same numbers.
+   */
+  async useRelic(itemId) {
+    takeItem(itemId);
+    if (itemId === 'huntersDraught') {
+      this.snareEdge = 1 + (RELICS.huntersDraught.snareBoost ?? 25) / 10;
+      await this.say('You douse the net. Whatever you throw it over is going to '
+        + 'mind a good deal less.');
+    } else if (itemId === 'warhorn') {
+      this.foe.defending = false;
+      this.foe.stunned = true;
+      audio.sfx('strong');
+      await this.say('One long note off the ironwood. They spend the next moment '
+        + 'deciding whether to run, and lose it.');
+    } else if (itemId === 'maestersSalts') {
+      const beast = this.yourBeast;
+      beast.hp = beast.maxHp;
+      audio.sfx('heal');
+      await this.animateHp(beast);
+      await this.say('Under its nose, and it gets up. All of it gets up.');
+    } else if (itemId === 'shadeOfTheEvening') {
+      this.sureShots = 2;
+      await this.say('Thick, blue, and it tastes of ink. You can see the next two '
+        + 'blows before they are thrown.');
+    } else if (itemId === 'wildfire') {
+      const burn = 60 + this.you.level * 4;
+      this.foe.hp = Math.max(0, this.foe.hp - burn);
+      audio.sfx('strong');
+      this.anim.flash = 0.5;
+      await this.animateHit(this.foe);
+      await this.say(`The jar goes over and the green takes hold. ${burn} damage, `
+        + 'and it is still burning.');
+    } else if (itemId === 'weirwoodPaste') {
+      this.you.hp = this.you.maxHp;
+      audio.sfx('heal');
+      await this.animateHp(this.you);
+      await this.say('You see a great deal at once and remember almost none of it. '
+        + 'Everything that hurt has stopped.');
+    } else {
+      this.sureShots = 3;
+      await this.say('Six feet of Valyrian horn, and the note costs you something '
+        + 'you will not miss until later.');
+    }
+  }
+
   async useItem(itemId) {
+    if (RELICS[itemId]) { await this.useRelic(itemId); return; }
     const def = getItem(itemId);
     const use = def.use;
     if (use.kind === 'heal' || use.kind === 'fullHeal') {
@@ -643,7 +724,10 @@ export class Duel {
     await this.say(`You raise the ${def.name} at ${beast.name}!`);
 
     // The beast side carries the real creature, which is what the roll reads.
-    const result = attemptCatch(beast, def.bonus ?? 1);
+    // A net doused in Hunter's Draught is a much better net, and stays one
+    // until it is thrown.
+    const result = attemptCatch(beast, (def.bonus ?? 1) * this.snareEdge);
+    this.snareEdge = 1;
     audio.sfx('ball');
     await this.wait(0.7);
 

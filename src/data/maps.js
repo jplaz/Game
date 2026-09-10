@@ -17,10 +17,29 @@ import { MATERIAL_IDS } from './craft.js';
 // Shared interior: every settlement has a Maester's Hall that both heals your
 // party and sells supplies. One layout, instantiated per town.
 // ---------------------------------------------------------------------------
-/* Every tile you can stand on, which is every tile the legend calls floor,
-   encounter or ledge. Kept here rather than derived from the art so that the
-   map layer does not have to load the painters to know where the ground is. */
-const STANDABLE = new Set([...'.,S;-dsoi*L_=cb<%tmD']);
+/* Every tile you can walk across: what the legend calls floor or encounter.
+ *
+ * Written out rather than read from TILE_DEFS because the art module drags in
+ * a canvas, and the exporter, the map checkers and the cartridge packer all
+ * load this file without one. Two checks hold the copy to the original on
+ * every build - checkmaps.mjs and validate.mjs - because it drifts, and each
+ * time it drifts it does so silently: nothing looks broken, a stretch of
+ * ground simply stops existing as far as this file is concerned. The stone
+ * stair and the drawbridge went missing once and the Dragonstone great stair
+ * read as a wall, so from the gateway there was no ground out on the Smoking
+ * Strand and three people were quietly never placed on it.
+ *
+ * STANDABLE is the same list plus the ledge, which you can stand on and drop
+ * off but cannot walk back up. There used to be two lists typed out by hand
+ * here, and by the time anyone looked they disagreed in three characters. */
+export const WALKABLE = '.,S;&-dso*i_=cb<%tmD/+';
+export const STANDABLE = new Set([...WALKABLE, 'L']);
+
+/* Ground you cross rather than ground you use: a ledge you drop off, a stair,
+   a drawbridge. Everything that walks may pass over these, and nothing may be
+   built, sown or hidden on one - a table across the only stair shuts a castle,
+   and long grass growing on a drawbridge is simply wrong. */
+export const PASSAGE = new Set([...'L/+']);
 
 /* Which of the five a room in this region is furnished as.
  *
@@ -152,19 +171,6 @@ function maesterHall({ exitTo, exitX, exitY, stock, healerLine, merchantLine, ex
  * Doors: hall (6,6) forge (17,6) keep (7,14)
  * Exits: north (11,0) south (11,19)
  */
-/* Every tile character a person can stand on.
- *
- * Written out rather than read from TILE_DEFS because the art module drags in
- * a canvas, and the exporter, the map checkers and the cartridge packer all
- * load this file without one. tools/checkmaps.mjs holds the two side by side
- * on every build so the copy cannot drift from the original again - which it
- * had: the stone stair, the drawbridge and the door were all missing, so this
- * function believed the Dragonstone great stair was a wall. Nothing that walks
- * used it, so nothing broke visibly; what it did was quietly refuse to place
- * anybody out on the Smoking Strand, because from the gateway there was no
- * ground out there to stand on. */
-export const WALKABLE = '.,S;-dso*i_=cb<%tmD/+';
-
 function makeTown({ name, music = 'town', ground = 'grass', wall = '#', floor = '.',
                     roof = 'R', ridge = 'r', house = 'H', banner = 'V', dressing = [],
                     shut = [], quarter = 0, outskirts = null, gate = 13, outsiders = [],
@@ -9929,12 +9935,26 @@ export const MAPS = {
 
 };
 
-/** Normalises rows to a rectangle and precomputes width/height. */
+/* Normalises rows to a rectangle and precomputes width/height.
+ *
+ * It also settles which of `tiles` and `grid` is the map. `grid` is: the
+ * overworld, the exporter, nooks and the holdfast all read it, and every pass
+ * below writes it. `tiles` is what a map was typed as, and seven of them - the
+ * seat maps, whose plans are assembled rather than typed - declared it as a
+ * getter that rebuilt the bare plan on each read. So `tiles` was quietly a
+ * different map from `grid` on exactly the maps that had been furnished the
+ * most, and checkstarts, validate and mapshot, which all read `tiles`, were
+ * checking and photographing a Winterfell with no furniture in it. Replacing
+ * the getter with what it returned leaves one live grid and no way for the two
+ * to drift. */
 function prepare(map) {
   const width = Math.max(...map.tiles.map((row) => row.length));
   map.grid = map.tiles.map((row) => row.padEnd(width, row.at(-1) ?? '#'));
   map.width = width;
   map.height = map.grid.length;
+  Object.defineProperty(map, 'tiles', {
+    value: map.grid, writable: true, enumerable: true, configurable: true,
+  });
   return map;
 }
 
@@ -10624,7 +10644,7 @@ function readableSigns() {
        from, and on the generated maps that is a getter, so keep the two in
        step only where there is something to write to. */
     map.grid = rows.map((row) => row.join(''));
-    if (Object.getOwnPropertyDescriptor(map, 'tiles')?.writable) map.tiles = map.grid;
+    map.tiles = map.grid;
   }
 }
 
@@ -10659,6 +10679,20 @@ function readableSigns() {
    pass does not drag the art tables into the map file. */
 const SOLID_ROOM = new Set(['#', 'I', 'p', 'A', 'T', 'F', 'B', 'K', 'h', 'N',
   'l', 'W', '!', 'j', 'n', 'f', 'U', 'C']);
+
+/* Whether a character is bare floor, answered from a byte rather than from
+   three set lookups. The flood fill below asks this of four neighbours of every
+   tile it reaches, on every candidate placement, of every arrangement, of every
+   room in the world; it was the single most-executed line in loading the game
+   after the fill itself. */
+const STEP_X = Int8Array.from([1, -1, 0, 0]);
+const STEP_Y = Int8Array.from([0, 0, 1, -1]);
+
+const ROOM_FLOOR = new Uint8Array(128);
+for (let c = 0; c < 128; c++) {
+  const ch = String.fromCharCode(c);
+  ROOM_FLOOR[c] = !SOLID_ROOM.has(ch) && STANDABLE.has(ch) && !PASSAGE.has(ch) ? 1 : 0;
+}
 
 /* Furniture that stands loose on a floor and can be moved without the room
    ceasing to be what it is. Counters, hearths, forges, cages and beds are not
@@ -10736,16 +10770,23 @@ function furnishRooms() {
     const rows = map.grid.map((row) => row.split(''));
     const { width: w, height: h } = map;
     const at = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? '#' : rows[y][x]);
-    const floor = (c) => !SOLID_ROOM.has(c) && STANDABLE.has(c);
+    const floor = (c) => ROOM_FLOOR[c.charCodeAt(0)] === 1;
+    /* Every set below is a set of tiles, and a tile is a number: y * w + x. It
+       was a string, and the strings were built and hashed inside a flood fill
+       that runs once per candidate tile per arrangement per back-off step,
+       which came to most of a second on every load of the game. */
+    const cells = w * h;
+    const idx = (x, y) => y * w + x;
+    const inside = (x, y) => x >= 0 && y >= 0 && x < w && y < h;
 
     /* What may not move, and what may not be built on: everybody's feet, every
        door, every sign, everything on the ground, and the tile in front of
        each of them so they can still be reached and spoken to. */
-    const keep = new Set();
+    const keep = new Uint8Array(cells);
     const hold = (x, y) => {
-      keep.add(`${x},${y}`);
+      if (inside(x, y)) keep[idx(x, y)] = 1;
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        keep.add(`${x + dx},${y + dy}`);
+        if (inside(x + dx, y + dy)) keep[idx(x + dx, y + dy)] = 1;
       }
     };
     for (const it of map.warps ?? []) hold(it.x, it.y);
@@ -10799,10 +10840,10 @@ function furnishRooms() {
        if the innkeeper is standing in it. Getting this wrong is what put two
        dozen rooms through the checker with the cellarman bricked into a
        corner. */
-    const occupied = new Set();
-    for (const n of map.npcs ?? []) occupied.add(`${n.x},${n.y}`);
-    for (const it of map.items ?? []) occupied.add(`${it.x},${it.y}`);
-    const passable = (x, y) => floor(at(x, y)) && !occupied.has(`${x},${y}`);
+    const occupied = new Uint8Array(cells);
+    for (const n of map.npcs ?? []) if (inside(n.x, n.y)) occupied[idx(n.x, n.y)] = 1;
+    for (const it of map.items ?? []) if (inside(it.x, it.y)) occupied[idx(it.x, it.y)] = 1;
+    const passable = (x, y) => inside(x, y) && floor(at(x, y)) && !occupied[idx(x, y)];
 
     /* You cannot walk ACROSS a doorway. Step onto one and you are through it
        and somewhere else, so a stair is where a walk ends, never somewhere it
@@ -10811,51 +10852,73 @@ function furnishRooms() {
        table across the only way round - leaving the sign above them readable by
        nobody. The map checker has known this for longer than this pass has
        existed; it is its rule, copied. */
-    const doorway = new Set((map.warps ?? []).map((wp) => `${wp.x},${wp.y}`));
-    const openNow = (alsoBlocked) => {
-      const shut = (x, y) => alsoBlocked?.has(`${x},${y}`);
-      const seen = new Set();
-      const queue = [];
+    const doorway = new Uint8Array(cells);
+    for (const wp of map.warps ?? []) if (inside(wp.x, wp.y)) doorway[idx(wp.x, wp.y)] = 1;
+    /* `alsoBlocked` is a byte per tile, or null. What comes back is the same:
+       a byte per tile that is 1 where you can get to, and how many of those
+       there are - written into the buffer the caller hands over. It is handed
+       over rather than allocated because this runs tens of thousands of times
+       per room, and two fresh arrays a call was five per cent of loading the
+       game spent in the garbage collector. A caller that needs to keep a result
+       while asking again - which is what "would this tile shut anything off"
+       is - hands over a different buffer for each. */
+    const floodQueue = new Int32Array(cells);
+    const openInto = (alsoBlocked, seen) => {
+      seen.fill(0);
+      const queue = floodQueue;
+      let tail = 0;
+      const shut = (i) => alsoBlocked !== undefined && alsoBlocked !== null && alsoBlocked[i] === 1;
       for (const wp of map.warps ?? []) {
-        const key = `${wp.x},${wp.y}`;
-        if (!seen.has(key) && passable(wp.x, wp.y) && !shut(wp.x, wp.y)) {
-          seen.add(key); queue.push([wp.x, wp.y]);
-        }
+        if (!inside(wp.x, wp.y)) continue;
+        const i = idx(wp.x, wp.y);
+        if (!seen[i] && passable(wp.x, wp.y) && !shut(i)) { seen[i] = 1; queue[tail++] = i; }
       }
-      if (!queue.length) {
-        for (let y = 0; y < h && !queue.length; y++) {
-          for (let x = 0; x < w && !queue.length; x++) {
-            if (passable(x, y) && !shut(x, y)) { seen.add(`${x},${y}`); queue.push([x, y]); }
+      if (!tail) {
+        for (let y = 0; y < h && !tail; y++) {
+          for (let x = 0; x < w && !tail; x++) {
+            const i = idx(x, y);
+            if (passable(x, y) && !shut(i)) { seen[i] = 1; queue[tail++] = i; }
           }
         }
       }
-      for (let i = 0; i < queue.length; i++) {
-        const [cx, cy] = queue[i];
-        if (i && doorway.has(`${cx},${cy}`)) continue;
-        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-          const nx = cx + dx, ny = cy + dy;
-          const key = `${nx},${ny}`;
-          if (seen.has(key) || !passable(nx, ny) || shut(nx, ny)) continue;
-          seen.add(key);
-          queue.push([nx, ny]);
+      for (let i = 0; i < tail; i++) {
+        const c = queue[i];
+        const cx = c % w, cy = (c - cx) / w;
+        if (i && doorway[c]) continue;
+        for (let d = 0; d < 4; d++) {
+          const nx = cx + STEP_X[d], ny = cy + STEP_Y[d];
+          if (!inside(nx, ny)) continue;
+          const j = idx(nx, ny);
+          if (seen[j] || !passable(nx, ny) || shut(j)) continue;
+          seen[j] = 1;
+          queue[tail++] = j;
         }
       }
-      return seen;
+      return tail;
     };
-    const wanted = openNow();
+    /* Three answers can be alive at once and no more: the room before any
+       furniture went down, the room as it stands, and the room with one more
+       thing in it. So three buffers, and nothing allocated after that. */
+    const markWanted = new Uint8Array(cells);
+    const markOpen = new Uint8Array(cells);
+    const markTry = new Uint8Array(cells);
+    const openNow = (alsoBlocked, into = markTry) =>
+      ({ mark: into, size: openInto(alsoBlocked, into) });
+    const wanted = openNow(null, markWanted);
 
     /* And everybody has to still be reachable to be spoken to, which is not the
        same question as whether the floor is connected: a person can be left
        standing against a wall with the one tile you could have talked to them
        from now under a barrel. */
+    const openAt = (open, x, y) => inside(x, y) && open.mark[idx(x, y)] === 1;
     const reachable = (open) => {
       for (const list of [map.npcs, map.signs, map.warps, map.items, map.chests]) {
         for (const it of list ?? []) {
           let any = false;
           for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-            if (open.has(`${it.x + dx},${it.y + dy}`)) { any = true; break; }
+            if (openAt(open, it.x + dx, it.y + dy)) { any = true; break; }
           }
-          if (!any && !open.has(`${it.x},${it.y}`)) return false;
+          if (!any && !openAt(open, it.x, it.y)) return false;
         }
       }
       return true;
@@ -10876,8 +10939,8 @@ function furnishRooms() {
      * always terminates. */
     const DIRS4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     const faceable = (open, list) => (list ?? []).every((it) =>
-      open.has(`${it.x},${it.y}`)
-      || DIRS4.some(([dx, dy]) => open.has(`${it.x + dx},${it.y + dy}`)));
+      openAt(open, it.x, it.y)
+      || DIRS4.some(([dx, dy]) => openAt(open, it.x + dx, it.y + dy)));
 
     /* One body, anywhere it could stand. Shutting a broom cupboard away costs
        nobody anything; shutting a door, a face or a large part of the room away
@@ -10892,27 +10955,33 @@ function furnishRooms() {
          has never heard of: Sunspear's, which is called the Water Gardens, gets
          a roaming Ellaria who was the one body this pass could not see. */
       if (!(map.npcs ?? []).some((n) => n.roams) && !HOUSE_IDS.includes(map.id)) return true;
-      const open = openNow();
-      for (const cell of open) {
+      const open = openNow(null, markOpen);
+      const one = new Uint8Array(cells);
+      for (let cell = 0; cell < cells; cell++) {
+        if (!open.mark[cell]) continue;
         /* A tile beside a door is never asked about, and that is the audit's
            rule rather than a softening of it: standing in front of a doorway
            shuts nothing off, because the door is the way through and the flood
            starts on the far side of you. Almost every inn in the game has a
            tile in front of its cellar stair that fails without this. */
-        const [qx, qy] = cell.split(',').map(Number);
-        if (doorway.has(cell)) continue;
-        if ([[1, 0], [-1, 0], [0, 1], [0, -1]]
-          .some(([dx, dy]) => doorway.has(`${qx + dx},${qy + dy}`))) continue;
-        const without = openNow(new Set([cell]));
+        const qx = cell % w, qy = (cell - qx) / w;
+        if (doorway[cell]) continue;
+        if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) =>
+          inside(qx + dx, qy + dy) && doorway[idx(qx + dx, qy + dy)])) continue;
+        one[cell] = 1;
+        const without = openNow(one);
+        one[cell] = 0;
         const lost = open.size - 1 - without.size;
         if (lost <= 0) continue;
         if (lost > 8) return false;
         for (const wp of map.warps ?? []) {
-          const key = `${wp.x},${wp.y}`;
-          if (key !== cell && open.has(key) && !without.has(key)) return false;
+          if (!inside(wp.x, wp.y)) continue;
+          const i = idx(wp.x, wp.y);
+          if (i !== cell && open.mark[i] && !without.mark[i]) return false;
         }
         if (!faceable(without, map.signs)) return false;
-        if (!faceable(without, (map.npcs ?? []).filter((n) => `${n.x},${n.y}` !== cell))) return false;
+        if (!faceable(without, (map.npcs ?? [])
+          .filter((n) => !(inside(n.x, n.y) && idx(n.x, n.y) === cell)))) return false;
       }
       return true;
     };
@@ -10923,26 +10992,35 @@ function furnishRooms() {
        place they gather. */
     const householdSafe = () => {
       if (!map.seat) return true;
-      const open = openNow();
-      for (const origin of open) {
-        const [ox, oy] = origin.split(',').map(Number);
-        const taken = new Set();
-        const walked = new Set([origin]);
-        const queue = [[ox, oy]];
-        for (let i = 0; i < queue.length && taken.size < 5; i++) {
-          const [cx, cy] = queue[i];
-          const key = `${cx},${cy}`;
-          if (key !== origin) taken.add(key);
+      const open = openNow(null, markOpen);
+      const taken = new Uint8Array(cells);
+      const walked = new Uint8Array(cells);
+      const queue = new Int32Array(cells);
+      for (let origin = 0; origin < cells; origin++) {
+        if (!open.mark[origin]) continue;
+        taken.fill(0);
+        walked.fill(0);
+        walked[origin] = 1;
+        queue[0] = origin;
+        let tail = 1, takenCount = 0;
+        for (let i = 0; i < tail && takenCount < 5; i++) {
+          const c = queue[i];
+          const cx = c % w, cy = (c - cx) / w;
+          if (c !== origin && !taken[c]) { taken[c] = 1; takenCount++; }
           for (const [dx, dy] of DIRS4) {
-            const nx = cx + dx, ny = cy + dy, nk = `${nx},${ny}`;
-            if (walked.has(nk) || !open.has(nk)) continue;
-            walked.add(nk);
-            queue.push([nx, ny]);
+            const nx = cx + dx, ny = cy + dy;
+            if (!inside(nx, ny)) continue;
+            const j = idx(nx, ny);
+            if (walked[j] || !open.mark[j]) continue;
+            walked[j] = 1;
+            queue[tail++] = j;
           }
         }
         const without = openNow(taken);
         for (const wp of map.warps ?? []) {
-          if (!taken.has(`${wp.x},${wp.y}`) && !without.has(`${wp.x},${wp.y}`)) return false;
+          if (!inside(wp.x, wp.y)) continue;
+          const i = idx(wp.x, wp.y);
+          if (!taken[i] && !without.mark[i]) return false;
         }
         if (!faceable(without, map.signs)) return false;
       }
@@ -10973,7 +11051,7 @@ function furnishRooms() {
         for (let x = 1; x < w - 1 && placed < pieces.length; x++) {
           const px = flipX ? w - 1 - x : x;
           const py = flipY ? h - 1 - y : y;
-          if (!floor(at(px, py)) || keep.has(`${px},${py}`)) continue;
+          if (!floor(at(px, py)) || keep[idx(px, py)]) continue;
           if (!wants(px, py, w, h)) continue;
           const was = rows[py][px];
           rows[py][px] = pieces[placed];
@@ -11040,7 +11118,7 @@ function furnishRooms() {
     }
     alreadyStanding.add(shape);
     map.grid = shape.split('\n');
-    if (Object.getOwnPropertyDescriptor(map, 'tiles')?.writable) map.tiles = map.grid;
+    map.tiles = map.grid;
   }
 }
 
@@ -11117,16 +11195,18 @@ function hideThings() {
   const stride = strideFrom('winterfell');
   const far = Math.max(1, ...stride.values());
   const levelOf = (id) => Math.min(44, 3 + Math.round(41 * (stride.get(id) ?? far) / far));
-  /* The finder wants the tile rule, and the map layer deliberately does not
-     load the painters, so it is answered from the same table the rest of this
-     file walks on. A ledge is a drop rather than ground: nothing is hidden on
-     one, because you cannot climb back up to it. */
-  const solid = (c) => !STANDABLE.has(c) || c === 'L';
+  /* The finder wants the tile rules, and the map layer deliberately does not
+     load the painters, so they are answered from the same tables the rest of
+     this file walks on. Two rules rather than one: what you cannot cross, and
+     what you may cross but must not leave a chest standing on - a ledge you
+     drop off and cannot climb back up to, a stair, a drawbridge. */
+  const solid = (c) => !STANDABLE.has(c);
+  const passage = (c) => PASSAGE.has(c);
   let hidden = 0;
   for (const [id, map] of Object.entries(MAPS)) {
     if (map.indoor) continue;
     const standing = new Set((map.items ?? []).map((it) => `${it.x},${it.y}`));
-    const nooks = hiddenNooks(map, standing, id, solid);
+    const nooks = hiddenNooks(map, standing, id, solid, passage);
     if (!nooks.length) continue;
     const level = levelOf(id);
     map.items = map.items ?? [];
@@ -11149,6 +11229,149 @@ function hideThings() {
 }
 
 hideThings();
+
+/* ---------------------------------------------------------------------------
+ * Somewhere for the things on the table to be.
+ *
+ * An encounter fires when you step on cover, and on cover only - the overworld
+ * checks the tile you walked onto and returns at once if it is not the
+ * encounter kind. Twenty-one maps had a table of things that live there and
+ * not one tile of cover to meet them on, so every one of those tables was
+ * furniture: written, levelled, weighted, and unreachable.
+ *
+ * Riverrun had silverfin and riverfry in a town with no reeds. Flea Bottom had
+ * two kinds of cutpurse and nowhere to be cut. The Fist of the First Men - the
+ * place in this whole world where the dead are supposed to come out of the
+ * ground at you - had wightlings, barrowlords and a palewalker on its table,
+ * and a player could stand on it all day and meet none of them.
+ *
+ * Cover is walkable, so sowing it cannot shut a door, sever a map or strand
+ * anybody: it is the same free change as laying a different floor. What it
+ * needs is judgement about where, not proof that it is safe. It goes at the
+ * edges and never within two tiles of a door, because being jumped as you step
+ * out of an inn is not an encounter, it is an ambush by the furniture.
+ * ------------------------------------------------------------------------ */
+function sowCover() {
+  const COVER = new Set([';', ',', '&']);
+  let sown = 0, maps = 0;
+  for (const [id, map] of Object.entries(MAPS)) {
+    if (!(map.encounters?.length)) continue;
+    /* Indoors is a room with a roof on it, and nothing is met in one - except
+       a cave, which is indoors in the sense that it has a ceiling and outdoors
+       in every sense that matters here. What makes one is what it is cut out
+       of rather than what list it is on: fourteen of the twenty-six were hung
+       off a road by hand and are in CAVE_IDS, and the other twelve - the
+       Barrow Deeps, the Dragonmont, Mole's Town, the Cannibal's Lair - were
+       written out longhand and are not. Every indoor map in the game with a
+       table on it is at least nine parts in ten cave stone, and no room with
+       people in it is any parts cave stone, so the floor is the test. */
+    const { width: w, height: h } = map;
+    const rows = map.grid.map((row) => row.split(''));
+    const stone = rows.flat().filter((c) => c === '%' || c === '@').length;
+    const cave = stone * 10 >= w * h * 9;
+    if (map.indoor && !cave) continue;
+    if (rows.some((row) => row.some((c) => COVER.has(c)))) continue;
+
+    /* Which of the three the map should be dressed in. They are the same rule
+       and different pictures: long grass for green ground, scrub for snow and
+       stone, fallen rock for a cave. Read off what the map is already floored
+       with rather than guessed at. */
+    let rough = 0, green = 0;
+    for (const row of rows) for (const c of row) {
+      if ('Si o=-d'.includes(c)) rough++;
+      if ('.s*%'.includes(c)) green++;
+    }
+    const cover = cave ? '&' : rough > green ? ';' : ',';
+
+    /* Nowhere near anything anybody needs to reach. */
+    const off = new Set();
+    const clear = (x, y, r) => {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) off.add(`${x + dx},${y + dy}`);
+      }
+    };
+    for (const it of map.warps ?? []) clear(it.x, it.y, 2);
+    for (const it of map.npcs ?? []) clear(it.x, it.y, 1);
+    for (const it of map.signs ?? []) clear(it.x, it.y, 1);
+    for (const it of map.items ?? []) clear(it.x, it.y, 1);
+
+    /* Anywhere you can stand, which is the honest rule: the thirteen maps this
+       missed on its first pass were floored in ice, road and hall-stone rather
+       than grass - the Fist of the First Men is ice, Flea Bottom is packed
+       earth, Harrenhal is a courtyard - and a rule that only knew about grass
+       left every one of their tables dead. Nothing grows on a ledge, a stair
+       or a drawbridge. */
+    const plain = (x, y) => {
+      const c = rows[y]?.[x];
+      return c !== undefined && STANDABLE.has(c) && !PASSAGE.has(c)
+        && !COVER.has(c) && !off.has(`${x},${y}`);
+    };
+
+    /* Patches rather than a dusting. A tile of grass on its own reads as a
+       mistake; four together read as somewhere that has not been cut. */
+    let ground = 0;
+    for (const row of rows) for (const c of row) if (c !== '#') ground++;
+    const want = Math.max(2, Math.round(ground / 110));
+    let seed = roomSeed(id);
+    const next = () => { seed = (Math.imul(seed ^ (seed >>> 13), 1274126177) >>> 0); return seed; };
+    /* Against something, rather than out in the open. Distance from the border
+       of the grid is the wrong measure - the Fist of the First Men is a hill
+       with eight tiles of void round it, so its border is nowhere near its
+       ground - and the first pass measured it that way and picked the middle of
+       the hilltop, which is the one place a garrison would keep clear. What is
+       wanted is the edge of the walkable part: how much of what surrounds a
+       tile is cliff, wall, water or wood. Nettles grow up against things. */
+    const against = (x, y) => {
+      let n = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const c = rows[y + dy]?.[x + dx];
+          if (c === undefined || !STANDABLE.has(c)) n++;
+        }
+      }
+      return n;
+    };
+
+    for (let patch = 0; patch < want; patch++) {
+      let bx = 0, by = 0, best = -1;
+      for (let tries = 0; tries < 40; tries++) {
+        const x = 1 + (next() % Math.max(1, w - 2));
+        const y = 1 + (next() % Math.max(1, h - 2));
+        if (!plain(x, y)) continue;
+        const edge = against(x, y);
+        if (edge > best) { best = edge; bx = x; by = y; }
+      }
+      if (best < 0) break;
+
+      /* Grow from there, counting what is laid rather than what is looked at:
+         a tile reached from two sides was queued twice, and the second look
+         spent one of the patch's four tiles finding it already sown. */
+      const size = 3 + (next() % 4);
+      const queue = [[bx, by]];
+      const seen = new Set([`${bx},${by}`]);
+      for (let i = 0, laid = 0; i < queue.length && laid < size; i++) {
+        const [cx, cy] = queue[i];
+        if (!plain(cx, cy)) continue;
+        rows[cy][cx] = cover;
+        laid++;
+        sown++;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const key = `${cx + dx},${cy + dy}`;
+          if (seen.has(key) || !plain(cx + dx, cy + dy)) continue;
+          seen.add(key);
+          queue.push([cx + dx, cy + dy]);
+        }
+      }
+    }
+    maps++;
+    map.grid = rows.map((row) => row.join(''));
+    map.tiles = map.grid;
+  }
+  return { sown, maps };
+}
+
+sowCover();
 
 /** The region a map belongs to, or an empty string if it has none. */
 export function regionOf(key) {

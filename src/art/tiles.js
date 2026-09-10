@@ -5,7 +5,8 @@
 import { makeCanvas } from '../engine/sprites.js';
 import { paintArt } from './pixels.js';
 import {
-  GROUND_ART, TALL_GRASS, CLUMP_KEY, SNOW_GRASS_KEY, LONE_TREE, TREE_KEY,
+  GROUND_ART, TALL_GRASS, CLUMP_KEY, SNOW_GRASS_KEY, SCREE, SCREE_KEY,
+  LONE_TREE, TREE_KEY,
   FLOWERS, FLOWER_KEY,
   FOREST_KEY, FOREST_MASS, FOREST_CROWN, FOREST_FOOT,
   PINE_KEY, LONE_PINE, PINE_MASS, PINE_CROWN, PINE_FOOT,
@@ -1098,6 +1099,15 @@ const painters = {
     ground(ctx, 'cave', variant);
   },
 
+  /* Fallen rock, on the same floor, and the third kind of cover in the game.
+     It does not sway, so unlike the two grasses it is not asked for a frame:
+     what varies is which of the three drawings a tile gets, so a patch of it
+     is not one stone repeated. */
+  scree(ctx, _frame, _mask, _ground, variant = 0) {
+    ground(ctx, 'cave', variant);
+    paintArt(ctx, SCREE[variant % SCREE.length], SCREE_KEY);
+  },
+
   caveWall(ctx, _frame, mask) {
     rect(ctx, 0, 0, TILE, TILE, '#39364a');
     for (let y = 0; y < TILE; y++) {
@@ -1266,6 +1276,7 @@ export const TILE_DEFS = {
   'h': { paint: painters.hearth, kind: 'solid' },
   'U': { paint: painters.rubble, kind: 'solid' },
   '%': { paint: painters.caveFloor, kind: 'floor', varies: true },
+  '&': { paint: painters.scree, kind: 'encounter', rate: 0.55, varies: true },
   '@': { paint: painters.caveWall, kind: 'solid', autotile: true },
   /* The nine ninths of a dragon. Solid all the way round, including the two
      bottom corners where only wingtip reaches: the gap under a spread wing is

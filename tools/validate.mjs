@@ -7,7 +7,7 @@
 //   node tools/validate.mjs
 
 import { readFile } from 'node:fs/promises';
-import { MAPS } from '../src/data/maps.js';
+import { MAPS, STANDABLE, PASSAGE } from '../src/data/maps.js';
 import { SPECIES, SPECIES_IDS } from '../src/data/species.js';
 import { MOVES } from '../src/data/moves.js';
 import { ITEMS, item } from '../src/data/items.js';
@@ -47,6 +47,30 @@ const problems = [];
 const warnings = [];
 const fail = (msg) => problems.push(msg);
 const warn = (msg) => warnings.push(msg);
+
+/* maps.js keeps its own list of the tiles you can stand on, so that the map
+   layer need not load the painters to know where the ground is. This is the
+   only place that loads both, so this is where the copy is held to the
+   original: a tile the legend calls floor, encounter or ledge and maps.js has
+   never heard of is a tile that every furnishing pass down that file will treat
+   as a wall - it will refuse to lay a chest on it, refuse to route round it,
+   and sow no cover on it - while the game walks the player straight over it. */
+{
+  const legend = new Set(Object.entries(TILE_DEFS)
+    .filter(([, d]) => d.kind === 'floor' || d.kind === 'encounter' || d.kind === 'ledge')
+    .map(([c]) => c));
+  for (const c of legend) {
+    if (!STANDABLE.has(c)) fail(`tile "${c}" is ground in the legend and maps.js does not know it`);
+  }
+  for (const c of STANDABLE) {
+    if (!legend.has(c)) fail(`tile "${c}" is ground to maps.js and is not ground in the legend`);
+  }
+  /* And a tile you may cross has to be a tile you may stand on, or PASSAGE is
+     excluding something from being built on that was never buildable. */
+  for (const c of PASSAGE) {
+    if (!STANDABLE.has(c)) fail(`tile "${c}" is in maps.js PASSAGE and is not ground`);
+  }
+}
 
 /* The four tiles you can be standing on when you are facing a thing. */
 const BESIDE = [[0, -1], [1, 0], [0, 1], [-1, 0]];
@@ -273,6 +297,19 @@ for (const [mapId, map] of Object.entries(MAPS)) {
          .test(`${n.script ?? ''} ${n.name ?? ''}`));
   if (hasGrass && !settled && !(map.encounters ?? []).length) {
     warn(`map ${mapId}: has cover to ambush from but no encounter table`);
+  }
+  /* And the other way round, which is the expensive one. An encounter fires on
+     cover and on nothing else, so a map with a table and no cover has written
+     out what lives there, levelled it, weighted it, and made it unmeetable.
+     Forty-six maps were like that: Riverrun's silverfin in a keep with no
+     reeds, Flea Bottom's two kinds of cutpurse, the Fist of the First Men with
+     wightlings and a palewalker on a bare hilltop, and every cave in the game
+     including the Barrow Deeps. This is a failure rather than a warning
+     because there is no reading of it that is deliberate - a place with
+     nothing in it has no table. */
+  if (!hasGrass && (map.encounters ?? []).length) {
+    fail(`map ${mapId}: ${map.encounters.length} things live here and there is `
+      + 'no cover for any of them to be met on');
   }
 
   const seenFlags = new Set();

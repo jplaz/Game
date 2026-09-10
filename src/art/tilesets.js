@@ -530,6 +530,85 @@ export const SNOW_GRASS_KEY = {
   d: '#54706a',
 };
 
+// ------------------------------------------------------------------ scree --
+
+// Cover underground. Twenty-five caves carried a table of what lives in them -
+// the Barrow Deeps has barrowlords in it, the Children's Cave has children of
+// the forest - and an encounter only fires on cover, of which there were
+// exactly two kinds, both of them grass. Nothing grows in the Barrow Deeps, so
+// the tables never fired and the caves were corridors with a treasure at the
+// end.
+//
+// So: fallen rock. Loose enough to pick your way over rather than walk, deep
+// enough for something to be lying in it, and drawn dark and low so a cave
+// still reads as a cave. The stones are lit from above like the cave walls
+// are, and the gaps between them are left open for the floor to show through,
+// which is what keeps a patch of it from reading as a single grey block.
+export const SCREE_KEY = {
+  '.': null,
+  b: '#4b4761',  // the body of a stone
+  l: '#5f5a78',  // the side of one turned to the light
+  h: '#7a7496',  // the top edge
+  d: '#2b2937',  // the dark under it
+};
+
+export const SCREE = [
+  [
+    '..hh....hhh.....',
+    '.hbbl..hbbbl..hh',
+    '.lbbbl.lbbbbl.lb',
+    '.dbbbd..dbbbd.db',
+    '..dd.....dd....d',
+    '....hhh....hh...',
+    '..hhbbbl..hbbl..',
+    '..lbbbbd..lbbd..',
+    '...dbd......dd..',
+    '.hh...hhhh......',
+    'hbbl.hbbbbl..hh.',
+    'lbbd.lbbbbbd.lbl',
+    '.dd..dbbbbd..dbd',
+    '......dddd....d.',
+    '..hhh.....hhh...',
+    '..lbd.....lbd...',
+  ],
+  [
+    '....hhh.....hh..',
+    '..hhbbbl..hhbbl.',
+    '..lbbbbl..lbbbd.',
+    '...dbbbd...dbd..',
+    '....ddd.....d...',
+    '.hh.......hhhh..',
+    'hbbbl....hbbbbl.',
+    'lbbbd....lbbbbd.',
+    '.dbd......dbbd..',
+    '..d........dd...',
+    '...hhh.....hh...',
+    '..hbbbl..hbbbl..',
+    '..lbbbd..lbbbd..',
+    '...dbd....dbd...',
+    'hh..d.....d..hh.',
+    'lbd..........lbd',
+  ],
+  [
+    '.hh.....hhh.....',
+    'hbbl...hbbbl....',
+    'lbbbl..lbbbd.hh.',
+    'dbbbd...dbd.hbbl',
+    '.ddd.....d..lbbd',
+    '.....hhhh....dd.',
+    '..hhhbbbbl......',
+    '..lbbbbbbd..hhh.',
+    '...dbbbbd...lbbl',
+    '....dddd.....dbd',
+    '.hhh.....hh...d.',
+    'hbbbl...hbbl....',
+    'lbbbd...lbbd..hh',
+    '.dbd.....dd...lb',
+    '..d..hhh.......d',
+    '.....lbd........',
+  ],
+];
+
 // ------------------------------------------------------------------- tree --
 
 export const TREE_KEY = {

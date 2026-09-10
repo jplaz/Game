@@ -5,7 +5,7 @@
 //        setFlag, flag }
 
 import {
-  game, party, addCreature, giveItem, hasItem, addMoney, canAfford,
+  game, party, addCreature, giveItem, takeItem, hasItem, addMoney, canAfford,
   sigilCount, hasSigil, dexCounts, swearTo, allegiance, standing, 
   changeStanding, recordChoice, markDead, isDead, theDead, deepenWinter,
   ranging, takeRanging, handInRanging, seasonWord, deadReachWord,
@@ -44,12 +44,14 @@ import { createCreature, displayName } from '../game/creature.js';
 import { TRAINERS, trainerAsDuellist } from './trainers.js';
 import { DUELLISTS, ROAMERS, makeRoamer } from './duellists.js';
 import { item as getItem } from './items.js';
+import { gear, slotOfGear } from './gear.js';
+import { RECIPES } from './craft.js';
 import { PROPERTIES } from './properties.js';
 import {
   ownsProperty, buyProperty, collectRent, rentLine,
 } from '../game/property.js';
 import {
-  maxVigour, mendCost, mendAll, wantsMending,
+  maxVigour, mendCost, mendAll, wantsMending, giveGear, equipped, equip,
 } from '../game/player.js';
 import { asideFor } from '../game/regard.js';
 import { MATCHES } from './matches.js';
@@ -186,6 +188,66 @@ async function finishTheChair(api, def) {
   await say('And then the room fills with people who want things from you.', { theme: 'royal' });
   await say('Sit the throne again whenever you are ready to hold court.', { theme: 'royal' });
   await api.overworld.holdCourt();
+}
+
+/* Making a thing out of what you have picked up.
+ *
+ * Eighty-three recipes have been in craft.js the whole time, seventy-four of
+ * them at a forge and nine over a fire at a maester's, and this build had no
+ * way to make any of them. The materials were findable - a direwolf pelt in
+ * the Weeping Barrow, dragonglass at Eastwatch - and there was nothing on
+ * earth you could do with one but carry it. The cartridge has had the screen
+ * for this since the recipes were written.
+ *
+ * Only what you can actually make right now is offered, which keeps the list
+ * short without paging it: at the start of a run that is nothing at all, and
+ * by the Wall it is a handful. Six at a time, dearest first, because the dear
+ * ones are the ones worth walking to a forge for. */
+const CRAFT_AT_ONCE = 6;
+
+function canMake(venue) {
+  const bag = game.state.bag;
+  return Object.values(RECIPES)
+    .filter((r) => r.at === venue)
+    .filter((r) => canAfford(r.gold))
+    .filter((r) => r.needs.every(([id, n]) => (bag[id] ?? 0) >= n))
+    /* Nothing you already have on, and nothing you already own a copy of:
+       a forge offering to make you a second of the sword in your hand is a
+       forge wasting your afternoon. */
+    .filter((r) => {
+      const slot = slotOfGear(r.makes);
+      return !slot || !(game.state.player.gearOwned?.[slot] ?? []).includes(r.makes);
+    })
+    .sort((a, b) => b.gold - a.gold)
+    .slice(0, CRAFT_AT_ONCE);
+}
+
+async function offerToMake(venue, { say, choose }) {
+  for (;;) {
+    const able = canMake(venue);
+    if (!able.length) return;
+    const label = (r) => {
+      const made = getItem(r.makes);
+      const parts = r.needs.map(([id, n]) => `${getItem(id).name}${n > 1 ? ` x${n}` : ''}`);
+      return `${made.name} - ${parts.join(', ')} + ${r.gold}g`;
+    };
+    const ask = venue === 'brew'
+      ? 'The maester keeps a fire and a shelf of jars. Brew something?'
+      : 'The forge is hot. Have something made?';
+    const pick = await choose(ask, [...able.map(label), 'Not today']);
+    if (pick < 0 || pick >= able.length) return;
+    const r = able[pick];
+    for (const [id, n] of r.needs) takeItem(id, n);
+    addMoney(-r.gold);
+    const slot = slotOfGear(r.makes);
+    if (slot) giveGear(slot, r.makes);
+    else giveItem(r.makes, 1);
+    audio.sfx('confirm');
+    const made = getItem(r.makes);
+    await say(venue === 'brew'
+      ? `It steeps, it steams, and it goes into a jar. One ${made.name}.`
+      : `Hammer, water, and a long unpleasant noise. One ${made.name}.`);
+  }
 }
 
 export const SCRIPTS = {
@@ -472,6 +534,29 @@ export const SCRIPTS = {
       await say(`A purse, pushed down out of sight. ${subject.gold} gold.`);
       return;
     }
+    /* Gear goes on the rack, not into the pouch.
+       That is what buying at a forge does and what taking a piece off a beaten
+       man does; picking one up off the ground did neither. Sixty pieces of gear
+       lie about this world and every one of them went into the bag under its
+       own name and stayed there - you could carry a sellsword's blade from the
+       Wolfswood to the Iron Throne and never once be able to draw it.
+       If the slot is empty it goes straight on, because nobody finds a sword
+       while holding nothing and decides to keep carrying nothing. */
+    const slot = slotOfGear(subject.item);
+    if (slot) {
+      const piece = gear(slot, subject.item);
+      giveGear(slot, subject.item);
+      setFlag(subject.flag);
+      audio.sfx('confirm');
+      const bare = ['fists', 'roughspun', 'none', 'bareHead', 'bareHands'];
+      if (bare.includes(equipped(slot).id)) {
+        equip(slot, subject.item);
+        await say(`You found a ${piece.name}, and had nothing better. It is yours.`);
+      } else {
+        await say(`You found a ${piece.name}! It goes with your kit.`);
+      }
+      return;
+    }
     const def = getItem(subject.item);
     giveItem(subject.item, subject.count ?? 1);
     setFlag(subject.flag);
@@ -521,6 +606,9 @@ export const SCRIPTS = {
   },
 
   async healer({ say, choose, npc, healParty, saveGame }) {
+    /* Nine of the eighty-three recipes are brewed over a fire rather than
+       beaten out on an anvil, and a maester keeps the fire. */
+    await offerToMake('brew', { say, choose });
     const line = npc.data?.line ?? 'How can the maester serve?';
     const answer = await choose(line, ['Heal my creatures', 'Save my progress', 'Nothing']);
     if (answer === 2) {
@@ -888,6 +976,7 @@ export const SCRIPTS = {
       await say('Sparks, water, and a long unpleasant noise. Every piece you '
         + 'have on is sound again.');
     }
+    await offerToMake('forge', { say, choose });
     await openSmithy(npc.data?.stock ?? {});
   },
 

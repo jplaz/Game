@@ -605,6 +605,16 @@ export function gearTable(slot) {
   return TABLES[slot];
 }
 
+/* Which rack a piece belongs on, or null if it is not gear at all.
+ *
+ * Wanted because things are found as well as bought. Sixty pieces of gear lie
+ * about the world and the pickup script had no way to ask "is this a sword?",
+ * so all sixty went into the pouch as oddments and could never be worn. */
+export function slotOfGear(id) {
+  for (const slot of GEAR_SLOTS) if (TABLES[slot]?.[id]) return slot;
+  return null;
+}
+
 export function technique(id) {
   const found = TECHNIQUES[id];
   if (!found) throw new Error(`Unknown technique: ${id}`);

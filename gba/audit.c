@@ -3933,6 +3933,66 @@ int main(void) {
       seat.has = 0;
       seat.owns = 0;
     }
+
+    /* And the whole of it, once, the way a player meets it: take a hall, buy a
+       table, carry it somewhere, set it down. What matters afterwards is that
+       the table is where it was put, that it is solid, and that putting it back
+       leaves the hall exactly as it was found - a piece that can be bought and
+       then neither seen nor walked into is the defect this exists to fix. */
+    {
+      int table = -1, x, y, put = 0;
+      int wasGold;
+      for (f = 0; f < FURNISH_COUNT; f++) if (!furnishings[f].outdoor) { table = f; break; }
+      worldId = hallMaps[0];
+      world = &maps[worldId];
+      crowdCount = 0; folkCount = 0;
+      hero.px = -999; hero.py = -999;
+      seat.has = 1;
+      seat.map = (MapId)worldId;
+      seat.owns = 0;
+      for (f = 0; f < FURNISH_COUNT; f++) { seat.pieceX[f] = 255; seat.pieceY[f] = 255; }
+      you.gold = furnishings[table].cost + 10;
+      wasGold = you.gold;
+
+      furnishPick = 0;
+      if (furnishNth(furnishPick) != table) bad("the furnishing panel opens on the wrong thing");
+      if (!takeFurnishing()) bad("a hall you are standing in will not sell you a table");
+      if (!ownsPiece(table)) bad("a table you paid for is not yours");
+      if (you.gold != wasGold - furnishings[table].cost) bad("a table costs the wrong money");
+      if (inArms != table) bad("a table you bought is not in your arms");
+      if (pieceStands(table)) bad("a table in your arms is also standing somewhere");
+
+      for (y = 0; y < world->h && !put; y++) {
+        for (x = 0; x < world->w && !put; x++) {
+          carryX = x; carryY = y;
+          if (setDown()) continue;        /* a refusal; try the next tile */
+          put = 1;
+        }
+      }
+      if (!put) bad("there is nowhere in %s to set a table down", world->name);
+      if (inArms >= 0) bad("a table that has been set down is still in your arms");
+      if (!pieceStands(table)) bad("a table that has been set down is standing nowhere");
+      if (pieceAt(seat.pieceX[table], seat.pieceY[table]) != table) {
+        bad("a table does not answer for the tile it is standing on");
+      }
+      if (!solidAt(seat.pieceX[table], seat.pieceY[table])) {
+        bad("you can walk through your own table");
+      }
+      /* Its far end too, since a long table is four tiles of one thing. */
+      if (!solidAt(seat.pieceX[table] + furnishings[table].wide - 1, seat.pieceY[table])) {
+        bad("you can walk through the far end of your own table");
+      }
+      /* And nothing outside your hall is any different for it. */
+      worldId = hallMaps[1];
+      world = &maps[worldId];
+      if (pieceAt(seat.pieceX[table], seat.pieceY[table]) >= 0) {
+        bad("your furniture follows you into other people's halls");
+      }
+      seat.has = 0;
+      seat.owns = 0;
+      for (f = 0; f < FURNISH_COUNT; f++) { seat.pieceX[f] = 255; seat.pieceY[f] = 255; }
+      inArms = -1;
+    }
   }
 
   /* --- and the console switched off ---------------------------------------

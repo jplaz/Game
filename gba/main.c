@@ -1826,6 +1826,16 @@ typedef struct {
      more rent, room for another child, and men on the wall who can turn a raid
      back without you riding four regions to do it yourself. */
   u8 grade;
+  /* And what is standing in it.
+   *
+   * A hall you buy is drawn bare on purpose - twelve of them are, in both
+   * builds, because filling one is the entire reason to own it - and until now
+   * the cartridge had no way to fill one. A bit a piece for what you have
+   * bought, and a tile a piece for where you put it: 255 means bought and still
+   * in the crate, which is a real state, because the buying and the standing-it
+   * -somewhere are two decisions and you can walk away between them. */
+  u16 owns;
+  u8 pieceX[FURNISH_COUNT], pieceY[FURNISH_COUNT];
 } Seat;
 
 static Seat seat;
@@ -2606,6 +2616,9 @@ static int camX, camY;
 
 static const Warp *warpAt(int x, int y);
 static int ownShip(void);
+/* Whatever you have stood in your own hall, which is solid the same as a wall
+   is. Defined below, beside the rest of the furniture. */
+static int pieceAt(int x, int y);
 
 /* Water: solid on foot, and the only road there is under sail. */
 static int waterAt(int x, int y) {
@@ -2628,7 +2641,11 @@ static int solidAt(int x, int y) {
   if (world->sea && (you.aboard || (ownShip() && you.shipHull > 0))) {
     return world->solid[y * world->w + x] && !waterAt(x, y) && !warpAt(x, y);
   }
-  return world->solid[y * world->w + x];
+  /* A table you paid for is a table you walk round. Checked after the map's own
+     rule rather than instead of it, so nothing you stand in your hall can ever
+     open a way through a wall. */
+  if (world->solid[y * world->w + x]) return 1;
+  return pieceAt(x, y) >= 0;
 }
 
 /* Tall grass and reeds. Nothing jumps you out of a cobbled street. */
@@ -2678,6 +2695,79 @@ static int occupied(int x, int y, int ignore) {
   return 0;
 }
 
+/* --------------------------------------------------------- your furniture ---
+ *
+ * Twelve halls in this world are for sale, and every one of them is drawn bare
+ * on purpose: filling it is the whole reason to own one. The browser has let
+ * you buy a long table and stand it where you like for a long time. The
+ * cartridge sold you the hall and then had nothing to put in it.
+ *
+ * A map is a grid of tilemap words in ROM and cannot be written to, so nothing
+ * here changes the map. What is owned and where it stands lives in the save,
+ * and the tiles are painted over video memory after the map is laid down -
+ * which also means picking a piece up is just writing the map's own word back,
+ * with no need to remember what was underneath.
+ */
+
+/* Which of the halls this map is, or -1. */
+static int hallAt(int id) {
+  int i;
+  for (i = 0; i < HALL_COUNT; i++) if (hallMaps[i] == id) return i;
+  return -1;
+}
+
+static int ownsPiece(int i) {
+  return i >= 0 && i < FURNISH_COUNT && ((seat.owns >> i) & 1);
+}
+
+/* Standing in your hall, as opposed to bought and still in its crate. */
+static int pieceStands(int i) {
+  return ownsPiece(i) && seat.pieceX[i] != 255;
+}
+
+/* Which piece covers this tile of your hall, or -1. A piece is `wide` tiles
+   across and is anchored at its left end. */
+static int pieceAt(int x, int y) {
+  int i;
+  if (!seat.has || worldId != seat.map) return -1;
+  for (i = 0; i < FURNISH_COUNT; i++) {
+    if (!pieceStands(i)) continue;
+    if (seat.pieceY[i] != y) continue;
+    if (x >= seat.pieceX[i] && x < seat.pieceX[i] + furnishings[i].wide) return i;
+  }
+  return -1;
+}
+
+/* One map tile, as the four background words it is drawn from. */
+static void writeTile(int x, int y, const u16 *quad) {
+  int q;
+  int tw = world->w * 2;
+  for (q = 0; q < 4; q++) {
+    int tx = x * 2 + (q & 1), ty = y * 2 + (q >> 1);
+    volatile u16 *cell = VRAM_BG_MAP + ((ty >> 5) << 11) + ((ty & 31) << 5)
+                       + ((tx >> 5) << 10) + (tx & 31);
+    *cell = quad ? quad[q] : world->entries[ty * tw + tx];
+  }
+}
+
+/* Everything standing in your hall, painted over the hall. Cheap enough to do
+   whole rather than picking out what changed: eleven pieces at four words a
+   tile is a few dozen writes. */
+static void paintFurniture(void) {
+  int i, k, hall;
+  if (!seat.has || worldId != seat.map) return;
+  hall = hallAt(worldId);
+  if (hall < 0) return;
+  for (i = 0; i < FURNISH_COUNT; i++) {
+    if (!pieceStands(i)) continue;
+    for (k = 0; k < furnishings[i].wide; k++) {
+      int x = seat.pieceX[i] + k;
+      if (x < 0 || x >= world->w || seat.pieceY[i] >= world->h) continue;
+      writeTile(x, seat.pieceY[i], hallTiles[hall][i]);
+    }
+  }
+}
+
 static void writeScreenblock(void) {
   int ty, tx;
   int tw = world->w * 2, th = world->h * 2;
@@ -2688,6 +2778,7 @@ static void writeScreenblock(void) {
       *cell = (tx < tw && ty < th) ? world->entries[ty * tw + tx] : 0;
     }
   }
+  paintFurniture();
 }
 
 /* The player's frames sit first in object memory; each resident appearance gets
@@ -8200,7 +8291,11 @@ static int houseAct(void) {
       you.havenX = seat.x;
       you.havenY = seat.y;
       seat.grade = 0;
-      houseSaid = "Yours, and a holdfast. SELECT builds on it.";
+      /* Bare, which is the point of it. */
+      seat.owns = 0;
+      { int k; for (k = 0; k < FURNISH_COUNT; k++) { seat.pieceX[k] = 255; seat.pieceY[k] = 255; } }
+      houseSaid = "Yours, and a holdfast. SELECT builds on it, and there is "
+                  "nothing whatever in it.";
       return 0;
     }
     if (worldId == seat.map) {
@@ -8544,8 +8639,9 @@ static void paintWorks(void) {
   drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
   drawText(14, 6, "YOUR WORKS", C_GOLD);
   copyString(scratch, !seat.has ? "B: back"
-             : worksPick == WORKS_FEAST ? "A: feast   B: back"
-                                        : "A: raise it   B: back", sizeof scratch);
+             : worksPick == WORKS_FEAST ? "A: feast   R: furnish   B: back"
+                                        : "A: raise it   R: furnish   B: back",
+             sizeof scratch);
   drawText(TXT_W - 14 - textWidth(scratch), 6, scratch, C_DIM);
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
   for (i = 0; i < WORKS_ROWS; i++) drawWorksRow(i, 22 + i * 10);
@@ -8639,6 +8735,300 @@ static void raiseWorks(void) {
   appendNumber(scratch, heirRoom(), sizeof scratch);
   appendString(scratch, heirRoom() == 1 ? " child." : " children.", sizeof scratch);
   worksSaid = scratch;
+}
+
+/* --------------------------------------------------------- the furnishing ---
+ *
+ * Eleven things to buy and stand where you like. The panel is laid out the way
+ * the masons' is, because it is the same shape of decision - a list with prices
+ * on it, the ones you have marked as had, and a paragraph underneath saying
+ * what the one under the cursor actually is.
+ *
+ * Choosing WHERE is not a menu. A hall is a room you are standing in, and the
+ * only honest way to say "there" is to walk a cursor over to there and press A,
+ * so buying hands the room over to a placing cursor and gets out of the way.
+ */
+
+static int furnishPick;
+static const char *furnishSaid;
+
+/* Three of the eleven belong out of doors - a heart tree, kennels, a forge -
+   and no hall on this cartridge has a yard attached to it. They are in the
+   table so that its numbering matches the browser's; they are not for sale
+   here, and the panel says why rather than listing them greyed out forever. */
+static int furnishOffered(int i) {
+  return i >= 0 && i < FURNISH_COUNT && !furnishings[i].outdoor;
+}
+
+static int furnishRows(void) {
+  int i, n = 0;
+  for (i = 0; i < FURNISH_COUNT; i++) if (furnishOffered(i)) n++;
+  return n;
+}
+
+/* The nth thing that is actually for sale. */
+static int furnishNth(int n) {
+  int i;
+  for (i = 0; i < FURNISH_COUNT; i++) {
+    if (!furnishOffered(i)) continue;
+    if (!n--) return i;
+  }
+  return 0;
+}
+
+/* What the hall is worth to your name, and how many sit down in it. Both are
+   read off what is standing rather than off what was bought, because a table
+   still in its crate seats nobody. */
+static int hallSeats(void) {
+  int i, n = 4;
+  for (i = 0; i < FURNISH_COUNT; i++) if (pieceStands(i)) n += furnishings[i].seats;
+  return n;
+}
+
+static int hallRenown(void) {
+  int i, n = 0;
+  for (i = 0; i < FURNISH_COUNT; i++) if (pieceStands(i)) n += furnishings[i].renown;
+  return n;
+}
+
+/* Whether a piece may stand with its left end here.
+ *
+ * Returns why not, or null. A cursor that only ever says no is a cursor you
+ * fight, so every refusal below names the thing in the way. */
+static const char *whyNotHere(int which, int x, int y) {
+  int k, wide = furnishings[which].wide;
+  for (k = 0; k < wide; k++) {
+    int cx = x + k, other;
+    if (cx < 0 || y < 0 || cx >= world->w || y >= world->h) return "That is outside the hall.";
+    if (world->solid[y * world->w + cx]) return "There is a wall there.";
+    if (warpAt(cx, y)) return "That is the doorway.";
+    /* And the tile you arrive on when you come through it. Standing a table
+       there is a door you walk into the back of. */
+    if (warpAt(cx, y - 1) || warpAt(cx, y + 1)) return "That is right in the doorway.";
+    other = pieceAt(cx, y);
+    if (other >= 0 && other != which) return furnishings[other].name;
+    if (occupied(cx, y, -1)) return "Somebody is standing there.";
+  }
+  return 0;
+}
+
+/* Would standing it here shut part of your own hall away?
+ *
+ * Every door in this world is checked walkable on every build, and it would be
+ * a poor joke if the one room the player arranges themselves were the one room
+ * they could seal with a table. A flood over seventeen by thirteen is nothing;
+ * this runs once, when A is pressed. */
+static int shutsHallOff(int which, int x, int y) {
+  static u8 seen[64 * 64];
+  static u8 shut[64 * 64];
+  int i, k, head = 0, tail = 0, sx = -1, sy = -1;
+  static u8 queue[64 * 64 * 2];
+  int w = world->w, h = world->h;
+  if (w * h > 64 * 64) return 0;
+  for (i = 0; i < w * h; i++) { seen[i] = 0; shut[i] = 0; }
+  /* Everything already standing, and then the piece where it is proposed. The
+     piece being moved does not block itself. */
+  for (i = 0; i < FURNISH_COUNT; i++) {
+    if (!pieceStands(i) || i == which) continue;
+    for (k = 0; k < furnishings[i].wide; k++) {
+      int cx = seat.pieceX[i] + k;
+      if (cx < w && seat.pieceY[i] < h) shut[seat.pieceY[i] * w + cx] = 1;
+    }
+  }
+  for (k = 0; k < furnishings[which].wide; k++) if (x + k < w) shut[y * w + x + k] = 1;
+
+  for (i = 0; i < w * h; i++) {
+    if (world->solid[i] || shut[i]) continue;
+    sx = i % w; sy = i / w;
+    break;
+  }
+  if (sx < 0) return 1;
+  /* Flood from the first free tile, and from a doorway in preference to it, so
+     "reachable" means reachable from the way in. */
+  for (i = 0; i < world->warpCount; i++) {
+    int wx = world->warps[i].x, wy = world->warps[i].y;
+    if (wx < w && wy < h && !world->solid[wy * w + wx] && !shut[wy * w + wx]) {
+      sx = wx; sy = wy; break;
+    }
+  }
+  queue[tail * 2] = (u8)sx; queue[tail * 2 + 1] = (u8)sy; tail++;
+  seen[sy * w + sx] = 1;
+  while (head < tail) {
+    int cx = queue[head * 2], cy = queue[head * 2 + 1], d;
+    head++;
+    for (d = 0; d < 4; d++) {
+      int nx = cx + DIR_X[d], ny = cy + DIR_Y[d], at;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+      at = ny * w + nx;
+      if (seen[at] || world->solid[at] || shut[at]) continue;
+      seen[at] = 1;
+      queue[tail * 2] = (u8)nx; queue[tail * 2 + 1] = (u8)ny; tail++;
+    }
+  }
+  /* Every open tile that is not under furniture has to still be walked to. */
+  for (i = 0; i < w * h; i++) {
+    if (world->solid[i] || shut[i]) continue;
+    if (!seen[i]) return 1;
+  }
+  return 0;
+}
+
+/* The placing cursor. -1 when nothing is being carried.
+ *
+ * A piece being carried is lifted out of the hall first - it is not standing
+ * anywhere while it is in your arms - so it draws once, under the cursor,
+ * rather than twice. `putBackX` is where it was, for when you change your mind. */
+static int inArms = -1;
+static int carryX, carryY;
+static u8 putBackX, putBackY;
+
+static void beginCarrying(int which) {
+  inArms = which;
+  putBackX = seat.pieceX[which];
+  putBackY = seat.pieceY[which];
+  /* Start where it already stands, or at your own feet if it is still crated. */
+  if (pieceStands(which)) { carryX = seat.pieceX[which]; carryY = seat.pieceY[which]; }
+  else { carryX = hero.px >> 4; carryY = hero.py >> 4; }
+  seat.pieceX[which] = 255;
+  seat.pieceY[which] = 255;
+}
+
+/* Put it back where it was and stop carrying it. A piece bought a moment ago
+   was never anywhere, so it goes back into its crate, which is where the
+   furnishing panel will offer it again. */
+static void stopCarrying(void) {
+  if (inArms < 0) return;
+  seat.pieceX[inArms] = putBackX;
+  seat.pieceY[inArms] = putBackY;
+  inArms = -1;
+}
+
+/* Set it down, or say why not. Returns the refusal, or null when it is down. */
+static const char *setDown(void) {
+  int which = inArms;
+  const char *no = whyNotHere(which, carryX, carryY);
+  if (no) {
+    /* A piece already there names itself, which only reads as a sentence once
+       it is told what is wrong with it. */
+    if (pieceAt(carryX, carryY) >= 0) {
+      copyString(scratch, no, sizeof scratch);
+      appendString(scratch, " is already there.", sizeof scratch);
+      return scratch;
+    }
+    return no;
+  }
+  if (shutsHallOff(which, carryX, carryY)) {
+    return "That would shut off part of your own hall, and you would have to "
+           "move it again to get at what is behind it.";
+  }
+  seat.pieceX[which] = (u8)carryX;
+  seat.pieceY[which] = (u8)carryY;
+  inArms = -1;
+  sfxYes();
+  return 0;
+}
+
+/* The hall as it stands, plus whatever is in your arms drawn where the cursor
+   is. Laid down whole rather than patched, because the piece just moved off
+   somewhere and that somewhere has to go back to being floor. */
+static void paintCarry(void) {
+  int hall = hallAt(worldId), k;
+  writeScreenblock();
+  if (inArms < 0 || hall < 0) return;
+  for (k = 0; k < furnishings[inArms].wide; k++) {
+    int x = carryX + k;
+    if (x < 0 || x >= world->w || carryY < 0 || carryY >= world->h) continue;
+    writeTile(x, carryY, hallTiles[hall][inArms]);
+  }
+}
+
+static void drawFurnishRow(int n, int y) {
+  int i = furnishNth(n);
+  int lit = n == furnishPick;
+  int mine = ownsPiece(i);
+  int able = !mine && you.gold >= (int)furnishings[i].cost;
+  if (lit) drawCursor(14, y + 1, C_GOLD);
+  drawTextIn(24, y, furnishings[i].name,
+    mine ? C_INK : (able ? (lit ? C_GOLD : C_INK) : C_DIM), TXT_W - 60 - 24);
+  if (mine) {
+    const char *state = pieceStands(i) ? "standing" : "in its crate";
+    drawText(TXT_W - 24 - textWidth(state), y, state,
+             pieceStands(i) ? C_WELL : C_DYING);
+  } else {
+    copyString(scratch, "", sizeof scratch);
+    appendNumber(scratch, (int)furnishings[i].cost, sizeof scratch);
+    drawText(TXT_W - 24 - textWidth(scratch), y, scratch, able ? C_GOLD : C_DYING);
+  }
+}
+
+static void paintFurnish(void) {
+  int n, rows = furnishRows();
+  int i = furnishNth(furnishPick);
+  clearRows(0, TXT_H);
+  drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
+  drawText(14, 6, "WHAT IS IN IT", C_GOLD);
+  copyString(scratch, !seat.has ? "B: back"
+             : ownsPiece(i) ? "A: move it   B: back"
+                            : "A: buy it   B: back", sizeof scratch);
+  drawText(TXT_W - 14 - textWidth(scratch), 6, scratch, C_DIM);
+  fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
+  for (n = 0; n < rows; n++) drawFurnishRow(n, 22 + n * 10);
+  fillRect(14, PANEL_RULE, TXT_W - 28, 1, C_EDGE);
+  {
+    int k;
+    if (furnishSaid) {
+      copyString(scratch, furnishSaid, sizeof scratch);
+    } else if (!seat.has) {
+      copyString(scratch, "You have no hall to put anything in.", sizeof scratch);
+    } else {
+      copyString(scratch, "", sizeof scratch);
+      appendNumber(scratch, hallSeats(), sizeof scratch);
+      appendString(scratch, " sit down", sizeof scratch);
+      if (hallRenown()) {
+        appendString(scratch, ", and it is worth ", sizeof scratch);
+        appendNumber(scratch, hallRenown(), sizeof scratch);
+        appendString(scratch, " to your name", sizeof scratch);
+      }
+    }
+    drawTextIn(14, PANEL_SAID, scratch, C_DIM, goldLeftEdge() - 8 - 14);
+    showGold(PANEL_SAID);
+    wrapText(furnishings[i].desc, TXT_W - 28);
+    for (k = 0; k <= lineCount && k < 2; k++) {
+      drawText(14, PANEL_BODY + k * 10, lines[k], C_DIM);
+    }
+  }
+}
+
+/* Buying, or picking up something already bought. Leaves a line behind it, or
+   hands the room over to the placing cursor and returns 1. */
+static int takeFurnishing(void) {
+  int i = furnishNth(furnishPick);
+  furnishSaid = 0;
+  if (!seat.has) { furnishSaid = "Buy a hall first. Then we can furnish it."; return 0; }
+  if (worldId != seat.map) {
+    copyString(scratch, "It has to go in somewhere, and your seat is ", sizeof scratch);
+    appendString(scratch, maps[seat.map].name, sizeof scratch);
+    appendString(scratch, ".", sizeof scratch);
+    furnishSaid = scratch;
+    return 0;
+  }
+  if (ownsPiece(i)) { beginCarrying(i); return 1; }
+  if (you.gold < (int)furnishings[i].cost) {
+    copyString(scratch, "That is ", sizeof scratch);
+    appendNumber(scratch, (int)furnishings[i].cost, sizeof scratch);
+    appendString(scratch, " gold. You have not got it.", sizeof scratch);
+    furnishSaid = scratch;
+    return 0;
+  }
+  you.gold -= furnishings[i].cost;
+  seat.owns = (u16)(seat.owns | (1u << i));
+  seat.pieceX[i] = 255;
+  seat.pieceY[i] = 255;
+  sfxYes();
+  /* Bought and then put down by hand, in that order: a thing you have paid for
+     and cannot see is the whole defect this exists to fix. */
+  beginCarrying(i);
+  return 1;
 }
 
 /* A match. Somebody in a sept arranges it; what it costs is what your standing
@@ -9051,6 +9441,7 @@ static void paintTitle(void) {
 #define SCENE_LAND 21     /* what is for sale, and who is selling it */
 #define SCENE_HIRE 22     /* swords for gold, which is what Essos is for */
 #define SCENE_WORKS 23    /* masons: what your hall is, and what it could be */
+#define SCENE_FURNISH 24  /* and what is standing in it */
 
 static int scene;
 
@@ -12657,6 +13048,41 @@ int main(void) {
           raiseWorks();
         }
         paintWorks();
+      } else if (hit(KEY_SHOULDER_R)) {
+        /* And through to what is standing in it. The masons raise the walls;
+           this is everything inside them. */
+        scene = SCENE_FURNISH;
+        furnishSaid = 0;
+        clearPage();
+        layoutTextRows(TEXT_TOP);
+        paintFurnish();
+      }
+    } else if (scene == SCENE_FURNISH) {
+      int was = furnishPick;
+      if (hit(KEY_UP) && furnishPick > 0) furnishPick--;
+      if (hit(KEY_DOWN) && furnishPick < furnishRows() - 1) furnishPick++;
+      if (furnishPick != was) { furnishSaid = 0; sfxPick(); paintFurnish(); }
+      if (hit(KEY_B)) {
+        scene = SCENE_WORKS;
+        worksSaid = 0;
+        clearPage();
+        layoutTextRows(TEXT_TOP);
+        paintWorks();
+      } else if (hit(KEY_A)) {
+        if (takeFurnishing()) {
+          /* Handed over to the room. The panel is done talking. */
+          scene = SCENE_WORLD;
+          clearPage();
+          layoutTextRows(TEXT_PLAY);
+          paintCarry();
+          copyString(scratch, "", sizeof scratch);
+          appendString(scratch, furnishings[inArms].name, sizeof scratch);
+          appendString(scratch, ". Walk it where you want it and press A. "
+                                "B puts it back.", sizeof scratch);
+          openWindow(0, scratch);
+        } else {
+          paintFurnish();
+        }
       }
     } else if (scene == SCENE_LAND) {
       int was = landPick;
@@ -13126,6 +13552,40 @@ int main(void) {
         if (hit(KEY_A)) {
           clearRows(TXT_H - 46, 46);
           answerCourt();
+        }
+      } else if (inArms >= 0) {
+        /* Something of yours is in your arms, and the room is the menu. The pad
+           walks it about, A sets it down, B puts it back where it was. Nothing
+           else happens while you are carrying a table: you do not walk, and
+           nothing walks into you. */
+        int moved = 0;
+        if (hit(KEY_LEFT) && carryX > 0) { carryX--; moved = 1; }
+        if (hit(KEY_RIGHT) && carryX < world->w - 1) { carryX++; moved = 1; }
+        if (hit(KEY_UP) && carryY > 0) { carryY--; moved = 1; }
+        if (hit(KEY_DOWN) && carryY < world->h - 1) { carryY++; moved = 1; }
+        if (moved) { sfxPick(); paintCarry(); }
+        if (hit(KEY_A)) {
+          const char *no = setDown();
+          if (no) {
+            sfxPick();
+            openWindow(0, no);
+          } else {
+            paintCarry();
+            copyString(scratch, "", sizeof scratch);
+            appendString(scratch, "They set it down where you showed them. ",
+                         sizeof scratch);
+            appendNumber(scratch, hallSeats(), sizeof scratch);
+            appendString(scratch, " sit down in here now.", sizeof scratch);
+            openWindow(0, scratch);
+          }
+        } else if (hit(KEY_B)) {
+          /* Where it was, not where it is: while it is in your arms it is
+             standing nowhere, so asking whether it stands is always no. */
+          int wasStanding = putBackX != 255;
+          stopCarrying();
+          paintCarry();
+          openWindow(0, wasStanding ? "They put it back where it was."
+                                    : "It stays in its crate until you say where.");
         }
       } else if (spotted >= 0) {
         /* Nothing to do but wait for them. */

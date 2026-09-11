@@ -3848,6 +3848,93 @@ int main(void) {
     note("the record is %d bytes", (int)sizeof(Record));
   }
 
+  /* --- what is standing in your hall --------------------------------------
+   *
+   * Twelve halls in the world are for sale, and every one of them is drawn
+   * bare on purpose, because filling it is the whole reason to own one. The
+   * things that go in are stamped over video memory rather than written into
+   * the map, so three ways for that to go wrong have to be ruled out here:
+   * a tile number that is not in that hall's tileset draws garbage; a piece
+   * too wide for the room can never be put down anywhere; and a room that a
+   * full set of furniture would seal is a room the player can lock themselves
+   * out of half of.
+   *
+   * The last of those is asked with the cartridge's own rules rather than a
+   * copy of them - audit.c includes main.c - so the answer cannot drift from
+   * what a player will actually meet.
+   */
+  {
+    int f, hh, indoors = 0;
+    for (f = 0; f < FURNISH_COUNT; f++) {
+      const Furnishing *p = &furnishings[f];
+      if (!p->name || !p->name[0]) bad("furnishing %d has no name", f);
+      if (!p->desc || !p->desc[0]) bad("%s has nothing said about it", p->name);
+      if (!p->cost) bad("%s is free, which is not a decision", p->name);
+      if (p->wide < 1 || p->wide > 6) bad("%s is %d tiles wide", p->name, p->wide);
+      checkText(p->name, "a furnishing's name");
+      checkText(p->desc, "what a furnishing is");
+      if (!p->outdoor) indoors++;
+    }
+    if (!indoors) bad("nothing at all can be stood in a hall");
+
+    for (hh = 0; hh < HALL_COUNT; hh++) {
+      int id = hallMaps[hh];
+      const Map *m;
+      if (id < 0 || id >= MAP_COUNT) { bad("hall %d is not a map", hh); continue; }
+      m = &maps[id];
+      if (!m->seat) bad("%s carries furniture tiles and is not for sale", m->name);
+      for (f = 0; f < FURNISH_COUNT; f++) {
+        int q;
+        for (q = 0; q < 4; q++) {
+          if (hallTiles[hh][f][q] >= m->tileCount) {
+            bad("%s at %s draws tile %d of %d", furnishings[f].name, m->name,
+                hallTiles[hh][f][q], m->tileCount);
+          }
+        }
+      }
+    }
+
+    /* And every hall has somewhere to put everything, with everything else
+       already in it. Filled in the order the panel offers them, which is the
+       order a player will actually fill one. */
+    for (hh = 0; hh < HALL_COUNT; hh++) {
+      int x, y, stood = 0, wanted = 0;
+      worldId = hallMaps[hh];
+      world = &maps[worldId];
+      seat.has = 1;
+      seat.map = (MapId)worldId;
+      seat.owns = 0;
+      for (f = 0; f < FURNISH_COUNT; f++) { seat.pieceX[f] = 255; seat.pieceY[f] = 255; }
+      /* Nobody is standing in it while this is asked: the audit is looking at
+         the room, and who happens to be in it is the crowd's business. */
+      crowdCount = 0;
+      folkCount = 0;
+      hero.px = -999; hero.py = -999;
+      for (f = 0; f < FURNISH_COUNT; f++) {
+        int put = 0;
+        if (furnishings[f].outdoor) continue;
+        wanted++;
+        seat.owns = (u16)(seat.owns | (1u << f));
+        for (y = 0; y < world->h && !put; y++) {
+          for (x = 0; x < world->w && !put; x++) {
+            if (whyNotHere(f, x, y)) continue;
+            if (shutsHallOff(f, x, y)) continue;
+            seat.pieceX[f] = (u8)x; seat.pieceY[f] = (u8)y;
+            put = 1; stood++;
+          }
+        }
+        if (!put) {
+          bad("%s cannot be stood anywhere in %s", furnishings[f].name, world->name);
+        }
+      }
+      if (stood == wanted) {
+        note("%s holds all %d of them", world->name, stood);
+      }
+      seat.has = 0;
+      seat.owns = 0;
+    }
+  }
+
   /* --- and the console switched off ---------------------------------------
    *
    * Everything above proves the record survives being written and read inside

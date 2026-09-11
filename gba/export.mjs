@@ -185,6 +185,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const { QUESTS } = await import('/src/data/quests.js');
   const { REGARD } = await import('/src/data/regard.js');
   const { PETITIONS, PETITION_IDS } = await import('/src/data/petitions.js');
+  const { FURNISHINGS } = await import('/src/game/holdfast.js');
   const { BEAST_TECHNIQUES, GROWS_INTO, NEVER_TAMED, EGGS, NESTS } =
     await import('/src/data/beasts.js');
   const creatures = await import('/src/art/creatures.js');
@@ -1046,6 +1047,24 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       }
     }
 
+    /* And, for a hall you can buy, one spare drawing of every piece of
+       furniture that could ever stand in it.
+       A map's tileset is cut from the tiles its grid actually uses, so a hall
+       with nothing in it carries no picture of a table, and a table stamped
+       into it at runtime would come out as whatever happened to be in that slot
+       of video memory. These go through the tileset with everything else and
+       are handed to the cartridge as the four tilemap entries each one needs.
+       Twelve halls in the world are for sale and every one of them is drawn
+       bare on purpose - filling it is the whole point of owning it - so every
+       one of them carries the spares. */
+    const spare = [];
+    if (map.seat) {
+      for (const f of Object.values(FURNISHINGS)) {
+        spare.push(read(tileCanvas(f.tile, 0, 15, map.ground ?? 'grass',
+          pixels.variantFor(0, 0, 4))));
+      }
+    }
+
     /* How hard this ground is, in the northern reckoning. The cartridge shifts
        it to whichever seat the player actually started from - so this has to be
        the same number the first row of that table holds, or the shift lands
@@ -1301,7 +1320,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     }
 
     out.maps.push({
-      id, name: map.name, width, height, cells, solid, cover, ledge, counter, water,
+      id, name: map.name, width, height, cells, spare, solid, cover, ledge, counter, water,
       /* What plays here. Three tunes covered a hundred and fifty-seven maps
          and a hundred and one of them asked for the same one, so the Wall,
          Dorne, Braavos and Winterfell were the same piece of music. */
@@ -1791,6 +1810,14 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   }
   out.petitions = petitions;
 
+  /* What can stand in the hall, in the order the tiles above were drawn in, so
+     furnishing number three and spare tile number three are the same thing. */
+  out.furnishings = Object.values(FURNISHINGS).map((f) => ({
+    name: f.name, desc: f.desc, cost: f.cost, wide: f.wide ?? 1,
+    outdoor: f.outdoor ? 1 : 0, seats: f.seats ?? 0, renown: f.renown ?? 0,
+    cooks: f.cooking ? 1 : 0, rests: f.rests ? 1 : 0,
+  }));
+
   out.scenes = scenes;
   out.beats = beats;
   out.choices = choices;
@@ -1918,6 +1945,18 @@ for (const map of harvest.maps) {
       });
     }
   }
+  /* The spare drawings go through the same tileset, and come out as the four
+     tilemap entries each needs. Nothing on the map points at them; the
+     cartridge writes them over a tile when you stand something there. */
+  map.spare = (map.spare ?? []).map((cell) => {
+    const quad = cut8(indexify(cell, bg.lookup), 16, 16);
+    return quad.map((tile) => {
+      const key = tile.join(',');
+      let at = seen.get(key);
+      if (at === undefined) { at = bank.length; bank.push(tile); seen.set(key, at); }
+      return at;
+    });
+  });
   if (bank.length > BG_TILE_LIMIT) {
     throw new Error(`${map.id} needs ${bank.length} tiles; video memory holds ${BG_TILE_LIMIT}`);
   }
@@ -2858,6 +2897,58 @@ harvest.maps.forEach((map, i) => {
   L.push('};');
   L.push('');
 });
+
+/* ------------------------------------------------------------- your hall ---
+ *
+ * Eleven things you can buy and stand somewhere in the two rooms that are
+ * yours. Everything else in this world is drawn where the map file put it; this
+ * is the one place a player decides, so the placements live in the save and the
+ * tiles are stamped over the map when it is drawn.
+ *
+ * `entries` is the four tilemap words each piece needs, per hall, worked out
+ * against that hall's own tileset - they are different numbers in the hall and
+ * in the yard, because the two maps have different tilesets. The last row of
+ * each is the bare ground, for picking a piece back up.
+ */
+{
+  const halls = harvest.maps
+    .map((m, i) => (m.spare.length ? i : -1)).filter((i) => i >= 0);
+  if (!halls.length) throw new Error('no hall carries furniture tiles');
+  const F = harvest.furnishings;
+  L.push(`#define FURNISH_COUNT ${F.length}`);
+  L.push(`#define HALL_COUNT ${halls.length}`);
+  L.push('typedef struct {');
+  L.push('  const char *name, *desc;');
+  L.push('  u16 cost;');
+  L.push('  u8 wide;      /* tiles across */');
+  L.push('  u8 outdoor;   /* belongs in the yard rather than the hall */');
+  L.push('  u8 seats;     /* how many more sit down to a feast */');
+  L.push('  u8 renown;    /* what having it is worth to your name */');
+  L.push('  u8 cooks, rests;');
+  L.push('} Furnishing;');
+  L.push('static const Furnishing furnishings[FURNISH_COUNT] = {');
+  for (const f of F) {
+    L.push(`  { ${cstr(f.name)}, ${cstr(f.desc)}, ${f.cost}, ${f.wide}, ${f.outdoor},`
+      + ` ${f.seats}, ${f.renown}, ${f.cooks}, ${f.rests} },`);
+  }
+  L.push('};');
+  /* Which maps are halls, and the four tilemap words each piece needs in each
+     of them. They are different numbers from one hall to the next, because
+     every map on this cartridge carries its own tileset. */
+  L.push(`static const MapId hallMaps[HALL_COUNT] = { ${halls.join(', ')} };`);
+  halls.forEach((at, which) => {
+    const spare = harvest.maps[at].spare;
+    if (spare.length !== F.length) {
+      throw new Error(`${harvest.maps[at].id} carries ${spare.length} spare tiles, wanted ${F.length}`);
+    }
+    L.push(`static const u16 hallTiles_${which}[FURNISH_COUNT][4] = {`);
+    for (const quad of spare) L.push(`  { ${quad.join(', ')} },`);
+    L.push('};');
+  });
+  L.push('static const u16 (*const hallTiles[HALL_COUNT])[4] = {');
+  L.push(`  ${halls.map((_, w) => `hallTiles_${w}`).join(', ')} };`);
+  L.push('');
+}
 
 L.push('static const Map maps[MAP_COUNT] = {');
 harvest.maps.forEach((map, i) => {

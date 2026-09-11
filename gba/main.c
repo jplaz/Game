@@ -8588,8 +8588,17 @@ static int holdFeast(void) {
  * one can be bought - you do not skip a keep and put a castle on a holdfast -
  * and pressing A anywhere else says so rather than doing nothing. */
 
-#define WORKS_ROWS (GRADE_COUNT + 1)
+#define WORKS_ROWS (GRADE_COUNT + 2)
 #define WORKS_FEAST GRADE_COUNT
+/* And through to what is standing inside the walls the masons raised. A row
+   rather than a shoulder button: this panel's hint line is right-aligned
+   against its title and "R: furnish" pushed the two into each other, which is
+   the screen telling you the feature is an afterthought. It is not - it is the
+   reason to own the hall - so it goes in the list where it can be found. */
+#define WORKS_FURNISH (GRADE_COUNT + 1)
+/* And how many of them fit above the rule: five, at ten pixels each, starting
+   at twenty-two. The sixth would not. */
+#define WORKS_SHOWN 5
 
 static int worksPick;
 static const char *worksSaid;
@@ -8605,6 +8614,18 @@ static void drawWorksRow(int i, int y) {
     drawTextIn(24, y, what, lit ? C_GOLD : C_INK, TXT_W - 60 - 24);
     drawText(TXT_W - 24 - textWidth(scratch), y, scratch,
              you.gold >= feastPrice() ? C_GOLD : C_DYING);
+    return;
+  }
+  if (i == WORKS_FURNISH) {
+    /* How many of the eight are standing, which is the one number somebody
+       looking at this row wants. */
+    int n = 0, f;
+    for (f = 0; f < FURNISH_COUNT; f++) if (pieceStands(f)) n++;
+    drawTextIn(24, y, "What is in it", lit ? C_GOLD : C_INK, TXT_W - 60 - 24);
+    copyString(scratch, "", sizeof scratch);
+    appendNumber(scratch, n, sizeof scratch);
+    appendString(scratch, n == 1 ? " thing" : " things", sizeof scratch);
+    drawText(TXT_W - 24 - textWidth(scratch), y, scratch, n ? C_WELL : C_DIM);
     return;
   }
   what = GRADE_NAME[i];
@@ -8639,12 +8660,27 @@ static void paintWorks(void) {
   drawFrame(4, 2, TXT_W - 8, TXT_H - 8);
   drawText(14, 6, "YOUR WORKS", C_GOLD);
   copyString(scratch, !seat.has ? "B: back"
-             : worksPick == WORKS_FEAST ? "A: feast   R: furnish   B: back"
-                                        : "A: raise it   R: furnish   B: back",
-             sizeof scratch);
+             : worksPick == WORKS_FEAST ? "A: feast   B: back"
+             : worksPick == WORKS_FURNISH ? "A: look in   B: back"
+                                          : "A: raise it   B: back", sizeof scratch);
   drawText(TXT_W - 14 - textWidth(scratch), 6, scratch, C_DIM);
   fillRect(14, 18, TXT_W - 28, 1, C_EDGE);
-  for (i = 0; i < WORKS_ROWS; i++) drawWorksRow(i, 22 + i * 10);
+  /* Five rows and a scroll, not one row per thing. There were five things on
+     this panel when it was written and every one got a line; the sixth landed
+     at seventy-two, and a glyph is ten rows deep, so it would have inked
+     straight through the rule at seventy-one and the writing under it - which
+     is exactly what happened to the hire panel when it grew from four
+     companies to eight. */
+  {
+    int top = listTopN(worksPick, WORKS_ROWS, WORKS_SHOWN);
+    for (i = 0; i < WORKS_SHOWN && top + i < WORKS_ROWS; i++) {
+      drawWorksRow(top + i, 22 + i * 10);
+    }
+    if (WORKS_ROWS > WORKS_SHOWN) {
+      if (top) drawChevronUp(TXT_W - 20, 24, 1, C_DIM);
+      if (top + WORKS_SHOWN < WORKS_ROWS) drawChevronUp(TXT_W - 20, 60, 0, C_DIM);
+    }
+  }
   fillRect(14, PANEL_RULE, TXT_W - 28, 1, C_EDGE);
   {
     int k;
@@ -8680,6 +8716,9 @@ static void paintWorks(void) {
     body = worksPick == WORKS_FEAST
       ? "A night of it for everyone under your roof. Your whole company wakes "
         "whole, and your wife's people hear that you kept a good table."
+      : worksPick == WORKS_FURNISH
+      ? "The masons raise the walls. This is everything inside them - a table "
+        "to seat people at, a hearth to cook on, your colours on the wall."
       : (worksPick <= seat.grade ? GRADE_IS[worksPick] : GRADE_GIVES[worksPick]);
     wrapText(body, TXT_W - 28);
     for (k = 0; k <= lineCount && k < 2; k++) {
@@ -13044,18 +13083,20 @@ int main(void) {
           holdFeast();
           worksSaid = houseSaid;
           houseSaid = 0;
+          paintWorks();
+        } else if (worksPick == WORKS_FURNISH) {
+          /* Through to what is standing in it, rather than raising anything.
+             No repaint of this panel afterwards: it is not the panel any more. */
+          scene = SCENE_FURNISH;
+          furnishPick = 0;
+          furnishSaid = 0;
+          clearPage();
+          layoutTextRows(TEXT_TOP);
+          paintFurnish();
         } else {
           raiseWorks();
+          paintWorks();
         }
-        paintWorks();
-      } else if (hit(KEY_SHOULDER_R)) {
-        /* And through to what is standing in it. The masons raise the walls;
-           this is everything inside them. */
-        scene = SCENE_FURNISH;
-        furnishSaid = 0;
-        clearPage();
-        layoutTextRows(TEXT_TOP);
-        paintFurnish();
       }
     } else if (scene == SCENE_FURNISH) {
       int was = furnishPick;

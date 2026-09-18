@@ -11481,13 +11481,28 @@ sowCover();
 export const DRESSING = {
   '.': [')', '(', '*', '?', '('],
   'S': ['"', '(', ')', 'i', '"'],
+  /* In the tall grass, where the road maps keep most of their ground: a stump
+     or a rock the grass grew round. Sixteen roads and wilds - the Kingsroad,
+     the Gift, the Frostfangs, the Stormlands - had nothing on them at all,
+     because their open ground is the grass you are met in and the rest is
+     too narrow to qualify. */
+  ',': [')', '(', '('],
+  ';': ['(', '"'],
+  /* A cave floor, and the black stone of Dragonstone, which is one: rocks. */
+  '%': ['(', '(', '?'],
   'd': ['O', '[', '$', ']', '>', '?', '$'],
   '-': ['?'],
-  'o': ['O', '[', '>', 'O', '('],
-  '=': ['O', '[', 'O'],
+  'o': ['O', '[', '>', 'O', '(', '?'],
+  '=': ['O', '[', 'O', '?'],
   's': ['(', '[', 'O', '('],
   'i': ['('],
 };
+/* What paving takes out in the open, away from any wall: a puddle, and on
+   cobbles a rock the paving went round - the Stone Crows' yard is a shelf of
+   the mountain with cobbles laid on it. Barrels and carts stand against walls. */
+const DRESSING_OPEN = { 'o': ['?', '(', '?'], '=': ['?'] };
+/* Plain ground, of the kinds a thing can be set down beside. */
+const OPEN_GROUND = new Set([...'.,S;sd-o=i%']);
 /* The ones you walk through, which need no proof that the map is still whole. */
 const DRESSING_FLOOR = new Set(['*', '?', 'i']);
 /* And the one that is its own ground - a patch of ice paints ice, not the snow
@@ -11548,25 +11563,40 @@ function dressGround() {
     for (const list of [map.npcs, map.items, map.chests]) {
       for (const it of list ?? []) if (it.x < w && it.y < h) blocked[it.y * w + it.x] = 1;
     }
+    /* From every door at once. From the first door alone, the Roseroad
+       reached four tiles: its three wardens stand in a line across the road
+       just inside the top of it, and the rest of the map is reached from the
+       bottom. */
+    /* Each door floods its own region, and the regions are counted: the
+       proof that nothing was shut off is that the count of tiles fell by
+       exactly what was set down AND the count of regions did not rise. The
+       union alone is not proof - a rock at a bridge-end on Pyke left every
+       tile reachable from one door or another and the map in two halves. */
     const flood = (grid) => {
       const seen = new Uint8Array(w * h);
-      const start = (map.warps ?? []).find((wp) => open(grid, wp.x, wp.y))
-        ?? (() => { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (open(grid, x, y)) return { x, y }; return null; })();
-      if (!start) return { seen, n: 0 };
-      const queue = [start.y * w + start.x];
-      seen[queue[0]] = 1;
-      let n = 0;
-      for (let i = 0; i < queue.length; i++) {
-        const cur = queue[i], cx = cur % w, cy = (cur - cx) / w;
-        n++;
-        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-          const nx = cx + dx, ny = cy + dy, j = ny * w + nx;
-          if (!open(grid, nx, ny) || seen[j] || blocked[j]) continue;
-          seen[j] = 1;
-          queue.push(j);
+      const sources = [];
+      for (const wp of map.warps ?? []) if (open(grid, wp.x, wp.y)) sources.push(wp.y * w + wp.x);
+      if (!sources.length) {
+        for (let y = 0; y < h && !sources.length; y++) for (let x = 0; x < w; x++) if (open(grid, x, y)) { sources.push(y * w + x); break; }
+      }
+      let n = 0, comps = 0;
+      for (const from of sources) {
+        if (seen[from]) continue;
+        comps++;
+        seen[from] = 1;
+        const queue = [from];
+        for (let i = 0; i < queue.length; i++) {
+          const cur = queue[i], cx = cur % w, cy = (cur - cx) / w;
+          n++;
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const nx = cx + dx, ny = cy + dy, j = ny * w + nx;
+            if (!open(grid, nx, ny) || seen[j] || blocked[j]) continue;
+            seen[j] = 1;
+            queue.push(j);
+          }
         }
       }
-      return { seen, n };
+      return { seen, n, comps };
     };
     const was = flood(rows);
 
@@ -11576,13 +11606,44 @@ function dressGround() {
        qualified - Eastwatch's whole empty quarter came to two candidates. The
        flood afterwards is what proves nothing was shut off; this only has to
        find somewhere plausible. */
+    /* Except on a paved street, where a thing is set down against a wall:
+       nobody leaves a barrel in the middle of the king's road, and the first
+       run of this left nine of them in a line down the middle of the avenue
+       through King's Landing, three tiles apart, because the avenue was the
+       only paving wide enough to qualify. On paving the tile is beside
+       something built - a wall, a house, a fence - and open along the street. */
     const cands = [];
+    const solidAt = (x, y) => { const c = rows[y]?.[x]; return c === undefined || !STANDABLE.has(c); };
     for (let y = 1; y < h - 1; y++) {
       for (let x = 1; x < w - 1; x++) {
         const c = rows[y][x];
         if (!DRESSING[c] || off.has(`${x},${y}`) || !was.seen[y * w + x]) continue;
-        if (rows[y - 1][x] !== c || rows[y + 1][x] !== c
-            || rows[y][x - 1] !== c || rows[y][x + 1] !== c) continue;
+        if (c === 'o' || c === '=') {
+          let same = 0, built = 0;
+          for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+            if (rows[y + dy][x + dx] === c) same++;
+            else if (!solidAt(x + dx, y + dy)) same = -9;
+          }
+          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (solidAt(x + dx, y + dy)) built++;
+          if (same < 2) continue;
+          /* Out in the open a paved yard takes only what DRESSING_OPEN allows,
+             or a courtyard is a courtyard with its middle empty. */
+          cands.push({ x, y, c, open: !built });
+          continue;
+        }
+        /* Elsewhere: nothing but ground on its four sides, and at least two
+           of them its own. All four the same was the rule, and on a road map
+           whose meadow is two tiles wide between the track and the trees it
+           found nothing. */
+        {
+          let same = 0, ground = 0;
+          for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+            const n = rows[y + dy][x + dx];
+            if (n === c) same++;
+            if (OPEN_GROUND.has(n)) ground++;
+          }
+          if (same < 2 || ground < 4) continue;
+        }
         cands.push({ x, y, c });
       }
     }
@@ -11602,11 +11663,19 @@ function dressGround() {
     /* A well only where people live, and only one of them. */
     const settled = (map.npcs?.length ?? 0) >= 6;
     let well = 0;
+    /* And no more than a quarter of the cover goes under a rock: the grass is
+       where things are met, and a road with its grass turned to stumps is a
+       road with nothing on it to meet. */
+    let cover = 0;
+    for (const row of rows) for (const c of row) if (c === ',' || c === ';') cover++;
+    let coverSpent = 0;
     const taken = [];
     for (let tries = 0; tries < cands.length * 4 && taken.length < want; tries++) {
       const cd = cands[next() % cands.length];
       if (taken.some((t) => Math.max(Math.abs(t.x - cd.x), Math.abs(t.y - cd.y)) < 3)) continue;
-      const kinds = DRESSING[cd.c];
+      if ((cd.c === ',' || cd.c === ';') && (cover < 20 || coverSpent * 4 >= cover)) continue;
+      if (cd.c === ',' || cd.c === ';') coverSpent++;
+      const kinds = cd.open ? DRESSING_OPEN[cd.c] : DRESSING[cd.c];
       let k = kinds[next() % kinds.length];
       if (settled && !well && 'do.'.includes(cd.c) && next() % 3 === 0) { k = '0'; well = 1; }
       rows[cd.y][cd.x] = k;
@@ -11625,7 +11694,8 @@ function dressGround() {
       return t;
     };
     const solidCount = () => taken.filter((t) => !DRESSING_FLOOR.has(t.k)).length;
-    while (taken.length && flood(rows).n !== before - solidCount()) {
+    const whole = (f, lifted = 0) => f.n === before - (solidCount() - lifted) && f.comps === was.comps;
+    while (taken.length && !whole(flood(rows))) {
       /* Find the one that did it, rather than taking up the last one set
          down: the first draft did that, and one bad hay bale by a pen gate
          cost the Bolton kennels every barrel laid after it. Each solid thing
@@ -11635,9 +11705,9 @@ function dressGround() {
         if (DRESSING_FLOOR.has(taken[i].k)) continue;
         const t = taken[i];
         rows[t.y][t.x] = t.c;
-        const whole = flood(rows).n === before - (solidCount() - 1);
+        const fixed = whole(flood(rows), 1);
         rows[t.y][t.x] = t.k;
-        if (whole) culprit = i;
+        if (fixed) culprit = i;
       }
       lift(culprit >= 0 ? culprit : taken.length - 1);
     }
@@ -11669,11 +11739,7 @@ function dressGround() {
         blocked[at] = 1;
         const f = flood(rows);
         blocked[at] = 0;
-        if (base.n - 1 - f.n > 8) return true;
-        for (const wp of map.warps ?? []) {
-          const j = wp.y * w + wp.x;
-          if (base.seen[j] && !f.seen[j]) return true;
-        }
+        if (base.n - 1 - f.n > 8 || f.comps > base.comps) return true;
         for (const it of faces) {
           if (it.y * w + it.x === at) continue;
           if (beside(base.seen, it.x, it.y) && !beside(f.seen, it.x, it.y)) return true;

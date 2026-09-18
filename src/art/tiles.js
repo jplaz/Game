@@ -1489,17 +1489,26 @@ export const TILE_GROUP = {
  * underneath themselves, so the same tile reads correctly in a snowfield and in
  * a summer meadow without needing separate characters for each.
  */
+/* With every neighbour counted as the same ground (the mask of fifteen), so
+   the ground under a thing runs into the ground round it. With the mask of
+   nought each ground painted its fringe on all four sides, and every fence,
+   sign, chest and barrel in the world stood in a dotted square. */
 export const GROUNDS = {
-  grass: (ctx, variant) => painters.grass(ctx, 0, 0, null, variant),
-  snow: (ctx, variant) => painters.snow(ctx, 0, 0, null, variant),
-  sand: (ctx, variant) => painters.sand(ctx, 0, 0, null, variant),
-  stone: (ctx, variant) => painters.stone(ctx, 0, 0, null, variant),
+  grass: (ctx, variant) => painters.grass(ctx, 0, 15, null, variant),
+  snow: (ctx, variant) => painters.snow(ctx, 0, 15, null, variant),
+  sand: (ctx, variant) => painters.sand(ctx, 0, 15, null, variant),
+  stone: (ctx, variant) => painters.stone(ctx, 0, 15, null, variant),
   // A map laid on bare earth had no ground of its own here, so every grounded
   // thing standing on it — chimneys, fences, signs, lone trees — fell through
   // to the grass default and came up sitting on a bright green square in the
   // middle of a mud alley.
-  earth: (ctx, variant) => painters.dirt(ctx, 0, 0, null, variant),
-  cave: (ctx, variant) => painters.caveFloor(ctx, 0, 0, null, variant),
+  earth: (ctx, variant) => painters.dirt(ctx, 0, 15, null, variant),
+  cave: (ctx, variant) => painters.caveFloor(ctx, 0, 15, null, variant),
+  // The pale flags of a great avenue and the beaten track of a country lane:
+  // both were 'stone' and 'earth', so a barrel on the king's road stood on a
+  // dark square of side-street cobble.
+  flag: (ctx) => painters.floorStone(ctx),
+  track: (ctx, variant) => painters.path(ctx, 0, 15, null, variant),
   // Boards. Every room somebody actually lives in is floored in them, and
   // until now there was no way for a map to say so — so a chest standing in
   // a cottage in the Riverlands was standing on a lawn.
@@ -1518,8 +1527,8 @@ export const GROUND_OF_CHAR = {
   '.': 'grass', ',': 'grass', '*': 'grass',
   'S': 'snow', ';': 'snow', 'i': 'snow',
   's': 'sand',
-  'o': 'stone', '=': 'stone',
-  'd': 'earth', '-': 'earth',
+  'o': 'stone', '=': 'flag',
+  'd': 'earth', '-': 'track',
   '%': 'cave',
   '_': 'wood',
 };

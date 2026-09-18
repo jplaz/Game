@@ -326,6 +326,14 @@ for (const [mapId, map] of Object.entries(MAPS)) {
      cent. Only asked of maps with room to be empty in. */
   if (!map.indoor && !map.sea && mapId !== 'holdfast' && mapId !== 'holdfastYard') {
     const FLOOR = '.Sdso-i=';
+    /* People and things on the ground break a block up as well as anything
+       drawn on it: a yard with six clansmen standing in it is not empty, and
+       nothing can be set down where they stand in any case. */
+    const stood = new Set();
+    for (const list of [map.npcs, map.items, map.chests]) {
+      for (const it of list ?? []) stood.add(`${it.x},${it.y}`);
+    }
+    const flat = (x, y, c) => map.grid[y]?.[x] === c && !stood.has(`${x},${y}`);
     let floor = 0, deep = 0;
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
@@ -334,7 +342,7 @@ for (const [mapId, map] of Object.entries(MAPS)) {
         floor++;
         let same = true;
         for (let dy = -1; dy <= 1 && same; dy++) {
-          for (let dx = -1; dx <= 1; dx++) if (map.grid[y + dy]?.[x + dx] !== c) { same = false; break; }
+          for (let dx = -1; dx <= 1; dx++) if (!flat(x + dx, y + dy, c)) { same = false; break; }
         }
         if (same) deep++;
       }
@@ -353,7 +361,7 @@ for (const [mapId, map] of Object.entries(MAPS)) {
       for (let x = 0; x < map.width; x++) {
         const was = map.under[y]?.[x];
         if (!was || was === ' ') continue;
-        if (!'.Sdso-i=%_'.includes(was)) fail(`map ${mapId}: "${was}" under ${x},${y} is not a floor`);
+        if (!'.Sdso-i=%_,;'.includes(was)) fail(`map ${mapId}: "${was}" under ${x},${y} is not a floor`);
         if (!TILE_DEFS[map.grid[y][x]]?.grounded) {
           fail(`map ${mapId}: ${x},${y} records what was under it and does not stand on the ground`);
         }

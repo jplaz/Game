@@ -3132,8 +3132,16 @@ void hostFrame(void) {
          Winterfell was beating it, wrote the map off, and went on standing
          in the same two tiles of hedge losing to the same barrowlord six
          thousand times, because nothing ever unlatched the grind. */
+      /* The rung the climb is actually on - the picker's, with the seats it
+         has set aside skipped - and not the status card's lowest seat. They
+         differed once the ninth seat was set aside: the picker was grinding
+         for the tenth at forty-three, this unlatched it every frame because
+         the ninth wanted thirty-eight and the run was thirty-seven, and the
+         frame that picked the grind fell through to the sign code and
+         pressed A at the hedge. Eight and a half million frames, standing
+         still in King's Landing, one tile from the grass. */
       if (ladderMode && grindMode) {
-        int at = nextRung();
+        int at = rungFor();
         if (at < 0 || you.level + 1 >= leaderLevel[at] || badGround[worldId]) {
           grindMode = 0;
           goalKind = GOAL_NONE;
@@ -3208,6 +3216,15 @@ void hostFrame(void) {
         return;
       }
       if (goalKind == GOAL_NONE) pickGoal();
+      /* A grind just picked is walked by the grind branch above, from the
+         next frame. Falling through from here treated the grass as a sign
+         to be read: A pressed at it from the tile beside it, forever. */
+      if (grindMode && goalKind == GOAL_SIGN) {
+        lastKeys = keys;
+        REG_KEYINPUT = (unsigned short)(~keys & 0x03FF);
+        frameNo++;
+        return;
+      }
       /* Before giving up on the world, forgive the doors.
        *
        * A door is nailed shut to break a circle, and the nail is meant to be

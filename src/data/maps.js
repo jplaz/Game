@@ -11544,9 +11544,9 @@ function dressGround() {
       const c = grid[y]?.[x];
       return c !== undefined && STANDABLE.has(c);
     };
-    const blocked = new Set();
+    const blocked = new Uint8Array(w * h);
     for (const list of [map.npcs, map.items, map.chests]) {
-      for (const it of list ?? []) blocked.add(`${it.x},${it.y}`);
+      for (const it of list ?? []) if (it.x < w && it.y < h) blocked[it.y * w + it.x] = 1;
     }
     const flood = (grid) => {
       const seen = new Uint8Array(w * h);
@@ -11561,7 +11561,7 @@ function dressGround() {
         n++;
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           const nx = cx + dx, ny = cy + dy, j = ny * w + nx;
-          if (!open(grid, nx, ny) || seen[j] || blocked.has(`${nx},${ny}`)) continue;
+          if (!open(grid, nx, ny) || seen[j] || blocked[j]) continue;
           seen[j] = 1;
           queue.push(j);
         }
@@ -11640,6 +11640,72 @@ function dressGround() {
         if (whole) culprit = i;
       }
       lift(culprit >= 0 ? culprit : taken.length - 1);
+    }
+
+    /* And whole with somebody standing still in it. A person who roams goes up
+       to three tiles from where they were put, and a barrel that leaves a
+       two-tile lane one tile wide is a lane one of them can stand across: the
+       cartridge's audit found a Gold Cloak who could shut fifteen tiles of
+       Lannisport off behind him that way, with a door among them, and the
+       Kennelmaster a hundred and fifty. The audit's own rule, asked here: every
+       tile within three of anybody is stood on in turn, and if that loses a
+       door, somebody you could talk to, a sign, or more than eight tiles, the
+       thing set down beside it comes back up. Where lifting nothing helps, the
+       lane was one tile wide before anything was set down, and is left to the
+       audit. */
+    {
+      const people = map.npcs ?? [];
+      const faces = [...people, ...(map.signs ?? [])];
+      const near = new Uint8Array(w * h);
+      for (const n of people) {
+        for (let y = Math.max(0, n.y - 3); y <= Math.min(h - 1, n.y + 3); y++) {
+          for (let x = Math.max(0, n.x - 3); x <= Math.min(w - 1, n.x + 3); x++) near[y * w + x] = 1;
+        }
+      }
+      const beside = (f, x, y) => (x + 1 < w && f[y * w + x + 1]) || (x > 0 && f[y * w + x - 1])
+        || (y + 1 < h && f[(y + 1) * w + x]) || (y > 0 && f[(y - 1) * w + x]);
+      /* What standing at a tile costs, against the map as it stands. */
+      const shutsBy = (at, base) => {
+        blocked[at] = 1;
+        const f = flood(rows);
+        blocked[at] = 0;
+        if (base.n - 1 - f.n > 8) return true;
+        for (const wp of map.warps ?? []) {
+          const j = wp.y * w + wp.x;
+          if (base.seen[j] && !f.seen[j]) return true;
+        }
+        for (const it of faces) {
+          if (it.y * w + it.x === at) continue;
+          if (beside(base.seen, it.x, it.y) && !beside(f.seen, it.x, it.y)) return true;
+        }
+        return false;
+      };
+      /* Only the ground beside something set down can have been narrowed by
+         it, so only that ground is stood on: asked of every tile near anybody
+         this doubled the time the world takes to load. */
+      const narrowed = new Uint8Array(w * h);
+      for (const t of taken) {
+        if (DRESSING_FLOOR.has(t.k)) continue;
+        for (let y = Math.max(0, t.y - 2); y <= Math.min(h - 1, t.y + 2); y++) {
+          for (let x = Math.max(0, t.x - 2); x <= Math.min(w - 1, t.x + 2); x++) narrowed[y * w + x] = 1;
+        }
+      }
+      let base = flood(rows);
+      for (let at = 0; at < w * h; at++) {
+        if (!near[at] || !narrowed[at] || blocked[at] || !base.seen[at]) continue;
+        if (!shutsBy(at, base)) continue;
+        const x = at % w, y = (at - x) / w;
+        /* Lift each solid thing set down within two of the tile, and keep the
+           first lift that opens it up again. */
+        for (let i = taken.length - 1; i >= 0; i--) {
+          const t = taken[i];
+          if (DRESSING_FLOOR.has(t.k) || Math.max(Math.abs(t.x - x), Math.abs(t.y - y)) > 2) continue;
+          rows[t.y][t.x] = t.c;
+          const after = flood(rows);
+          if (!shutsBy(at, after)) { lift(i); base = after; break; }
+          rows[t.y][t.x] = t.k;
+        }
+      }
     }
     if (!taken.length) continue;
 

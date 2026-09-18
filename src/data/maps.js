@@ -1,4 +1,5 @@
 import { hiddenNooks } from './nooks.js';
+import { CUTSCENES } from './cutscenes.js';
 import { gearTable, GEAR_SLOTS } from './gear.js';
 import { MATERIAL_IDS } from './craft.js';
 
@@ -32,7 +33,7 @@ import { MATERIAL_IDS } from './craft.js';
  * STANDABLE is the same list plus the ledge, which you can stand on and drop
  * off but cannot walk back up. There used to be two lists typed out by hand
  * here, and by the time anyone looked they disagreed in three characters. */
-export const WALKABLE = '.,S;&-dso*i_=cb<%tmD/+';
+export const WALKABLE = '.,S;&-dso*i_=cb<%tmD/+?';
 export const STANDABLE = new Set([...WALKABLE, 'L']);
 
 /* Ground you cross rather than ground you use: a ledge you drop off, a stair,
@@ -9503,6 +9504,31 @@ export const MAPS = {
         script: 'duel', data: { duel: 'manAtArms' } },
       { x: 18, y: 13, dir: 'left', sprite: 'girl', name: 'Kennel Girl',
         script: 'hideoutLocal', data: { line: 'He names them after girls. When one of them stops answering to her name he gets another girl. Do not ask me any more than that.' } },
+      /* And the girls. Eight pens stood empty in a place called the Kennels,
+         which is a joke with no punchline: the sign says they are fed on
+         Thursdays and there was nothing in there to feed. Six of them, named
+         the way he names them, and every one a fight if you go into the pen -
+         or, if you win it, something that comes to heel. */
+      /* All one kind, because the cartridge draws every animal on a map from
+         one load of art, and a pen of pups drawn as full-grown hounds would be
+         a pen of lies. They are all full-grown hounds. */
+      ...[
+        ['Kyra', 'direwolf', 34, 5, 5], ['Helicent', 'direwolf', 33, 10, 5],
+        ['Jeyne', 'direwolf', 30, 15, 5], ['Red Jeyne', 'direwolf', 36, 20, 5],
+        ['Willow', 'direwolf', 31, 5, 16], ['Maude', 'direwolf', 32, 15, 16],
+      ].map(([name, species, level, x, y]) => ({
+        x, y, dir: 'down', sprite: 'smallfolk', beast: species, name, script: 'wildBeast',
+        data: {
+          species, level,
+          taken: `kennel_${name.replace(/\s/g, '').toLowerCase()}_taken`,
+          met: `kennel_${name.replace(/\s/g, '').toLowerCase()}_met`,
+          waking: [`${name} does not bark. She watches the gate, and then she watches you.`],
+          spared: 'You back out of the pen. She lies down again with her eyes open.',
+          taking: `${name} comes to heel. Whatever he did to make her his, you have undone it.`,
+          driven: 'She goes back into the straw and does not come out. She will remember you.',
+          lost: 'The kennel girl was right about Wednesdays.',
+        },
+      })),
     ],
     items: [
       { x: 5, y: 9, item: 'direwolfPelt', count: 1, flag: 'item_kennelhold_0' },
@@ -11420,6 +11446,213 @@ function sowCover() {
 }
 
 sowCover();
+
+/* ---------------------------------------------------------------------------
+ * What a yard is full of.
+ *
+ * Pyke's stacks were bare grey slabs with buildings dropped on them. The Bolton
+ * kennels were eight empty pens on one brown rectangle. The south-east quarter
+ * of Eastwatch was snow, and nothing else, to the edge of the map. Fifty
+ * outdoor maps have more than a hundred tiles of floor, and on ten of them a
+ * quarter or more of that floor is deep inside one flat block of one texture -
+ * ground that is nothing but the way to other ground.
+ *
+ * The reason is that the legend had nothing to fill a yard with. A sign, a
+ * chest, a brazier, rubble: that was the whole of what could stand on open
+ * ground that was not a tree. No barrel, no crate, no hay, no well, no trough,
+ * no cart, no stump, no rock, no puddle. So the towns were drawn out of
+ * buildings and roads, which is what a town is from the air and not what it is
+ * from the street.
+ *
+ * This puts those things down, by the ground they stand on: hay and troughs
+ * and barrels in the mud of a yard, crates and barrels on a stone quay, stumps
+ * and rocks in a meadow, drifts and rocks in a snowfield. Only deep inside a
+ * flat block - every one of a tile's eight neighbours the same floor - so it
+ * never touches a road or a corridor, never crowds a door, and never stands
+ * next to anybody. Nothing solid goes down within three tiles of anything else
+ * solid it put down. And then the map is flooded once and anything that cost
+ * a tile is taken back up, because a thing on the ground that seals a way
+ * through is the one defect every other pass in this file exists to prevent.
+ *
+ * What was under each thing is written down in `under`, so it is drawn
+ * standing on the mud it was set down in rather than on the map's single idea
+ * of ground: the kennels are a mud yard on a map that calls itself snow.
+ * ------------------------------------------------------------------------ */
+export const DRESSING = {
+  '.': [')', '(', '*', '?', '('],
+  'S': ['"', '(', ')', 'i', '"'],
+  'd': ['O', '[', '$', ']', '>', '?', '$'],
+  '-': ['?'],
+  'o': ['O', '[', '>', 'O', '('],
+  '=': ['O', '[', 'O'],
+  's': ['(', '[', 'O', '('],
+  'i': ['('],
+};
+/* The ones you walk through, which need no proof that the map is still whole. */
+const DRESSING_FLOOR = new Set(['*', '?', 'i']);
+/* And the one that is its own ground - a patch of ice paints ice, not the snow
+   it replaced - so nothing is written down about what was under it. */
+const DRESSING_SELF = new Set(['i']);
+
+function dressGround() {
+  let placed = 0, dressed = 0;
+  for (const [id, map] of Object.entries(MAPS)) {
+    if (map.indoor || map.sea) continue;
+    /* Your own ground is yours to fill: the hall and the yard you take off the
+       squatter are drawn bare because arranging them is what owning them is. */
+    if (id === 'holdfast' || id === 'holdfastYard') continue;
+    const { width: w, height: h } = map;
+    const rows = map.grid.map((row) => row.split(''));
+    const under = rows.map((row) => row.map(() => ' '));
+
+    /* Nowhere near anything anybody needs to reach, and never beside a door or
+       a counter: the tile in front of a door is the way in, and the tile in
+       front of a counter is where you stand to be served. */
+    const off = new Set();
+    const clear = (x, y, r) => {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) off.add(`${x + dx},${y + dy}`);
+      }
+    };
+    /* Two tiles clear in front of a door, because you come out of it facing
+       the yard and the yard should be there; one clear round any other way
+       off the map - a rope bridge's end, a road running off the edge, a stair
+       - because those are crossed, not stepped out of. Pyke is eight rope
+       bridges and six small stacks, and two tiles round every bridge-end was
+       the whole of Pyke. */
+    for (const it of map.warps ?? []) clear(it.x, it.y, rows[it.y]?.[it.x] === 'D' ? 2 : 1);
+    for (const list of [map.npcs, map.signs, map.items, map.chests]) {
+      for (const it of list ?? []) clear(it.x, it.y, 1);
+    }
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) if (rows[y][x] === 'D' || rows[y][x] === 'K') clear(x, y, 1);
+    }
+    /* And the tile a scene fires from. A barrel on it is a scene that never
+       fires - the melee at Harrenhal went down under one on the first run. */
+    for (const cs of Object.values(CUTSCENES)) {
+      if (cs.map === id && Number.isInteger(cs.x) && Number.isInteger(cs.y)) clear(cs.x, cs.y, 1);
+    }
+
+    /* The map as it can be walked, from its first door, with people and things
+       counted as the walls they are. Worked out first because it decides what
+       may be dressed at all: only ground you can get to. A thing set down in a
+       pen whose gate a hound is standing in costs the map nothing, and the
+       proof below that nothing was lost counts one tile for every solid thing
+       set down - so a thing that cost nothing threw that count off by one and
+       the back-off took good placements up until it matched. */
+    const open = (grid, x, y) => {
+      const c = grid[y]?.[x];
+      return c !== undefined && STANDABLE.has(c);
+    };
+    const blocked = new Set();
+    for (const list of [map.npcs, map.items, map.chests]) {
+      for (const it of list ?? []) blocked.add(`${it.x},${it.y}`);
+    }
+    const flood = (grid) => {
+      const seen = new Uint8Array(w * h);
+      const start = (map.warps ?? []).find((wp) => open(grid, wp.x, wp.y))
+        ?? (() => { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (open(grid, x, y)) return { x, y }; return null; })();
+      if (!start) return { seen, n: 0 };
+      const queue = [start.y * w + start.x];
+      seen[queue[0]] = 1;
+      let n = 0;
+      for (let i = 0; i < queue.length; i++) {
+        const cur = queue[i], cx = cur % w, cy = (cur - cx) / w;
+        n++;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = cx + dx, ny = cy + dy, j = ny * w + nx;
+          if (!open(grid, nx, ny) || seen[j] || blocked.has(`${nx},${ny}`)) continue;
+          seen[j] = 1;
+          queue.push(j);
+        }
+      }
+      return { seen, n };
+    };
+    const was = flood(rows);
+
+    /* Open on all four sides, and the same floor on all four: a tile you could
+       walk round. All eight neighbours was the first rule, and it was so strict
+       that a snowfield with a few tufts sown in it had nowhere left that
+       qualified - Eastwatch's whole empty quarter came to two candidates. The
+       flood afterwards is what proves nothing was shut off; this only has to
+       find somewhere plausible. */
+    const cands = [];
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const c = rows[y][x];
+        if (!DRESSING[c] || off.has(`${x},${y}`) || !was.seen[y * w + x]) continue;
+        if (rows[y - 1][x] !== c || rows[y + 1][x] !== c
+            || rows[y][x - 1] !== c || rows[y][x + 1] !== c) continue;
+        cands.push({ x, y, c });
+      }
+    }
+    if (cands.length < 2) continue;
+
+    /* One thing for every twenty-five tiles of ground that could be dressed,
+       two at the least and twenty at the most: enough to be somewhere, not
+       enough to be a shop. Counted on the ground and not on the candidates,
+       because the candidates are what is left after everybody's elbow room is
+       taken out, and a yard with twelve people in it had two dozen of those
+       and looked as empty as a yard with none. */
+    let ground = 0;
+    for (const row of rows) for (const c of row) if (DRESSING[c]) ground++;
+    const want = Math.min(20, Math.max(2, Math.round(ground / 25)));
+    let seed = roomSeed(id);
+    const next = () => { seed = (Math.imul(seed ^ (seed >>> 13), 1274126177) >>> 0); return seed; };
+    /* A well only where people live, and only one of them. */
+    const settled = (map.npcs?.length ?? 0) >= 6;
+    let well = 0;
+    const taken = [];
+    for (let tries = 0; tries < cands.length * 4 && taken.length < want; tries++) {
+      const cd = cands[next() % cands.length];
+      if (taken.some((t) => Math.max(Math.abs(t.x - cd.x), Math.abs(t.y - cd.y)) < 3)) continue;
+      const kinds = DRESSING[cd.c];
+      let k = kinds[next() % kinds.length];
+      if (settled && !well && 'do.'.includes(cd.c) && next() % 3 === 0) { k = '0'; well = 1; }
+      rows[cd.y][cd.x] = k;
+      if (!DRESSING_SELF.has(k)) under[cd.y][cd.x] = cd.c;
+      taken.push({ ...cd, k });
+    }
+
+    /* And the map still has to be whole with all of it standing: flooded again
+       the same way, every solid thing set down costs exactly the one tile it
+       stands on and not one more, or the last thing set down comes back up. */
+    const before = was.n;
+    const lift = (i) => {
+      const [t] = taken.splice(i, 1);
+      rows[t.y][t.x] = t.c;
+      under[t.y][t.x] = ' ';
+      return t;
+    };
+    const solidCount = () => taken.filter((t) => !DRESSING_FLOOR.has(t.k)).length;
+    while (taken.length && flood(rows).n !== before - solidCount()) {
+      /* Find the one that did it, rather than taking up the last one set
+         down: the first draft did that, and one bad hay bale by a pen gate
+         cost the Bolton kennels every barrel laid after it. Each solid thing
+         is lifted in turn to see whether the count comes right without it. */
+      let culprit = -1;
+      for (let i = taken.length - 1; i >= 0 && culprit < 0; i--) {
+        if (DRESSING_FLOOR.has(taken[i].k)) continue;
+        const t = taken[i];
+        rows[t.y][t.x] = t.c;
+        const whole = flood(rows).n === before - (solidCount() - 1);
+        rows[t.y][t.x] = t.k;
+        if (whole) culprit = i;
+      }
+      lift(culprit >= 0 ? culprit : taken.length - 1);
+    }
+    if (!taken.length) continue;
+
+    placed += taken.length;
+    dressed++;
+    map.grid = rows.map((row) => row.join(''));
+    map.tiles = map.grid;
+    map.under = under.map((row) => row.join(''));
+  }
+  return { placed, dressed };
+}
+
+dressGround();
 
 /** The region a map belongs to, or an empty string if it has none. */
 export function regionOf(key) {

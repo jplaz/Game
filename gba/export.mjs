@@ -1019,8 +1019,12 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const char = chestAt.has(`${x},${y}`) ? 'j' : (map.grid[y][x] ?? '.');
+        /* On the ground it replaced, where the dressing pass set something
+           down; on the map's own ground everywhere else. */
+        const was = map.under?.[y]?.[x];
         const canvas = tileCanvas(char, 0, maskFor(map, char, x, y),
-          map.ground ?? 'grass', pixels.variantFor(x, y, 4));
+          (was && tiles.GROUND_OF_CHAR[was]) || map.ground || 'grass',
+          pixels.variantFor(x, y, 4));
         const px = read(canvas);
         if (tint && LIVING.has(char)) {
           for (let q = 0; q < px.length; q += 4) {
@@ -1158,7 +1162,11 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       return {
         x: n.x, y: n.y, dir: actors.DIRECTIONS.indexOf(n.dir ?? 'down'), said,
         name: n.name ?? '', script: n.script ?? '', sprite, trade, sight,
-        actor: actorFor(personLook(sprite, n.name ?? ''), `${sprite}|${n.name ?? ''}`),
+        /* An animal is drawn as the animal, from the beast tiles, so it has no
+           face of its own to keep resident; six named hounds in one yard were
+           six of the twelve banks spent on peasants nobody would ever see. */
+        actor: n.beast ? actorFor(personLook('smallfolk', ''), 'smallfolk|')
+          : actorFor(personLook(sprite, n.name ?? ''), `${sprite}|${n.name ?? ''}`),
         duellist: pushDuellist({ ...fighter, house: houseOfSprite(sprite) }),
         // A town is not a waxwork. Everybody has somewhere to be except the
         // people whose whole job is to stand behind something.
@@ -1190,7 +1198,10 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
            Speaking to one is not a conversation: it is the fight, at the level
            the map says, and the animal is the one on the far side of it. Which
            beast, plus one, because nobody is 0. */
-        wild: n.beast ? (beastSlot.get(n.beast) ?? -1) + 1 : 0,
+        /* And whether it is one of the enormous ones, packed into the top bit
+           so the struct need not grow: the cartridge draws a wild animal from
+           the beast tiles at half size, and a dragon at the full sixty-four. */
+        wild: n.beast ? (((beastSlot.get(n.beast) ?? -1) + 1) | (n.huge ? 0x80 : 0)) : 0,
         wildAt: Math.max(2, Math.min(100, n.data?.level ?? 2)),
         // Somebody whose whole purpose is to fight you draws when you speak to
         // them. Challenging was bound to SELECT, which is not a button anybody

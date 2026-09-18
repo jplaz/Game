@@ -1332,6 +1332,65 @@ static void placeBeast(int slot, int x, int y, int tile, int bank) {
   oam[slot * 4 + 2] = (u16)(tile | (1 << 10) | (bank << 12));
 }
 
+/* --------------------------------------------- an animal in the world ---
+ *
+ * A wild animal standing on a map used to be drawn as a person: the exporter
+ * gave it a plain look, and the plain look was what stood there. So the dragon
+ * on the Rosewell pond was a peasant, and six hounds in the Bolton kennels
+ * would have been six peasants in pens. The beast tiles are there - every one
+ * of them is drawn for the duel - and the twelfth resident's room in object
+ * memory is where the foe's animal goes during a duel and nothing goes during
+ * a walk, on any map with eleven residents or fewer that is not the open sea
+ * (where the room is the hull's). So on entering such a map the first wild
+ * animal on it is loaded into that room, and every animal of that kind is
+ * drawn from it.
+ *
+ * At half size, through the second affine matrix, because the duel art is
+ * sixty-four pixels square and a hound is not; a dragon is, and is drawn at
+ * the full sixty-four. The matrix lives in the fourth attribute of objects
+ * four to seven, which no placer writes and hideAllObjects leaves alone. */
+#define WILD_SCALE 0x0200      /* texture twice the screen: half size */
+static int wildArt = -1;       /* which beast's art is in the room, or -1 */
+static void loadBeastArt(int which, int tile, int bank);
+static const Map *world;       /* defined with the rest of the map state below */
+
+static void setWildScale(void) {
+  oam[19] = WILD_SCALE;  /* pa */
+  oam[23] = 0;           /* pb */
+  oam[27] = 0;           /* pc */
+  oam[31] = WILD_SCALE;  /* pd */
+}
+
+static void loadWildArt(void) {
+  int i;
+  wildArt = -1;
+  if (world->sea || world->residentCount >= 12) return;
+  for (i = 0; i < world->npcCount; i++) {
+    int w = world->npcs[i].wild & 0x7F;
+    if (w) { wildArt = w - 1; break; }
+  }
+  if (wildArt >= 0) {
+    loadBeastArt(wildArt, FOE_BEAST_TILE, FOE_BEAST_BANK);
+    setWildScale();
+  }
+}
+
+/* The animal at a tile: its feet on the tile's bottom edge, centred on it. A
+   sixty-four box holds the half-size drawing in its middle thirty-two. */
+static void placeWild(int slot, int px, int py, int huge) {
+  int x, y;
+  if (huge) {
+    x = px - 24; y = py - 48;
+    placeBeast(slot, x, y, FOE_BEAST_TILE, FOE_BEAST_BANK);
+    return;
+  }
+  x = px - 24; y = py - 32;
+  if (x < -64 || x > SCREEN_W || y < -64 || y > SCREEN_H) { oam[slot * 4] = 0x0200; return; }
+  oam[slot * 4 + 0] = (u16)((y & 0xFF) | 0x0100);             /* square, affine */
+  oam[slot * 4 + 1] = (u16)((x & 0x1FF) | 0xC000 | (1 << 9)); /* 64x64, matrix 1 */
+  oam[slot * 4 + 2] = (u16)(FOE_BEAST_TILE | (1 << 10) | (FOE_BEAST_BANK << 12));
+}
+
 /* A sworn sword, standing where the animal stands.
  *
  * Six men can follow you about and all six were a number added to your blows -
@@ -3224,6 +3283,7 @@ static void enterMap(int id, int tx, int ty, int dir) {
   loadWorldTiles();
   writeScreenblock();
   loadActors();
+  loadWildArt();
   /* After it, deliberately: the hull lives in the twelfth appearance's room
      and loadActors has just filled that room with whoever stands here. On a
      sea there is nobody, so nothing is being painted over. */
@@ -3244,6 +3304,7 @@ static void reloadHousehold(void) {
   settleFolk(worldId);
   REG_DISPCNT = (u16)(was | 0x0080);
   loadActors();
+  loadWildArt();
   if (you.aboard) loadHullArt();
   REG_DISPCNT = was;
 }
@@ -9577,6 +9638,7 @@ static void endDuel(void) {
   loadWorldTiles();
   writeScreenblock();
   loadActors();
+  loadWildArt();
   /* loadActors has just refilled the room the hull lives in. Nothing can start
      a duel out on open water today, but leaving the world half-restored is how
      that stops being true quietly. */
@@ -11757,7 +11819,7 @@ static void tryTalk(void) {
                       "be today.");
         return;
       }
-      wildWanted = npc->wild - 1;
+      wildWanted = (npc->wild & 0x7F) - 1;
       wildLevel = npc->wildAt;
       wildSlot = who;
       callToArms(-1, 0, -1);
@@ -12391,6 +12453,12 @@ static void placeEveryone(void) {
         PLAYER_TILE_BASE + frameOf(&hero, 4) * ACTOR_FRAME_TILES, 0);
     } else {
       int bank = world->npcs[who].bank;
+      int w = world->npcs[who].wild & 0x7F;
+      if (w && wildArt == w - 1) {
+        placeWild(slot, crowd[who].px - camX, crowd[who].py - camY,
+                  world->npcs[who].wild & 0x80);
+        continue;
+      }
       placeObject(slot, crowd[who].px - camX, crowd[who].py - camY - 16,
         NPC_TILE_BASE + bank * NPC_TILE_STRIDE + frameOf(&crowd[who], 2) * ACTOR_FRAME_TILES,
         bank + 1);

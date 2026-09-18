@@ -362,6 +362,19 @@ const report = await page.evaluate(
             + `${dialog.autoCloseAfter > 0 ? ', closing itself' : ''})`);
         }
         const at = s2.player ? ` at ${s2.mapId} ${s2.player.x},${s2.player.y}` : '';
+        /* And what the stack under it looks like, and what a counter screen
+           thinks it is doing. "Sat in Shop with nothing blocking it" said the
+           screen was idle and taking keys and not leaving, which is three
+           facts and no explanation; the stack and the mode are the
+           explanation. */
+        const stack = scenes.stack.map((s) => s.constructor?.name ?? '?').join(' > ');
+        why.push(`stack: ${stack}`);
+        if (scenes.fade?.active) why.push('mid-fade');
+        if (scenes.busy) why.push('the manager is busy');
+        if (here === 'Shop' || here === 'Smithy') {
+          why.push(`mode ${s2.mode}, ${s2.rows?.length ?? '?'} rows, index ${s2.index}, `
+            + `${s2.buying ? 'buying' : 'selling'}, ${st?.player?.money ?? '?'} gold`);
+        }
         finding(`the game sat in ${here}${at} for forty thousand frames`
           + (why.length ? ` (${why.join(', ')})` : ' with nothing blocking it'));
       }

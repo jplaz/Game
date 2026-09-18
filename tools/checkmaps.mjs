@@ -473,7 +473,9 @@ const spawnsOn = (mapId) => {
 };
 for (const [id, map] of Object.entries(MAPS)) {
   const faces = new Set();
-  for (const n of map.npcs ?? []) faces.add(`${n.sprite}|${n.name ?? ''}`);
+  /* An animal has no face of its own resident - the exporter keys every beast
+     to one plain look, since the beast tiles draw it - so six hounds are one. */
+  for (const n of map.npcs ?? []) faces.add(n.beast ? 'smallfolk|' : `${n.sprite}|${n.name ?? ''}`);
   for (const row of map.encounters ?? []) {
     if (row.roamer && ROAMERS[row.roamer]) faces.add(`roamer:${row.roamer}`);
   }

@@ -1074,6 +1074,144 @@ const painters = {
     rect(ctx, 3, 9, 3, 2, '#8c8c98');
   },
 
+  /* ------------------------------------------------- the things in a yard --
+   *
+   * Everything a place is full of when somebody lives in it and nothing was
+   * drawn with: a barrel by the door, a crate on the quay, hay in the pen, a
+   * well in the square, a trough the horses drink from, a cart nobody has put
+   * away, a puddle where the cart stood, a stump where the tree was, a rock
+   * the plough went round, a drift the wind left. Every one of them paints
+   * the ground it stands on underneath itself - and the ground it is handed is
+   * the ground of the tile it replaced, not the map's one idea of ground, so a
+   * barrel in a mud yard on a grassy map stands in mud.
+   *
+   * Every colour here is one the sheet already uses somewhere - the fence, the
+   * chest, the thatch, the water, the snow - because the cartridge has one
+   * palette of two hundred and thirty-nine colours for the whole world and the
+   * frequent ones win the slots; a barrel in a colour of its own would be a
+   * barrel in the nearest colour the cartridge could find. */
+  barrel(ctx, _frame, _mask, ground = painters.grass) {
+    ground(ctx);
+    rect(ctx, 3, 14, 10, 1, '#2c2013');
+    rect(ctx, 4, 3, 8, 11, '#8a6a3e');
+    rect(ctx, 5, 4, 1, 10, '#a8834f');
+    rect(ctx, 10, 4, 1, 10, '#5f4626');
+    rect(ctx, 4, 3, 8, 1, '#9c7a48');
+    rect(ctx, 4, 5, 8, 1, '#3a3a3f');
+    rect(ctx, 4, 11, 8, 1, '#3a3a3f');
+  },
+
+  crate(ctx, _frame, _mask, ground = painters.grass) {
+    ground(ctx);
+    rect(ctx, 3, 14, 10, 1, '#2c2013');
+    rect(ctx, 3, 4, 10, 10, '#9c7a48');
+    rect(ctx, 3, 4, 10, 1, '#a8834f');
+    rect(ctx, 3, 7, 10, 1, '#5f4626');
+    rect(ctx, 3, 10, 10, 1, '#5f4626');
+    rect(ctx, 3, 4, 1, 10, '#5f4626');
+    rect(ctx, 12, 4, 1, 10, '#5f4626');
+    rect(ctx, 4, 5, 1, 1, '#3a3a3f');
+    rect(ctx, 11, 5, 1, 1, '#3a3a3f');
+    rect(ctx, 4, 12, 1, 1, '#3a3a3f');
+    rect(ctx, 11, 12, 1, 1, '#3a3a3f');
+  },
+
+  hay(ctx, _frame, _mask, ground = painters.grass) {
+    ground(ctx);
+    rect(ctx, 3, 14, 10, 1, '#2c2013');
+    rect(ctx, 3, 5, 10, 9, '#997b39');
+    rect(ctx, 4, 5, 8, 2, '#a98a45');
+    rect(ctx, 3, 12, 10, 2, '#7b6029');
+    rect(ctx, 3, 6, 1, 7, '#7b6029');
+    rect(ctx, 5, 5, 1, 9, '#4a3819');
+    rect(ctx, 10, 5, 1, 9, '#4a3819');
+    rect(ctx, 7, 8, 2, 1, '#8a6d31');
+    rect(ctx, 6, 10, 3, 1, '#8a6d31');
+  },
+
+  well(ctx, _frame, _mask, ground = painters.grass) {
+    ground(ctx);
+    rect(ctx, 3, 1, 1, 6, '#5f4626');
+    rect(ctx, 12, 1, 1, 6, '#5f4626');
+    rect(ctx, 3, 1, 10, 1, '#8a6a3e');
+    rect(ctx, 7, 2, 1, 5, '#3a3a3f');
+    rect(ctx, 6, 6, 3, 2, '#5f4626');
+    rect(ctx, 2, 7, 12, 8, '#6a6a76');
+    rect(ctx, 2, 7, 12, 1, '#8c8c98');
+    rect(ctx, 3, 8, 10, 1, '#7c7c88');
+    rect(ctx, 5, 9, 6, 3, '#3a5f8e');
+    rect(ctx, 6, 9, 3, 1, '#4a739f');
+    rect(ctx, 2, 14, 12, 1, '#4a4740');
+  },
+
+  stump(ctx, _frame, _mask, ground = painters.grass) {
+    ground(ctx);
+    rect(ctx, 3, 13, 10, 1, '#2c2013');
+    rect(ctx, 4, 8, 8, 5, '#5f4626');
+    rect(ctx, 4, 8, 1, 5, '#4a3819');
+    rect(ctx, 11, 8, 1, 5, '#4a3819');
+    rect(ctx, 2, 12, 2, 1, '#5f4626');
+    rect(ctx, 12, 12, 2, 1, '#5f4626');
+    rect(ctx, 4, 5, 8, 4, '#a8834f');
+    rect(ctx, 5, 6, 6, 2, '#8a6a3e');
+    rect(ctx, 7, 6, 2, 2, '#5f4626');
+  },
+
+  boulder(ctx, _frame, _mask, ground = painters.grass) {
+    ground(ctx);
+    rect(ctx, 3, 14, 10, 1, '#4a4740');
+    rect(ctx, 3, 5, 10, 9, '#6a6a76');
+    rect(ctx, 4, 4, 7, 1, '#6a6a76');
+    rect(ctx, 4, 5, 5, 3, '#8c8c98');
+    rect(ctx, 5, 8, 7, 3, '#7c7c88');
+    rect(ctx, 3, 12, 10, 2, '#4a4740');
+    rect(ctx, 11, 6, 2, 6, '#4a4740');
+  },
+
+  trough(ctx, _frame, _mask, ground = painters.grass) {
+    ground(ctx);
+    rect(ctx, 1, 7, 14, 1, '#8a6a3e');
+    rect(ctx, 1, 8, 14, 5, '#5f4626');
+    rect(ctx, 2, 9, 12, 3, '#4a739f');
+    rect(ctx, 3, 9, 10, 1, '#5883ae');
+    rect(ctx, 2, 12, 2, 3, '#4a3819');
+    rect(ctx, 12, 12, 2, 3, '#4a3819');
+  },
+
+  puddle(ctx, _frame, _mask, ground = painters.grass) {
+    ground(ctx);
+    rect(ctx, 4, 6, 8, 6, '#4a739f');
+    rect(ctx, 3, 8, 1, 3, '#4a739f');
+    rect(ctx, 12, 7, 1, 3, '#4a739f');
+    rect(ctx, 5, 6, 6, 1, '#3a5f8e');
+    rect(ctx, 5, 11, 6, 1, '#3a5f8e');
+    rect(ctx, 5, 7, 5, 2, '#5883ae');
+  },
+
+  cart(ctx, _frame, _mask, ground = painters.grass) {
+    ground(ctx);
+    rect(ctx, 2, 14, 10, 1, '#2c2013');
+    rect(ctx, 2, 5, 10, 6, '#9c7a48');
+    rect(ctx, 2, 5, 10, 1, '#5f4626');
+    rect(ctx, 2, 10, 10, 1, '#5f4626');
+    rect(ctx, 11, 6, 4, 1, '#8a6a3e');
+    rect(ctx, 11, 8, 4, 1, '#8a6a3e');
+    rect(ctx, 5, 9, 3, 1, '#3a3a3f');
+    rect(ctx, 4, 10, 5, 4, '#3a3a3f');
+    rect(ctx, 5, 14, 3, 1, '#3a3a3f');
+    rect(ctx, 6, 11, 1, 2, '#8c8c98');
+  },
+
+  drift(ctx, _frame, _mask, ground = painters.snow) {
+    ground(ctx);
+    rect(ctx, 2, 8, 12, 6, '#bccadd');
+    rect(ctx, 4, 7, 7, 1, '#bccadd');
+    rect(ctx, 3, 7, 6, 2, '#c4dcd0');
+    rect(ctx, 2, 13, 12, 1, '#a6b6cc');
+    rect(ctx, 12, 9, 2, 5, '#a6b6cc');
+    rect(ctx, 5, 11, 4, 1, '#a6b6cc');
+  },
+
   /* -------------------------------------------------------- a dragon, drawn --
    *
    * There was not one anywhere in this world you could look at. There were
@@ -1275,6 +1413,18 @@ export const TILE_DEFS = {
   'N': { paint: painters.ravenCage, kind: 'solid' },
   'h': { paint: painters.hearth, kind: 'solid' },
   'U': { paint: painters.rubble, kind: 'solid' },
+  /* What a yard is full of. All of these stand on the ground they replaced -
+     see GROUND_OF_CHAR - and the puddle is the one you walk through. */
+  'O': { paint: painters.barrel, kind: 'solid', grounded: true },
+  '[': { paint: painters.crate, kind: 'solid', grounded: true },
+  '$': { paint: painters.hay, kind: 'solid', grounded: true },
+  '0': { paint: painters.well, kind: 'solid', grounded: true },
+  ')': { paint: painters.stump, kind: 'solid', grounded: true },
+  '(': { paint: painters.boulder, kind: 'solid', grounded: true },
+  ']': { paint: painters.trough, kind: 'solid', grounded: true },
+  '?': { paint: painters.puddle, kind: 'floor', grounded: true },
+  '>': { paint: painters.cart, kind: 'solid', grounded: true },
+  '"': { paint: painters.drift, kind: 'solid', grounded: true },
   '%': { paint: painters.caveFloor, kind: 'floor', varies: true },
   '&': { paint: painters.scree, kind: 'encounter', rate: 0.55, varies: true },
   '@': { paint: painters.caveWall, kind: 'solid', autotile: true },
@@ -1354,6 +1504,24 @@ export const GROUNDS = {
   // until now there was no way for a map to say so — so a chest standing in
   // a cottage in the Riverlands was standing on a lawn.
   wood: (ctx) => painters.floorWood(ctx),
+};
+
+/**
+ * The ground a floor character is, by name, for anything grounded that has
+ * been stood on it. A map declares one ground and everything grounded on it
+ * used to paint that one ground underneath itself - so a barrel set down in
+ * the mud yard of a grassy map came up standing on a lawn. The dressing pass
+ * in data/maps.js writes down what each thing it sets down replaced, and this
+ * turns that character back into the ground it was.
+ */
+export const GROUND_OF_CHAR = {
+  '.': 'grass', ',': 'grass', '*': 'grass',
+  'S': 'snow', ';': 'snow', 'i': 'snow',
+  's': 'sand',
+  'o': 'stone', '=': 'stone',
+  'd': 'earth', '-': 'earth',
+  '%': 'cave',
+  '_': 'wood',
 };
 
 /** Returns the painted canvas for a tile at a given frame, mask and ground. */

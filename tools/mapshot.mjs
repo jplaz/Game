@@ -82,7 +82,9 @@ const shot = await page.evaluate(async ({ mapId, win }) => {
     for (let x = 0; x < ww; x++) {
       const mx = wx + x, my = wy + y;
       const char = at(mx, my);
-      g.drawImage(tileCanvas(char, 0, mask(char, mx, my), ground, pixels.variantFor(mx, my, 4)),
+      const was = map.under?.[my]?.[mx];
+      g.drawImage(tileCanvas(char, 0, mask(char, mx, my),
+        (was && tiles.GROUND_OF_CHAR[was]) || ground, pixels.variantFor(mx, my, 4)),
         x * TILE, y * TILE);
     }
   }

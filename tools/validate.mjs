@@ -318,6 +318,49 @@ for (const [mapId, map] of Object.entries(MAPS)) {
       + 'no cover for any of them to be met on');
   }
 
+  /* Ground that is nothing but the way to other ground. A tile with all eight
+     of its neighbours the same floor is deep inside a flat block, and a map
+     where a quarter of the floor is like that is a map drawn from the air:
+     buildings and roads and nothing at street level. Ten maps were, before
+     the dressing pass; the worst was the Stone Crows' hold at forty-one per
+     cent. Only asked of maps with room to be empty in. */
+  if (!map.indoor && !map.sea && mapId !== 'holdfast' && mapId !== 'holdfastYard') {
+    const FLOOR = '.Sdso-i=';
+    let floor = 0, deep = 0;
+    for (let y = 0; y < map.height; y++) {
+      for (let x = 0; x < map.width; x++) {
+        const c = map.grid[y][x];
+        if (!FLOOR.includes(c)) continue;
+        floor++;
+        let same = true;
+        for (let dy = -1; dy <= 1 && same; dy++) {
+          for (let dx = -1; dx <= 1; dx++) if (map.grid[y + dy]?.[x + dx] !== c) { same = false; break; }
+        }
+        if (same) deep++;
+      }
+    }
+    if (floor >= 100 && deep * 4 > floor) {
+      fail(`map ${mapId}: ${Math.round(deep / floor * 100)}% of the ground is deep inside one flat block`);
+    }
+  }
+  /* And what the dressing pass wrote down about the ground under what it set
+     down has to be the shape of the map, or the drawing reads it off by a row. */
+  if (map.under) {
+    if (map.under.length !== map.height || map.under.some((row) => row.length !== map.width)) {
+      fail(`map ${mapId}: the under-floor record is not the shape of the map`);
+    }
+    for (let y = 0; y < map.height; y++) {
+      for (let x = 0; x < map.width; x++) {
+        const was = map.under[y]?.[x];
+        if (!was || was === ' ') continue;
+        if (!'.Sdso-i=%_'.includes(was)) fail(`map ${mapId}: "${was}" under ${x},${y} is not a floor`);
+        if (!TILE_DEFS[map.grid[y][x]]?.grounded) {
+          fail(`map ${mapId}: ${x},${y} records what was under it and does not stand on the ground`);
+        }
+      }
+    }
+  }
+
   const seenFlags = new Set();
   for (const it of map.items ?? []) {
     /* A purse is not a thing with a name. Some of what is hidden round the

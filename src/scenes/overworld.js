@@ -1,6 +1,6 @@
 // The overworld: grid movement, collision, warps, NPCs, trainers, encounters.
 
-import { TILE, tileCanvas, tileDef, TILE_GROUP, N, E, S, W } from '../art/tiles.js';
+import { TILE, tileCanvas, tileDef, TILE_GROUP, N, E, S, W, GROUND_OF_CHAR } from '../art/tiles.js';
 import { variantFor } from '../art/pixels.js';
 import { drawActor, ACTOR_H } from '../art/actors.js';
 import { playerAppearance } from '../game/player.js';
@@ -1895,8 +1895,8 @@ export class Overworld {
     for (let y = startY; y <= endY; y++) {
       for (let x = startX; x <= endX; x++) {
         const char = tileAt(this.map, x, y);
-        ctx.drawImage(tileCanvas(char, this.animFrame, this.neighbourMask(char, x, y), this.map.ground,
-          variantFor(x, y, 4)),
+        ctx.drawImage(tileCanvas(char, this.animFrame, this.neighbourMask(char, x, y),
+          this.groundAt(x, y), variantFor(x, y, 4)),
           x * TILE - camX, y * TILE - camY);
       }
     }
@@ -2075,13 +2075,21 @@ export class Overworld {
     for (const d of drawables) d.draw();
   }
 
+  /* The ground under a tile: the map's, unless something was stood on this
+     tile by the dressing pass, in which case it is whatever that thing
+     replaced - so a barrel in a mud yard on a grassy map stands in mud. */
+  groundAt(x, y) {
+    const was = this.map.under?.[y]?.[x];
+    return (was && GROUND_OF_CHAR[was]) || this.map.ground;
+  }
+
   /** Redraws the top of tall grass over anyone standing in it. */
   drawGrassOverlay(ctx, camX, camY) {
     const check = (tileX, tileY, pixelX, pixelY) => {
       const char = tileAt(this.map, tileX, tileY);
       if (tileDef(char).kind !== 'encounter') return;
       const canvas = tileCanvas(char, this.animFrame, this.neighbourMask(char, tileX, tileY),
-        this.map.ground, variantFor(tileX, tileY, 4));
+        this.groundAt(tileX, tileY), variantFor(tileX, tileY, 4));
       ctx.drawImage(canvas, 0, 8, TILE, 8, pixelX, pixelY + 8, TILE, 8);
     };
     const px = this.playerPixel();

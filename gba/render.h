@@ -38,7 +38,7 @@ static void toRgb(unsigned short c, unsigned char *out) {
 
 /* Mode 0 as this cartridge configures it: BG0 eight bits a pixel from
    charblock 0, BG1 four bits a pixel from charblock 2, objects four bits a pixel
-   one-dimensionally mapped, some of them scaled through affine set 0. */
+   one-dimensionally mapped, some of them scaled through the affine set each names. */
 
 static unsigned char bg8(unsigned chr, int tile, int x, int y) {
   return *((const unsigned char *)HW(0x06000000u + chr * 0x4000u) + tile * 64 + y * 8 + x);
@@ -110,8 +110,13 @@ static void snapshot(const char *name) {
           bank = (a[2] >> 12) & 15;
           px = x - ox; py = y - oy;
           if (a[0] & 0x0100) {
-            /* Affine set 0, which is all this cartridge uses. */
-            int pa = (short)oamHw[3], pd = (short)oamHw[15];
+            /* Through whichever affine set the object names. This read set 0
+               for everything when set 0 was all the cartridge used; a wild
+               animal on a map goes through set 1 at half size, and drawn
+               through set 0 it came out full size in the pictures and half
+               size on the hardware, which is the one thing a picture is for. */
+            int set = (a[1] >> 9) & 31;
+            int pa = (short)oamHw[set * 16 + 3], pd = (short)oamHw[set * 16 + 15];
             int sx = px - boxW / 2, sy = py - boxH / 2;
             px = ((pa * sx) >> 8) + sprW / 2;
             py = ((pd * sy) >> 8) + sprH / 2;

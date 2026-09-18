@@ -1524,6 +1524,30 @@ export const GROUND_OF_CHAR = {
   '_': 'wood',
 };
 
+/**
+ * The ground a grounded thing at x,y stands on. What the dressing pass set it
+ * down on, if it did; otherwise the floor most of its four neighbours are, the
+ * one below it first; otherwise the map's own ground. Every fence in the Bolton
+ * kennels stood on a square of snow in a mud yard, because a fence painted the
+ * map's ground under itself and the map is a snowfield with a yard dug into
+ * it - and every sign on a paved road and every chest on a cottage floor was
+ * the same fault in a different place.
+ */
+export function groundUnder(map, x, y) {
+  const was = map.under?.[y]?.[x];
+  if (was && GROUND_OF_CHAR[was]) return GROUND_OF_CHAR[was];
+  const grid = map.grid ?? map.tiles;
+  const counts = {};
+  let best = null;
+  for (const [dx, dy] of [[0, 1], [0, -1], [-1, 0], [1, 0]]) {
+    const g = GROUND_OF_CHAR[grid?.[y + dy]?.[x + dx]];
+    if (!g) continue;
+    counts[g] = (counts[g] ?? 0) + 1;
+    if (best === null || counts[g] > counts[best]) best = g;
+  }
+  return best ?? map.ground ?? 'grass';
+}
+
 /** Returns the painted canvas for a tile at a given frame, mask and ground. */
 export function tileCanvas(char, frame = 0, mask = 0, ground = 'grass', variant = 0) {
   const def = TILE_DEFS[char] ?? TILE_DEFS['.'];

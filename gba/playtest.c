@@ -2161,9 +2161,19 @@ void hostFrame(void) {
          picture of Moat Cailin in this repository for as long as it has been
          in it. A name does not shift when somebody adds a map. */
       else if (!windowOpen && !hero.walk && world) {
+        int k, wildSeen = 0;
         if (!strcmp(world->name, "Castle Black")) catchOnce("23-castle-black");
         else if (!strcmp(world->name, "Moat Cailin")) catchOnce("24-moat-cailin");
         else if (!strcmp(world->name, "Riverrun")) catchOnce("25-riverrun");
+        else if (!strcmp(world->name, "The Bolton Kennels")) catchOnce("27-the-kennels");
+        /* And an animal on the road, drawn as one. Every wild thing on a map
+           was drawn as a peasant for as long as the cartridge had wild things;
+           this is the picture that says whether it still is. */
+        for (k = 0; k < world->npcCount && !wildSeen; k++) {
+          int sx = crowd[k].px - camX, sy = crowd[k].py - camY;
+          if ((world->npcs[k].wild & 0x7F) && sx >= 24 && sx < 216 && sy >= 32 && sy < 144) wildSeen = 1;
+        }
+        if (wildSeen) catchOnce("26-a-wild-one-on-the-road");
       }
     }
   }

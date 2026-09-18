@@ -77,14 +77,12 @@ const shot = await page.evaluate(async ({ mapId, win }) => {
   const c = document.createElement('canvas');
   c.width = ww * TILE; c.height = wh * TILE;
   const g = c.getContext('2d', { willReadFrequently: true });
-  const ground = map.ground ?? 'grass';
   for (let y = 0; y < wh; y++) {
     for (let x = 0; x < ww; x++) {
       const mx = wx + x, my = wy + y;
       const char = at(mx, my);
-      const was = map.under?.[my]?.[mx];
       g.drawImage(tileCanvas(char, 0, mask(char, mx, my),
-        (was && tiles.GROUND_OF_CHAR[was]) || ground, pixels.variantFor(mx, my, 4)),
+        tiles.groundUnder(map, mx, my), pixels.variantFor(mx, my, 4)),
         x * TILE, y * TILE);
     }
   }

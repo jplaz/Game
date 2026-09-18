@@ -1030,11 +1030,9 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
       for (let x = 0; x < width; x++) {
         const char = chestAt.has(`${x},${y}`) ? 'j' : (map.grid[y][x] ?? '.');
         /* On the ground it replaced, where the dressing pass set something
-           down; on the map's own ground everywhere else. */
-        const was = map.under?.[y]?.[x];
+           down; on the ground around it everywhere else. */
         const canvas = tileCanvas(char, 0, maskFor(map, char, x, y),
-          (was && tiles.GROUND_OF_CHAR[was]) || map.ground || 'grass',
-          pixels.variantFor(x, y, 4));
+          tiles.groundUnder(map, x, y), pixels.variantFor(x, y, 4));
         const px = read(canvas);
         if (tint && LIVING.has(char)) {
           for (let q = 0; q < px.length; q += 4) {

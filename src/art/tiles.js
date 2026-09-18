@@ -1129,19 +1129,29 @@ const painters = {
     rect(ctx, 6, 10, 3, 1, '#8a6d31');
   },
 
+  /* A ring of stone with a dark mouth, two posts, a little roof, and a
+     bucket on a rope over the hole. The first drawing was a grey box with
+     blue in it, which is a trough with a frame on top. */
   well(ctx, _frame, _mask, ground = painters.grass) {
     ground(ctx);
-    rect(ctx, 3, 1, 1, 6, '#5f4626');
-    rect(ctx, 12, 1, 1, 6, '#5f4626');
-    rect(ctx, 3, 1, 10, 1, '#8a6a3e');
-    rect(ctx, 7, 2, 1, 5, '#3a3a3f');
-    rect(ctx, 6, 6, 3, 2, '#5f4626');
-    rect(ctx, 2, 7, 12, 8, '#6a6a76');
-    rect(ctx, 2, 7, 12, 1, '#8c8c98');
-    rect(ctx, 3, 8, 10, 1, '#7c7c88');
-    rect(ctx, 5, 9, 6, 3, '#3a5f8e');
-    rect(ctx, 6, 9, 3, 1, '#4a739f');
-    rect(ctx, 2, 14, 12, 1, '#4a4740');
+    rect(ctx, 3, 14, 10, 1, '#4a4740');                   // shadow
+    rect(ctx, 3, 8, 10, 6, '#6a6a76');                    // the ring
+    rect(ctx, 2, 9, 12, 4, '#6a6a76');
+    rect(ctx, 4, 8, 8, 1, '#8c8c98');                     // lit rim
+    rect(ctx, 2, 9, 1, 3, '#8c8c98');
+    rect(ctx, 3, 13, 10, 1, '#4a4740');                   // shaded base
+    rect(ctx, 13, 10, 1, 3, '#4a4740');
+    rect(ctx, 5, 9, 6, 3, '#1e1e24');                     // the mouth
+    rect(ctx, 6, 9, 4, 1, '#2c2c34');
+    rect(ctx, 3, 3, 1, 6, '#5f4626');                     // posts
+    rect(ctx, 12, 3, 1, 6, '#5f4626');
+    rect(ctx, 5, 0, 6, 1, '#8a6a3e');                     // the roof
+    rect(ctx, 3, 1, 10, 1, '#a8834f');
+    rect(ctx, 2, 2, 12, 1, '#8a6a3e');
+    rect(ctx, 4, 4, 8, 1, '#3a3a3f');                     // the windlass
+    rect(ctx, 7, 5, 1, 3, '#c9b48a');                     // the rope
+    rect(ctx, 6, 7, 3, 2, '#5f4626');                     // the bucket
+    rect(ctx, 6, 7, 3, 1, '#8a6a3e');
   },
 
   stump(ctx, _frame, _mask, ground = painters.grass) {

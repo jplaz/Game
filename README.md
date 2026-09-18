@@ -157,6 +157,8 @@ bitmap with real descenders.
 
 ```bash
 npm run validate
+npm run check      # lint, validate, the map checks, and every scripted driver
+npm run drivers    # the scripted drivers alone: a counter, a duel, the menu, the last act...
 ```
 
 `tools/validate.mjs` walks the world tables and catches the class of mistake a browser

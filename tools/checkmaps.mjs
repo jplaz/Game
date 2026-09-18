@@ -8,7 +8,7 @@
 // is a wall too - roamers step aside, but a stationary body in a one-tile
 // corridor closes the road for good.
 import { MAPS, WALKABLE } from '/home/user/Game/src/data/maps.js';
-import { TILE_DEFS } from '/home/user/Game/src/art/tiles.js';
+import { TILE_DEFS, GROUND_OF_CHAR } from '/home/user/Game/src/art/tiles.js';
 import { PORTS, PORT_MAPS } from '/home/user/Game/src/data/ports.js';
 import { ROAMERS } from '/home/user/Game/src/data/duellists.js';
 import { CUTSCENES } from '/home/user/Game/src/data/cutscenes.js';
@@ -418,16 +418,26 @@ for (const [id, map] of Object.entries(MAPS)) {
  *
  * A map with nothing green anywhere in it and no ground of its own is the
  * shape of that mistake, so that is the question asked. */
-const GROUNDED = Object.entries(TILE_DEFS)
-  .filter(([, d]) => d.grounded).map(([c]) => c);
-const GREENERY = new Set([...'.,*']);
+/* A grounded thing takes the ground the dressing pass wrote down under it,
+   or the floor beside it, before it falls through to the map's own - so the
+   question is only asked of the ones with neither: nothing recorded under
+   them and no floor on any of their four sides. */
 for (const [id, map] of Object.entries(MAPS)) {
   if (map.ground) continue;
-  const chars = new Set(map.grid.flatMap((r) => [...r]));
-  if ([...chars].some((c) => GREENERY.has(c))) continue;
-  const on = GROUNDED.filter((c) => chars.has(c));
-  if (!on.length) continue;
-  say(`${id}: names no ground, so '${on.join("' '")}' will be drawn standing on grass`);
+  /* And after all of that, the floor most of the map is - so only a map with
+     no floor anywhere on it can still fall through to grass. */
+  if (map.grid.some((row) => [...row].some((c) => GROUND_OF_CHAR[c]))) continue;
+  const on = new Set();
+  map.grid.forEach((row, y) => [...row].forEach((c, x) => {
+    if (!TILE_DEFS[c]?.grounded) return;
+    if (GROUND_OF_CHAR[map.under?.[y]?.[x]]) return;
+    for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+      if (GROUND_OF_CHAR[map.grid[y + dy]?.[x + dx]]) return;
+    }
+    on.add(c);
+  }));
+  if (!on.size) continue;
+  say(`${id}: names no ground, so '${[...on].join("' '")}' will be drawn standing on grass`);
 }
 
 /* And the berths. A port names a tile on a map, and a ship puts you down on it

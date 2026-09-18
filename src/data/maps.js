@@ -11494,6 +11494,8 @@ export const DRESSING = {
   '-': ['?'],
   'o': ['O', '[', '>', 'O', '(', '?'],
   '=': ['O', '[', 'O', '?'],
+  /* Boards, indoors: a barrel or a crate against the wall of a room. */
+  '_': ['O', '[', 'O', '['],
   's': ['(', '[', 'O', '('],
   'i': ['('],
 };
@@ -11512,7 +11514,9 @@ const DRESSING_SELF = new Set(['i']);
 function dressGround() {
   let placed = 0, dressed = 0;
   for (const [id, map] of Object.entries(MAPS)) {
-    if (map.indoor || map.sea) continue;
+    /* Indoors as well: a cave takes rocks, a room takes a barrel or a crate
+       against its wall. A hall that can be bought is drawn bare on purpose. */
+    if (map.sea || map.seat) continue;
     /* Your own ground is yours to fill: the hall and the yard you take off the
        squatter are drawn bare because arranging them is what owning them is. */
     if (id === 'holdfast' || id === 'holdfastYard') continue;
@@ -11618,7 +11622,7 @@ function dressGround() {
       for (let x = 1; x < w - 1; x++) {
         const c = rows[y][x];
         if (!DRESSING[c] || off.has(`${x},${y}`) || !was.seen[y * w + x]) continue;
-        if (c === 'o' || c === '=') {
+        if (c === 'o' || c === '=' || c === '_') {
           let same = 0, built = 0;
           for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
             if (rows[y + dy][x + dx] === c) same++;
@@ -11626,6 +11630,8 @@ function dressGround() {
           }
           for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (solidAt(x + dx, y + dy)) built++;
           if (same < 2) continue;
+          /* Nothing stands in the open on the floor of a room. */
+          if (!built && (map.indoor || !DRESSING_OPEN[c])) continue;
           /* Out in the open a paved yard takes only what DRESSING_OPEN allows,
              or a courtyard is a courtyard with its middle empty. */
           cands.push({ x, y, c, open: !built });
@@ -11657,7 +11663,9 @@ function dressGround() {
        and looked as empty as a yard with none. */
     let ground = 0;
     for (const row of rows) for (const c of row) if (DRESSING[c]) ground++;
-    const want = Math.min(20, Math.max(2, Math.round(ground / 25)));
+    const want = map.indoor
+      ? Math.min(6, Math.max(1, Math.round(ground / 40)))
+      : Math.min(20, Math.max(2, Math.round(ground / 25)));
     let seed = roomSeed(id);
     const next = () => { seed = (Math.imul(seed ^ (seed >>> 13), 1274126177) >>> 0); return seed; };
     /* A well only where people live, and only one of them. */
@@ -11675,7 +11683,9 @@ function dressGround() {
       if (taken.some((t) => Math.max(Math.abs(t.x - cd.x), Math.abs(t.y - cd.y)) < 3)) continue;
       if ((cd.c === ',' || cd.c === ';') && (cover < 20 || coverSpent * 4 >= cover)) continue;
       if (cd.c === ',' || cd.c === ';') coverSpent++;
-      const kinds = cd.open ? DRESSING_OPEN[cd.c] : DRESSING[cd.c];
+      /* And no puddle on the floor of a room, though a cave may be damp. */
+      const kinds = (cd.open ? DRESSING_OPEN[cd.c] : DRESSING[cd.c])
+        .filter((k) => k !== '?' || !map.indoor || cd.c === '%');
       let k = kinds[next() % kinds.length];
       if (settled && !well && 'do.'.includes(cd.c) && next() % 3 === 0) { k = '0'; well = 1; }
       rows[cd.y][cd.x] = k;

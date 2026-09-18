@@ -604,8 +604,8 @@ const painters = {
      full. */
 
   /* An anvil on its oak block, the way one actually stands. */
-  anvil(ctx) {
-    painters.floorStone(ctx);
+  anvil(ctx, _frame, _mask, ground = GROUNDS.flag) {
+    ground(ctx);
     rect(ctx, 4, 10, 8, 6, '#5b4023');        // the oak block it stands on
     rect(ctx, 4, 10, 8, 1, '#8a5f33');
     rect(ctx, 4, 15, 8, 1, '#2c2013');
@@ -637,8 +637,8 @@ const painters = {
   },
 
   /* A rack of spears and blades stood against the wall. */
-  armsRack(ctx) {
-    painters.floorStone(ctx);
+  armsRack(ctx, _frame, _mask, ground = GROUNDS.flag) {
+    ground(ctx);
     rect(ctx, 0, 12, TILE, 3, '#4a3722');     // the trestle
     rect(ctx, 0, 12, TILE, 1, '#6b5334');
     rect(ctx, 0, 1, TILE, 2, '#4a3722');      // and the rail it leans on
@@ -652,8 +652,8 @@ const painters = {
   },
 
   /* A raven in a wicker cage: what a maester's hall has that nothing else does. */
-  ravenCage(ctx) {
-    painters.floorStone(ctx);
+  ravenCage(ctx, _frame, _mask, ground = GROUNDS.flag) {
+    ground(ctx);
     rect(ctx, 2, 2, 12, 13, '#5b4023');
     rect(ctx, 3, 3, 10, 11, '#241f1c');
     rect(ctx, 2, 2, 12, 2, '#8a5f33');        // the hoop
@@ -1008,11 +1008,23 @@ const painters = {
     rect(ctx, 0, 3, TILE, 10, '#b08a38');
   },
 
-  table(ctx) {
-    painters.floorWood(ctx);
-    rect(ctx, 1, 2, 14, 12, '#6d4a28');
-    rect(ctx, 2, 3, 12, 10, '#96683a');
-    rect(ctx, 3, 4, 10, 2, '#a9784a');
+  /* A table: a top with a lit edge, two legs showing under it, a shadow, and
+     a trencher on it. It was a brown square on a square of boards, which in
+     a stone-floored inn was a crate on a mat. */
+  table(ctx, _frame, _mask, ground = GROUNDS.wood) {
+    ground(ctx);
+    rect(ctx, 2, 14, 12, 1, '#2c2013');                   // shadow
+    rect(ctx, 2, 9, 2, 5, '#5b3f24');                     // legs
+    rect(ctx, 12, 9, 2, 5, '#5b3f24');
+    rect(ctx, 3, 9, 1, 5, '#4a3219');
+    rect(ctx, 13, 9, 1, 5, '#4a3219');
+    rect(ctx, 1, 3, 14, 7, '#96683a');                    // the top
+    rect(ctx, 1, 3, 14, 1, '#b08650');
+    rect(ctx, 1, 9, 14, 1, '#6d4a28');
+    rect(ctx, 1, 4, 1, 5, '#a9784a');
+    rect(ctx, 6, 5, 4, 3, '#c9b48a');                     // a trencher
+    rect(ctx, 7, 6, 2, 1, '#8a6a3e');
+    rect(ctx, 12, 5, 1, 2, '#6a6a76');                    // and a cup
   },
 
   bookshelf(ctx) {
@@ -1028,8 +1040,8 @@ const painters = {
     }
   },
 
-  bed(ctx) {
-    painters.floorWood(ctx);
+  bed(ctx, _frame, _mask, ground = GROUNDS.wood) {
+    ground(ctx);
     rect(ctx, 2, 1, 12, 14, '#6d4a28');
     rect(ctx, 3, 2, 10, 12, '#d8d2c4');
     rect(ctx, 3, 2, 10, 4, '#f2eee4');
@@ -1037,8 +1049,8 @@ const painters = {
     rect(ctx, 3, 7, 10, 1, '#7fa4cc');
   },
 
-  stairs(ctx) {
-    painters.floorStone(ctx);
+  stairs(ctx, _frame, _mask, ground = GROUNDS.flag) {
+    ground(ctx);
     for (let i = 0; i < 4; i++) {
       const y = i * 4;
       rect(ctx, 0, y, TILE, 4, i % 2 ? '#7c8090' : '#9aa0b0');
@@ -1046,8 +1058,8 @@ const painters = {
     }
   },
 
-  throne(ctx) {
-    painters.floorStone(ctx);
+  throne(ctx, _frame, _mask, ground = GROUNDS.flag) {
+    ground(ctx);
     rect(ctx, 2, 1, 12, 15, '#4a4a54');
     rect(ctx, 3, 2, 10, 13, '#6a6a76');
     // A tangle of blades.
@@ -1058,8 +1070,8 @@ const painters = {
     rect(ctx, 4, 9, 8, 5, '#3c3c46');
   },
 
-  brazier(ctx) {
-    painters.floorStone(ctx);
+  brazier(ctx, _frame, _mask, ground = GROUNDS.flag) {
+    ground(ctx);
     rect(ctx, 5, 9, 6, 6, '#4a4038');
     rect(ctx, 4, 8, 8, 2, '#6a5c4c');
     rect(ctx, 6, 4, 4, 5, '#e06a20');
@@ -1411,16 +1423,16 @@ export const TILE_DEFS = {
   'c': { paint: painters.carpet, kind: 'floor' },
   'I': { paint: painters.interiorWall, kind: 'solid' },
   'K': { paint: painters.counter, kind: 'solid' },
-  'T': { paint: painters.table, kind: 'solid' },
+  'T': { paint: painters.table, kind: 'solid', grounded: true },
   'B': { paint: painters.bookshelf, kind: 'solid' },
-  'b': { paint: painters.bed, kind: 'floor' },
-  '<': { paint: painters.stairs, kind: 'floor' },
-  'X': { paint: painters.throne, kind: 'solid' },
-  'F': { paint: painters.brazier, kind: 'solid' },
-  'a': { paint: painters.anvil, kind: 'solid' },
+  'b': { paint: painters.bed, kind: 'floor', grounded: true },
+  '<': { paint: painters.stairs, kind: 'floor', grounded: true },
+  'X': { paint: painters.throne, kind: 'solid', grounded: true },
+  'F': { paint: painters.brazier, kind: 'solid', grounded: true },
+  'a': { paint: painters.anvil, kind: 'solid', grounded: true },
   'x': { paint: painters.forgeHearth, kind: 'solid' },
-  'l': { paint: painters.armsRack, kind: 'solid' },
-  'N': { paint: painters.ravenCage, kind: 'solid' },
+  'l': { paint: painters.armsRack, kind: 'solid', grounded: true },
+  'N': { paint: painters.ravenCage, kind: 'solid', grounded: true },
   'h': { paint: painters.hearth, kind: 'solid' },
   'U': { paint: painters.rubble, kind: 'solid' },
   /* What a yard is full of. All of these stand on the ground they replaced -
@@ -1565,7 +1577,19 @@ export function groundUnder(map, x, y, at = null) {
     counts[g] = (counts[g] ?? 0) + 1;
     if (best === null || counts[g] > counts[best]) best = g;
   }
-  return best ?? map.ground ?? 'grass';
+  if (best !== null) return best;
+  if (map.ground) return map.ground;
+  /* Nothing on any side and no ground named: the floor most of the map is,
+     so a table in a block of tables stands on the room's own boards or flags
+     rather than on grass. Counted once per map. */
+  if (map.mostlyGround === undefined) {
+    const tally = {};
+    for (const row of grid ?? []) for (const c of row) { const g = GROUND_OF_CHAR[c]; if (g) tally[g] = (tally[g] ?? 0) + 1; }
+    let top = null;
+    for (const g in tally) if (top === null || tally[g] > tally[top]) top = g;
+    Object.defineProperty(map, 'mostlyGround', { value: top, enumerable: false, writable: true });
+  }
+  return map.mostlyGround ?? 'grass';
 }
 
 /* The autotile group each ground belongs to, for the join rule below. */

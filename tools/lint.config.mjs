@@ -17,6 +17,7 @@ export default [{
     sourceType: 'module',
     globals: {
       window: 'readonly', document: 'readonly', console: 'readonly', performance: 'readonly',
+      btoa: 'readonly',
       requestAnimationFrame: 'readonly', cancelAnimationFrame: 'readonly',
       setTimeout: 'readonly', clearTimeout: 'readonly', setInterval: 'readonly', clearInterval: 'readonly',
       localStorage: 'readonly', navigator: 'readonly', location: 'readonly', fetch: 'readonly',

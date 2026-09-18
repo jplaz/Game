@@ -34,10 +34,10 @@ HOSTFLAGS="-DHOST_TEST -O1 -Wall -Wno-unused-function"
 # everybody's time, and there was no way to tell them apart at all until now.
 printf '#define BUILD_STAMP "%s"\n' "$(date -u +%Y-%m-%d\ %H:%M)" > build.h
 
-# The two checks that cost a second here and half an hour at the far end, run
+# The two checks that cost a second here and much longer at the far end, run
 # BEFORE the export rather than after it -- they were below it, which is a
-# perfectly good place to be told the world is broken twenty-five minutes after
-# you could have been told.
+# perfectly good place to be told the world is broken after the export rather
+# than before it.
 #
 # The audit at the end of this script finds both of these too, but wearing a
 # disguise: it floods each map from the tile the house that lives there starts
@@ -56,13 +56,15 @@ if [ ! -f data.h ] || [ -n "$(find ../src ../tools export.mjs -newer data.h 2>/d
   echo "data.h is behind the sources. Re-exporting."
   # export.mjs serves the repository over http for the browser painters, so it
   # has to be run from the root rather than from here.
-  # The heap: thirteen towns grew by half and Winterfell nearly tripled, and
-  # the default eight gigabytes stopped being enough on the build that did it.
-  ( cd .. && node --max-old-space-size=13000 gba/export.mjs )
+  # This used to want thirteen gigabytes of heap and eighteen minutes, all of
+  # it spent carrying a hundred million pixel values across from the page one
+  # number at a time. The pictures cross as base64 now: half a minute, six
+  # hundred megabytes, and the default heap is plenty.
+  ( cd .. && node gba/export.mjs )
 fi
 
 # Every file the exporter reads, parsed before the browser gets near it. A
-# broken quote in one of them used to surface twenty-five minutes into an export
+# broken quote in one of them used to surface at the far end of an export
 # as "Unexpected identifier" from inside page.evaluate, with no file and no line;
 # node --check names both in under a second.
 for f in ../src/data/*.js ../src/art/*.js; do

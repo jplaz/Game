@@ -1846,8 +1846,36 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
 
   out.actors = actorList;
   console.log('export: harvest assembled in the page');
+
+  /* Every picture crosses to node as one string of base64 rather than as an
+     array of a thousand numbers. Painting the whole world takes twenty-two
+     seconds; carrying it across as a hundred million separate numbers took
+     seventeen minutes and thirteen gigabytes, which was the entire cost of a
+     build, and the reason a build could not be run beside anything else. */
+  const pack = (bytes) => {
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 8192) {
+      s += String.fromCharCode.apply(null, bytes.slice(i, i + 8192));
+    }
+    return btoa(s);
+  };
+  for (const map of out.maps) {
+    map.cells = map.cells.map(pack);
+    map.spare = (map.spare ?? []).map(pack);
+  }
+  for (const a of [...out.actors, ...out.beasts, ...out.hulls]) a.frames = a.frames.map(pack);
+  console.log('export: harvest packed');
   return out;
 }, { mapIds: MAP_IDS });
+
+/* And back into bytes. A Buffer is a Uint8Array, and everything below reads
+   a picture by indexing it, which is the same on either. */
+const unpack = (s) => Buffer.from(s, 'base64');
+for (const map of harvest.maps) {
+  map.cells = map.cells.map(unpack);
+  map.spare = map.spare.map(unpack);
+}
+for (const a of [...harvest.actors, ...harvest.beasts, ...harvest.hulls]) a.frames = a.frames.map(unpack);
 stamp('harvest back in node');
 
 // The font is compiled inside font.js; re-read it through the same module.

@@ -360,6 +360,12 @@ const report = await page.evaluate(
             + `${dialog.pages?.length ?? '?'}, ${Math.floor(dialog.revealed ?? 0)} letters shown`
             + `${dialog.choice ? ', asking a question' : ''}`
             + `${dialog.autoCloseAfter > 0 ? ', closing itself' : ''})`);
+        } else if (dialog) {
+          /* A box that is shut can still have somebody waiting on it. */
+          why.push(`box ${dialog.visible ? 'standing' : 'shut'}`
+            + `${dialog.resolve ? ', somebody waiting on it' : ''}`
+            + `${dialog.choiceResolve ? ', a question waiting' : ''}`
+            + `, last "${(dialog.pages?.[dialog.pageIndex] ?? []).join(' ').slice(0, 40)}"`);
         }
         const at = s2.player ? ` at ${s2.mapId} ${s2.player.x},${s2.player.y}` : '';
         /* And what the stack under it looks like, and what a counter screen
@@ -374,6 +380,21 @@ const report = await page.evaluate(
         if (here === 'Shop' || here === 'Smithy') {
           why.push(`mode ${s2.mode}, ${s2.rows?.length ?? '?'} rows, index ${s2.index}, `
             + `${s2.buying ? 'buying' : 'selling'}, ${st?.player?.money ?? '?'} gold`);
+        }
+        /* And, for any scene, every plain field it has: a duel that sat for
+           forty thousand frames said "Duel" and nothing else, and its phase,
+           its turn, whose go it was and how much life was left were all in
+           fields nobody had thought to print. */
+        {
+          const plain = Object.entries(s2)
+            .filter(([, v]) => ['string', 'number', 'boolean'].includes(typeof v) || v === null)
+            .map(([k, v]) => `${k}=${typeof v === 'string' ? JSON.stringify(v.slice(0, 24)) : v}`);
+          const nested = Object.entries(s2)
+            .filter(([, v]) => v && typeof v === 'object' && !Array.isArray(v))
+            .map(([k, v]) => `${k}{${Object.entries(v)
+              .filter(([, w]) => ['string', 'number', 'boolean'].includes(typeof w))
+              .slice(0, 8).map(([kk, w]) => `${kk}=${typeof w === 'string' ? JSON.stringify(w.slice(0, 16)) : w}`).join(' ')}}`);
+          why.push(`fields: ${[...plain, ...nested].join(' ').slice(0, 900)}`);
         }
         finding(`the game sat in ${here}${at} for forty thousand frames`
           + (why.length ? ` (${why.join(', ')})` : ' with nothing blocking it'));
@@ -416,9 +437,13 @@ const report = await page.evaluate(
           hold('a');
           break;
 
+        /* Mostly A, with a direction now and then: pressing A alone picks
+           the top of every list, and the list you are made to pick from
+           when your beast goes down has the beast that just went down at the
+           top of it. Forty thousand frames of "has no fight left". */
         case 'Battle':
           seen.battles++;
-          hold('a');
+          hold(roll(3) ? 'a' : ACTIONS[roll(4)]);
           break;
 
         case 'Duel':

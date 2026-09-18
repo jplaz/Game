@@ -70,6 +70,12 @@ export class MainMenu {
       case 'bag': return this.updateBag();
       case 'dex': return this.updateDex();
       case 'dexEntry': return this.updateDexEntry();
+      /* The log and the houses were drawn and never read: no case here, so
+         nothing in either view took a key, and a player who opened one had
+         opened it for good. The browser playtest sat in the log for forty
+         thousand frames. */
+      case 'log':
+      case 'houses':
       case 'sigils':
       case 'card': return this.updateSimple();
       default: return undefined;

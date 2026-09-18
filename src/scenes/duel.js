@@ -262,17 +262,27 @@ export class Duel {
   // ----------------------------------------------------------------- flow --
 
   async run() {
+    /* Where the fight has got to, for whoever finds it sitting still: the
+       browser playtest found one at round nought with nothing open and could
+       not say which of the three lines before the first question it was on. */
+    this.stage = 'drawing';
     await this.wait(0.8);
+    this.stage = 'steel';
     await this.say(`${this.def.name} draws steel!`, { theme: this.def.boss ? 'royal' : 'parchment' });
+    this.stage = 'intro';
     await this.say(this.def.intro, { theme: this.def.boss ? 'royal' : 'parchment' });
 
     while (this.outcome === 'ongoing') {
       this.round++;
+      this.stage = 'choosing';
       const action = await this.chooseAction();
       if (this.outcome !== 'ongoing') break;
+      this.stage = 'resolving';
       await this.resolveRound(action);
     }
+    this.stage = 'finishing';
     await this.finish();
+    this.stage = 'done';
   }
 
   async chooseAction() {

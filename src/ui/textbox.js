@@ -64,9 +64,18 @@ export class Textbox {
   settle() {
     const resolve = this.resolve;
     const choose = this.choiceResolve;
-    const cancel = this.pendingChoice?.cancelIndex ?? -1;
+    const cancel = this.pendingChoice?.cancelIndex ?? this.choice?.cancelIndex ?? -1;
     this.resolve = null;
     this.choiceResolve = null;
+    /* And the question goes with its answer. A question replaced before its
+       menu had come up stayed queued behind the new line: when that line
+       was read to its end the old menu came up under it, and answering it
+       shut the box without releasing whoever had put the line up. A duel
+       sat at its second line for forty thousand frames, with "Call out
+       Mikken?" - asked on the road before the fight, and cancelled by it -
+       the thing that had shut the box. */
+    this.pendingChoice = null;
+    this.choice = null;
     resolve?.();
     choose?.(cancel);
   }
@@ -197,11 +206,16 @@ export class Textbox {
 
   finishChoice(index) {
     const resolve = this.choiceResolve;
+    /* Whoever put a line up is let go as well: shutting the box on them is
+       the one thing this must never do. */
+    const spoken = this.resolve;
     this.choiceResolve = null;
+    this.resolve = null;
     this.visible = false;
     this.standing = false;
     this.choice = null;
     resolve?.(index);
+    spoken?.();
   }
 
   draw(ctx) {

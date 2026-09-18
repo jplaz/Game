@@ -1,6 +1,6 @@
 // The overworld: grid movement, collision, warps, NPCs, trainers, encounters.
 
-import { TILE, tileCanvas, tileDef, TILE_GROUP, N, E, S, W, groundUnder } from '../art/tiles.js';
+import { TILE, tileCanvas, tileDef, groundUnder, neighbourMask } from '../art/tiles.js';
 import { variantFor } from '../art/pixels.js';
 import { drawActor, ACTOR_H } from '../art/actors.js';
 import { playerAppearance } from '../game/player.js';
@@ -1926,20 +1926,7 @@ export class Overworld {
    * closed rather than growing a lit rim against the void.
    */
   neighbourMask(char, x, y) {
-    const group = TILE_GROUP[char];
-    if (!group) return 0;
-    // Off-map counts as matching for masses that should stay closed at the
-    // border (water, caves). Woodland does not: a single row of trees along the
-    // map edge should read as trees, not as a sliced-off canopy.
-    const outsideMatches = group !== 'forest';
-    const same = (nx, ny) => {
-      if (nx < 0 || ny < 0 || nx >= this.map.width || ny >= this.map.height) return outsideMatches;
-      return TILE_GROUP[tileAt(this.map, nx, ny)] === group;
-    };
-    return (same(x, y - 1) ? N : 0)
-         | (same(x + 1, y) ? E : 0)
-         | (same(x, y + 1) ? S : 0)
-         | (same(x - 1, y) ? W : 0);
+    return neighbourMask(this.map, char, x, y);
   }
 
   drawItems(ctx, camX, camY) {

@@ -1542,19 +1542,60 @@ export const GROUND_OF_CHAR = {
  * it - and every sign on a paved road and every chest on a cottage floor was
  * the same fault in a different place.
  */
-export function groundUnder(map, x, y) {
+export function groundUnder(map, x, y, at = null) {
   const was = map.under?.[y]?.[x];
   if (was && GROUND_OF_CHAR[was]) return GROUND_OF_CHAR[was];
   const grid = map.grid ?? map.tiles;
+  const look = at ?? ((nx, ny) => grid?.[ny]?.[nx]);
   const counts = {};
   let best = null;
   for (const [dx, dy] of [[0, 1], [0, -1], [-1, 0], [1, 0]]) {
-    const g = GROUND_OF_CHAR[grid?.[y + dy]?.[x + dx]];
+    const g = GROUND_OF_CHAR[look(x + dx, y + dy)];
     if (!g) continue;
     counts[g] = (counts[g] ?? 0) + 1;
     if (best === null || counts[g] > counts[best]) best = g;
   }
   return best ?? map.ground ?? 'grass';
+}
+
+/* The autotile group each ground belongs to, for the join rule below. */
+const GROUND_GROUP_OF = {
+  grass: 'grassland', snow: 'snowfield', earth: 'earth', track: 'earth',
+  sand: 'shore', stone: 'paved', flag: 'paved', cave: 'cave',
+};
+
+/**
+ * Which of a tile's four neighbours share its visual group. Tiles outside the
+ * map count as matching, so a forest that runs off the edge of the map stays
+ * closed rather than growing a lit rim against the void - except woodland
+ * itself: a single row of trees along the map edge should read as trees, not
+ * as a sliced-off canopy.
+ *
+ * A fence, a rock or a sign standing on this same ground is this ground with
+ * something on it, not another ground meeting it, so no fringe is painted
+ * toward it. Every grounded thing in the world stood in a dotted square
+ * before this: the floor round it fringed toward it on all four sides.
+ *
+ * One rule for the browser, the exporter and the map renderer: three copies
+ * of it drifted once already.
+ */
+export function neighbourMask(map, char, x, y, opts = {}) {
+  const group = TILE_GROUP[char];
+  if (!group) return 0;
+  const grid = map.grid ?? map.tiles;
+  const w = opts.w ?? map.width ?? grid[0].length;
+  const h = opts.h ?? map.height ?? grid.length;
+  const at = opts.at ?? ((nx, ny) => grid[ny]?.[nx]);
+  const outsideMatches = group !== 'forest';
+  const same = (nx, ny) => {
+    if (nx < 0 || ny < 0 || nx >= w || ny >= h) return outsideMatches;
+    const n = at(nx, ny);
+    if (TILE_GROUP[n] === group) return true;
+    return !!(TILE_DEFS[n]?.grounded && GROUND_OF_CHAR[char]
+      && GROUND_GROUP_OF[groundUnder(map, nx, ny, at)] === group);
+  };
+  return (same(x, y - 1) ? N : 0) | (same(x + 1, y) ? E : 0)
+       | (same(x, y + 1) ? S : 0) | (same(x - 1, y) ? W : 0);
 }
 
 /** Returns the painted canvas for a tile at a given frame, mask and ground. */

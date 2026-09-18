@@ -52,7 +52,7 @@ const shot = await page.evaluate(async ({ mapId, win }) => {
   const tiles = await import('/src/art/tiles.js');
   const pixels = await import('/src/art/pixels.js');
   const { MAPS } = await import('/src/data/maps.js');
-  const { TILE, tileCanvas, TILE_GROUP, N, E, S, W } = tiles;
+  const { TILE, tileCanvas } = tiles;
 
   const map = MAPS[mapId];
   if (!map) return { error: `no map "${mapId}". Try one of: ${Object.keys(MAPS).slice(0, 40).join(', ')}` };
@@ -63,15 +63,7 @@ const shot = await page.evaluate(async ({ mapId, win }) => {
   const fullCols = Math.max(...full.map((r) => r.length));
   const grid = full.map((r) => r.padEnd(fullCols, map.ground === 'snow' ? 'S' : '.'));
   const at = (x, y) => (grid[y] ?? '')[x] ?? (map.ground === 'snow' ? 'S' : '.');
-  const mask = (char, x, y) => {
-    const group = TILE_GROUP[char];
-    if (!group) return 0;
-    const outside = group !== 'forest';
-    const same = (nx, ny) => (nx < 0 || ny < 0 || nx >= fullCols || ny >= grid.length)
-      ? outside : TILE_GROUP[at(nx, ny)] === group;
-    return (same(x, y - 1) ? N : 0) | (same(x + 1, y) ? E : 0)
-         | (same(x, y + 1) ? S : 0) | (same(x - 1, y) ? W : 0);
-  };
+  const mask = (char, x, y) => tiles.neighbourMask(map, char, x, y, { at, w: fullCols, h: grid.length });
 
   const [wx, wy, ww, wh] = win.length === 4 ? win : [0, 0, fullCols, grid.length];
   const c = document.createElement('canvas');

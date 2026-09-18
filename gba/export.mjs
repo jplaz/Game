@@ -201,7 +201,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   const { TECHNIQUES, LEARNED } = await import('/src/data/gear.js');
   const { baseStats } = await import('/src/game/player.js');
 
-  const { tileCanvas, isSolid, tileDef, TILE_GROUP, N, E, S, W } = tiles;
+  const { tileCanvas, isSolid, tileDef } = tiles;
 
   function read(canvas) {
     const c = document.createElement('canvas');
@@ -212,18 +212,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   }
 
   // The overworld's own neighbour rule, so autotiled edges match the browser.
-  function maskFor(map, char, x, y) {
-    const group = TILE_GROUP[char];
-    if (!group) return 0;
-    const outsideMatches = group !== 'forest';
-    const at = (nx, ny) => (map.grid[ny] ?? '')[nx] ?? '.';
-    const same = (nx, ny) => {
-      if (nx < 0 || ny < 0 || nx >= map.width || ny >= map.height) return outsideMatches;
-      return TILE_GROUP[at(nx, ny)] === group;
-    };
-    return (same(x, y - 1) ? N : 0) | (same(x + 1, y) ? E : 0)
-         | (same(x, y + 1) ? S : 0) | (same(x - 1, y) ? W : 0);
-  }
+  const maskFor = (map, char, x, y) => tiles.neighbourMask(map, char, x, y);
 
   // --- people ---------------------------------------------------------------
   // Every appearance is exported as sixteen frames: four facings by four walk

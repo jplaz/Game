@@ -22,3 +22,8 @@ gba/w
 # clang writes these while compiling and removes them again
 gba/*.o.tmp
 gba/emu/run
+
+# a crash dump from a debug playtest, and hosttest's raw screens, neither of which
+# belongs in the repository
+gba/core
+gba/*.ppm

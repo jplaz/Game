@@ -129,7 +129,7 @@ node verify.mjs thronebound.gba
 # emu/run needs mGBA built to link against, which not every machine will have,
 # so it runs when it is there and is skipped when it is not.
 if [ -x emu/run ]; then
-  ./emu/run thronebound.gba || exit 1
+  ./emu/run thronebound.gba - 120000 7 || exit 1
 else
   echo "  (emu/run not built; see emu/README.md - the hardware was not checked)"
 fi

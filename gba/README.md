@@ -310,7 +310,23 @@ a sign, or more than eight tiles, since shutting a broom cupboard costs nobody
 anything. Taking the guard back out proves the check works: it finds Brienne of
 Tarth able to shut a hundred and eighty-five tiles off at the Bloody Gate.
 
-None of it is an emulator. It does not model timing, DMA, or the BIOS, so it
+None of that is an emulator. It does not model timing, DMA, or the BIOS, so it
 cannot tell you the ROM runs on hardware — only that the game is reachable,
-finishable and internally consistent. **Nobody has played this on a handset.**
-Run it in Delta or mGBA before believing it.
+finishable and internally consistent.
+
+**`emu/run` — the cartridge, on a Game Boy Advance.** The fourth check is the
+one the other three cannot be: mGBA's core, booting the real image and pressing
+real buttons. It plays the opening — the title, a house, a name, your arms, and
+however many pages the yard has to say — then the menu, the card and the pouch,
+then an hour of a monkey with a controller: walking, running, talking to
+whoever is there, opening every menu, drawing on people and fleeing, and never
+following a route, because a route is what every other check already follows.
+On every frame it asks three things a console would not tell you: has the
+processor jumped somewhere there is no code, has the hardware refused a read or
+a write, and has the picture stopped changing under fifteen seconds of button
+presses, which is what a soft-lock looks like from the outside. Any of the three
+fails the build. See [`emu/README.md`](emu/README.md) for building it; when the
+binary is not there the build says so and goes on without it.
+
+**Nobody has played this on a handset.** Run it in Delta or mGBA before
+believing it.

@@ -4,6 +4,21 @@
 would, writes out what the screen actually showed, and reports every access the
 hardware refused.
 
+    ./emu/run thronebound.gba                 the opening, the menus, a minute in town
+    ./emu/run thronebound.gba shots           the same, with a picture of every screen
+    ./emu/run thronebound.gba shots 200000 7  ...and then two hundred thousand frames of
+                                              random play, seeded with 7
+
+The random play is a monkey with a controller: it walks and runs, talks to
+whoever is there, opens every menu, draws on people and flees, for close to an
+hour of play a run, and never follows a route. It fails on any of three things:
+the processor at an address where there is no code, a read or a write the
+hardware refused, or a picture that has not changed in fifteen seconds of
+button presses, which is what a soft-lock looks like from the outside. A picture
+of the screen is written every nine thousand frames, and one wherever it
+stalled, so a failure can be looked at rather than guessed at. `build.sh` runs
+a hundred and twenty thousand frames of it on every build.
+
 Everything else that checks this game checks the source. The audit reads the
 tables it is made of. The sweeps compile the same C for this machine and drive
 it through its own menus for hours. The renderer in `render.h` reimplements the

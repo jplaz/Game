@@ -9,7 +9,21 @@
  * somebody's hands.
  *
  * This runs the actual ROM image on mGBA's core, holds buttons for as long as a
- * person would, and writes out what the screen actually showed. */
+ * person would, and writes out what the screen actually showed.
+ *
+ *   ./emu/run thronebound.gba            the opening, the menus, a minute in town
+ *   ./emu/run thronebound.gba shots      the same, with a picture of every screen
+ *   ./emu/run thronebound.gba shots 200000 7
+ *
+ * The last form goes on after the opening: two hundred thousand frames - close
+ * to an hour of play - of a monkey with a controller, seeded with 7. It walks,
+ * runs, talks to whoever is there, opens every menu, draws on people and flees,
+ * and never follows a route, because a route is exactly what every other check
+ * here already follows. On every frame it asks three things a console would
+ * not tell you: has the processor jumped somewhere there is no code, has the
+ * hardware refused a read or a write, and has the picture stopped changing
+ * under fifteen seconds of button presses - which is what a soft-lock looks
+ * like from the outside. Any of the three fails the run. */
 #include <mgba/core/core.h>
 #include <mgba/core/log.h>
 #include <mgba/gba/core.h>
@@ -59,6 +73,19 @@ static unsigned W, H;
 static int frameNo;
 static const char *shotDir;
 
+/* Where the program counter may be: the BIOS, either RAM, or the cartridge.
+   Anywhere else is a jump into nothing - a corrupted return address, a call
+   through a pointer something wrote over - and a console would sit there
+   executing open bus until somebody switched it off. */
+static int pcSane(unsigned pc) {
+  return pc < 0x00004000
+      || (pc >= 0x02000000 && pc < 0x02040000)
+      || (pc >= 0x03000000 && pc < 0x03008000)
+      || (pc >= 0x08000000 && pc < 0x0A000000);
+}
+static int lostAt = -1;
+static unsigned lostPc;
+
 static unsigned keyOf(const char *name) {
   if (!strcmp(name, "A")) return KEY_A_;
   if (!strcmp(name, "B")) return KEY_B_;
@@ -78,6 +105,10 @@ static void step(unsigned keys) {
   core->setKeys(core, keys);
   core->runFrame(core);
   frameNo++;
+  if (lostAt < 0) {
+    unsigned pc = ((struct ARMCore *)core->cpu)->gprs[15];
+    if (!pcSane(pc)) { lostAt = frameNo; lostPc = pc; }
+  }
 }
 
 static void tap(const char *name, int repeats) {
@@ -130,10 +161,119 @@ static void look(const char *what) {
     what, (double)runs / H, 100.0 * black / (W * H));
 }
 
+/* A pixel as the screen shows it, red first. */
+static unsigned rgbAt(unsigned x, unsigned y) {
+  color_t c = fb[y * W + x];
+  return ((c & 0xFF) << 16) | (c & 0xFF00) | ((c >> 16) & 0xFF);
+}
+
+/* Is somebody talking? A text box - the world's or a duel's - puts its keyline
+   and its parchment at the same places along the foot of the screen whatever
+   is behind it, and nothing else in the game does. */
+static int boxOpen(void) {
+  return rgbAt(4, 156) == 0x636373 && rgbAt(8, 150) == 0xEFE7C6
+      && rgbAt(232, 150) == 0xEFE7C6;
+}
+
+/* Turns the pages until nobody has said anything for a second and a half. The
+   opening is several people's worth of lines with walking in between, typed
+   out a letter at a time, and how many taps that takes is not a thing to guess
+   at: a guess that was right in one build put every later screenshot a scene
+   early in the next. */
+static int pageAway(int most) {
+  int taps = 0, quiet = 0;
+  while (frameNo < most && quiet < 90) {
+    if (boxOpen()) { tap("A", 1); wait(12); taps++; quiet = 0; }
+    else { step(0); quiet++; }
+  }
+  return taps;
+}
+
+/* The whole picture, folded to a number, so two frames can be compared without
+   keeping either. */
+static unsigned screenHash(void) {
+  unsigned h = 2166136261u, i, n = W * H;
+  for (i = 0; i < n; i++) {
+    h ^= fb[i] & 0xFFFFFF;
+    h *= 16777619u;
+  }
+  return h;
+}
+
+/* The monkey. */
+static unsigned rng;
+static unsigned roll(unsigned n) {
+  rng = rng * 1664525u + 1013904223u;
+  return (rng >> 16) % n;
+}
+
+static int roam(int until, unsigned seed) {
+  static const unsigned DIRS[4] = { KEY_DWN, KEY_LFT, KEY_UP_, KEY_RGT };
+  /* The two most recent pictures that differed. A wedge blinking at the foot
+     of a text box is two pictures for as long as you like; anything actually
+     happening is a third one within a second. */
+  unsigned seen1 = 0, seen2 = 0;
+  int lastNew = frameNo, stalls = 0, shots = 0, nextShot = frameNo + 9000;
+  int actions = 0;
+  rng = seed ? seed : 1;
+  printf("\n  roaming to frame %d, seeded %u\n", until, seed);
+  while (frameNo < until && lostAt < 0) {
+    unsigned r = roll(100), h;
+    int i, n;
+    actions++;
+    if (r < 52) {
+      /* Walk, and now and then run. Held long enough to cross a few tiles,
+         because a tap in a new direction only turns on the spot. */
+      unsigned keys = DIRS[roll(4)] | (roll(3) == 0 ? KEY_B_ : 0);
+      n = 6 + (int)roll(54);
+      for (i = 0; i < n; i++) step(keys);
+    } else if (r < 72) {
+      tap("A", 1 + (int)roll(3));
+    } else if (r < 80) {
+      tap("B", 1 + (int)roll(2));
+    } else if (r < 88) {
+      /* The menu, some way down it, and maybe into whatever is there. */
+      tap("START", 1);
+      for (n = (int)roll(8); n > 0; n--) tap("DOWN", 1);
+      if (roll(2)) { tap("A", 1); wait(10); if (roll(2)) tap("RIGHT", 1); }
+      if (roll(3)) tap("B", 1 + (int)roll(3));
+    } else if (r < 94) {
+      tap("SELECT", 1);
+    } else {
+      wait(10 + (int)roll(50));
+    }
+
+    h = screenHash();
+    if (h != seen1 && h != seen2) { seen2 = seen1; seen1 = h; lastNew = frameNo; }
+    if (frameNo - lastNew > 900) {
+      char name[64];
+      stalls++;
+      printf("  !! the picture stopped changing at frame %d, %d actions in\n",
+        frameNo, actions);
+      snprintf(name, sizeof name, "roam-stalled-%02d", stalls);
+      shoot(name);
+      lastNew = frameNo;
+      if (stalls >= 3) break;
+    }
+    if (frameNo >= nextShot) {
+      char name[64];
+      snprintf(name, sizeof name, "roam-%02d", ++shots);
+      look(name);
+      shoot(name);
+      nextShot += 9000;
+    }
+  }
+  printf("  roamed %d actions to frame %d\n", actions, frameNo);
+  return stalls;
+}
+
 int main(int argc, char **argv) {
   struct VFile *rom;
   const char *path = argc > 1 ? argv[1] : "thronebound.gba";
-  shotDir = argc > 2 ? argv[2] : NULL;
+  int roamFrames = argc > 3 ? atoi(argv[3]) : 0;
+  unsigned seed = argc > 4 ? (unsigned)strtoul(argv[4], NULL, 10) : 7;
+  int stalls = 0, bad = 0;
+  shotDir = argc > 2 && argv[2][0] && strcmp(argv[2], "-") ? argv[2] : NULL;
 
   mLogSetDefaultLogger(&noteLogger);
   core = GBACoreCreate();
@@ -152,8 +292,8 @@ int main(int argc, char **argv) {
   core->reset(core);
   printf("running %s at %ux%u\n", path, W, H);
 
-  /* The title, and then a new game: past the logo, past the title's first
-     entry, a house, and a name. */
+  /* The title, and then a new game: past the logo, past the title's one
+     entry, a house, a name, and your own arms. */
   wait(240);
   look("the title screen");
   shoot("emu-01-title");
@@ -172,16 +312,18 @@ int main(int argc, char **argv) {
   look("three letters in");
   shoot("emu-04-name-typed");
 
+  /* START finishes the name and opens the arms - charge, field and words -
+     and a second START takes those as they stand and begins. */
   tap("START", 1); wait(120);
-  look("after the name");
-  shoot("emu-05-after-name");
+  look("your own arms");
+  shoot("emu-05-your-arms");
 
-  wait(240);
-  look("four seconds later");
-  shoot("emu-06-settled");
+  tap("START", 1); wait(240);
+  look("in the world");
+  shoot("emu-06-in-the-world");
 
   /* And walk, which is the first thing anybody does. */
-  tap("A", 2); wait(30);                  /* put the opening line away */
+  printf("  %d pages of opening put away\n", pageAway(frameNo + 6000));
   { int i; for (i = 0; i < 40; i++) step(KEY_DWN); }
   wait(30);
   look("after walking");
@@ -200,9 +342,9 @@ int main(int argc, char **argv) {
   shoot("emu-10-standing");
   tap("B", 2); wait(20);
 
-  /* The pouch. */
+  /* The pouch: Sigil, At Heel, Swords, Pouch - fourth down. */
   tap("START", 1); wait(10);
-  tap("DOWN", 1); tap("A", 1); wait(30);
+  tap("DOWN", 3); tap("A", 1); wait(30);
   look("the pouch");
   shoot("emu-11-pouch");
   tap("B", 2); wait(20);
@@ -221,12 +363,25 @@ int main(int argc, char **argv) {
   look("after a minute in the town");
   shoot("emu-12-lived-in");
 
+  if (roamFrames > frameNo) stalls = roam(roamFrames, seed);
+
   core->deinit(core);
+  if (lostAt >= 0) {
+    printf("\n  the processor jumped to 0x%08x at frame %d, where there is no code.\n",
+      lostPc, lostAt);
+    bad = 1;
+  }
+  if (stalls) {
+    printf("\n  the picture stopped changing %d time%s under fifteen seconds of buttons.\n",
+      stalls, stalls == 1 ? "" : "s");
+    bad = 1;
+  }
   if (seenCount) {
     printf("\n  %d place%s where the hardware refused what the game asked of it.\n",
       seenCount, seenCount == 1 ? "" : "s");
-    return 1;
+    bad = 1;
   }
+  if (bad) return 1;
   printf("\n  the hardware took everything it was given.\n");
   return 0;
 }

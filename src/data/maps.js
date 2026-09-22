@@ -5143,7 +5143,12 @@ export const MAPS = {
       { x: 12, y: 20, text: "AEGON'S GARDEN\nDark trees, brought over the water and planted before the Conquest.\nThe only thing on this island that grows." },
     ],
     items: [
-      { x: 28, y: 23, item: 'kingsRansom', count: 1, flag: 'item_dragonstone_strand' },
+      /* In the nook at the foot of the strand. It was on the walk beside the
+         dragon, one tile below the berth, with the harbourmaster two above it:
+         a ship put you down between the two of them and a chest stays where
+         it is on the cartridge, so Dragonstone was a harbour you could sail
+         into and never walk out of. */
+      { x: 25, y: 25, item: 'kingsRansom', count: 1, flag: 'item_dragonstone_strand' },
       { x: 2, y: 15, item: 'frostTonic', count: 1, flag: 'item_dragonstone_gallery' },
     ],
     npcs: [
@@ -6272,6 +6277,10 @@ export const MAPS = {
       { x: 19, y: 14, to: 'stormlands', tx: 11, ty: 1, dir: 'right', keep: true },
       { x: 4, y: 15, to: 'hollowHill', tx: 8, ty: 15, dir: 'up', keep: true },
     ],
+    /* 4,16 is nobody's landing any more - the Hollow Hill puts you out on
+       the road at 4,14 - but it stays in this list, because it is what carves
+       the nook the Deserter waits in, and taking it out regrows the wood and
+       re-rolls everything standing on the road. */
     opens: [[10, 1], [10, 21], [18, 14], [4, 16]],
     signs: [
       { x: 9, y: 1, text: "THE KINGSROAD\nSouth to King's Landing.\nThe end of the road, one way or another." },
@@ -7735,9 +7744,14 @@ export const MAPS = {
       { roamer: 'bandit', min: 23, max: 28, weight: 26 },
       { beast: 'emberwisp', min: 24, max: 28, weight: 18 },
     ],
+    /* Out onto the road above the mouth, not into the nook below it. The nook
+       is two tiles, and its one way out is the tile the Kingsroad's Deserter
+       was carried to when the road was grown over the wood he was written
+       into - so everybody who came out of this hill came out into a cupboard
+       with a man standing in its door, and could only go back in. */
     warps: [
-      { x: 8, y: 16, to: 'kingsroad', tx: 4, ty: 16, dir: 'down' },
-      { x: 9, y: 16, to: 'kingsroad', tx: 4, ty: 16, dir: 'down' },
+      { x: 8, y: 16, to: 'kingsroad', tx: 4, ty: 14, dir: 'up' },
+      { x: 9, y: 16, to: 'kingsroad', tx: 4, ty: 14, dir: 'up' },
     ],
     npcs: [
       { x: 9, y: 3, dir: 'down', sprite: 'redPriest', name: 'Thoros of Myr', script: 'trainer',

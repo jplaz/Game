@@ -317,40 +317,83 @@ for (const [id, map] of Object.entries(MAPS)) {
 /* And the check that has to look at two maps at once: where a door puts you
    down, can you walk from that spot to a door out? A room you can be dropped
    into and not walk out of is the worst thing this game can do to you, and
-   nothing that looks at one map at a time can see it. */
+   nothing that looks at one map at a time can see it.
+
+   Three things this used to let through, all at once, on the Kingsroad. It
+   walked through doorways, which nobody can: step on one and you are through
+   it. It counted the door you had just come out of as a way out, and that door
+   was the Hollow Hill's, whose only way out puts you straight back here - so
+   everybody leaving the hill came out into a two-tile nook with the Deserter
+   standing in its mouth, and the only walk there was back into the hill, for
+   ever. And it never asked about a ship: Dragonstone's berth set you down on a
+   one-tile walk between the harbourmaster and a chest, and a chest stays put on
+   the cartridge once it is emptied. Five of nine sweeps of the cartridge ended
+   standing in the first of those, and one in the second, and every one of them
+   reported that nothing had gone wrong. */
+const landing = (there, x0, y0) => {
+  const at = (x, y) => (x < 0 || y < 0 || x >= there.width || y >= there.height)
+    ? '#' : there.grid[y][x];
+  const solid = (x, y) => x < 0 || y < 0 || x >= there.width || y >= there.height
+    || (SOLID.has(kindOf(at(x, y))) && !(there.sea && kindOf(at(x, y)) === 'water'));
+  const ledge = (x, y) => kindOf(at(x, y)) === 'ledge';
+  const stand = (x, y) => !solid(x, y) && !ledge(x, y);
+  const planted = new Set((there.npcs ?? []).filter((p) => !p.roams).map((p) => `${p.x},${p.y}`));
+  /* What the walk cannot get past: somebody who never moves, and a chest -
+     the cartridge draws a chest into the ground and leaves it there with its
+     lid up after you have been through it. Not a warden, who is a gate rather
+     than a wall, here as everywhere else in this file: the three across the
+     road at the Prince's Pass, the Bloody Gate, the Roseroad and the Stormlands
+     turn you back until you hold the seats they want, and back is Highgarden,
+     the Riverlands, Lannisport or the Kingsroad, not a cupboard. */
+  const wall = new Set([
+    ...(there.npcs ?? []).filter((p) => !p.roams && !p.warden).map((p) => `${p.x},${p.y}`),
+    ...(there.items ?? []).map((it) => `${it.x},${it.y}`),
+  ]);
+  const doorway = new Set((there.warps ?? []).map((v) => `${v.x},${v.y}`));
+  const seen = new Set([`${x0},${y0}`]);
+  const q = [[x0, y0]];
+  for (let h = 0; h < q.length; h++) {
+    const [x, y] = q[h];
+    if (h && doorway.has(`${x},${y}`)) continue;   /* a door ends the walk */
+    for (const [dx, dy] of DIRS) {
+      const nx = x + dx, ny = y + dy;
+      let lx = nx, ly = ny;
+      if (ledge(nx, ny)) { if (dy !== 1 || !stand(nx, ny + 1)) continue; ly = ny + 1; }
+      else if (!stand(nx, ny)) continue;
+      const k = `${lx},${ly}`;
+      if (seen.has(k) || wall.has(k)) continue;
+      seen.add(k); q.push([lx, ly]);
+    }
+  }
+  return { seen, planted };
+};
 for (const [id, map] of Object.entries(MAPS)) {
   for (const w of map.warps ?? []) {
     const there = MAPS[w.to];
     if (!there) continue;
-    const at = (x, y) => (x < 0 || y < 0 || x >= there.width || y >= there.height)
-      ? '#' : there.grid[y][x];
-    const solid = (x, y) => x < 0 || y < 0 || x >= there.width || y >= there.height
-      || (SOLID.has(kindOf(at(x, y))) && !(there.sea && kindOf(at(x, y)) === 'water'));
-    const ledge = (x, y) => kindOf(at(x, y)) === 'ledge';
-    const stand = (x, y) => !solid(x, y) && !ledge(x, y);
-    const planted = new Set((there.npcs ?? [])
-      .filter((p) => !p.roams).map((p) => `${p.x},${p.y}`));
+    const { seen, planted } = landing(there, w.tx, w.ty);
     if (planted.has(`${w.tx},${w.ty}`)) {
       say(`${id}: the door to ${w.to} puts you down on top of somebody at ${w.tx},${w.ty}`);
       continue;
     }
-    const seen = new Set([`${w.tx},${w.ty}`]);
-    const q = [[w.tx, w.ty]];
-    for (let h = 0; h < q.length; h++) {
-      const [x, y] = q[h];
-      for (const [dx, dy] of DIRS) {
-        const nx = x + dx, ny = y + dy;
-        let lx = nx, ly = ny;
-        if (ledge(nx, ny)) { if (dy !== 1 || !stand(nx, ny + 1)) continue; ly = ny + 1; }
-        else if (!stand(nx, ny)) continue;
-        const k = `${lx},${ly}`;
-        if (seen.has(k) || planted.has(k)) continue;
-        seen.add(k); q.push([lx, ly]);
-      }
-    }
-    if (!(there.warps ?? []).some((v) => seen.has(`${v.x},${v.y}`))) {
+    const ways = there.warps ?? [];
+    const onward = ways.filter((v) => v.to !== id);
+    if (!ways.some((v) => seen.has(`${v.x},${v.y}`))) {
       say(`${id}: going to ${w.to} drops you at ${w.tx},${w.ty}, where there is no door out`);
+    } else if (onward.length && !onward.some((v) => seen.has(`${v.x},${v.y}`))) {
+      say(`${id}: going to ${w.to} drops you at ${w.tx},${w.ty}, and the only door you `
+        + `can walk to leads back to ${id}`);
     }
+  }
+}
+/* And where a ship puts you down, which is not a door and so was never asked. */
+for (const port of PORTS) {
+  const there = MAPS[port.map];
+  if (!there || there.sea || !(there.warps ?? []).length) continue;
+  const { seen } = landing(there, port.x, port.y);
+  if (!there.warps.some((v) => seen.has(`${v.x},${v.y}`))) {
+    say(`${port.map}: a ship puts you down at ${port.x},${port.y}, and there is no door `
+      + 'you can walk to from there - only the ship again');
   }
 }
 

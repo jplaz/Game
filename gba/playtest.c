@@ -271,6 +271,8 @@ static int npcStuck[MAP_COUNT][MAX_CROWD];
    so it is not thrown away every time the run leaves the room. */
 static unsigned short npcTries[MAP_COUNT][MAX_CROWD];
 static int talked, signs, duels, duelsWon, duelsLost, fled, warpsTaken, levels, kills;
+/* Goals given up on since the last door. See "never got to", below. */
+static int givenUpHere;
 
 /* ------------------------------------------------------------ invariants -- */
 
@@ -2970,6 +2972,7 @@ void hostFrame(void) {
          says is wrong. */
       if (wasMap < 0) { startedAt = world->name; startedLevel = you.level; }
       if (wasMap >= 0) warpsTaken++;
+      givenUpHere = 0;
       wasMap = worldId;
       mapSeen[worldId]++;
       /* Walking into your own hall again is a fresh call on your household:
@@ -3409,6 +3412,19 @@ void hostFrame(void) {
               if (open) {
                 printf("      never got to: %s %d,%d, which has open ground "
                        "beside it\n", world->name, gx, gy);
+                /* Once is a body on a bridge. Twelve times over without going
+                   through a single door is not the crowd being in the way:
+                   it is the run standing somewhere it cannot walk out of.
+                   Five sweeps in nine spent the rest of their playthrough in
+                   a two-tile nook on the Kingsroad and one on Dragonstone's
+                   quay, giving up on every door there sixteen times apiece,
+                   and each of them ended "nothing went wrong" - because each
+                   give-up, taken one at a time, was only a gap in the walk. */
+                if (++givenUpHere == 12) {
+                  finding("%s: stuck at %d,%d - gave up on every way on twelve "
+                          "times without getting through a door", world->name,
+                          hero.px >> 4, hero.py >> 4);
+                }
               } else {
                 finding("%s: no way through to %d,%d (goal %d/%d, %s)",
                   world->name, gx, gy, goalKind, goalIndex, goalWhy);

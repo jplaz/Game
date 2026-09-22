@@ -9493,7 +9493,7 @@ static void paintTitle(void) {
   /* Three entries with a record on the cartridge, one without, and the last
      line of the panel says which record it is. It all has to sit inside a
      frame ninety-six rows tall, which is what fixes these numbers. */
-  for (i = first; i < 3; i++, n++) {
+  for (i = first; n < TITLE_ENTRIES; i++, n++) {
     int y = (hasRecord ? 46 : 56) + n * 13;
     int w = textWidth(PICK[i]);
     int here = (n == titlePick);

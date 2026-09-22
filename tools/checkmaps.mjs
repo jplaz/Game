@@ -7,11 +7,11 @@
 // drop looked fine here and was a wall in your hands. Somebody standing still
 // is a wall too - roamers step aside, but a stationary body in a one-tile
 // corridor closes the road for good.
-import { MAPS, WALKABLE } from '/home/user/Game/src/data/maps.js';
-import { TILE_DEFS, GROUND_OF_CHAR } from '/home/user/Game/src/art/tiles.js';
-import { PORTS, PORT_MAPS } from '/home/user/Game/src/data/ports.js';
-import { ROAMERS } from '/home/user/Game/src/data/duellists.js';
-import { CUTSCENES } from '/home/user/Game/src/data/cutscenes.js';
+import { MAPS, WALKABLE } from '../src/data/maps.js';
+import { TILE_DEFS, GROUND_OF_CHAR } from '../src/art/tiles.js';
+import { PORTS, PORT_MAPS } from '../src/data/ports.js';
+import { ROAMERS } from '../src/data/duellists.js';
+import { CUTSCENES } from '../src/data/cutscenes.js';
 
 const kindOf = (c) => TILE_DEFS[c]?.kind ?? 'missing';
 const SOLID = new Set(['solid', 'water']);

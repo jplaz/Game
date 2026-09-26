@@ -35,7 +35,7 @@ import {
   giveGear, expForPlayerLevel, playerAppearance,
 } from '../game/player.js';
 import {
-  game, addMoney, setFlag, takeItem, itemCount, markCaught, changeStanding, 
+  game, addMoney, setFlag, takeItem, itemCount, markCaught, changeStanding, awardSigil, 
 } from '../game/state.js';
 import { COMPANIONS } from '../data/companions.js';
 import { activeCompanion, hurtCompanion, kill as killCompanion } from '../game/company.js';
@@ -794,6 +794,17 @@ export class Duel {
         addMoney(this.def.reward);
         audio.sfx('money');
         await this.say(`You take ${this.def.reward} gold dragons from the field.`);
+      }
+      /* The seat. Only a creature battle ever handed one over, and every one
+         of the ten who hold a sigil is fought in person, here - so in this
+         build nobody ever took a sigil at all. The wardens never stood aside,
+         Catelyn and Jaime waited for sigils that could not come, the queen
+         would not send for you, and the drivers that play the last act had to
+         put the sigils in your hand themselves to reach it. */
+      if (this.def.sigil) {
+        awardSigil(this.def.sigil);
+        audio.sfx('levelup');
+        await this.say(`You take the ${this.def.sigil.toUpperCase()} SIGIL.`, { theme: 'royal' });
       }
       // A beast that actually fought is trained by the fighting, and trusts
       // you a little more for having stood beside you in it.

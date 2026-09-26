@@ -1992,8 +1992,11 @@ export const SCRIPTS = {
       await say(def.after);
       return;
     }
-    if (!hasSigil('wolf')) {
-      await say('Lady Catelyn: You carry no sigil at all. Earn one in the North first, and then we will talk.');
+    /* Any sigil, not the wolf in particular - and none at all from a rider
+       sworn to Riverrun, whom the opening sends here first. The ladder was
+       written as a Stark's road and asked every other house to walk it. */
+    if (allegiance() !== 'tully' && sigilCount() < 1) {
+      await say('Lady Catelyn: You carry no sigil at all. Earn one first, and then we will talk.');
       return;
     }
     await say(def.intro);
@@ -2120,8 +2123,8 @@ export const SCRIPTS = {
       await say(def.after);
       return;
     }
-    if (!hasSigil('trout')) {
-      await say('Ser Jaime: Two sigils to climb the Rock. You are one short. Riverrun is that way.');
+    if (allegiance() !== 'lannister' && sigilCount() < 2) {
+      await say(`Ser Jaime: Two sigils to climb the Rock. You have ${sigilCount()}.`);
       return;
     }
     await say(def.intro);
@@ -2454,8 +2457,10 @@ export const SCRIPTS = {
       await say(def.after);
       return;
     }
-    if (sigilCount() < 3) {
-      await say(`The Claimant: Three sigils buy you an audience. You have ${sigilCount()}. Come back when the realm knows your name.`);
+    /* Nine, as the cartridge's door to the Red Keep has always asked and as
+       the summons that opens the last act says: the crown is the tenth seat. */
+    if (sigilCount() < 9) {
+      await say(`The Claimant: Nine seats bend the knee before the tenth is asked for. You have ${sigilCount()}. Come back when the realm knows your name.`);
       return;
     }
     await say(def.intro, { theme: 'royal' });

@@ -1782,7 +1782,14 @@ export const SCRIPTS = {
        the map calls The Harbourmaster. Their line first, and their name on
        everything after it. */
     await say(npc?.data?.line ?? `${who}: I sail where the money is. Name a port.`);
-    const labels = ports.map((p) => `${p.name} (${p.fare}g)`);
+    /* Getting off a beach costs nothing. Where every way off on foot goes out
+       onto open water - Hardhome's one jetty - a purse spent fighting across
+       the place would leave you on the shingle for good, so the man who rowed
+       you in does not ask for one. The cartridge's captain waives it; this
+       one charged eighteen hundred to anybody who had spent their gold
+       getting there. */
+    const waived = (overworld.map.warps ?? []).every((w) => getMap(w.to).sea);
+    const labels = ports.map((p) => `${p.name} (${waived ? 'free' : `${p.fare}g`})`);
     const pick = await choose('Where to?', [...labels, 'Nowhere yet']);
     if (pick < 0 || pick >= ports.length) {
       await say(`${who}: Then get off my deck or make yourself useful.`);
@@ -1801,11 +1808,11 @@ export const SCRIPTS = {
         + `Come back with ${port.needs}.`);
       return;
     }
-    if (!canAfford(port.fare)) {
+    if (!waived && !canAfford(port.fare)) {
       await say(`${who}: ${port.fare} gold dragons. Come back when you have them.`);
       return;
     }
-    addMoney(-port.fare);
+    if (!waived) addMoney(-port.fare);
     audio.sfx('confirm');
     await say(`${who}: ${port.name} it is. Find somewhere to sit and do not be sick `
       + 'anywhere I can see.');

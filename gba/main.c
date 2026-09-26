@@ -6553,9 +6553,23 @@ static int seaPick;            /* Ram / Board / Away */
 static const char *seaSaid;    /* what just happened, shown under the menu */
 static int seaOver;            /* set when the fight is finished with */
 
+/* Whether every way off this map on foot goes out onto open water - which, to
+   somebody who came in on another man's ship, is no way off at all. */
+static int onlyByWater(int m) {
+  int i;
+  for (i = 0; i < maps[m].warpCount; i++) {
+    if (!maps[maps[m].warps[i].to].sea) return 0;
+  }
+  return 1;
+}
+
 static void paintPort(void) {
   int i, row = 0, mine = portHere();
   int own = canPutToSea();
+  /* Off a shore with no road on it the captain charges nothing, and the list
+     has to say so: it greyed every berth out against an empty purse that the
+     captain was never going to ask for. */
+  int waived = onlyByWater(worldId);
   int top = portPick - (PORT_ROWS >> 1);
   if (top > PORT_COUNT - PORT_ROWS) top = PORT_COUNT - PORT_ROWS;
   if (top < 0) top = 0;
@@ -6592,7 +6606,7 @@ static void paintPort(void) {
     /* A captain will not carry you somewhere you have not earned. Wardens hold
        the roads against too few seats; the sea held nothing at all, so a full
        purse skipped the whole ladder. */
-    able = i != mine && you.gold >= (int)ports[i].fare
+    able = i != mine && (waived || you.gold >= (int)ports[i].fare)
         && countSigils() >= (int)ports[i].needs;
     if (i == portPick) drawCursor(14, y + 1, C_GOLD);
     drawText(24, y, ports[i].name,
@@ -6607,7 +6621,8 @@ static void paintPort(void) {
         drawText(TXT_W - 52, y, scratch, C_DIM);
       } else {
         copyString(scratch, "", sizeof scratch);
-        appendNumber(scratch, (int)ports[i].fare, sizeof scratch);
+        if (waived) appendString(scratch, "free", sizeof scratch);
+        else appendNumber(scratch, (int)ports[i].fare, sizeof scratch);
         drawText(TXT_W - 46, y, scratch, able ? C_GOLD : C_DIM);
       }
     }
@@ -7121,8 +7136,12 @@ static const char *sailTo(int which) {
      every fight on it, and finished three of its nine playthroughs standing on
      the shingle with three hundred gold against an eighteen-hundred fare. The
      man who rowed you in wants to leave more than you do. He is not charging
-     you for it. */
-  if (!world->warpCount) {
+     you for it.
+     "No road" was written as "no door", and then Hardhome was given a jetty
+     down onto the Shivering Sea - a door, but a door into open water, which
+     nobody without a keel of their own can walk. The waiver quietly stopped
+     applying, and five of nine sweeps were back to ending on that shingle. */
+  if (onlyByWater(worldId)) {
     enterMap(p->map, p->x, p->y, p->dir);
     return 0;
   }

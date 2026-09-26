@@ -1053,7 +1053,7 @@ static int hopsBetween(int from, int want) {
  * player takes a passage. This is the tester learning to do the same. */
 static int berthToward(int want) {
   int best = -1, bestHops = 1 << 30, i;
-  int free = !world->warpCount;
+  int free = onlyByWater(worldId);
   for (i = 0; i < PORT_COUNT; i++) {
     int hops;
     if (ports[i].map == worldId) continue;
@@ -1276,8 +1276,11 @@ static int portOwesWork(void) {
      still applying the fare it would not be charged, so on Hardhome with a
      hundred and seventy-five gold it concluded there was nowhere it could
      afford to go, ran out of things to do, and ended the run standing there -
-     which quietly cost the sweep a hundred maps of coverage. */
-  int free = !world->warpCount;
+     which quietly cost the sweep a hundred maps of coverage.
+     And the same again when Hardhome got a jetty onto open water: a door, so
+     "no door" stopped being true, and the run went back to ending there. The
+     cartridge's own question is asked now, not a copy of it. */
+  int free = onlyByWater(worldId);
   for (i = 0; i < PORT_COUNT; i++) {
     int m = ports[i].map;
     if (m == worldId) continue;
@@ -2785,7 +2788,7 @@ void hostFrame(void) {
     for (i = 0; i < PORT_COUNT && want < 0; i++) {
       int m = ports[i].map;
       if (m == worldId) continue;
-      if (world->warpCount && (int)ports[i].fare > you.gold) continue;
+      if (!onlyByWater(worldId) && (int)ports[i].fare > you.gold) continue;
       if ((int)ports[i].needs > countSigils()) continue;
       if (walkableTo(m)) continue;
       if (!mapDone(m)) { want = i; continue; }

@@ -12,7 +12,7 @@ import { rng } from '../engine/rng.js';
 import { makeRoamer, ROAMERS } from '../data/duellists.js';
 import { challengeFor } from '../game/challenge.js';
 import { cutscenesOn, yours } from '../data/cutscenes.js';
-import { duellist as getDuellist } from '../data/duellists.js';
+import { duellist as getDuellist, fateKey } from '../data/duellists.js';
 import { creatureSpecies, displayName, wildCreature } from '../game/creature.js';
 import { species as getSpecies } from '../data/species.js';
 import { walkEggs, hatch, deepenBond, willCarry } from '../game/eggs.js';
@@ -169,7 +169,7 @@ export class Overworld {
       // small hours, which comes and goes.
       const gone = (def.hideIfFlag ? flag(def.hideIfFlag) : false)
         || (def.data?.trainer ? isDead(`trainer_${def.data.trainer}`) : false)
-        || (def.data?.duel ? isDead(`duel_${def.data.duel}`) : false)
+        || (def.data?.duel ? isDead(fateKey(def.data.duel, `${mapId}:${index}`)) : false)
         || (def.data?.companion ? hasFallen(def.data.companion) : false);
       return {
         ...def,

@@ -26,7 +26,7 @@ import {
 } from '../game/holdfast.js';
 import { HOUSE_IDS } from './houses.js';
 import { SHIPS, FLEETS } from './ships.js';
-import { getMap, regionOf } from './maps.js';
+import { getMap, regionOf, MAPS } from './maps.js';
 import { settledOn } from '../game/swoop.js';
 import {
   lane as seaLane,
@@ -42,7 +42,7 @@ import {
 } from '../game/company.js';
 import { createCreature, displayName } from '../game/creature.js';
 import { TRAINERS, trainerAsDuellist } from './trainers.js';
-import { DUELLISTS, ROAMERS, makeRoamer } from './duellists.js';
+import { DUELLISTS, ROAMERS, makeRoamer, fateKey } from './duellists.js';
 import { item as getItem } from './items.js';
 import { gear, slotOfGear } from './gear.js';
 import { RECIPES } from './craft.js';
@@ -66,6 +66,27 @@ const STARTERS = [
   { id: 'emberling', blurb: 'A dragon the size of a cat. It has already burnt two tapestries.' },
   { id: 'riverfry', blurb: 'A Trident trout. Placid until it is not.' },
 ];
+
+/* The id inside a kept outcome - `duel_<id>`, `duel_<kind>@<map>:<index>`
+   for one person of a kind, or `trainer_<id>` - with the wrapping taken off. */
+function fateId(raw) {
+  const cut = ['duel_', 'trainer_'].find((one) => raw.startsWith(one));
+  return (cut ? raw.slice(cut.length) : raw).split('@')[0];
+}
+
+/* And whose it is, by name, for anything that reads a list of them aloud.
+   Jaqen offered "duel_sellsword" as a name to speak, filed exactly like that. */
+function fateName(raw) {
+  const where = raw.split('@')[1];
+  if (where) {
+    const [mapId, index] = where.split(':');
+    const person = MAPS[mapId]?.npcs?.[Number(index)];
+    if (person?.name) return person.name;
+  }
+  const id = fateId(raw);
+  return DUELLISTS[id]?.name ?? TRAINERS[id]?.name
+    ?? id.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase());
+}
 
 /**
  * What you do with somebody you have beaten. Sparing them is free and they
@@ -937,17 +958,19 @@ export const SCRIPTS = {
       await say('They have nothing to say to you.');
       return;
     }
-    if (flag(`duel_${id}`)) {
+    /* This one person's outcome, not their whole kind's: see fateKey. */
+    const key = fateKey(id, npc.id);
+    if (flag(key)) {
       await say(def.after);
       return;
     }
     const outcome = await duel(DUELLISTS[id] ? id : def);
     if (outcome === 'won') {
-      setFlag(`duel_${id}`);
+      setFlag(key);
       await say(def.after);
       // Anyone the story does not still need can be finished here.
       const fate = await settleFate({
-        say, choose, id: `duel_${id}`,
+        say, choose, id: key,
         def: { ...def, mortal: def.mortal ?? !def.boss },
       });
       if (fate === 'killed') npc.hidden = true;
@@ -1455,17 +1478,17 @@ export const SCRIPTS = {
     }
     const names = spared.slice(0, 3);
     const pick = await choose('Jaqen H\'ghar: Speak a name.',
-      [...names.map((id) => DUELLISTS[id]?.name ?? id), 'No name today']);
+      [...names.map(fateName), 'No name today']);
     if (pick < 0 || pick >= names.length) {
       await say('Jaqen H\'ghar: Then a man waits. A man is very good at waiting.');
       return;
     }
     const id = names[pick];
-    const who = DUELLISTS[id]?.name ?? id;
+    const who = fateName(id);
     markDead(id);
     recordChoice('jaqenPaid', true);
     recordChoice(`named_${id}`, true);
-    const house = DUELLISTS[id]?.house;
+    const house = DUELLISTS[fateId(id)]?.house;
     if (house) changeStanding(house, -18);
     audio.sfx('faint');
     await say(`Jaqen H'ghar: It is done. A man does not ask when, and a girl `
@@ -1481,14 +1504,7 @@ export const SCRIPTS = {
        so all three are unwrapped before the name is looked up, and anything
        still unrecognised is read out as it is written rather than dropped.
        Arya of all people does not forget a name because it was filed oddly. */
-    const PREFIX = ['duel_', 'trainer_'];
-    const nameOf = (raw) => {
-      const cut = PREFIX.find((one) => raw.startsWith(one));
-      const id = cut ? raw.slice(cut.length) : raw;
-      return DUELLISTS[id]?.name ?? TRAINERS[id]?.name
-        ?? id.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase());
-    };
-    const dead = [...new Set(theDead().map(nameOf))];
+    const dead = [...new Set(theDead().map(fateName))];
     if (!dead.length) {
       await say('Arya: I say the names every night before I sleep. You have not '
         + 'given me one yet. That is either very good of you or very dull.');

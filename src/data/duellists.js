@@ -386,6 +386,19 @@ export const DUELLISTS = {
   },
 };
 
+/**
+ * Where the outcome of a fight is kept. A named duellist is one person wherever
+ * they stand, so they are kept under their own id. An archetype - "sellsword",
+ * "bandit", "manAtArms" - is a kind of person, and forty-six people in this
+ * world are "sellsword". Kept under the kind, beating one of them made all
+ * forty-six beaten, and killing one took all forty-six out of the world, from a
+ * slaver captain in Meereen to a first sword of Braavos. Each is kept as
+ * themselves: the kind, then the map and their place in its list.
+ */
+export function fateKey(duelId, where) {
+  return DUELLISTS[duelId] || !where ? `duel_${duelId}` : `duel_${duelId}@${where}`;
+}
+
 export function duellist(id) {
   const found = DUELLISTS[id];
   if (!found) throw new Error(`Unknown duellist: ${id}`);

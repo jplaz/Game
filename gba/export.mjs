@@ -24,6 +24,13 @@ const { UPPER_FLOORS, CAVE_IDS } = await import('../src/data/maps.js');
 
 const { chromium, executablePath } = await import('../tools/chromium.mjs');
 
+/* The story's flags, in the bits they have always been kept in. See the head
+   of flags.txt: a save is a row of bits, and a bit that changes meaning
+   between two cartridges is a save that remembers things that never happened. */
+const LEDGER_URL = new URL('./flags.txt', import.meta.url);
+const LEDGER = (await readFile(LEDGER_URL, 'utf8')).split('\n')
+  .map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
+
 const ROOT = resolve(process.cwd());
 
 // The North, and as far south as Riverrun: everything reachable on foot from
@@ -163,7 +170,7 @@ page.on('console', (m) => { const t = m.text(); if (t.startsWith('export:')) sta
 await page.goto(`http://127.0.0.1:${PORT}/gba/blank.html`);
 stamp('page open');
 
-const harvest = await page.evaluate(async ({ mapIds }) => {
+const harvest = await page.evaluate(async ({ mapIds, ledger }) => {
   const tiles = await import('/src/art/tiles.js');
   const actors = await import('/src/art/actors.js');
   const pixels = await import('/src/art/pixels.js');
@@ -1394,10 +1401,15 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
                     read what came of it, and the step over the road not
                     taken. */
                  fight: 11, won: 12, lost: 13, skip: 14 };
-  const sceneFlags = [];
+  /* Every bit ever handed out keeps its place, and anything new goes on the
+     end. `used` is what this build actually sets or waits on, which is not the
+     same list: a flag nothing reads any more is still holding its bit. */
+  const sceneFlags = [...ledger];
+  const used = new Set();
   const flagAt = (name) => {
     let at = sceneFlags.indexOf(name);
     if (at < 0) { at = sceneFlags.length; sceneFlags.push(name); }
+    used.add(name);
     /* Four words of them. One was not enough the moment the scenes became a
        story: ten scenes with three answers apiece is thirty flags before a
        single quest is counted. Three was not enough either — the count stood
@@ -1745,6 +1757,11 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   {
     const seen = new Set();
     for (const sc of scenes) {
+      /* Only a scene pinned to its tile can be shadowed by another on the
+         same tile. One that happens anywhere on its map fires wherever you
+         are standing, and the tile written against it is only where its
+         people are laid out from. */
+      if (sc.anywhere) continue;
       const key = `${sc.map} ${sc.x},${sc.y}`;
       if (seen.has(key)) throw new Error(`two scenes stand on ${key}; the second can never fire`);
       seen.add(key);
@@ -1755,7 +1772,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
      quest actually sets, or the line is one nobody will ever read: the whole
      point of the list is that it fires, so a name that matches nothing is a
      build error rather than a quiet nothing. */
-  const known = new Set(sceneFlags);
+  const known = new Set(used);
   const regard = REGARD.map((r) => {
     for (const name of [r.needs, r.unless]) {
       if (name && !known.has(name)) {
@@ -1851,7 +1868,7 @@ const harvest = await page.evaluate(async ({ mapIds }) => {
   for (const a of [...out.actors, ...out.beasts, ...out.hulls]) a.frames = a.frames.map(pack);
   console.log('export: harvest packed');
   return out;
-}, { mapIds: MAP_IDS });
+}, { mapIds: MAP_IDS, ledger: LEDGER });
 
 /* And back into bytes. A Buffer is a Uint8Array, and everything below reads
    a picture by indexing it, which is the same on either. */
@@ -3008,6 +3025,15 @@ L.push('');
 L.push('#endif');
 
 await writeFile(new URL('./data.h', import.meta.url), L.join('\n') + '\n', 'utf8');
+
+/* And any flag this build gave out for the first time is written onto the end
+   of the ledger, so the next build gives it the same bit. */
+if (harvest.sceneFlags.length > LEDGER.length) {
+  const was = await readFile(LEDGER_URL, 'utf8');
+  const more = harvest.sceneFlags.slice(LEDGER.length);
+  await writeFile(LEDGER_URL, was.replace(/\n*$/, '\n') + more.join('\n') + '\n', 'utf8');
+  console.log(`  ${more.length} new story flags written into flags.txt`);
+}
 stamp('data.h written');
 
 const bgTiles = harvest.maps.reduce((n, m) => n + m.bank.length, 0);

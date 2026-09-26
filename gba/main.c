@@ -9635,6 +9635,19 @@ static void beginGame(void) {
   openWindow(0, scratch);
 }
 
+/* A scene waiting on a fight, so that it can carry on once the fight is over.
+ *
+ * A fight used to end the scene it was in. Whatever the scene had left to say
+ * was skipped, and so was every flag it had left to set: the melee at
+ * Harrenhal was one bout on this cartridge rather than three, and never once
+ * wrote down that you had fought it. The scene is put aside instead, with the
+ * people in it still standing where they stood, and picked up again at the
+ * beat after the fight the moment the world is back on the screen - unless
+ * the fight carried you off the map, in which case what was left of it
+ * happened without you. `cutWon` is what the two lines that read the fight
+ * back go by. */
+static int cutHeld = -1, cutHeldBeat, cutHeldMap, cutWon;
+
 static int taleWaiting = -1, taleWaitingThen;  /* told once the duel lets go */
 static int taleAt = -1;         /* which tale is playing, or -1 */
 static int talePage;            /* and which page of it */
@@ -9647,6 +9660,9 @@ static int taleThen;            /* what to do when the last page turns over */
 static void startTale(int which, int then);
 
 static void endDuel(void) {
+  /* How it went, for a scene that is waiting to carry on after it: beaten or
+     taken alive is won, and going down or breaking off is not. */
+  if (cutHeld >= 0) cutWon = duelPhase == DUEL_SPOILS;
   scene = SCENE_WORLD;
   /* The yard borrows eleven of the world's palette entries and used to hand
      none of them back, so every colour between two hundred and two hundred and
@@ -11490,21 +11506,19 @@ static int openBeat(void) {
       cutAsking = 1;
       cutPainted = 0;
       break;
-    /* A scene that stops being a conversation.
-     *
-     * The scene ends here and the fight begins, which is what cutFight has
-     * always been for. The two lines that read what came of it are exported so
-     * that both builds hold the same scenes, and they are stepped over here
-     * because there is nothing left of the scene by the time they would be
-     * reached. */
+    /* A scene that stops being a conversation, for as long as the fight
+     * lasts. The tick that follows sees a fight pending with no window open,
+     * sets the scene's flag, puts the rest of the scene aside and calls the
+     * fight; the scene picks up again after it. See cutHeld. */
     case BEAT_FIGHT:
-      /* Set and left. The tick that follows sees a fight pending with no
-         window open, sets the scene's flag, clears the cast and calls it -
-         which is the road a choice that ends in steel has always taken. */
       cutFight = b->a | (b->b << 8);
       break;
+    /* Said only if the fight went that way. */
     case BEAT_WON:
+      if (cutWon) openWindow(0, yourWords(b->text));
+      break;
     case BEAT_LOST:
+      if (!cutWon) openWindow(0, yourWords(b->text));
       break;
     /* Over the road not taken. */
     case BEAT_SKIP:
@@ -11521,6 +11535,7 @@ static void startCut(int which) {
   cutAt = which;
   cutBeat = 0;
   cutWalkLeft = 0;
+  cutWon = 0;
   /* What the people in it come out around. A scene pinned to its own tile lays
      them out from that tile, exactly where it always did; one that can happen
      anywhere on its map lays them out around you, because you could be at the
@@ -11605,12 +11620,45 @@ static void tickCut(void) {
   if (cutFight != 0xFFFF) {
     int who = cutFight;
     cutFight = 0xFFFF;
+    /* Set now, so that however the fight goes the scene is never played a
+       second time. */
     setFlag(cut->flag);
-    endCut();
+    if (b->kind == BEAT_FIGHT && cutBeat + 1 < cut->count) {
+      /* Put aside with its people still standing in it. */
+      cutHeld = cutAt;
+      cutHeldBeat = cutBeat + 1;
+      cutHeldMap = worldId;
+      cutAt = -1;
+      cutAsking = 0;
+      cutSaid = 0;
+      cutShake = cutFlash = cutTimer = 0;
+      clearFade();
+    } else {
+      endCut();
+    }
     callToArms(who, 0, -1);
     return;
   }
   cutBeat++;
+  openBeat();
+}
+
+/* Whatever a fight interrupted, picked up where it left off - or let go, if
+   the fight put you down somewhere else. */
+static void dropHeld(void) {
+  int i;
+  cutHeld = -1;
+  for (i = 0; i < CUT_SLOTS; i++) cutLive[i] = 0;
+}
+
+static void resumeHeld(void) {
+  int which = cutHeld;
+  if (worldId != cutHeldMap) { dropHeld(); return; }
+  cutHeld = -1;
+  cutAt = which;
+  cutBeat = cutHeldBeat;
+  cutWalkLeft = 0;
+  hero.walk = 0;
   openBeat();
 }
 
@@ -12422,7 +12470,11 @@ static void placeEveryone(void) {
   /* And anybody a cutscene has walked onto the map, who sorts by depth with
      everyone else: somebody who always drew in front of you would read as
      standing on the road rather than on it. */
-  for (i = 0; i < CUT_SLOTS; i++) if (cutLive[i]) order[count++] = -2 - i;
+  /* The people in a scene, and in one that a fight has put aside - but only
+     on the map it was put aside on, since a fight that is lost carries you
+     somewhere they are not. */
+  if (cutAt >= 0 || (cutHeld >= 0 && worldId == cutHeldMap))
+    for (i = 0; i < CUT_SLOTS; i++) if (cutLive[i]) order[count++] = -2 - i;
 
   for (i = 1; i < count; i++) {
     int key = order[i];
@@ -13719,6 +13771,11 @@ int main(void) {
         /* Nothing to do but wait for them. */
       } else if (boxedIn()) {
         pullYouOff();
+      } else if (cutHeld >= 0 && !hero.walk && !shift) {
+        /* Not while the screen is still cracking into the fight: the world
+           goes on ticking under the transition, and a scene picked up there
+           is a scene that carries on before its fight has been fought. */
+        resumeHeld();
       } else if (!hero.walk && cutHere(hero.px >> 4, hero.py >> 4) >= 0) {
         startCut(cutHere(hero.px >> 4, hero.py >> 4));
       } else if (hero.walk) {

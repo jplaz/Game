@@ -24,13 +24,13 @@ ES modules need `http://`, so open it through the server rather than double-clic
 `index.html`. Any static host works.
 
 **On a Game Boy Advance, or an emulator like Delta.** `gba/thronebound.gba` is a real
-cartridge image. Swear to one of five houses, walk nineteen maps of the North from
-Winterfell to Riverrun, talk to a crowd that wanders about its business, and draw on
-anyone who will draw back — duels use the browser game's own damage formula, techniques
-and stats, and the loser dies. No beasts, no standing, no court, no ships and no sound:
-the browser game is still where the game is. See [`gba/README.md`](gba/README.md) for
-how it is built out of the browser game's own art and data, and how far it has and has
-not been checked.
+cartridge image, and very nearly the whole game: swear to any of the nine houses, take
+the ten sigils from wherever you start, sit the Iron Throne and hold court from it.
+Two hundred and forty-one maps from Hardhome to Meereen, beasts at your heel, ships,
+a hall of your own, and sound. Duels use the browser game's own damage formula,
+techniques and stats, and the loser dies. See [`gba/README.md`](gba/README.md) for
+what is and is not on it, how it is built out of the browser game's own art and data,
+and how it is checked.
 
 ## Controls
 
@@ -80,27 +80,32 @@ own ground and have things to say about yours.
 
 ### Westeros
 
-**48 maps** across the regions, branching rather than running as a corridor:
+**243 maps** across eighteen regions, branching rather than running as a corridor:
 
 | Region | Places |
 | --- | --- |
-| The North | Winterfell, the Wolfswood, Moat Cailin |
-| The Wall | The Kingsroad North, Castle Black, Beyond the Wall |
-| Riverlands | The Riverlands, Riverrun |
-| The Vale | The Bloody Gate, the Eyrie |
-| Westerlands | The Gold Road, Lannisport, Casterly Rock, the Barrow Deeps |
+| The North | Winterfell, the Wolfswood, the Kingsroad North, the Dreadfort |
+| The Neck | Moat Cailin |
+| The Wall | Castle Black, the Gift, Eastwatch-by-the-Sea |
+| Beyond the Wall | The Haunted Forest, the Fist of the First Men, Craster's Keep, Hardhome |
+| The Riverlands | Riverrun, the Green Fork, the Twins, the Crossroads, Harrenhal |
+| The Vale | The Bloody Gate, the Stone Crow Camp, the Eyrie |
+| The Westerlands | The Gold Road, Lannisport, Casterly Rock |
 | The Reach | The Roseroad, Highgarden |
-| Dorne | The Prince's Pass, Sunspear |
-| Stormlands | The Stormlands, Storm's End |
-| Crownlands | The Kingsroad, King's Landing, the Red Keep |
-| Dragonstone | Dragonstone, the Dragonmont |
+| Dorne | The Prince's Pass, Sunspear, the Water Gardens |
+| The Stormlands | Storm's End, Shipbreaker Cliffs |
+| The Crownlands | The Kingsroad, King's Landing, Flea Bottom, the Red Keep |
+| Dragonstone | Dragonstone, the Sea Dragon Tower, the Dragonmont |
+| The Iron Islands | The Stony Shore, Lordsport, Pyke |
+| The Narrow Sea | Blackwater Bay, the Gullet, the Sunset Sea, the Stepstones, the Shivering Sea |
+| Essos | Braavos, Pentos, Volantis and Meereen, each a region of its own |
 
 Every settlement has a Maester's Hall that heals and sells supplies, and most have a
 forge that sells and fits arms and armour.
 
 ### Creatures
 
-- **35 creatures** across 15 heraldic archetypes — direwolves, dragons, krakens,
+- **42 creatures** across 16 heraldic archetypes — direwolves, dragons, krakens,
   wights, heart trees — each with base stats, IVs, an EXP curve, learnsets and
   evolutions. Two legendaries hide at the ends of the world: Ghostfang beyond the
   Wall, Blackdread under the Dragonmont.

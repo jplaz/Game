@@ -9,12 +9,12 @@ and on any emulator — Delta, mGBA, VBA — from `thronebound.gba`.
 ask for when the game does something it should not: there is otherwise no way to
 tell one cartridge from the one before it, and guessing wastes everybody's time.
 
-**Swear to a house, and begin at its seat.** Stark, Lannister, Tully, Targaryen
-or Greyjoy. The one you kneel to is the cloak you wear, the colour the interface
-is framed in, and where you wake up: Winterfell, Casterly Rock, Riverrun,
-Dragonstone, or - since the cartridge has no Pyke - Moat Cailin, which is where
-the ironborn take hold anyway. All five seats are joined on foot, and the world
-is checked walkable from every one of them.
+**Swear to a house, and begin at its seat.** Any of the nine: Stark at
+Winterfell, Tully at Riverrun, Arryn at the Eyrie, Tyrell at Highgarden,
+Lannister at Casterly Rock, Martell at Sunspear, Baratheon at Storm's End,
+Targaryen on Dragonstone and Greyjoy on Pyke. The one you kneel to is the cloak
+you wear, the colour the interface is framed in, and where you wake up, and the
+world is checked from every one of the nine.
 
 **Everybody starts at level five, outdoors, in a town.** The world is arranged
 around the player rather than the player around the world, which is how every
@@ -27,7 +27,7 @@ walking distance now: a house's seat is nought, everything one door away is one,
 and an unnamed fighter's level climbs as you walk out from the nearest seat.
 Named characters keep their own numbers, so the people worth being frightened of
 stay frightening wherever they stand. Every seat now has level-three locals to
-start on and the country hardens outward from all five of them.
+start on and the country hardens outward from all nine of them.
 
 The audit will not build a cartridge where any house starts indoors, starts at a
 level other than five, or wakes up with fewer than two people of its own size
@@ -38,11 +38,12 @@ none of the three happens on its own. If an emulator's save file ever leaves you
 starting in Winterfell without being asked, holding SELECT while it switches on
 ignores the record entirely.
 
-**Thirty-five maps**, joined by their real doors: Winterfell and its
-keep, forge, maester's hall and your own chamber; the Wolfswood; the Kingsroad;
-Castle Black, its armoury and the land beyond the Wall; Moat Cailin and the
-Bogforge; the Riverlands; Riverrun, the Tully Armoury, its inn and its keep;
-the Bloody Gate.
+**Two hundred and forty-one maps**, joined by their real doors: the North and
+the Neck, the Wall and the land beyond it as far as Hardhome, the Riverlands, the
+Vale, the Westerlands, the Reach, Dorne, the Stormlands, the Crownlands and King's
+Landing, Dragonstone, the Iron Islands, the seas between all of them, and four
+cities across the Narrow Sea - Braavos, Pentos, Volantis and Meereen. Ten sigils
+to take, one a seat, and then the Iron Throne, and a court to hold from it.
 
 **Every settlement is built of what its region builds with, and no two are laid
 out alike.** Winterfell is grey northern slate on snow behind battlements.
@@ -111,9 +112,10 @@ The game will not take a button until the swing has played.
 
 **Duels** are the browser game's own numbers — its damage formula, its
 techniques, its duellists' stats — over Fight / Pouch / Guard / Flee and then
-four techniques with their power and accuracy shown. **Lose and you wake in
-Winterfell a third of your purse lighter. Win and they are dead**, and stay dead,
-and you are told exactly what the win was worth.
+four techniques with their power and accuracy shown. **Lose and you are carried
+to the last maester who put you back together, or to your own seat, a third of
+your purse lighter. Win and they are dead**, and stay dead, and you are told
+exactly what the win was worth.
 
 **You start with nothing.** Bare hands and one remedy, and Jab, Grapple and
 Headbutt to fight with. Everything you wear, you take off somebody who tried to
@@ -144,12 +146,14 @@ what you have. Better armour changes the body you walk around in. What a blade
 teaches becomes the techniques you fight with - and with nothing in your hands,
 you fight with your hands.
 
-**Sound.** Three tunes on the sound hardware's own square and noise generators —
-one for the road, one for a title card, and a faster one in C minor once steel is
-out — with a cursor tick, a door, a blow landing, a level-up flourish and a sting
-for winning and for going down.
+**Sound.** Ten tunes on the sound hardware's own square and noise generators —
+the road, a hall, a town, the North, the Reach, Dorne, the Iron Islands, the ash
+and rock of Dragonstone, a faster one once steel is out and another for the last
+fight — with a cursor tick, a door, a blow landing, a level-up flourish and a
+sting for winning and for going down.
 
-**START opens a menu** — Sigil, Pouch, Record, Leave. **Record writes to the
+**START opens a menu** — Sigil, At Heel, Swords, Pouch, House, Deeds, Record,
+Leave. **Record writes to the
 cartridge's battery-backed memory**, and the title card offers to take up the
 road again next time you switch on.
 
@@ -158,10 +162,18 @@ page. **SELECT** challenges whoever you are facing. **START** is the menu.
 
 ## What is not on it
 
-No beasts, no eggs, no riding, no standing with houses, no court, no holdfast and
-no Free Cities. There is no ending: the road stops at the Bloody Gate and nothing
-declares you finished. The browser game is still where the whole of it is; this is
-the part that fits on a cartridge.
+Much less than these notes used to say. The cartridge is exported from the same
+data as the browser game and carries nearly all of it: the nine seats and the ten
+sigils, the last act and the court, beasts at your heel and eggs to hatch, ships
+and the sea between the ports, the sellsword companies of the Free Cities, the
+Watch and its rangings, standing with every house, and a hall of your own with a
+household in it. What it does not have:
+
+- **The browser game's creature battles.** Your beasts fight at your side in a
+  duel, and there is no chart of elemental types to play them against.
+- **Riding.** Nothing you own can be mounted; a maester's hall will find you a
+  horse to another hall instead.
+- **A bestiary.**
 
 ## How it is drawn
 
@@ -238,7 +250,7 @@ and the export fails rather than the cartridge.
 
 ## How it is checked
 
-Three ways, all of which run on every `sh build.sh`.
+Four ways, all of which run on every `sh build.sh`.
 
 **`verify.mjs` — what a console checks before it will run a cartridge.** The
 entry branch, the boot logo byte for byte, the fixed 0x96, the header complement
@@ -277,10 +289,11 @@ is a wall and over twenty-five is a walk, and it fails the build either way. It
 also reports the first level at which anybody carries a weapon, since a player
 who starts with nothing needs something to take.
 
-A full run is about 35,000 frames, ten minutes of real play, and covers all 19
-maps, all 64 people, all 12 signs and about 90 duels. The build runs one per
-house; sixty runs across five houses and sixty different rolls of the dice
-currently come back clean.
+A sweep runs to between seven hundred thousand and two million frames, three to
+ten hours of real play, and walks two hundred and more of the 241 maps and speaks
+to about nine in ten of the 843 people in them. The build runs one per house, nine in all, and then climbs all
+ten seats to the throne as every one of the nine houses; all of it currently comes
+back clean.
 
 Between them these found: a fifth of Westeros mute, an NPC able to park in a
 one-tile gateway and seal a map until they wandered off, curly quotes and em

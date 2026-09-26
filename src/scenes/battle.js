@@ -194,20 +194,37 @@ export class Battle {
   }
 
   async choosePartyMember(forced) {
+    /* Somebody who can go out: still standing, and not the one already out
+       there. With a single beast there is nobody, and the list was a loop -
+       pick the one you have, be told it is already out there, and be handed
+       the same list again with the cursor back on it - that only B broke. The
+       random playtest never presses B in a fight and sat in it for forty
+       thousand frames, which is a fair picture of somebody who does not know
+       to. Say so instead, and when a pick is refused, put the cursor back on
+       somebody who can go. */
+    const able = (c) => c.hp > 0 && c !== this.player.creature;
+    if (!forced && !this.playerParty.some(able)) {
+      await this.say('There is nobody else fit to send out.');
+      return -1;
+    }
     const labels = this.playerParty.map((c) => {
       const tag = c.hp <= 0 ? 'FAINTED' : `${c.hp}/${maxHp(c)}`;
       return `${displayName(c)} Lv${c.level} ${tag}`;
     });
+    const first = Math.max(0, this.playerParty.findIndex(able));
+    let cursor = first;
     while (true) {
-      const index = await this.openMenu('list', labels, { columns: 1, cancellable: !forced });
+      const index = await this.openMenu('list', labels, { columns: 1, cancellable: !forced, index: cursor });
       if (index < 0) return -1;
       const creature = this.playerParty[index];
       if (creature.hp <= 0) {
         await this.say(`${displayName(creature)} has no fight left.`);
+        cursor = first;
         continue;
       }
       if (creature === this.player.creature) {
         await this.say(`${displayName(creature)} is already out there.`);
+        cursor = first;
         continue;
       }
       return index;

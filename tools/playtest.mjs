@@ -441,7 +441,10 @@ const report = await page.evaluate(
            top of it. Forty thousand frames of "has no fight left". */
         case 'Battle':
           seen.battles++;
-          hold(roll(3) ? 'a' : ACTIONS[roll(4)]);
+          /* And B now and then, the way anybody backs out of a list they did
+             not mean to open. Without it a run that opened the switch list
+             with one beast in the party could never leave it. */
+          hold(roll(3) ? 'a' : roll(6) ? ACTIONS[roll(4)] : 'b');
           break;
 
         case 'Duel':

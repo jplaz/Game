@@ -10,10 +10,8 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
-import { createRequire } from 'node:module';
 
-const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, executablePath } = await import('./chromium.mjs');
 
 const ROOT = resolve(process.cwd());
 const WHO = (process.argv[2] ?? '').split(',').filter(Boolean);
@@ -32,7 +30,7 @@ const server = createServer(async (req, res) => {
 await new Promise((r) => server.listen(0, r));
 
 const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  executablePath,
   args: ['--no-sandbox'],
 });
 const page = await browser.newPage();

@@ -6,11 +6,9 @@
 import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
-import { createRequire } from 'node:module';
 import { deflateSync } from 'node:zlib';
 
-const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, executablePath } = await import('./chromium.mjs');
 const ROOT = resolve(process.cwd());
 const OUT = process.argv[2] ?? 'tools/shipshot.png';
 const SCALE = Number(process.argv[3] ?? 6);
@@ -29,7 +27,7 @@ const server = createServer(async (req, res) => {
 await new Promise((r) => server.listen(0, r));
 
 const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  executablePath,
   args: ['--no-sandbox'],
 });
 const page = await browser.newPage();

@@ -22,10 +22,8 @@
 import { createServer } from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
 import { join, normalize, extname, resolve } from 'node:path';
-import { createRequire } from 'node:module';
 
-const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, executablePath } = await import('./chromium.mjs');
 
 const ROOT = resolve(process.cwd());
 const FRAMES = Number(process.argv[2] ?? 120000);
@@ -72,7 +70,7 @@ await new Promise((r) => server.listen(0, r));
 const port = server.address().port;
 
 const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  executablePath,
   args: ['--no-sandbox', '--mute-audio'],
 });
 const page = await browser.newPage({ viewport: { width: 480, height: 400 } });

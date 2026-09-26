@@ -161,6 +161,11 @@ npm run check      # lint, validate, the map checks, and every scripted driver
 npm run drivers    # the scripted drivers alone: a counter, a duel, the menu, the last act...
 ```
 
+The drivers, the cartridge export and the picture tools play the real game in a real
+browser, so they want Playwright: `npm install playwright` and
+`npx playwright install chromium`, or a global install of both. `CHROMIUM_PATH` points
+them at a Chromium of your own. `npm run lint` wants ESLint on the path.
+
 `tools/validate.mjs` walks the world tables and catches the class of mistake a browser
 only reveals when a player happens to step on it: a warp into a wall, an NPC standing
 inside a tree or on a warp tile, a sign on a walkable tile that can never be faced, a

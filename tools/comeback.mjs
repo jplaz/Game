@@ -10,9 +10,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { join, normalize, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, executablePath } = await import('./chromium.mjs');
 // The repository root, wherever this clone happens to live.
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
@@ -28,7 +26,7 @@ const server = createServer(async (req, res) => {
 });
 await new Promise((r) => { server.listen(0, r); });
 const port = server.address().port;
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox', '--mute-audio'] });
+const browser = await chromium.launch({ executablePath, args: ['--no-sandbox', '--mute-audio'] });
 const page = await browser.newPage({ viewport: { width: 480, height: 400 } });
 const thrown = [];
 page.on('pageerror', (e) => thrown.push(String(e.message).split('\n')[0]));

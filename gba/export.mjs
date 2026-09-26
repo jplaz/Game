@@ -12,7 +12,6 @@
 import { writeFile, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
-import { createRequire } from 'node:module';
 
 // The berth list is plain data with nothing browser-shaped in it, so it is read
 // here rather than harvested out of the page.
@@ -23,8 +22,7 @@ const { PORTS } = await import('../src/data/ports.js');
    either without the list going stale the first time a town is added. */
 const { UPPER_FLOORS, CAVE_IDS } = await import('../src/data/maps.js');
 
-const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium, executablePath } = await import('../tools/chromium.mjs');
 
 const ROOT = resolve(process.cwd());
 
@@ -149,7 +147,7 @@ const PORT = server.address().port;
 // ------------------------------------------------------------ the browser --
 
 const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  executablePath,
   args: ['--no-sandbox'],
 });
 const page = await browser.newPage();

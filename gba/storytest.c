@@ -18,6 +18,10 @@
  *     what was left of the scene is dropped, nobody from it is left standing
  *     where you wake, and the scene does not play a second time
  *
+ * And one more loop a fight could shut you in: a dragon settled over the town
+ * you wake in, whose clock only ran on fights won. Lose to it three times with
+ * three fights left on its clock, and it has to have burned the town and gone.
+ *
  * Every fight here is decided by the harness rather than fought: what is being
  * tested is the scene on either side of it.
  *
@@ -132,7 +136,52 @@ void hostFrame(void) {
     press(keys);
     return;
   }
-  if (cur >= TESTS) { hostFramesLeft = 0; press(0); return; }
+  if (cur >= TESTS) {
+    /* The dragon over the town you wake in. */
+    static int stage, losses, burnedWas, lastScene;
+    if (stage == 0) {
+      sigils = 0xFF;                       /* the dragons are loose */
+      you.swoopMap = (MapId)worldId;
+      you.swoopAt = 3;
+      burnedWas = you.swoopsBurned;
+      stage = 1;
+      press(0);
+      return;
+    }
+    if (stage == 1 && scene == SCENE_WORLD && !windowOpen && cutAt < 0 && !shift) {
+      if (losses >= 3 || you.swoopMap == NO_MAP) {
+        printf("-- a dragon settled over the town you wake in\n");
+        check("going down to it three times runs its clock out",
+          losses == 3 && you.swoopMap == NO_MAP);
+        check("and the town burns, so it is gone rather than waiting for ever",
+          you.swoopsBurned == burnedWas + 1);
+        hostFramesLeft = 0;
+        press(0);
+        return;
+      }
+      /* Out of the sun, over the town, and far too big for you. */
+      you.swoopMap = (MapId)worldId;
+      you.hp = vigourFor(you.level);
+      wildWanted = BEAST_WYRM;
+      wildLevel = 50;
+      callToArms(-1, 0, -1);
+      press(0);
+      return;
+    }
+    if (scene == SCENE_DUEL) {
+      if (mine.hp > 1) mine.hp = 1;
+      theirs.hp = 999;
+    }
+    if (lastScene == SCENE_DUEL && scene != SCENE_DUEL) losses++;
+    lastScene = scene;
+    {
+      unsigned k = 0;
+      if (windowOpen || scene == SCENE_DUEL) { if (!(last & KEY_A)) k = KEY_A; }
+      else if (scene != SCENE_WORLD) { if (!(last & KEY_B)) k = KEY_B; }
+      press(k);
+    }
+    return;
+  }
 
   if (phase == 0) {
     const Test *t = &tests[cur];

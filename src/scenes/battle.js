@@ -29,7 +29,7 @@ import {
   markSeen, markCaught, awardSigil, winterFalls, countTowardRanging,
 } from '../game/state.js';
 import { isOneOfTheDead } from '../data/winter.js';
-import { dragonAfterWin, dragonBeaten } from '../game/swoop.js';
+import { dragonAfterWin, dragonAfterLoss, dragonBeaten } from '../game/swoop.js';
 import { bastardAfterWin } from '../game/bastards.js';
 
 const FOE_SPRITE = { x: 154, y: 12, size: 56 };
@@ -669,6 +669,9 @@ export class Battle {
       bastardAfterWin();
     } else if (this.outcome === 'lost') {
       await this.say('You have no creatures left standing...');
+      /* And a dragon you went down to is still eating. See dragonAfterLoss. */
+      dragonAfterLoss(this.config.mapId ?? game.state.position.map,
+        this.foe?.creature?.speciesId);
     }
 
     this.finished = true;

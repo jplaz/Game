@@ -84,18 +84,7 @@ export function dragonAfterWin(roll = Math.random) {
 
   if (p.swoopMap) {
     /* Settled, and eating. */
-    if (p.swoopAt > 0) p.swoopAt--;
-    if (p.swoopAt > 0) return;
-    const town = MAPS[p.swoopMap]?.name ?? 'the town';
-    const holder = holderOf(p.swoopMap);
-    p.swoopsBurned = (p.swoopsBurned ?? 0) + 1;
-    if (holder) changeStanding(holder, -6);
-    if (reigning()) changeStability(-6);
-    news = `The fire over ${town} has gone out, and so has the town. Nobody `
-      + 'came. The house that held it will remember that longer than the '
-      + 'dragon will.';
-    p.swoopMap = null;
-    p.swoopAt = 46 + Math.floor(roll() * 30);
+    eats(p, roll);
     return;
   }
 
@@ -112,6 +101,40 @@ export function dragonAfterWin(roll = Math.random) {
     + 'passing through: it has settled on the granary roof and started on the '
     + 'livestock. Every fight you spend elsewhere, it eats deeper. Go and '
     + 'drive it off, or do not.';
+}
+
+/* A settled dragon eats one fight's worth, and when it has eaten enough the
+   town burns and it goes. */
+function eats(p, roll) {
+  if (p.swoopAt > 0) p.swoopAt--;
+  if (p.swoopAt > 0) return;
+  const town = MAPS[p.swoopMap]?.name ?? 'the town';
+  const holder = holderOf(p.swoopMap);
+  p.swoopsBurned = (p.swoopsBurned ?? 0) + 1;
+  if (holder) changeStanding(holder, -6);
+  if (reigning()) changeStability(-6);
+  news = `The fire over ${town} has gone out, and so has the town. Nobody `
+    + 'came. The house that held it will remember that longer than the '
+    + 'dragon will.';
+  p.swoopMap = null;
+  p.swoopAt = 46 + Math.floor(roll() * 30);
+}
+
+/**
+ * A fight lost to the dragon, on the town it had settled over. It is still
+ * eating: its clock only ran on fights won, so a dragon you could not beat
+ * never burned the town and never left, and settled over the town you wake
+ * in it was a loop with no way out. Every fight lost to it now costs the town
+ * what a fight spent anywhere else does.
+ *
+ * @param {string} mapId  where the fight was
+ * @param {string} species what you went down to
+ */
+export function dragonAfterLoss(mapId, species, roll = Math.random) {
+  const p = game.state.player;
+  if (!p.swoopMap || p.swoopMap !== mapId) return;
+  if (species !== 'dreadwyrm' && species !== 'scaleflight') return;
+  eats(p, roll);
 }
 
 /**

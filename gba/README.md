@@ -303,7 +303,10 @@ the scenes that have a fight in the middle: it walks into each, gives the answer
 it is told to, wins or loses the fight as it is told to, and asks whether the
 scene was put aside rather than ended, picked up again afterwards, played to its
 last beat, and left nobody standing - and, when the fight is lost, whether what
-was left of it was dropped and never played twice.
+was left of it was dropped and never played twice. Then it settles a dragon over
+the town you wake in and loses to it three times running, and asks whether the
+town has burned and the dragon gone: its clock used to run only on fights won,
+so one you could not beat stayed there for good.
 
 **And the audit fights.** Balance is not something to have an opinion about when
 the arithmetic is right there: the audit runs the cartridge's own damage formula,

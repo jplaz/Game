@@ -2281,24 +2281,30 @@ static void sayDragonNews(const char *a, const char *place, const char *b) {
   swoopNews = 1;
 }
 
+/* A settled dragon eats one fight's worth, and when it has eaten enough the
+   town burns and it goes. */
+static void dragonEats(void) {
+  if (you.swoopAt) you.swoopAt--;
+  if (!you.swoopAt) {
+    int holder = maps[you.swoopMap].holder;
+    you.swoopsBurned++;
+    if (holder < HOUSE_COUNT) moveFavour(holder, -6);
+    if (you.story >= 3) { crown.steady -= 6; if (crown.steady < -100) crown.steady = -100; }
+    sayDragonNews("The fire over ", maps[you.swoopMap].name,
+      " has gone out, and so has the town. Nobody came. The house that held "
+      "it will remember that longer than the dragon will.");
+    you.swoopMap = NO_MAP;
+    you.swoopAt = (u16)(46 + roll(30));
+  }
+}
+
 /* One tick per fight won. Arms the first swoop, lands it, and burns the town
    if it has been left too long. */
 static void dragonAfterWin(void) {
   if (!dragonsLoose()) return;
   if (you.swoopMap != NO_MAP) {
     /* Settled, and eating. */
-    if (you.swoopAt) you.swoopAt--;
-    if (!you.swoopAt) {
-      int holder = maps[you.swoopMap].holder;
-      you.swoopsBurned++;
-      if (holder < HOUSE_COUNT) moveFavour(holder, -6);
-      if (you.story >= 3) { crown.steady -= 6; if (crown.steady < -100) crown.steady = -100; }
-      sayDragonNews("The fire over ", maps[you.swoopMap].name,
-        " has gone out, and so has the town. Nobody came. The house that held "
-        "it will remember that longer than the dragon will.");
-      you.swoopMap = NO_MAP;
-      you.swoopAt = (u16)(46 + roll(30));
-    }
+    dragonEats();
     return;
   }
   if (!you.swoopAt) { you.swoopAt = (u16)(26 + roll(20)); return; }
@@ -9735,6 +9741,16 @@ static void youFell(void) {
       you.host[last].kind = 255;
     }
   }
+  /* And a dragon you went down to is still eating.
+   *
+   * Its clock only ran on fights won, and a dragon you cannot beat is one you
+   * keep losing to - so it never burned the town and never left. Settled over
+   * the town you wake in, that is a loop with no way out of it: go down to it,
+   * be carried home, walk into the grass, meet it again, for as long as you
+   * kept playing. Every fight lost to it now costs the town the same as a
+   * fight spent anywhere else, so however it goes, it ends. */
+  if ((foeBeast == BEAST_WYRM || foeBeast == BEAST_DRAKE)
+      && you.swoopMap != NO_MAP && worldId == you.swoopMap) dragonEats();
   bare = !you.WORN_WEAPON;
   endDuel();
   /* Somebody carries you home. It costs you a third of your purse and the

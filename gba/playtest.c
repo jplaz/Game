@@ -832,6 +832,9 @@ static int askedFor = -1, askedGold, askedTimes;
 static int duelMap = -1;
 static u16 lostHere[MAP_COUNT];
 static u8 badGround[MAP_COUNT];
+/* Who the last fight was against, and how many times the leader of the rung
+   being climbed has put you down since you were last a level higher. */
+static int duelFoe = -1, leaderBeatYou, leaderBeatLevel;
 /* Frames spent walking grass since the last fight actually started. */
 static int grindQuiet;
 /* Frames stood in the snow since the ranging count last went up, and the cold
@@ -1108,6 +1111,41 @@ static int findCover(int *gx, int *gy) {
   return found;
 }
 
+/* Ground worth training on at this level, and the door out of here towards
+   the nearest of it.
+ *
+ * The grass used to be looked for underfoot and nowhere else. A Tully climb
+ * came home to Riverrun for its ninth seat at level thirty-five, three short
+ * of Lady Catelyn, on ground that tops out at level three - so there was
+ * nothing there worth fighting, and the run walked in, lost to her, was
+ * carried off, and walked back in again: seventeen hundred times. A player
+ * three levels short goes back out to where the fights are. */
+static int groundFit(int m) {
+  int i;
+  if (badGround[m] || !(maps[m].ambushCount || maps[m].wildCount)) return 0;
+  if (groundBy[you.house][m] + 8 < you.level) return 0;
+  for (i = 0; i < maps[m].w * maps[m].h; i++) if (maps[m].cover[i]) return 1;
+  return 0;
+}
+
+static int warpTowardGround(void) {
+  int seen[MAP_COUNT], q[MAP_COUNT], head = 0, tail = 0, i;
+  for (i = 0; i < MAP_COUNT; i++) seen[i] = 0;
+  seen[worldId] = 1;
+  q[tail++] = worldId;
+  while (head < tail) {
+    int m = q[head++];
+    if (m != worldId && groundFit(m)) return warpTowardMap(m);
+    for (i = 0; i < maps[m].warpCount; i++) {
+      int to = maps[m].warps[i].to;
+      if (seen[to] || !crossable(to)) continue;
+      seen[to] = 1;
+      q[tail++] = to;
+    }
+  }
+  return -1;
+}
+
 /* What the ladder run wants next: the leader it is short of, the grass it needs
    to be worth fighting them, or the road in between. */
 static void pickLadderGoal(void) {
@@ -1160,9 +1198,11 @@ static void pickLadderGoal(void) {
     shopTries = 0;
     shopBudget = 6;
     rearmed = 0;
+    leaderBeatYou = 0;
     printf("    rung %d  %-22s at %-18s wants about %2d\n",
       at + 1, leaders[lead].name, leaders[lead].seat, want);
   }
+  if (you.level != leaderBeatLevel) { leaderBeatLevel = you.level; leaderBeatYou = 0; }
   /* Empty hands. Gear wears through, and the rung's one trip to a counter is
      spent long before the sword that was bought on it snaps - so the seventh
      rung was fought, and won, with nothing in either hand, which is not a
@@ -1227,6 +1267,15 @@ static void pickLadderGoal(void) {
       wantShop = 0;
     }
     wantShop = 0;
+  }
+  /* Short of the level, and they have already shown you twice what that
+     means: go and train somewhere worth it. Not before - a player tries the
+     door first, "wants about" is a guess, and sending every climb that is a
+     level or two short off to the far roads puts it in deep-winter grass
+     among the dead for a thousand fights it did not need. */
+  if (you.level + 1 < want && leaderBeatYou >= 2) {
+    int door = warpTowardGround();
+    if (door >= 0) { goalKind = GOAL_WARP; goalIndex = door; return; }
   }
   if (worldId == leaders[lead].map) {
     who = leaderNpcOn(worldId, lead);
@@ -2820,11 +2869,14 @@ void hostFrame(void) {
     if (wasScene != SCENE_DUEL) {
     }
     duelMap = worldId;
+    duelFoe = foeId;
     grindQuiet = 0;
     if (wasScene != SCENE_DUEL) {
       if (getenv("DBG")) {
-        printf("      duel: foeId %d beast %d level %d (you %d, story %d, hp %d)\n",
-          foeId, foeBeast, foeLevel, you.level, you.story, you.hp);
+        printf("      duel: foeId %d beast %d level %d (you %d, story %d, hp %d) "
+               "on %s, winter %d, kills %d\n",
+          foeId, foeBeast, foeLevel, you.level, you.story, you.hp,
+          world ? world->name : "-", you.winter, you.kills);
       }
       if (foeBeast >= 0) wildsMet++;
       /* Something that was already dead, and whether it was met somewhere the
@@ -3169,9 +3221,18 @@ void hostFrame(void) {
          frame that picked the grind fell through to the sign code and
          pressed A at the hedge. Eight and a half million frames, standing
          still in King's Landing, one tile from the grass. */
+      /* And the grass has to be the grass it was picked for. The latch
+         outlives the map: a Tully climb chose the Prince's Pass to train on,
+         went down there, was carried home to Riverrun still grinding, and
+         stood in the reeds outside its own gate at level twenty-seven
+         killing level-three bandits - no experience in any of it, and a
+         grave every time, so the season turned on every sixth one until the
+         dead walked down to Riverrun. The seventh seat took nineteen hundred
+         fights. */
       if (ladderMode && grindMode) {
         int at = rungFor();
-        if (at < 0 || you.level + 1 >= leaderLevel[at] || badGround[worldId]) {
+        if (at < 0 || you.level + 1 >= leaderLevel[at] || badGround[worldId]
+            || groundBy[you.house][worldId] + 8 < you.level) {
           grindMode = 0;
           goalKind = GOAL_NONE;
         }
@@ -3477,7 +3538,12 @@ void hostFrame(void) {
 
   if (wasScene == SCENE_DUEL && scene != SCENE_DUEL) {
     if (theirs.hp <= 0) duelsWon++;
-    else if (mine.hp <= 0) duelsLost++;
+    else if (mine.hp <= 0) {
+      int at = rungFor();
+      duelsLost++;
+      if (ladderMode && at >= 0 && duelFoe >= 0
+          && duelFoe == leaders[atRung[at]].duellist) leaderBeatYou++;
+    }
     else fled++;
     /* Ground that keeps beating you is not ground to level up on.
      *

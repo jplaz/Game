@@ -1004,12 +1004,13 @@ export const CUTSCENES = {
             + 'thousand under the gold road. It is all in his books. I counted.'],
       ['choose', 'He waits, with the patience of a man who has outlived every '
             + 'argument ever put to him.',
-        ['Take the letters to the court', 'Send the corn north, and live', 'Draw'],
+        ['Take his books to the court', 'Send the corn north, and live', 'Draw'],
         { record: 'theGrandMaester', skips: [0, 4, 7],
           favour: [{ stark: 12, tully: 6 }, { lannister: 8, stark: -4 }, { stark: 6, lannister: -10 }] }],
-      ['say', 'You lay Harmune\'s letters on the council table one at a time, grey '
-            + 'wax uppermost, and read the endorsements out loud. NOT YET. NOT '
-            + 'YET. NOT YET.'],
+      ['say', 'His books go on the council table a page at a time, with Wren\'s '
+            + 'tallies beside them and the Watch\'s letters on top, grey wax '
+            + 'uppermost, and you read the endorsements out loud. NOT YET. NOT YET. '
+            + 'NOT YET.'],
       ['say', 'Grand Maester Pycelle: They will not believe you. ... They believe '
             + 'you. How very inconvenient.'],
       ['say', 'By nightfall the Grand Maester is in a cell and every rookery in the '

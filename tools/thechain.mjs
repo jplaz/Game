@@ -208,7 +208,7 @@ const rows = [
   ['the Spider names the man', r.spider.fired && has(r.spider, /Grand Maester keeps his rooms/)],
   ['and is remembered', r.spiderFlag === true],
   ['the Grand Maester explains himself', has(expose, /choosing who comes out of it/)],
-  ['taking the letters to court ends it one way', expose.answer && has(expose, /every rookery/)
+  ['taking his books to court ends it one way', expose.answer && has(expose, /every rookery/)
     && !has(expose, /keeping a book on you|empty cup/)],
   ['sending the corn north ends it another', bargain.answer && has(bargain, /keeping a book on you/)
     && !has(bargain, /every rookery|empty cup/)],

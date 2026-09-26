@@ -243,6 +243,8 @@ static int seatsAtBerth;
 static int portsSeen, sailed, talesSeen, crownRun;
 static int yardsSeen, hullsBought, yardHeld;   /* the shipwright's */
 static int landsSeen, deedsBought, roomsSeen, landHeld;  /* what is for sale */
+/* A deed just bought, and the broker still in front of you to ask the way. */
+static int roomOwed;
 /* The masons, and what the household came to. Nothing in the tester ever built
    anything before, so nothing had ever seen a hall with more than one child in
    it - and a household of five is the only state the placement is interesting
@@ -2715,7 +2717,24 @@ void hostFrame(void) {
     else if (landPick != want) keys = tap(landPick < want ? KEY_DOWN : KEY_UP);
     else {
       keys = tap(KEY_A);
-      if (keys) { if (!ownsLand(want)) deedsBought++; else roomsSeen++; landHeld = 0; }
+      if (keys) {
+        /* Buying one closes the list on the deed's own paper, and the way in
+           is back through the same broker: speak to him again and the cursor
+           opens on what is now yours, where A says "go there". Nine sweeps
+           bought twenty-seven rooms between them and walked into none, so no
+           run had ever stood in a room it owned - the whole second half of
+           buying one was a thing this game had never done. */
+        if (!ownsLand(want)) { deedsBought++; roomOwed = 1; }
+        else {
+          roomsSeen++;
+          roomOwed = 0;
+          /* A new map, the way a sail is: whatever the broker was a goal on
+             is somewhere else now. */
+          goalKind = GOAL_NONE;
+          interacting = 0;
+        }
+        landHeld = 0;
+      }
     }
   } else if (scene == SCENE_SEA) {
     /* Somebody has come over the horizon. Go in bow-first every time and read
@@ -3112,6 +3131,10 @@ void hostFrame(void) {
     } else if (spotted >= 0) {
       if (!spottedBy) spottedBy = 1, spottings++;
       keys = 0;
+    } else if (roomOwed && !hero.walk) {
+      /* Still facing the broker the deed came from: ask again. */
+      keys = tap(KEY_A);
+      if (keys) roomOwed = 0;
     } else if (!hero.walk && ++sinceStatus > 150) {
       sinceStatus = 0;
       keys = tap(KEY_START);

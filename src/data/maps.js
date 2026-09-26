@@ -2,6 +2,7 @@ import { hiddenNooks } from './nooks.js';
 import { CUTSCENES } from './cutscenes.js';
 import { gearTable, GEAR_SLOTS } from './gear.js';
 import { MATERIAL_IDS } from './craft.js';
+import { nameTheTownsfolk, giveFightersVoices } from './townsfolk.js';
 
 // World data.
 //
@@ -11856,6 +11857,12 @@ function dressGround() {
 }
 
 dressGround();
+
+/* And everybody the templates put down gets a name of their own. See
+   townsfolk.js: fifteen kennelmasters saying one sentence was the loudest
+   thing about the people of this world. */
+nameTheTownsfolk(MAPS);
+giveFightersVoices(MAPS);
 
 /** The region a map belongs to, or an empty string if it has none. */
 export function regionOf(key) {

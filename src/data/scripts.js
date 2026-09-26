@@ -949,10 +949,14 @@ export const SCRIPTS = {
        swallowed it, and talking to any of them did nothing at all, silently,
        for the whole game. An archetype is a perfectly good opponent: build one
        at your level and let it keep the name the map gave it. */
+    /* And with the thing this person says, rather than the first line of
+       their kind: forty-six sellswords used to open with the same sentence. */
     const def = DUELLISTS[id]
       ?? (ROAMERS[id]
-        ? { ...makeRoamer(id, Math.max(4, game.state.player.level + 1), (l) => l[0]),
-            name: npc.name ?? undefined }
+        ? (() => {
+          const kind = makeRoamer(id, Math.max(4, game.state.player.level + 1), (l) => l[0]);
+          return { ...kind, name: npc.name ?? undefined, intro: npc.data?.line ?? kind.intro };
+        })()
         : null);
     if (!def) {
       await say('They have nothing to say to you.');

@@ -107,7 +107,7 @@ const out = await page.evaluate(async () => {
      next one. */
   for (let i = 0; i < 6000 && scene() !== 'Overworld'; i++) await tap(i % 3 ? 'a' : 'b');
   for (let i = 0; i < 3000 && ow.busy; i++) await tap('a');
-  res.counter = await callOut('maesterHallWinterfell', 'Steward', 9, 1, 'left');
+  res.counter = await callOut('maesterHallWinterfell', 'Vayon Poole', 9, 1, 'left');
   for (let i = 0; i < 6000 && scene() !== 'Overworld'; i++) await tap(i % 3 ? 'a' : 'b');
   for (let i = 0; i < 3000 && ow.busy; i++) await tap('a');
 
@@ -160,7 +160,7 @@ const rows = [
   ['answering it does not also speak to him', r.forge.spokeTo === false],
   ['or open his forge', r.forge.counterOpened === false],
   ['it starts the duel it asked for', r.forge.duelled === true],
-  ['calling out the Steward asks the question', /Call out Steward\?/.test(r.counter.asked ?? '')],
+  ['calling out the steward asks the question', /Call out Vayon Poole\?/.test(r.counter.asked ?? '')],
   ['answering it does not also speak to him', r.counter.spokeTo === false],
   ['or open his counter', r.counter.counterOpened === false],
   ['it starts the duel it asked for', r.counter.duelled === true],

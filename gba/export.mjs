@@ -194,6 +194,7 @@ const harvest = await page.evaluate(async ({ mapIds, ledger }) => {
   const { SHIPS, FLEETS, SEA_LANES } = await import('/src/data/ships.js');
   const { PROPERTIES, PROPERTY_IDS } = await import('/src/data/properties.js');
   const { COMPANIES, COMPANY_IDS } = await import('/src/data/companies.js');
+  const { COMPANIONS } = await import('/src/data/companions.js');
   const shipArt = await import('/src/art/ship.js');
   const { CUTSCENES, CUTSCENE_IDS } = await import('/src/data/cutscenes.js');
   const { QUESTS } = await import('/src/data/quests.js');
@@ -1133,6 +1134,18 @@ const harvest = await page.evaluate(async ({ mapIds, ledger }) => {
            this did; the draft is gone and both builds say the same thing. */
         || (n.data?.match && MATCHES[n.data.match]?.open)
         || n.data?.line
+        /* And the people whose words live in another table. Each of these
+           fell through to the longest sentence in their script, which is the
+           same sentence for everybody running it: twenty-nine animals opened
+           with "You have nothing on its feet to put between you and that",
+           nine people with a quest opened with how badly it went, and every
+           captain with a company for hire shrugged the same shrug. */
+        || n.data?.waking?.[0]
+        || (n.data?.quest && QUESTS[n.data.quest]?.giver)
+        || (n.data?.company && COMPANIES[n.data.company]?.pitch)
+        || (n.data?.companion && COMPANIONS[n.data.companion]?.recruit)
+        || (n.script === 'deedBroker' && PROPERTIES[n.data?.property]?.broker)
+        || (n.script === 'ownBed' && PROPERTIES[n.data?.property]?.rest)
         || null;
       // Who trades, and who watches the road. A trainer in the browser game has
       // a sight range; the same number decides how far down their nose they

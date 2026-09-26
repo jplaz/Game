@@ -52,6 +52,24 @@ You are a ward of Winterfell, sent south as Lord Eddard's errand-rider. Collect 
 Great House sigils, and take the Iron Throne from Cersei — twice over, because she
 does not concede the chair to someone who has only beaten her animals.
 
+### The story
+
+It starts in your own yard, whichever of the nine houses you swore to: your maester
+runs across it with a raven from the Wall that says three words, and admits the
+Citadel told every castle to file such letters and not act on them. Why nobody south
+of the Neck has read a letter from the Wall in a year is the thread the whole game
+pulls on. It runs through a burned village on the gold road and a girl called Wren
+who counted the corn onto the wagons; the dry working in the hill where the corn
+went; the carters at the Crossroads; the whispering cave on the Riverlands road and
+what is kept in it; a man in good boots who keeps finding you on the kingsroad; a
+child taken to the robbers' hole; the Spider; and a warm room behind the maesters'
+hall in King's Landing, where it ends one of three ways. Every step of it waits on
+the one before, and every answer you give is remembered.
+
+The caves off the roads are part of it. Each is cut into something already solid —
+the treeline at the head of a clearing, a crag over the pass, the face of the old
+quarry on the gold road — and entered through a mouth in the rock, not a door.
+
 ### You fight too
 
 You have your own level track, stats and equipment, entirely separate from your

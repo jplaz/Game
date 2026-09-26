@@ -22,6 +22,10 @@
 //                                 option (or `skipOn`) is picked, which is how
 //                                 a scene offers something you may refuse
 //   ['fight', who, { record }]    it turns into a fight, and the scene goes on
+//                                 afterwards - on the cartridge too, now. Losing
+//                                 carries you off, and whatever the scene had
+//                                 left happens without you, so anything a later
+//                                 scene waits on is set BEFORE the fight
 //   ['won', text]                 said only if the last fight was won
 //   ['lost', text]                said only if it was not
 //
@@ -204,6 +208,9 @@ export const CUTSCENES = {
             + 'Not one of us has ever held a gold coin for longer than it took to hand it over.'],
       ['say', 'Pit Man: They say a Lannister always pays his debts. '
             + 'Nobody ever asks who to.'],
+      ['say', 'Pit Man: And the dry working up at the head of the road takes a '
+            + 'cart a week and gives nothing back. We were told not to ask by men '
+            + 'who do not wear a lion.'],
       ['despawn', 'miner'],
       ['flag', 'sawTheGold'],
     ],
@@ -347,6 +354,10 @@ export const CUTSCENES = {
 
   /** The offer, made politely, in the holiest room in the realm. */
   theOfferInTheSept: {
+    /* Anywhere in the Sept rather than on one flagstone of it: the spine of
+       the story cannot wait on a single tile of a room most people walk
+       straight through. */
+    anywhere: true,
     map: 'greatSept', x: 8, y: 6, flag: 'cs_septOffer', name: 'The Offer',
     needs: 'theyAreWatching', sigils: 5,
     beats: [
@@ -356,7 +367,10 @@ export const CUTSCENES = {
         name: 'A Man in Good Boots' }],
       ['walk', 'agent', 'down', 2],
       ['say', 'A Man in Good Boots: Five. Nobody expected five. '
-            + 'My employer would like to stop being surprised by you.'],
+            + 'My employers would like to stop being surprised by you.'],
+      ['say', 'A Man in Good Boots: They are not a house. They do not want the '
+            + 'chair and they do not much mind who sits in it. They mind what is '
+            + 'eaten this winter, and by whom.'],
       ['say', 'A Man in Good Boots: A seat of your own, a wife you would '
             + 'actually like, and the four you have not taken left standing. '
             + 'All of it today, and you stop walking.'],
@@ -374,32 +388,49 @@ export const CUTSCENES = {
 
   /** And the offer, made again, without the manners. */
   theSecondOffer: {
-    map: 'fleaBottom', x: 11, y: 9, flag: 'cs_secondOffer', name: 'The Second Offer',
-    needs: 'refusedTheOffer', sigils: 7,
+    /* On the kingsroad, where he has found you before, rather than on one
+       street of Flea Bottom that nothing sends anybody down. Everything after
+       this waits on it. And it waits on him having found you at all, not on
+       the Sept: a rider who never went into the Sept never heard the first
+       offer, and was never going to hear about the Chain either. */
+    anywhere: true,
+    map: 'kingsroad', x: 11, y: 18, flag: 'cs_secondOffer', name: 'The Second Offer',
+    needs: 'theyAreWatching', sigils: 7,
     beats: [
-      ['say', 'Flea Bottom at dusk. Somebody steps out of a doorway behind you '
-            + 'and two more do not step out of the one opposite, which is worse.'],
-      ['spawn', 'agent', { x: 11, y: 6, dir: 'down', sprite: 'noble',
+      ['say', 'Dusk on the kingsroad. Somebody steps out of the trees behind you '
+            + 'and two more do not step out of the trees opposite, which is worse.'],
+      ['spawn', 'agent', { x: 11, y: 15, dir: 'down', sprite: 'noble',
         name: 'A Man in Good Boots' }],
       ['walk', 'agent', 'down', 2],
       ['shake', 0.6],
-      ['say', 'A Man in Good Boots: Seven. I am told to say that the offer '
-            + 'stands and that the price has changed, and I am told to say the '
-            + 'second part slowly.'],
+      ['say', 'A Man in Good Boots: Seven. I am told to say that my employers\' '
+            + 'patience has a price, and that the price has changed, and I am '
+            + 'told to say the second part slowly.'],
       ['say', 'A Man in Good Boots: There is a maester at Eastwatch who signed '
             + 'his name to something. There is a child in Riverrun who took '
             + 'your silver. Neither of them is difficult to reach.'],
+      /* Before the answer, so that however the answer goes - and one of them
+         goes to steel - what comes after this has something to wait on. */
+      ['flag', 'theyThreatenedYou'],
       ['choose', 'The two who did not step out are still not stepping out.',
         ['Draw', 'Tell him where to find me', 'Agree to anything and mean none of it'],
-        { record: 'theSecondOffer',
+        { record: 'theSecondOffer', skips: [0, 4, 4],
           favour: [{ lannister: -16 }, { lannister: 6 }, { lannister: 8, targaryen: -4 }] }],
+      ['say', 'The two who did not step out step out. They are dressed in grey, '
+            + 'and neither of them says a word.'],
+      ['fight', 'greyMan'],
+      ['won', 'When you look up from the second of them, the man in good boots '
+            + 'has gone. He did not run. He is simply not there any more.'],
+      ['skip', 1],
+      ['say', 'A Man in Good Boots: Sensible. It will not help either of them, '
+            + 'but it is sensible.'],
       ['despawn', 'agent'],
-      ['flag', 'theyThreatenedYou'],
     ],
   },
 
   /** Who has been doing it, on the steps of the place it was all for. */
   theSpiderHimself: {
+    anywhere: true,
     map: 'redKeep', x: 9, y: 20, flag: 'cs_spider', name: 'The Spider',
     needs: 'theyThreatenedYou', sigils: 8,
     beats: [
@@ -411,18 +442,24 @@ export const CUTSCENES = {
       ['say', 'The Spider: I have had eleven men watch you and nine of them '
             + 'came back saying you were nobody. It is a very good disguise. '
             + 'I could not have done better and I have had practice.'],
+      ['say', 'The Spider: I have watched the grey men longer than I have '
+            + 'watched you. Ravens, corn and coin: there is one man in this '
+            + 'castle whose hands are in all three, and he has sat at the council '
+            + 'table pretending to be asleep for thirty years.'],
       ['say', 'The Spider: I did not want you stopped. I wanted you slowed, '
             + 'so I could see what you were for. A man who wants the chair '
-            + 'takes the shortest road to it. You went north.'],
+            + 'takes the shortest road to it. You kept turning over stones.'],
       ['choose', 'He is smiling and it does not reach anything.',
         ['I went north because the letter was true', 'I want the chair',
          'You will find out with everyone else'],
         { record: 'theSpiderHimself',
           favour: [{ stark: 14 }, { lannister: -8, baratheon: 8 }, { arryn: 6 }] }],
-      ['say', 'The Spider: Then go up. I serve the realm, and for the first '
-            + 'time in some years I am not certain which of you that means.'],
-      ['despawn', 'spider'],
       ['flag', 'metTheSpider'],
+      ['say', 'The Spider: The Grand Maester keeps his rooms at the back of the '
+            + 'maesters\' hall, under the rookery. See him before you go up. I '
+            + 'serve the realm, and for the first time in some years I am not '
+            + 'certain which of you that means.'],
+      ['despawn', 'spider'],
     ],
   },
 
@@ -443,10 +480,15 @@ export const CUTSCENES = {
         ['I came to see for myself', 'Who else did you write to?', 'Tell me what you saw'],
         { record: 'theHandThatWroteIt',
           favour: [{ stark: 10 }, { arryn: 6 }, { stark: 8, tully: 4 }] }],
-      ['say', 'Maester Harmune: Then you are the first, and you are four hundred '
-            + 'leagues from anybody who could send you help. Walk carefully.'],
       ['flag', 'metTheWatch'],
       ['flag', 'heardTheRaven'],
+      ['say', 'Maester Harmune: Forty birds I sent south in a year, and yours is '
+            + 'the only one that landed - because your maester keeps birds of his '
+            + 'own. Every other raven in the realm is bred at the Citadel, and '
+            + 'flies the Citadel\'s roads before it flies anybody else\'s.'],
+      ['say', 'Maester Harmune: Somebody on those roads is catching them. Find '
+            + 'where, and you will find who. And walk carefully: you are four '
+            + 'hundred leagues from anybody who could send you help.'],
     ],
   },
 
@@ -490,8 +532,9 @@ export const CUTSCENES = {
             + 'other a scrap of paper held out in front of him like it is hot.'],
       ['spawn', 'maester', { x: 12, y: 13, dir: 'down', sprite: 'maester', name: '{maester}' }],
       ['walk', 'maester', 'down', 2],
-      ['say', '{maester}: From the Wall. Not the usual count of stores and '
-            + 'cold. It is signed by a man I buried a rumour about last winter.'],
+      ['say', '{maester}: From the Wall. It came to my own birds, not the '
+            + 'Citadel\'s, and it is signed by a man I buried a rumour about last '
+            + 'winter.'],
       ['say', '{maester}: Three words. THEY ARE COMING. No number, no name, '
             + 'nothing a lord could act on, which is what frightens me about it.'],
       ['choose', 'What do you make of it?',
@@ -499,6 +542,9 @@ export const CUTSCENES = {
          'I believe it'],
         { record: 'theRaven',
           favour: [{ stark: -8 }, { lannister: 6, stark: -6 }, { stark: 12 }] }],
+      ['say', '{maester}: The Citadel wrote to every castle in the realm a year '
+            + 'ago. Letters from the Wall are to be read, filed, and not acted on. '
+            + 'I filed the last one. I am not filing this.'],
       ['say', '{maester}: Then go and be useful about it. Nobody south of the '
             + 'Neck will move for three words and a stranger. Give them nine '
             + 'sigils and they will move for anything you like.'],
@@ -522,8 +568,8 @@ export const CUTSCENES = {
             + 'when it moves, to be a man in the cloak of the Night\u2019s Watch.'],
       ['spawn', 'crow', { x: 10, y: 17, dir: 'up', sprite: 'nightswatch',
         name: 'A Sworn Brother' }],
-      ['say', 'A Sworn Brother: Eastwatch. Nine of us started. Do not go north '
-            + 'of the Fist, whatever they offer you.'],
+      ['say', 'A Sworn Brother: Eastwatch. Forty ravens went south before us and '
+            + 'not one of them was answered, so they sent men. Nine of us started.'],
       ['say', 'A Sworn Brother: It is not wildlings. I could fight wildlings. '
             + 'They come at night and the ones you knew come with them.'],
       ['choose', 'He cannot walk another mile.',
@@ -540,10 +586,15 @@ export const CUTSCENES = {
   whoPaidHim: {
     anywhere: true,
     map: 'kingsroad', x: 10, y: 21, flag: 'cs_whoPaid', name: 'Who Paid Him',
-    needs: 'theFollower_1', sigils: 3,
+    /* Waiting on the follower having happened, not on one answer to him. It
+       waited on "Ask who paid him", and so everybody who drew on the man or
+       walked away from him lost the whole of the story that comes after:
+       the offer, the threat, the Spider and the Chain. */
+    needs: 'cs_follower', sigils: 3,
     beats: [
-      ['say', 'The name he gave you has been sitting behind your teeth for a '
-            + 'week, and here is a man wearing that name\u2019s colours, waiting.'],
+      ['say', 'The man who was on your heels for three days is gone from the '
+            + 'road, and in his place is a man in much better boots, waiting by '
+            + 'the milestone as if you had arranged to meet.'],
       ['spawn', 'agent', { x: 10, y: 20, dir: 'down', sprite: 'noble',
         name: 'A Man in Good Boots' }],
       ['walk', 'agent', 'down', 2],
@@ -556,6 +607,11 @@ export const CUTSCENES = {
         ['The chair', 'The North warned and armed', 'Nothing at all'],
         { record: 'whoPaidHim',
           favour: [{ baratheon: 8, lannister: -8 }, { stark: 14, lannister: -6 }, { arryn: -6 }] }],
+      ['say', 'He turns something over in his fingers while you answer: one '
+            + 'link of chain, dull and grey, of no metal any smith would bother '
+            + 'to name.'],
+      ['say', 'A Man in Good Boots: When you hold five, I will be in the Great '
+            + 'Sept. Come and hear a price.'],
       ['walk', 'agent', 'up', 3],
       ['despawn', 'agent'],
       ['flag', 'theyAreWatching'],
@@ -685,11 +741,303 @@ export const CUTSCENES = {
     beats: [
       ['say', 'The smell reaches you before the turn in the road does.'],
       ['wait', 0.7],
-      ['say', 'Eleven houses. Nine of them still standing, in the sense that walls are standing.'],
-      ['spawn', 'left', { x: 10, y: 9, dir: 'up', sprite: 'goodwife', name: 'Somebody Left Behind' }],
-      ['say', 'Whoever did it went through in a morning and was somewhere else by evening. '
-            + 'They took the grain and left the people.'],
+      ['say', 'Eleven houses. Nine of them still standing, in the sense that '
+            + 'walls are standing. The mill is a black stump with its wheel still '
+            + 'turning in the race.'],
+      ['spawn', 'wren', { x: 10, y: 9, dir: 'up', sprite: 'goodwife', name: 'Wren' }],
+      ['say', 'Wren: They did not come for us. They came for the mill. Forty loads '
+            + 'of meal and seed corn, counted onto wagons, and the roofs fired so '
+            + 'we would be too busy to follow.'],
+      ['say', 'Wren: No banners. Grey cloaks, and not one word between them all '
+            + 'morning. The wagons went up the hill to the old working - and the '
+            + 'old working has been dry since my grandmother was a girl.'],
+      ['choose', 'She is counting on her fingers, the same count, over and over.',
+        ['Who were they?', 'Here. Take what I have', 'This is not my road'],
+        { record: 'burnedVillage',
+          favour: [{ tully: 4, lannister: -4 }, { tully: 6 }, { lannister: 4, tully: -4 }] }],
+      ['say', 'Wren: I count things. It is what I have instead of a sword. Forty '
+            + 'loads went up that hill, and whoever took them is going to have to '
+            + 'count them back out past me.'],
       ['flag', 'sawTheBurning'],
+    ],
+  },
+
+  /* ------------------------------------------------------------ the chain --
+   *
+   * What the raven was about, and why nobody south of the Neck ever read one.
+   *
+   * The Long Night comes once in eight thousand years, and there are people
+   * who have read about the last one. A handful of maesters, sworn to a link
+   * of grey iron that is on no list of the metals, have spent a year choosing
+   * who comes out of the next: the Watch's ravens are caught on the road and
+   * filed, the corn of the burned villages is stacked in dry workings under
+   * the hills, and the great houses are kept too busy with each other to march
+   * north and eat it on the way. The rider who went out to take nine seats was
+   * the best thing that ever happened to them.
+   *
+   * The thread runs through the caves - the old working on the gold road, the
+   * whispering cave on the Riverlands road, the robbers' hole on the kingsroad
+   * - and ends in a warm room behind the maesters' hall in King's Landing. It
+   * needs nothing but the next step in it: every scene that the ones after it
+   * wait on sets what they wait on before any steel is drawn, since a fight
+   * that is lost carries you off before the scene is over.
+   */
+
+  /** The corn from the burned village, and where it went. */
+  intoTheHill: {
+    anywhere: true,
+    map: 'goldMine', x: 2, y: 15, flag: 'cs_hill', name: 'Into the Hill',
+    needs: 'sawTheBurning',
+    beats: [
+      ['say', 'Twenty paces in, the working stops smelling of rock and starts '
+            + 'smelling of a granary.'],
+      ['spawn', 'wren', { x: 3, y: 14, dir: 'left', sprite: 'goodwife', name: 'Wren' }],
+      ['say', 'Wren: You took your time. I have been to the end of it and back '
+            + 'twice. There is no gold in this hill. There is our corn.'],
+      ['say', 'Sacks, stacked to the roof of every gallery, dry and sound and '
+            + 'marked in chalk. Over the stores, nailed to a pit prop, one link of '
+            + 'chain: not gold, not silver. Grey iron.'],
+      ['say', 'Wren: Ours are the sacks with the millwheel on them. The rest came '
+            + 'from every village between here and the Golden Tooth. I have been '
+            + 'counting.'],
+      ['choose', 'What becomes of it?',
+        ['Carry it back to the villages', 'Burn it where it stands',
+         'Leave it. Let them think nobody knows'],
+        { record: 'intoTheHill',
+          favour: [{ tully: 6, lannister: -8 }, { lannister: -4, stark: -4 }, { lannister: 4 }] }],
+      ['spawn', 'grey', { x: 2, y: 12, dir: 'down', sprite: 'greyman', name: 'A Man in Grey' }],
+      ['walk', 'grey', 'down', 1],
+      ['say', 'A Man in Grey: This is held for the winter, by people who can '
+            + 'count, against people who cannot. Walk out, and forget the way.'],
+      ['fight', 'greyMan'],
+      ['won', 'He goes down without a sound, the way he seems to have done '
+            + 'everything else.'],
+      ['despawn', 'grey'],
+      ['say', 'Wren: Lords burn corn. Lords steal it. Nobody I ever heard of kept '
+            + 'it. Whoever these are, they can read, and they are getting ready '
+            + 'for a very long winter.'],
+      ['say', 'Wren: The carters drink at the inn at the Crossroads, and carters '
+            + 'hear everything. Find me there.'],
+      ['despawn', 'wren'],
+    ],
+  },
+
+  /** What the carters say about the birds. */
+  whatTheCartersSay: {
+    anywhere: true,
+    map: 'crossroadsInn', x: 6, y: 10, flag: 'cs_carters', name: 'What the Carters Say',
+    needs: 'cs_hill',
+    beats: [
+      ['spawn', 'wren', { x: 7, y: 8, dir: 'down', sprite: 'goodwife', name: 'Wren' }],
+      ['say', 'Wren is in the corner with a cup she has not touched, and a tally '
+            + 'scratched into the table with a knife.'],
+      ['say', 'Wren: The grey wagons do not only go into hills. The carters say '
+            + 'no raven has come down the kingsroad from the North in a year, and '
+            + 'that there is a cave on the Riverlands road the birds fly into and '
+            + 'do not fly out of.'],
+      ['say', 'Wren: They call it the Whispering Cave, and they go the long way '
+            + 'round it. I would go and look myself, but I have been lucky once '
+            + 'already this year.'],
+      ['despawn', 'wren'],
+    ],
+  },
+
+  /** Where the Watch's letters went. */
+  theRoost: {
+    anywhere: true,
+    map: 'whisperingCave', x: 2, y: 15, flag: 'cs_roost', name: 'The Roost',
+    sigils: 2,
+    beats: [
+      ['say', 'The whispering is not the wind. It is wings, hundreds of them, '
+            + 'folding and shifting somewhere above you in the dark.'],
+      ['say', 'Wicker cages, stacked to the roof of the cave, and in every one of '
+            + 'them a raven with a ring of grey iron on its leg.'],
+      ['spawn', 'keeper', { x: 3, y: 12, dir: 'down', sprite: 'greyman',
+        name: 'The Keeper of the Roost' }],
+      ['walk', 'keeper', 'down', 1],
+      ['say', 'The Keeper of the Roost: Mind the cages. A startled bird forgets '
+            + 'its road, and these have been taught a very particular road.'],
+      ['say', 'On his table are letters, scores of them. Every one was sealed in '
+            + 'the black wax of the Night\'s Watch, opened, and sealed again in '
+            + 'grey.'],
+      ['say', 'The Keeper of the Roost: They are not stolen. They are filed. The '
+            + 'realm is not ready to read them, and a letter read too early is a '
+            + 'panic.'],
+      ['choose', 'A year of letters from the Wall, and not one of them ever arrived.',
+        ['Take the letters', 'Open every cage', 'Burn the roost'],
+        { record: 'theRoost',
+          favour: [{ stark: 10 }, { stark: 6, tully: 4 }, { stark: 4, lannister: -4 }] }],
+      ['say', 'The Keeper of the Roost: Then I am afraid you will have to be filed '
+            + 'as well.'],
+      ['fight', 'greyMan'],
+      ['won', 'When it is over, the only sound in the cave is the birds.'],
+      ['despawn', 'keeper'],
+      ['say', 'The letter on the top of the pile is in a small, careful hand, and '
+            + 'signed Harmune, Maester at Eastwatch-by-the-Sea. It says what yours '
+            + 'said, at greater length, eleven months before it.'],
+      ['say', 'Every one is addressed to a lord, and every one is endorsed on the '
+            + 'back in grey ink with the same two words: NOT YET.'],
+    ],
+  },
+
+  /** Your own maester, and what he did last winter. */
+  theMaesterRecalled: {
+    anywhere: true,
+    map: '@seat', x: 13, y: 16, flag: 'cs_recalled', name: 'Recalled',
+    needs: 'heardTheRaven', sigils: 4,
+    beats: [
+      ['say', 'There are wagon ruts in the yard that were not there when you left, '
+            + 'and a letter nailed to the maester\'s door under a seal of grey wax.'],
+      ['spawn', 'maester', { x: 13, y: 13, dir: 'down', sprite: 'maester', name: '{maester}' }],
+      ['walk', 'maester', 'down', 2],
+      ['say', '{maester}: The Citadel has recalled me. For correction, the letter '
+            + 'says, which is the word they use when they mean a smaller room. I '
+            + 'told the men who brought it that I would come when the roads allow. '
+            + 'The roads have never been worse.'],
+      ['say', '{maester}: I owe you the rest of it. The first raven from Eastwatch '
+            + 'came last winter, and the order came with it: read, file, do not '
+            + 'act. I filed it. I buried it. The one I showed you was the second.'],
+      ['say', '{maester}: There is a link some of us wear under the robe that is on '
+            + 'no list of the metals. Grey iron. I have seen it on three men, and '
+            + 'every one of them sat close to a lord. Ask who keeps the king\'s '
+            + 'ravens.'],
+      ['choose', 'He has not taken the letter down from the door.',
+        ['They will not take you', 'Go, before they make you', 'Who keeps them?'],
+        { record: 'theMaesterRecalled',
+          favour: [{ stark: 6, tully: 4 }, {}, { lannister: -4 }] }],
+      ['say', '{maester}: Not in this yard, with the gate standing open. You will '
+            + 'know the name when you hear it. Read the letters - all of them. That '
+            + 'is what letters are for.'],
+      ['walk', 'maester', 'up', 3],
+      ['despawn', 'maester'],
+    ],
+  },
+
+  /** The price, collected. */
+  theBirdIsGone: {
+    anywhere: true,
+    map: 'riverrun', x: 12, y: 9, flag: 'cs_birdGone', name: 'Little Bird',
+    needs: 'theyThreatenedYou',
+    beats: [
+      ['say', 'The step by the water stairs where Little Bird sells what she hears '
+            + 'is empty, and it is never empty.'],
+      ['spawn', 'squire', { x: 14, y: 8, dir: 'left', sprite: 'child', name: 'Squire' }],
+      ['walk', 'squire', 'left', 1],
+      ['say', 'Squire: Two men in grey took her off the step last night. She did '
+            + 'not shout, and she always shouts. They left you that.'],
+      ['say', 'Somebody has chalked a link of chain on the wall above the step, '
+            + 'very neatly, and under it four words: THE ROBBERS\' HOLE. ALONE.'],
+      ['say', 'The kingsroad, then. He said neither of them would be difficult to '
+            + 'reach. He did not say he would wait for your answer first.'],
+      ['despawn', 'squire'],
+    ],
+  },
+
+  /** And the child, back. */
+  theRobbersHole: {
+    anywhere: true,
+    map: 'roadsideCave', x: 2, y: 15, flag: 'cs_robbersHole', name: 'The Robbers\' Hole',
+    needs: 'cs_birdGone',
+    beats: [
+      ['say', 'Somebody has lit the robbers\' hole like a room: lamps on the '
+            + 'ledges, a table, two chairs. One of the chairs is meant for you.'],
+      ['spawn', 'agent', { x: 2, y: 12, dir: 'down', sprite: 'noble',
+        name: 'A Man in Good Boots' }],
+      ['spawn', 'bird', { x: 3, y: 12, dir: 'down', sprite: 'child', name: 'Little Bird' }],
+      ['say', 'Little Bird: He paid me more than you did. Then he paid me with '
+            + 'this. I would like to go home now, please.'],
+      ['say', 'A Man in Good Boots: Nobody has been hurt. That is what I am for. '
+            + 'Sit down.'],
+      ['say', 'A Man in Good Boots: The people I work for keep the realm\'s '
+            + 'memory, and the realm is about to have the worst winter anybody has '
+            + 'written down. They mean it to come out the other side still able to '
+            + 'read. You are making that difficult.'],
+      ['spawn', 'grey', { x: 3, y: 13, dir: 'left', sprite: 'greyman', name: 'A Man in Grey' }],
+      ['choose', 'He has not drawn. The man behind him has.',
+        ['Let her go, then we talk', 'Who do you work for?', 'Draw'],
+        { record: 'theRobbersHole',
+          favour: [{ tully: 6 }, { lannister: -2 }, { tully: 4, baratheon: 4 }] }],
+      ['say', 'A Man in Good Boots: I am afraid the talking was never mine to do.'],
+      ['fight', 'greyMan'],
+      ['won', 'The man in grey goes down across the table and takes a lamp with '
+            + 'him. When the smoke clears, the man in good boots has gone the way '
+            + 'he came, and the child has not moved.'],
+      ['despawn', 'grey'],
+      ['despawn', 'agent'],
+      ['say', 'Little Bird: He reads his orders out loud when he thinks nobody is '
+            + 'listening. Everybody thinks I am nobody. They come sealed in grey '
+            + 'wax, with a chain and a book pressed into it.'],
+      ['say', 'Little Bird: A chain and a book is the Grand Maester\'s seal. '
+            + 'Everybody in Riverrun knows that. Nobody in Riverrun thinks it means '
+            + 'anything.'],
+      ['despawn', 'bird'],
+    ],
+  },
+
+  /** The warm room behind the maesters' hall. */
+  theGrandMaester: {
+    anywhere: true,
+    map: 'maesterHallKL', x: 5, y: 7, flag: 'cs_grandMaester', name: 'The Grand Maester',
+    needs: 'metTheSpider', sigils: 8,
+    beats: [
+      ['say', 'The door to the inner room is open, as if you were expected, and '
+            + 'the room beyond it is warm and smells of old paper and older men.'],
+      ['spawn', 'pycelle', { x: 5, y: 4, dir: 'down', sprite: 'maester',
+        name: 'Grand Maester Pycelle' }],
+      ['say', 'Grand Maester Pycelle: Ah. The rider. Sit, sit. My knees are not '
+            + 'what they were, and my eyes are worse, and my memory - well. You '
+            + 'would be surprised what an old man is allowed to forget.'],
+      ['say', 'He sits up. The shake goes out of his hands and the fog goes out of '
+            + 'his voice, and he is suddenly the most awake person you have met in '
+            + 'a year.'],
+      ['say', 'Grand Maester Pycelle: The Long Night comes once in eight thousand '
+            + 'years. The last time, the realm that came out of the far end of it '
+            + 'was the one that could still read the tallies. We are not trying to '
+            + 'stop the winter. Nobody can. We are choosing who comes out of it.'],
+      ['say', 'Grand Maester Pycelle: Nine great houses would march north to die, '
+            + 'and eat the realm\'s corn on the way. So the ravens wait, the corn is '
+            + 'kept, and the houses are kept busy with each other. And then you '
+            + 'came, and broke them for me one by one. I could not have paid for '
+            + 'you.'],
+      ['spawn', 'wren', { x: 8, y: 6, dir: 'left', sprite: 'goodwife', name: 'Wren' }],
+      ['say', 'Wren: Forty loads out of our mill. Six hundred out of the Reach. Two '
+            + 'thousand under the gold road. It is all in his books. I counted.'],
+      ['choose', 'He waits, with the patience of a man who has outlived every '
+            + 'argument ever put to him.',
+        ['Take the letters to the court', 'Send the corn north, and live', 'Draw'],
+        { record: 'theGrandMaester', skips: [0, 4, 7],
+          favour: [{ stark: 12, tully: 6 }, { lannister: 8, stark: -4 }, { stark: 6, lannister: -10 }] }],
+      ['say', 'You lay Harmune\'s letters on the council table one at a time, grey '
+            + 'wax uppermost, and read the endorsements out loud. NOT YET. NOT '
+            + 'YET. NOT YET.'],
+      ['say', 'Grand Maester Pycelle: They will not believe you. ... They believe '
+            + 'you. How very inconvenient.'],
+      ['say', 'By nightfall the Grand Maester is in a cell and every rookery in the '
+            + 'realm has been opened. By morning the first honest ravens in a year '
+            + 'are flying south from the Wall, and the realm is reading them.'],
+      ['skip', 9],
+      ['say', 'Grand Maester Pycelle: The corn north, all of it, to the Wall and '
+            + 'the winter towns, and I keep my chain and my books and my life. '
+            + 'Done. You understand that I will be keeping a book on you now.'],
+      ['say', 'The first wagons go up the kingsroad inside the week with Wren on '
+            + 'the lead one, counting. The Chain still holds. It simply holds for '
+            + 'you now.'],
+      ['skip', 6],
+      ['spawn', 'grey', { x: 3, y: 6, dir: 'right', sprite: 'greyman', name: 'A Man in Grey' }],
+      ['say', 'Grand Maester Pycelle: I did so hope we could be civilised about it.'],
+      ['fight', 'greyMan'],
+      ['won', 'When you turn back to the desk the Grand Maester is sitting very '
+            + 'still, with an empty cup in front of him and the face of a man who '
+            + 'has solved one last problem.'],
+      ['despawn', 'grey'],
+      ['say', 'Wren: I have his books. Every sack and every village. It goes back '
+            + 'where it came from, and the rest goes north - and there is nobody '
+            + 'left to write not yet on anything.'],
+      ['despawn', 'pycelle'],
+      ['say', 'Wren: I am going north with it. Somebody has to count it off the '
+            + 'wagons at the other end, and I have never once trusted anybody else '
+            + 'to count.'],
+      ['despawn', 'wren'],
     ],
   },
 };

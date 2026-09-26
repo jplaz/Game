@@ -89,15 +89,17 @@ const out = await page.evaluate(async () => {
 
   const res = {};
   window.__res = res;
-  /* Gated: it must refuse to fire before the flag it waits on is set. */
-  res.gatedBefore = await play('whoPaidHim');
-  /* Granted, rather than played: the scene it waits on can end in a fight,
-     and a hero carried home from one is not standing on the road any more. */
-  state.setFlag('theFollower_1');
+  /* Gated: it must refuse to fire before the flag it waits on is set. The old
+     working on the gold road waits on the burned village, and nothing else
+     is waiting on its map to muddy the question. */
+  res.gatedBefore = await play('intoTheHill');
+  /* Granted, rather than played: the village is a tile on a road with a
+     guardsman watching it, and this is a question about the gate. */
+  state.setFlag('sawTheBurning');
   for (const h of ['stark', 'tully', 'arryn']) {
     if (!state.game.state.sigils.includes(h)) state.game.state.sigils.push(h);
   }
-  res.gatedAfter = await play('whoPaidHim');
+  res.gatedAfter = await play('intoTheHill');
   /* Anywhere: fired well off its own tile. */
   {
     const cs = CUTSCENES.aWhisperInTheDark;
@@ -116,7 +118,9 @@ const out = await page.evaluate(async () => {
     res.anywhereAt = where;
     res.stoodAt = [ow.player.x, ow.player.y, ow.mapId];
   }
-  /* And a sigil gate holds while you hold nothing. */
+  /* And a sigil gate holds while you hold too few: the offer's own flag
+     granted, so that seats are the only thing it is waiting on. */
+  state.setFlag('theyAreWatching');
   res.sigils = state.sigilCount();
   res.sigilGated = await play('theOfferInTheSept');   /* wants five, and holds at three */
 

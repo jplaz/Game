@@ -68,6 +68,27 @@ a wedge that blinks when it wants a button.
 **Somebody sees you coming.** A fighter facing down a road will spot you at
 their own sight range, put an exclamation over their head, walk up, and draw.
 
+**A story, not a set of scenes.** The raven your maester brings you in your own
+yard is the first beat of a thread that runs the length of the game: the burned
+village on the gold road and Wren, who counted its corn onto the wagons; the dry
+working in the hill where the corn went; the whispering cave and the letters in
+it; the man in good boots; the child taken to the robbers' hole; the Spider; and
+the Grand Maester, with three ways for it to end. A scene can have a fight in the
+middle of it now - the scene is put aside for the fight and picked up where it
+left off, and a lost fight lets it go cleanly - so the melee at Harrenhal is
+three bouts here, as it always was in the browser. The story's flags keep the
+bits they have always had (see `flags.txt`), so a record from an older cartridge
+still means what it meant.
+
+**Caves where caves would be.** Every cave off a road is cut into rock that was
+already there - a treeline, a crag, the old quarry on the gold road, the face of
+an islet - and entered through a mouth in the stone rather than a house door.
+
+**People with names.** The hall, the inn upstairs and down, the common house and
+the hold you take each have their own people now, named and saying their own
+thing, where every town used to have the same "Kennelmaster" saying the same
+sentence.
+
 **Grass you can be jumped in.** Encounters happen in tall grass and reeds and
 nowhere else, at about one step in eight, and the screen cracks white and falls
 to black before the fight rather than simply cutting to it. Blades rustle at your
@@ -276,6 +297,13 @@ somebody at rest between two tiles, the player standing on top of somebody else,
 and the sound hardware switched off or silent for ten seconds together. Three more
 runs switch the cartridge on with a record already written, and play out each of
 the title's three entries in turn.
+
+**`storytest.c` - the story, played.** The cartridge's own C again, pointed at
+the scenes that have a fight in the middle: it walks into each, gives the answer
+it is told to, wins or loses the fight as it is told to, and asks whether the
+scene was put aside rather than ended, picked up again afterwards, played to its
+last beat, and left nobody standing - and, when the fight is lost, whether what
+was left of it was dropped and never played twice.
 
 **And the audit fights.** Balance is not something to have an opinion about when
 the arithmetic is right there: the audit runs the cartridge's own damage formula,

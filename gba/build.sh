@@ -280,3 +280,11 @@ POOR=1 CROWN=1 FRAMES=900000 SEED=7 ./playtest 4 \
 # hosttest still walks one fixed route, as a second opinion.
 clang $HOSTFLAGS -o hosttest hosttest.c
 ./hosttest /tmp > /dev/null
+
+# And the story's scenes with a fight in the middle of them, played through the
+# cartridge's own C: put aside for the fight, picked up again after it, and let
+# go cleanly if the fight carries you off. A fight used to end the scene it was
+# in, so nothing written after a fight ever reached this cartridge.
+clang $HOSTFLAGS -o storytest storytest.c
+./storytest | sed -n '/^BAD/p;/wrong/p;/ran out/p'
+./storytest > /dev/null || { echo "the story does not play on the cartridge" >&2; exit 1; }

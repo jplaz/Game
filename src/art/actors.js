@@ -798,6 +798,10 @@ export const ACTOR_PALETTES = {
     palette: P('#1e1a18', '#332c28', '#a87048', '#7a4e30', '#3a4048', '#242a30', '#8a9098', '#2c3238', '#1a1e24') },
   redPriest: { build: 'woman', outfit: 'robe', hair: 'long',
     palette: P('#a83a30', '#c85a48', '#e0b494', '#b4886a', '#a02020', '#6a1212', '#f0a840', '#5a1818', '#360e0e') },
+  /* The Chain's men. A novice's grey, hooded, with nothing on the chest that a
+     herald could name - which is the point of them. */
+  greyman: { build: 'man', outfit: 'robe', hair: 'hood',
+    palette: P('#56565c', '#707078', '#dcae86', '#b4855e', '#66666e', '#46464e', '#9a9aa4', '#38383f', '#24242a') },
   noble: { build: 'man', outfit: 'cloak', hair: 'short',
     palette: P('#3a2c20', '#554134', '#e0b48c', '#b88a62', '#6a4ea8', '#4a3478', '#e0c880', '#3a3050', '#221c30') },
   whitewalker: { build: 'man', outfit: 'robe', hair: 'hood',

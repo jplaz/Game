@@ -544,6 +544,7 @@ const SPRITE_TECHNIQUES = {
   wildlingWoman: ['lunge', 'skewer', 'guard'],
   sellsword: ['quickCut', 'backstab', 'guard'],
   brotherhood: ['loose', 'volley', 'guard'],
+  greyman: ['quickCut', 'backstab', 'guard'],
   smallfolk: ['crush', 'quickCut', 'guard'],
   merchant: ['quickCut', 'guard'],
   tully: ['slash', 'shieldBash', 'guard'],

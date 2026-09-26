@@ -444,6 +444,18 @@ export const ROAMERS = {
       'They hang deserters. So I have nothing left to lose and you do.',
     ],
   },
+  /* Nobody meets one of these on the open road. They stand over what the
+     Chain keeps - the corn in the old working on the gold road, the birds in
+     the whispering cave - and they are only ever fought in the story. */
+  greyMan: {
+    title: 'Man in Grey', build: 'skirmisher',
+    sprites: ['greyman'],
+    techniques: ['quickCut', 'backstab', 'guard'],
+    lines: [
+      'What is kept here is kept for the winter. You are not on the list.',
+      'Nobody who can read would have come in here. That tells me what you are.',
+    ],
+  },
   sellsword: {
     title: 'Sellsword', build: 'skirmisher',
     sprites: ['sellsword', 'braavosi'],

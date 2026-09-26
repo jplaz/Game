@@ -33,6 +33,7 @@ const BYSTANDER_ROLE = {
   unsullied: 'manAtArms',
   sellsword: 'sellsword',
   brotherhood: 'brotherhoodBowman',
+  greyman: 'greyMan',
   braavosi: 'sellsword',
   smallfolk: 'bandit',
   goodwife: 'bandit',

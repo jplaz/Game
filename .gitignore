@@ -6,6 +6,7 @@ node_modules/
 gba/*.o
 gba/*.elf
 gba/hosttest
+gba/storytest
 gba/shots/*.ppm
 # intermediate render output; the PNGs beside them are the keepers
 gba/shots-ladder/

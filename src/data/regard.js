@@ -74,7 +74,23 @@ export const REGARD = [
   { needs: 'metTheSpider',
     line: 'You have had a conversation with a man most people believe does not exist.' },
 
+  // --- the Chain, and what came of pulling on it ----------------------------
+  { needs: 'cs_hill',
+    line: 'Word on the gold road is that somebody walked into the dry working and came out knowing where the corn went.' },
+  { needs: 'cs_roost',
+    line: 'They say the birds fly again on the Riverlands road. Nobody says who opened the cages, but they look at you when they say it.' },
+  { needs: 'cs_robbersHole',
+    line: 'A child in Riverrun tells anybody who will listen that you came for her. Half of Riverrun has listened.' },
+
   // --- and the far end of the only road nobody walks -----------------------
   { needs: 'sawHardhome',
     line: 'You have been to Hardhome and come back off that beach, which two men in the world have done.' },
+
+  // --- and how the Chain ended, which is the last thing anybody says -------
+  { needs: 'theGrandMaester_0',
+    line: 'They have all read the letters from the Wall by now. They look at you as if you might be carrying more.' },
+  { needs: 'theGrandMaester_1',
+    line: 'The corn went north on your word. Nobody knows what you paid for it, and nobody quite likes to ask.' },
+  { needs: 'theGrandMaester_2',
+    line: 'The Grand Maester died at his desk, they say, the way people say a thing they have decided not to wonder about.' },
 ];

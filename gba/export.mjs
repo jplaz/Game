@@ -1324,7 +1324,7 @@ const harvest = await page.evaluate(async ({ mapIds, ledger }) => {
       const dead = [];
       (map.grid ?? map.tiles).forEach((row, y) => {
         [...row].forEach((c, x) => {
-          if (c === 'D' && !open.has(`${x},${y}`)) dead.push(`${x},${y}`);
+          if ((c === 'D' || c === 'E') && !open.has(`${x},${y}`)) dead.push(`${x},${y}`);
         });
       });
       if (dead.length) {

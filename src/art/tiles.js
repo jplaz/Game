@@ -15,6 +15,7 @@ import {
   THATCH, THATCH_RIDGE, THATCH_EAVE,
   WEIRWOOD, WEIRWOOD_KEY,
   CLIFF, CLIFF_TOP, CLIFF_KEY, WATER, WATER_KEY,
+  CAVE_MOUTH, CAVE_MOUTH_KEY,
 } from './tilesets.js';
 
 export const TILE = 16;
@@ -430,6 +431,13 @@ const painters = {
     if (!(mask & W)) rect(ctx, 0, 0, 1, TILE, CLIFF_KEY.k);
     if (!(mask & E)) rect(ctx, TILE - 1, 0, 1, TILE, CLIFF_KEY.k);
     if (!(mask & S)) rect(ctx, 0, TILE - 2, TILE, 2, '#2b261f');
+  },
+
+  /* A way into the hill: the cliff's own face, with the opening laid over it.
+     See CAVE_MOUTH. */
+  caveMouth(ctx, _frame, mask) {
+    painters.cliff(ctx, 0, mask);
+    paintArt(ctx, CAVE_MOUTH, CAVE_MOUTH_KEY);
   },
 
   wall(ctx, _frame, mask) { timberWall(ctx, mask, WALL_DAUB); },
@@ -1401,6 +1409,7 @@ export const TILE_DEFS = {
   'Y': { paint: painters.roofThatch, kind: 'solid', autotile: true },
   'y': { paint: painters.roofThatchCap, kind: 'solid', autotile: true },
   'D': { paint: painters.door, kind: 'floor' },
+  'E': { paint: painters.caveMouth, kind: 'floor', autotile: true },
   'w': { paint: painters.window, kind: 'solid' },
   'n': { paint: painters.chimney, kind: 'solid', frames: 2, grounded: true },
   'j': { paint: painters.chest, kind: 'solid', grounded: true },
@@ -1486,7 +1495,7 @@ export const TILE_GROUP = {
   's': 'shore',
   'o': 'paved', '=': 'paved',
   '#': 'forest', 'P': 'forest', 'W': 'forest',
-  'C': 'rock', 'U': 'rock',
+  'C': 'rock', 'U': 'rock', 'E': 'rock',
   '~': 'water',
   '@': 'cave',
   // A fence knows its own run, so corners meet on a post instead of crossing

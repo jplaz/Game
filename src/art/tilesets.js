@@ -861,6 +861,43 @@ export const CLIFF_TOP = [
   'mmmmmdmmdmmldmml',
 ];
 
+/* A way into the hill.
+ *
+ * Every cave off a road used to be entered through a house door: a timber
+ * frame, a plank door with an iron ring, and a worn step, set between two
+ * blocks of cliff in the middle of whatever field the hash had landed on. It
+ * read as somebody's cottage that had sunk. This is an opening in the rock
+ * instead - laid over the cliff's own face, so a mouth cut into a crag, a
+ * quarry or a barrow is the same stone as the hill round it - dark all the
+ * way back, with a lit rim to the arch and a spill of gravel at the lip. */
+export const CAVE_MOUTH_KEY = {
+  '.': null,
+  r: '#948972',   // the lit rim of the arch
+  z: '#3a342b',   // the edge of the cut
+  y: '#1f1a17',   // the inside wall, catching a little light
+  x: '#0c0a0c',   // and the dark
+  s: '#5f5648',   // the stones either side of the lip
+  g: '#7a6f5c',   // gravel, kicked out over the threshold
+};
+export const CAVE_MOUTH = [
+  '................',
+  '................',
+  '.....rrrrrr.....',
+  '....rzzzzzzr....',
+  '...rzyyyyyyzr...',
+  '..rzyyxxxxyyzr..',
+  '..rzyxxyxxxyzr..',
+  '.rzyxxxyxxxxyzr.',
+  '.rzyxxxxxxxxyzr.',
+  '.rzyxxxxxxxxyzr.',
+  '.rzyxxxxxxxxyzr.',
+  '.rzyxxxxxxxxyzr.',
+  '.rzyxxxxxxxxyzr.',
+  '.rzyxxxxxxxxyzr.',
+  '.szyyxxxxxxyyzs.',
+  'ssgggggggggggggs',
+];
+
 // --------------------------------------------------------------- flowers --
 // Blossom, drawn the way the Game Boy games draw it: four petals around a
 // lighter eye, with a stem, rather than a coloured square. Two or three to a

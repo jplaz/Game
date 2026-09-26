@@ -307,10 +307,13 @@ for (const [id, map] of Object.entries(MAPS)) {
     }
   }
 
-  // Every door tile has to be a door.
+  // Every door tile has to be a door, and every way into a hill a way in.
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
     if (at(x, y) === 'D' && !ways.some((w) => w.x === x && w.y === y)) {
       say(`${id}: a door at ${x},${y} that opens onto nothing`);
+    }
+    if (at(x, y) === 'E' && !ways.some((w) => w.x === x && w.y === y)) {
+      say(`${id}: a cave mouth at ${x},${y} that goes nowhere`);
     }
   }
 }

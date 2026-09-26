@@ -33,7 +33,7 @@ import { MATERIAL_IDS } from './craft.js';
  * STANDABLE is the same list plus the ledge, which you can stand on and drop
  * off but cannot walk back up. There used to be two lists typed out by hand
  * here, and by the time anyone looked they disagreed in three characters. */
-export const WALKABLE = '.,S;&-dso*i_=cb<%tmD/+?';
+export const WALKABLE = '.,S;&-dso*i_=cb<%tmD/+?E';
 export const STANDABLE = new Set([...WALKABLE, 'L']);
 
 /* Ground you cross rather than ground you use: a ledge you drop off, a stair,
@@ -10217,100 +10217,129 @@ for (const hall of Object.values(MAPS)) {
  *
  * A cave off fourteen roads, one for every part of the map you can walk.
  *
- * The mouth is cut rather than found. Looking for rock that was already there,
- * ten of the fourteen roads had none - they are woods and river meadows - and
- * of the four that did, three put the door in the middle of a river and one
- * put it in a pine tree. So a small outcrop is cut into open ground away from
- * every door, sign, chest and person, the mouth goes in the face of it, and
- * the map is flooded again afterwards to prove nothing was shut off by it.
+ * Where each one is, is chosen. These used to be placed by a hash of the
+ * cave's name: any three-by-three patch of open ground far enough from a door,
+ * a sign, a chest and a person, with a cliff laid across the middle of it and a
+ * house door - frame, planks, iron ring and doorstep - set into the cliff. So a
+ * wolf's den was a front door standing in a snowfield, a barrow was a front
+ * door in a meadow, and nothing about where any of them stood said why it was
+ * there; move a sign and every one of them moved with it.
+ *
+ * Each is cut into something that is already solid now - the treeline at the
+ * head of a clearing, a crag over the pass, the face of the old working on the
+ * gold road, a heap of fallen stone under a ruined tower - facing open ground
+ * you can walk up to, within sight of the road. Three tiles above the mouth
+ * and one either side of it become rock, the mouth is a way into the hill
+ * rather than a door, and the map is flooded again afterwards to prove nothing
+ * was shut off by it. A spot that stops being any of those things - because a
+ * road was re-carved underneath it - stops the build and says which.
  */
 export const CAVE_IDS = [];
 {
-  /* maps.js cannot ask the art what is solid - tiles.js drags in a canvas and
-     this file is loaded without one - so it uses its own list, the same one
-     makeTown lays towns out with and the one checkmaps holds against the art
-     on every build. */
-  const isSolid = (map, x, y) => {
-    const c = map.grid[y]?.[x];
-    return c === undefined || !WALKABLE.includes(c);
-  };
-  const hangMouth = (map, seed) => {
-    const busy = new Set();
-    const near = (x, y, r) => {
-      for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) busy.add(`${x + i},${y + j}`);
-    };
-    for (const w of map.warps ?? []) near(w.x, w.y, 3);
-    for (const g of map.signs ?? []) near(g.x, g.y, 2);
-    for (const t of map.items ?? []) near(t.x, t.y, 2);
-    for (const p of map.npcs ?? []) near(p.x, p.y, 2);
-
-    const open = (x, y) => !isSolid(map, x, y) && !busy.has(`${x},${y}`);
-    const spots = [];
-    for (let y = 3; y < map.height - 3; y++) {
-      for (let x = 2; x < map.width - 2; x++) {
-        if (![-1, 0, 1].every((i) => open(x + i, y))) continue;
-        if (![-1, 0, 1].every((i) => open(x + i, y + 1))) continue;
-        if (![-1, 0, 1].every((i) => open(x + i, y + 2))) continue;
-        spots.push([x, y]);
+  /* How much ground can be walked to from one tile, with one tile counted as
+     shut. A mouth is shut for this purpose: stepping on it takes you into the
+     cave, and the cave puts you back where you came from, so it is never a
+     way through however open it looks. Flooded as though a door were a road,
+     a mouth cut across the only ford at the Bloody Gate once looked harmless
+     and shut the Vale out of the game. */
+  const flood = (rows, sx, sy, shut) => {
+    const seen = new Set([`${sx},${sy}`]);
+    const q = [[sx, sy]];
+    while (q.length) {
+      const [cx, cy] = q.pop();
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = cx + dx, ny = cy + dy, key = `${nx},${ny}`;
+        if (ny < 0 || nx < 0 || ny >= rows.length || nx >= rows[ny].length || seen.has(key)) continue;
+        if (key === shut) continue;
+        const c = rows[ny][nx];
+        if (!WALKABLE.includes(c)) continue;
+        seen.add(key); q.push([nx, ny]);
       }
     }
-    if (!spots.length) return null;
-    let n = 0;
-    for (const ch of seed) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
+    return seen;
+  };
 
-    const flood = (rows, sx, sy, shut) => {
-      const seen = new Set([`${sx},${sy}`]);
-      const q = [[sx, sy]];
-      while (q.length) {
-        const [cx, cy] = q.pop();
-        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-          const nx = cx + dx, ny = cy + dy, key = `${nx},${ny}`;
-          if (nx < 0 || ny < 0 || nx >= map.width || ny >= map.height || seen.has(key)) continue;
-          if (key === shut) continue;
-          const c = rows[ny][nx];
-          if (!WALKABLE.includes(c) && c !== 'D') continue;
-          seen.add(key); q.push([nx, ny]);
+  /* A mouth at x,y on `on`, in rock of the given kind, entered from the tile
+     below it. */
+  const cutMouth = (on, x, y, rock, why) => {
+    const map = MAPS[on];
+    const before = map.grid.map((r) => r.split(''));
+    const rows = before.map((r) => r.slice());
+    const front = `${x},${y + 1}`;
+    if (!WALKABLE.includes(before[y + 1]?.[x])) {
+      throw new Error(`${why}: the mouth on ${on} at ${x},${y} has nothing to stand on in front of it`);
+    }
+    const cells = [[-1, -1], [0, -1], [1, -1], [-1, 0], [0, 0], [1, 0]].map(([i, j]) => [x + i, y + j]);
+    const taken = new Set([...cells.map(([a, b]) => `${a},${b}`), front]);
+    for (const [what, list] of [['warp', map.warps], ['sign', map.signs], ['item', map.items], ['person', map.npcs]]) {
+      for (const t of list ?? []) {
+        if (taken.has(`${t.x},${t.y}`)) {
+          throw new Error(`${why}: the mouth on ${on} at ${x},${y} is cut through a ${what} at ${t.x},${t.y}`);
         }
       }
-      return seen.size;
-    };
-    for (let k = 0; k < spots.length; k++) {
-      const [x, y] = spots[(n + k * 7919) % spots.length];
-      const rows = map.grid.map((r) => r.split(''));
-      for (const i of [-1, 0, 1]) rows[y][x + i] = 'C';
-      rows[y][x] = 'D';
-      /* And the mouth itself is a wall for the purpose of this question.
-       *
-       * Stepping on it takes you into the cave, and the cave puts you back on
-       * the tile you came from - so a mouth is never a way through, however
-       * open it looks. Flooded as though a door were a road, a mouth carved
-       * across the only crossing of a river looked harmless: the clansmen's
-       * cave landed on the one ford at the Bloody Gate, turned the three
-       * tiles of it into two cliffs and a door, and shut the Vale out of the
-       * game. Nine playthroughs then climbed to six sigils apiece and could
-       * not take the second seat on the ladder. */
-      const shut = `${x},${y}`;
-      const before = flood(map.grid.map((r) => r.split('')), x, y + 1, null);
-      if (flood(rows, x, y + 1, shut) >= before - 3) {
-        return { x, y, rows };
-      }
     }
-    return null;
+    let lost = 0;
+    for (const [a, b] of cells) {
+      if (rows[b]?.[a] === undefined) throw new Error(`${why}: the mouth on ${on} at ${x},${y} runs off the map`);
+      if (WALKABLE.includes(rows[b][a])) lost++;
+      rows[b][a] = rock;
+    }
+    rows[y][x] = 'E';
+    const was = flood(before, x, y + 1, null);
+    const now = flood(rows, x, y + 1, `${x},${y}`);
+    if (now.size < was.size - lost) {
+      throw new Error(`${why}: the mouth on ${on} at ${x},${y} walls off ${was.size - lost - now.size} tiles`);
+    }
+    /* And the road has to reach it: a mouth nobody can walk up to is a
+       picture of a cave. */
+    const out = (map.warps ?? []).filter((w) => !CAVE_IDS.includes(w.to) && MAPS[w.to]?.ground !== 'cave');
+    /* Except on an island, which nobody reaches on foot anyway. */
+    if (!map.sea && !out.some((w) => now.has(`${w.x},${w.y}`)
+      || [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => now.has(`${w.x + dx},${w.y + dy}`)))) {
+      throw new Error(`${why}: the ground in front of the mouth on ${on} at ${x},${y} does not reach the road`);
+    }
+    map.tiles = rows.map((r) => r.join(''));
+    prepare(map);
   };
 
-  const hang = (on, cave) => {
+  const hang = (on, [x, y], cave, rock = 'C') => {
+    cutMouth(on, x, y, rock, cave.id);
     const map = MAPS[on];
-    const at = hangMouth(map, cave.id);
-    if (!at) throw new Error(`nowhere on ${on} to put the mouth of ${cave.id}`);
-    map.tiles = at.rows.map((r) => r.join(''));
-    prepare(map);
     map.warps = [...(map.warps ?? []),
-      { x: at.x, y: at.y, to: cave.id, tx: 2, ty: cave.h - 2, dir: 'up' }];
-    MAPS[cave.id] = makeCave({ ...cave, back: on, backX: at.x, backY: at.y + 1 });
+      { x, y, to: cave.id, tx: 2, ty: cave.h - 2, dir: 'up' }];
+    MAPS[cave.id] = makeCave({ ...cave, back: on, backX: x, backY: y + 1 });
     MAPS[cave.id].id = cave.id;
     prepare(MAPS[cave.id]);
     REGIONS[cave.id] = REGIONS[on] ?? '';
     CAVE_IDS.push(cave.id);
+  };
+
+  /* A cave that was already written with a door of its own, moved into the
+     hill beside it. Four of these were entered through a patch of grass or a
+     square of bare cave floor that nothing marked, and one wanted a cliff
+     face it did not have; the five on islands in the sea were house doors in
+     the rock. The door on the old tile is taken away, and the cave's own way
+     out now puts you down in front of the new one. */
+  const moveMouth = (on, cave, [x, y], { rock = 'C', was = null } = {}) => {
+    const map = MAPS[on];
+    const door = (map.warps ?? []).find((w) => w.to === cave);
+    if (!door) throw new Error(`there is no way from ${on} into ${cave}`);
+    const [ox, oy] = [door.x, door.y];
+    map.warps = map.warps.filter((w) => w !== door);
+    if (was) {
+      const rows = map.grid.map((r) => r.split(''));
+      rows[oy][ox] = was;
+      map.tiles = rows.map((r) => r.join(''));
+      prepare(map);
+    }
+    cutMouth(on, x, y, rock, cave);
+    map.warps.push({ ...door, x, y });
+    for (const back of MAPS[cave].warps ?? []) {
+      if (back.to !== on) continue;
+      back.tx = x;
+      back.ty = y + 1;
+      back.dir = 'down';
+    }
   };
 
   /* A cave with a bottom to it.
@@ -10351,7 +10380,7 @@ export const CAVE_IDS = [];
     signs: [],
   });
 
-  hang('wolfswood', den('wolfsDen', "A Wolf's Den", ['snowpup', 'direwolf'], 'poacher', 8,
+  hang('wolfswood', [4, 2], den('wolfsDen', "A Wolf's Den", ['snowpup', 'direwolf'], 'poacher', 8,
     ['antidote', 'huntersDraught'],
     'A Poacher: There was a she-wolf in here with six of them. I took nothing and I left quickly, and I would advise the same.',
     'A Poacher', 'smallfolk', 4, 17, {
@@ -10360,7 +10389,7 @@ export const CAVE_IDS = [];
         + 'and then a seventh cut much deeper than the others.',
     waking: 'The six pups are the reason she is still here. She is the reason nothing '
           + 'else is.' }));
-  hang('weepingWater', den('weepingBarrow', 'A Barrow on the Weeping Water', ['wightling', 'barrowlord'], 'gravedigger', 16,
+  hang('weepingWater', [5, 18], den('weepingBarrow', 'A Barrow on the Weeping Water', ['wightling', 'barrowlord'], 'gravedigger', 16,
     ['dragonglass', 'frostTonic'],
     'A Gravedigger: First Men laid their kings under this hill and put a stone door on it. Somebody has taken the door off.',
     'A Gravedigger', 'oldman', 4, 17, {
@@ -10369,7 +10398,7 @@ export const CAVE_IDS = [];
         + 'Underneath it, in charcoal and much more recently: TOOK THE DOOR. SORRY.',
     waking: 'There is a crown on it. That is the part nobody who tells this story is '
           + 'ever believed about.' }));
-  hang('kingsroadNorth', den('giantsBones', 'The Bones of a Giant', ['boartusk', 'snowpup'], 'bandit', 10,
+  hang('kingsroadNorth', [11, 22], den('giantsBones', 'The Bones of a Giant', ['boartusk', 'snowpup'], 'bandit', 10,
     ['burnSalve', 'maesterKit'],
     'A Carter: That is a ribcage, not a cave. Whatever it was walked down out of the north and lay down here, and nobody has moved it since.',
     'A Carter', 'smallfolk', 4, 17, {
@@ -10378,7 +10407,7 @@ export const CAVE_IDS = [];
         + 'The year is ninety-one years ago.',
     waking: 'Something has made a nest of the ribcage, and it did not have to kill the '
           + 'giant to get it.' }));
-  hang('moatCailin', den('bogHollow', 'A Crannog Hollow', ['riverfry', 'ravenling'], 'poacher', 13,
+  hang('moatCailin', [3, 4], den('bogHollow', 'A Crannog Hollow', ['riverfry', 'ravenling'], 'poacher', 13,
     ['maesterKit', 'antidote'],
     'A Crannogman: Walk where I walk. The Neck has swallowed three armies and it was not in a hurry about any of them.',
     'A Crannogman', 'smallfolk', 3, 17, {
@@ -10387,34 +10416,34 @@ export const CAVE_IDS = [];
         + 'all of them holed.\nThe Neck keeps what it takes.',
     waking: 'The water in the bottom chamber is not still. It has not been still since '
           + 'you came in and you have only just noticed.' }));
-  hang('riverlands', den('whisperingCave', 'The Whispering Cave', ['ravenling', 'silverfin'], 'brotherhoodBowman', 15,
+  hang('riverlands', [13, 7], den('whisperingCave', 'The Whispering Cave', ['ravenling', 'silverfin'], 'brotherhoodBowman', 15,
     ['netTrap', 'poppyMilk'],
-    'A Brotherhood Bowman: We hang men in here where the rain cannot wash them. It is not a nice room and we are not nice men, but we are the only law left on this road.',
+    'A Brotherhood Bowman: We hang men in here where the rain cannot wash them. The birds at the back are not ours. The man who keeps them pays us not to see him, and we are not nice men.',
     'A Bowman of the Brotherhood', 'brotherhood', 3, 17, {
     name: 'The Roost', beast: 'corvarch', level: 21, hoard: 'kingsRansom',
     note: 'A tally of hangings, cut one stroke at a time over what must be years.\n'
         + 'Beneath the last of them: NO MORE. HE WAS A BOY.',
     waking: 'The whispering was never the cave. It is a thousand birds, and something '
           + 'they all answer to.' }));
-  hang('goldRoad', den('goldMine', 'A Lannister Goldmine', ['cubmane', 'goldmane'], 'goldCloak', 18,
+  hang('goldRoad', [3, 2], den('goldMine', 'A Lannister Goldmine', ['cubmane', 'goldmane'], 'goldCloak', 18,
     ['kingsRansom', 'maesterKit'],
-    'A Mine Overseer: Three miles of it under the Rock, and every foot of it Lannister. The last seam ran dry forty years ago. We have not told anybody.',
+    'A Mine Overseer: The last seam ran dry forty years ago and we never told anybody. Now men in grey bring carts in at night, and I have been told not to tell anybody that either.',
     'A Mine Overseer', 'lannister', 2, 17, {
     name: 'What the Rock Keeps', beast: 'goldmane', level: 24, hoard: 'kingsRansom', count: 3,
     note: 'A pay list, chalked and re-chalked and finally crossed through.\n'
         + 'The last line reads: SEAM DRY. SAY NOTHING. LORD TYWIN\u2019S ORDER.',
     waking: 'The seam was not dry. It was occupied, and the men who found that out are '
           + 'the reason nobody was told.' }));
-  hang('kingsroad', den('roadsideCave', "A Robbers' Hole", ['ravenling', 'boartusk'], 'bandit', 12,
+  hang('kingsroad', [9, 12], den('roadsideCave', "A Robbers' Hole", ['ravenling', 'boartusk'], 'bandit', 12,
     ['poppyMilk', 'burnSalve'],
-    'A Roadside Thief: Everything in here came off somebody on that road. Take what you like. I am past caring and so are they.',
+    'A Roadside Thief: Everything in here came off somebody on that road. A gentleman in very good boots rents the back of it some nights. He pays better than the road.',
     'A Roadside Thief', 'smallfolk', 2, 17, {
     name: 'The Old Boar', beast: 'tuskrend', level: 18, hoard: 'valyrianMesh',
     note: 'Names, thirty or forty of them, scratched by different hands at '
         + 'different heights.\nNone of them are signatures. They are a list of the dead.',
     waking: 'It came in out of the kingswood one winter and it has been eating whatever '
           + 'the road sends down here ever since.' }));
-  hang('bloodyGate', den('clansmenCave', "A Clansmen's Cave", ['falconet', 'skytalon'], 'clansman', 17,
+  hang('bloodyGate', [5, 22], den('clansmenCave', "A Clansmen's Cave", ['falconet', 'skytalon'], 'clansman', 17,
     ['huntersDraught', 'frostTonic'],
     'A Man of the Burned Men: The Vale is ours. The knights say otherwise and the knights stay behind their gate, so on the whole the argument is going our way.',
     'A Man of the Burned Men', 'wildling', 3, 17, {
@@ -10423,7 +10452,7 @@ export const CAVE_IDS = [];
         + 'Somebody has driven a nail through it to hold it there.',
     waking: 'It nests where the shaft opens on the sky, and everything the clans leave '
           + 'out for it, it takes.' }));
-  hang('roseroad', den('honeycombCave', 'The Honeycomb Caves', ['sapling', 'heartwarden'], 'hedgeKnight', 20,
+  hang('roseroad', [7, 6], den('honeycombCave', 'The Honeycomb Caves', ['sapling', 'heartwarden'], 'hedgeKnight', 20,
     ['poppyMilk', 'maesterKit'],
     'A Beekeeper: Six hundred years of hives and the whole hill is hollow with them. Mind the third chamber. They have not been told about you.',
     'A Beekeeper', 'goodwife', 2, 17, {
@@ -10432,7 +10461,7 @@ export const CAVE_IDS = [];
         + 'The oldest of them are the size of a child\u2019s.',
     waking: 'The hill is not hollow with hives. The hill is hollow with one thing, and '
           + 'the hives are how it eats.' }));
-  hang('princesPass', den('dornishCistern', 'A Dornish Cistern', ['sandviper', 'dornspine'], 'dornishOutrider', 23,
+  hang('princesPass', [14, 6], den('dornishCistern', 'A Dornish Cistern', ['sandviper', 'dornspine'], 'dornishOutrider', 23,
     ['weirwoodSap', 'antidote'],
     'A Water-Keeper: Dorne is not short of water. Dorne is short of people who know where it is kept, and I am one of four.',
     'A Water-Keeper', 'martell', 1, 17, {
@@ -10441,7 +10470,7 @@ export const CAVE_IDS = [];
         + 'The water has not been that high since before there were Martells.',
     waking: 'There are four people who know where Dorne keeps its water. There is one '
           + 'thing down here that has never had to be told.' }));
-  hang('stormlands', den('stormCave', 'A Cave under Shipbreaker Bay', ['crabcrag', 'krakenling'], 'sellsword', 21,
+  hang('stormlands', [9, 15], den('stormCave', 'A Cave under Shipbreaker Bay', ['crabcrag', 'krakenling'], 'sellsword', 21,
     ['shadeOfTheEvening', 'burnSalve'],
     'A Wrecker: The bay does the work. We only carry it up the beach, and we have been carrying it up the beach since before there was a castle on that headland.',
     'A Wrecker', 'sellsword', 2, 17, {
@@ -10450,7 +10479,7 @@ export const CAVE_IDS = [];
         + 'There is no room left on this wall and they have started on the next.',
     waking: 'The bay does the work, the wreckers said. Something in the bay does the '
           + 'work, and the wreckers carry it up the beach.' }));
-  hang('theGift', den('molesTown', "Mole's Town, Below", ['ravenling', 'wightling'], 'deserter', 19,
+  hang('theGift', [13, 12], den('molesTown', "Mole's Town, Below", ['ravenling', 'wightling'], 'deserter', 19,
     ['frostTonic', 'poppyMilk'],
     'A Moles Town Girl: Everything worth having in the Gift is underground, including most of the people. The Watch pretends not to know and we pretend to believe them.',
     'A Girl of Mole\'s Town', 'goodwife', 5, 17, {
@@ -10459,7 +10488,7 @@ export const CAVE_IDS = [];
         + 'The last dozen marks are dated and there is nothing beside them.',
     waking: 'Everything worth having in the Gift is underground. So is this, and it '
           + 'did not come from the Gift.' }));
-  hang('hauntedForest', den('childrensCave', 'A Cave of the Children', ['sapling', 'heartwarden'], 'wildlingRaider', 28,
+  hang('hauntedForest', [7, 6], den('childrensCave', 'A Cave of the Children', ['sapling', 'heartwarden'], 'wildlingRaider', 28,
     ['weirwoodSap', 'dragonglass'],
     'A Child of the Forest: We were here when the First Men came with their bronze, and we are here now, and there are two hundred of us left in the world. Do not tell them where.',
     'A Child of the Forest', 'child', 6, 18, {
@@ -10468,7 +10497,7 @@ export const CAVE_IDS = [];
         + 'and weeping the same red.\nThey are all looking at the same doorway.',
     waking: 'The roots at the back of this chamber are not roots, and they have been '
           + 'waiting a very long time for somebody to come this far in.' }));
-  hang('frostfangs', den('frostfangCave', 'A Frostfang Deep', ['palewalker', 'barrowlord'], 'wildlingRaider', 32,
+  hang('frostfangs', [15, 8], den('frostfangCave', 'A Frostfang Deep', ['palewalker', 'barrowlord'], 'wildlingRaider', 32,
     ['kissOfFire', 'kingsRansom'],
     'A Frozen Ranger: Do not light anything. The cold in here is not weather and it notices fire.',
     'A Frozen Ranger', 'nightswatch', 6, 18, {
@@ -10477,6 +10506,16 @@ export const CAVE_IDS = [];
         + 'at the shoulder.\nThere is no ranger in it and no sign that there was.',
     waking: 'The cold in here is not weather and it notices fire. You are carrying '
           + 'fire. It has noticed.' }));
+
+  /* The caves that were written with doors of their own. */
+  moveMouth('goldRoad', 'barrowCave', [3, 18]);
+  moveMouth('kingsroad', 'hollowHill', [16, 13]);
+  moveMouth('ironCoast', 'seaCave', [4, 14], { was: 'o' });
+  moveMouth('blackwaterBay', 'smugglersCave', [20, 13], { was: 's' });
+  moveMouth('theGullet', 'wreckersCave', [8, 5], { was: 'C' });
+  moveMouth('sunsetSea', 'drownedCave', [4, 7], { was: 'C' });
+  moveMouth('stepstones', 'pirateCave', [4, 5], { was: 'C' });
+  moveMouth('shiveringSea', 'iceCave', [12, 11], { was: 'C' });
 }
 
 /* ------------------------------------------------------ upstairs and down --
@@ -11553,17 +11592,25 @@ function dressGround() {
        - because those are crossed, not stepped out of. Pyke is eight rope
        bridges and six small stacks, and two tiles round every bridge-end was
        the whole of Pyke. */
-    for (const it of map.warps ?? []) clear(it.x, it.y, rows[it.y]?.[it.x] === 'D' ? 2 : 1);
+    for (const it of map.warps ?? []) clear(it.x, it.y, 'DE'.includes(rows[it.y]?.[it.x]) ? 2 : 1);
     for (const list of [map.npcs, map.signs, map.items, map.chests]) {
       for (const it of list ?? []) clear(it.x, it.y, 1);
     }
     for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) if (rows[y][x] === 'D' || rows[y][x] === 'K') clear(x, y, 1);
+      for (let x = 0; x < w; x++) if ('DEK'.includes(rows[y][x])) clear(x, y, 1);
     }
     /* And the tile a scene fires from. A barrel on it is a scene that never
        fires - the melee at Harrenhal went down under one on the first run. */
     for (const cs of Object.values(CUTSCENES)) {
       if (cs.map === id && Number.isInteger(cs.x) && Number.isInteger(cs.y)) clear(cs.x, cs.y, 1);
+      /* And where its people come out: a boulder dropped where the miner on
+         the gold road walks on is a miner standing inside a boulder. Only a
+         scene pinned to its own tile - one that happens anywhere puts its
+         people down round wherever you are. */
+      if (cs.map !== id || cs.anywhere) continue;
+      for (const beat of cs.beats) {
+        if (beat[0] === 'spawn') clear(beat[2].x, beat[2].y, 0);
+      }
     }
 
     /* The map as it can be walked, from its first door, with people and things

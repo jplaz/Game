@@ -58,13 +58,17 @@ export class Smithy {
   }
 
   close() {
-    this.manager.pop();
+    this.manager.remove(this);
     this.onClose?.();
   }
 
   update(dt) {
     dialog.update(dt);
     if (dialog.busy || this.script) return;
+    /* At the first question with nobody asking it. No key does anything here,
+       so a forge that ends up in this state is a forge you cannot leave -
+       and one did, for forty thousand frames. Ask again. */
+    if (this.mode === 'root') { this.run(() => this.openRoot()); return; }
     if (this.mode !== 'list') return;
 
     const rows = this.rowsFor(this.slot);

@@ -377,7 +377,7 @@ const report = await page.evaluate(
         if (scenes.busy) why.push('the manager is busy');
         if (here === 'Shop' || here === 'Smithy') {
           why.push(`mode ${s2.mode}, ${s2.rows?.length ?? '?'} rows, index ${s2.index}, `
-            + `${s2.buying ? 'buying' : 'selling'}, ${st?.player?.money ?? '?'} gold`);
+            + `${s2.buying ? 'buying' : 'selling'}, ${state.game.state?.player?.money ?? '?'} gold`);
         }
         /* And, for any scene, every plain field it has: a duel that sat for
            forty thousand frames said "Duel" and nothing else, and its phase,

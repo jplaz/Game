@@ -72,7 +72,7 @@ export class Shop {
   }
 
   close() {
-    this.manager.pop();
+    this.manager.remove(this);
     this.onClose?.();
   }
 
@@ -97,6 +97,9 @@ export class Shop {
     dialog.update(dt);
     if (dialog.busy || this.script) return;
 
+    /* At the first question with nobody asking it, which no key can answer:
+       ask again rather than hold on to somebody who wants out. */
+    if (this.mode === 'root') { this.run(() => this.openRoot()); return; }
     if (this.mode === 'list') this.updateList();
     else if (this.mode === 'quantity') this.updateQuantity();
   }

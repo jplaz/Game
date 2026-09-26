@@ -9,7 +9,7 @@
     "validate": "node tools/validate.mjs",
     "playtest": "node tools/playtest.mjs",
     "lint": "eslint --no-config-lookup -c tools/lint.config.mjs src tools gba/export.mjs",
-    "drivers": "for d in thecounter thedraw themenu pastfifty thefind therelic lastact comeback scenegates theeast thehall thelamp thelarder theopening thering theshingle thewear thewinter; do node tools/$d.mjs > /dev/null || { echo \"BAD $d\"; exit 1; }; echo \"ok  $d\"; done",
+    "drivers": "for d in thecounter thedraw theforge themenu pastfifty thefind therelic lastact comeback scenegates theeast thehall thelamp thelarder theopening thering theshingle thewear thewinter; do node tools/$d.mjs > /dev/null || { echo \"BAD $d\"; exit 1; }; echo \"ok  $d\"; done",
     "check": "npm run lint && npm run validate && node tools/checkmaps.mjs && node tools/checkstarts.mjs && npm run drivers"
   },
   "keywords": [

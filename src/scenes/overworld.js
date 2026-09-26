@@ -261,6 +261,15 @@ export class Overworld {
     this.frameTimer += dt;
     this.animFrame = Math.floor(this.frameTimer * 2.5) % 2;
 
+    /* A key that answers the box does not also act on the world. The box is
+       read first, so the press that picked "Draw steel" at "Call out Mikken?"
+       shut the box, and then - the box being shut - the same press spoke to
+       Mikken as well: his forge opened, the duel the answer had asked for was
+       pushed over it, and the forge's own question, cancelled by the duel,
+       closed the forge by popping the top of the stack, which was the duel.
+       What was left was a forge at its first question with nobody asking it,
+       which no key could do anything about. */
+    const answering = dialog.busy;
     dialog.update(dt);
     game.state.player.playtime += dt;
 
@@ -268,7 +277,7 @@ export class Overworld {
       this.updateArranging();
     } else if (this.approach) {
       this.updateApproach(dt);
-    } else if (!this.busy) {
+    } else if (!this.busy && !answering) {
       this.updateInput(dt);
     }
 
@@ -296,7 +305,12 @@ export class Overworld {
       return;
     }
     if (input.pressed('challenge')) {
-      this.callSomeoneOut();
+      /* Held like any conversation, so the world stays busy from the question
+         until the fight has started or been turned down, rather than being
+         free to open a shop in between. */
+      this.script = this.callSomeoneOut()
+        .catch((err) => console.error('Calling somebody out failed:', err))
+        .then(() => { this.script = null; });
       return;
     }
     if (this.player.moving || this.turnDelay > 0) return;

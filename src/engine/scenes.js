@@ -27,6 +27,22 @@ export class SceneManager {
     return scene;
   }
 
+  /**
+   * Takes one particular scene out of the stack, wherever it is in it. A screen
+   * that closes itself has to close itself: popping the top when something has
+   * been pushed over it throws that away instead and leaves the screen behind -
+   * which is how a duel vanished from over the forge at Winterfell and left a
+   * forge nobody could get out of.
+   */
+  remove(scene) {
+    if (this.current === scene) return this.pop();
+    const at = this.stack.indexOf(scene);
+    if (at < 0) return null;
+    this.stack.splice(at, 1);
+    scene.exit?.();
+    return scene;
+  }
+
   replace(scene) {
     while (this.stack.length) this.pop();
     this.push(scene);
